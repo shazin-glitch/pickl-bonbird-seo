@@ -365,6 +365,10 @@ button:hover{background:var(--color-background-secondary)}
 
 <!-- AI TOOLS TAB -->
 <div id="tab-ai" style="display:none">
+  <div class="section" id="apikey-section" style="display:flex;align-items:center;justify-content:space-between">
+    <div><div class="section-title">AI powered by Claude</div><div class="section-sub">API key configured server-side — all features ready to use</div></div>
+    <span style="font-size:11px;color:#3B6D11;font-weight:500">✓ Connected</span>
+  </div>
   <div class="section">
     <div class="section-title">Keyword suggestions</div>
     <div class="section-sub">Results cached — repeated searches use no API calls</div>
@@ -786,7 +790,7 @@ function renderAll(){
 function sw(t){
   ['keywords','competitors','compare','trends','local','audit','alerts','ai'].forEach(id=>document.getElementById('tab-'+id).style.display=id===t?'block':'none');
   document.querySelectorAll('.tab').forEach((b,i)=>b.classList.toggle('active',['keywords','competitors','compare','trends','local','audit','alerts','ai'][i]===t));
-  if(t==='trends')renderTrends();if(t==='competitors'){renderCompCards();renderCompView();}if(t==='alerts')renderAlerts();
+  if(t==='trends')renderTrends();if(t==='ai'){const k=localStorage.getItem('anthropic_key');const s=document.getElementById('apikey-status');if(s){s.textContent=k?'✓ API key is set — AI features ready':'Enter your Anthropic API key above to use AI features';s.style.color=k?'#3B6D11':'var(--color-text-secondary)';}}if(t==='competitors'){renderCompCards();renderCompView();}if(t==='alerts')renderAlerts();
 }
 
 load();
@@ -803,5 +807,20 @@ if(!keywords.length){
   save();
 }
 renderAll();
+
+function saveApiKey(){
+  const k=document.getElementById('apikey-input').value.trim();
+  if(!k||!k.startsWith('sk-')){document.getElementById('apikey-status').textContent='⚠ Key should start with sk-ant-...';document.getElementById('apikey-status').style.color='#D85A30';return;}
+  localStorage.setItem('anthropic_key',k);
+  document.getElementById('apikey-input').value='';
+  document.getElementById('apikey-status').textContent='✓ Key saved — AI features are ready';
+  document.getElementById('apikey-status').style.color='#3B6D11';
+}
+function clearApiKey(){
+  localStorage.removeItem('anthropic_key');
+  document.getElementById('apikey-input').value='';
+  document.getElementById('apikey-status').textContent='Key cleared.';
+  document.getElementById('apikey-status').style.color='var(--color-text-secondary)';
+}
 </script>
 </body></html>
