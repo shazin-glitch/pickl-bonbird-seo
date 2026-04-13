@@ -1,0 +1,807 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>SEO Command Center — Pickl & Bonbird</title>
+<style>
+:root {
+  --font-sans: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+  --font-mono: "SFMono-Regular", Consolas, "Liberation Mono", Menlo, monospace;
+  --border-radius-md: 8px;
+  --border-radius-lg: 12px;
+  --border-radius-xl: 16px;
+
+  --color-background-primary: #ffffff;
+  --color-background-secondary: #f4f4f2;
+  --color-background-tertiary: #ebebea;
+
+  --color-text-primary: #1a1915;
+  --color-text-secondary: #6b6b67;
+  --color-text-tertiary: #9b9b97;
+
+  --color-border-primary: rgba(0,0,0,0.4);
+  --color-border-secondary: rgba(0,0,0,0.3);
+  --color-border-tertiary: rgba(0,0,0,0.15);
+}
+
+@media (prefers-color-scheme: dark) {
+  :root {
+    --color-background-primary: #1c1c1a;
+    --color-background-secondary: #2a2a27;
+    --color-background-tertiary: #141412;
+
+    --color-text-primary: #f0ede8;
+    --color-text-secondary: #9b9b97;
+    --color-text-tertiary: #6b6b67;
+
+    --color-border-primary: rgba(255,255,255,0.4);
+    --color-border-secondary: rgba(255,255,255,0.3);
+    --color-border-tertiary: rgba(255,255,255,0.15);
+  }
+}
+
+body { background: var(--color-background-tertiary); }
+</style>
+<head><style>
+*{box-sizing:border-box;margin:0;padding:0}
+body{font-family:var(--font-sans);font-size:13px}
+.app{padding:1rem 0}
+.topbar{display:flex;align-items:center;justify-content:space-between;margin-bottom:1.25rem;flex-wrap:wrap;gap:8px}
+.brand{display:flex;align-items:center;gap:8px}
+.brand-dots{display:flex;gap:3px}
+.dot{width:8px;height:8px;border-radius:50%}
+.brand-title{font-size:15px;font-weight:500;color:var(--color-text-primary)}
+.brand-sub{font-size:11px;color:var(--color-text-secondary)}
+.tabs{display:flex;gap:5px;flex-wrap:wrap}
+.tab{padding:5px 12px;border:0.5px solid var(--color-border-secondary);border-radius:var(--border-radius-md);font-size:11px;cursor:pointer;background:transparent;color:var(--color-text-secondary);transition:all 0.15s}
+.tab.active{background:var(--color-background-secondary);color:var(--color-text-primary);font-weight:500}
+.sites-grid{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:1rem}
+.site-card{background:var(--color-background-primary);border:0.5px solid var(--color-border-tertiary);border-radius:var(--border-radius-lg);padding:.875rem 1rem}
+.site-header{display:flex;align-items:center;gap:7px;margin-bottom:9px}
+.site-name{font-size:13px;font-weight:500;color:var(--color-text-primary)}
+.site-url{font-size:10px;color:var(--color-text-secondary)}
+.stat-row{display:flex;gap:5px}
+.stat{background:var(--color-background-secondary);border-radius:var(--border-radius-md);padding:6px 8px;flex:1;text-align:center}
+.stat-val{font-size:16px;font-weight:500;color:var(--color-text-primary)}
+.stat-label{font-size:9px;color:var(--color-text-secondary);margin-top:1px}
+.section{background:var(--color-background-primary);border:0.5px solid var(--color-border-tertiary);border-radius:var(--border-radius-lg);padding:.875rem 1rem;margin-bottom:12px}
+.section-title{font-size:13px;font-weight:500;color:var(--color-text-primary);margin-bottom:4px}
+.section-sub{font-size:10px;color:var(--color-text-secondary);margin-bottom:10px}
+.row{display:flex;gap:5px;margin-bottom:8px;flex-wrap:wrap;align-items:flex-start}
+input[type=text],input[type=number],input[type=url],select,textarea{padding:5px 8px;border:0.5px solid var(--color-border-secondary);border-radius:var(--border-radius-md);font-size:12px;background:var(--color-background-primary);color:var(--color-text-primary);font-family:var(--font-sans)}
+input:focus,select:focus,textarea:focus{outline:none;border-color:var(--color-border-primary)}
+textarea{resize:vertical;min-height:50px;width:100%}
+button{padding:5px 11px;border:0.5px solid var(--color-border-secondary);border-radius:var(--border-radius-md);font-size:12px;cursor:pointer;background:transparent;color:var(--color-text-primary);font-family:var(--font-sans)}
+button:hover{background:var(--color-background-secondary)}
+.btn-blue{color:#185FA5;border-color:#185FA5}
+.btn-blue:hover{background:#E6F1FB}
+.btn-orange{color:#993C1D;border-color:#D85A30}
+.btn-orange:hover{background:#FAECE7}
+.btn-sm{padding:3px 8px;font-size:11px}
+.kw-table{width:100%;border-collapse:collapse;font-size:11px;table-layout:fixed}
+.kw-table th{text-align:left;padding:4px 6px;color:var(--color-text-secondary);font-weight:400;font-size:10px;border-bottom:0.5px solid var(--color-border-tertiary)}
+.kw-table td{padding:6px 6px;border-bottom:0.5px solid var(--color-border-tertiary);color:var(--color-text-primary);vertical-align:middle}
+.kw-table tr:last-child td{border-bottom:none}
+.kw-table tr:hover td{background:var(--color-background-secondary)}
+.rb{display:inline-block;padding:1px 6px;border-radius:20px;font-size:10px;font-weight:500}
+.rt{background:#EAF3DE;color:#27500A}
+.rm{background:#FAEEDA;color:#633806}
+.rl{background:#FCEBEB;color:#791F1F}
+.rn{background:var(--color-background-secondary);color:var(--color-text-secondary)}
+.tu{color:#3B6D11;font-size:10px}
+.td{color:#A32D2D;font-size:10px}
+.tf{color:var(--color-text-secondary);font-size:10px}
+.del-btn{background:none;border:none;color:var(--color-text-secondary);cursor:pointer;padding:1px 4px;font-size:12px}
+.del-btn:hover{color:#A32D2D;background:none}
+.empty{text-align:center;padding:1.25rem;color:var(--color-text-secondary);font-size:12px}
+.chart-wrap{position:relative;width:100%;height:180px}
+.ai-out{background:var(--color-background-secondary);border-radius:var(--border-radius-md);padding:9px 11px;font-size:12px;color:var(--color-text-primary);line-height:1.6;white-space:pre-wrap;max-height:280px;overflow-y:auto;margin-top:7px}
+.ai-loading{color:var(--color-text-secondary);font-style:italic}
+.cache-note{font-size:10px;color:var(--color-text-secondary);margin-top:3px}
+.tag{display:inline-block;padding:1px 6px;border-radius:20px;font-size:10px;margin-right:2px}
+.tag-local{background:#E6F1FB;color:#0C447C}
+.tag-brand{background:#EAF3DE;color:#27500A}
+.tag-menu{background:#FAEEDA;color:#633806}
+.tag-comp{background:#FBEAF0;color:#72243E}
+.tag-general{background:var(--color-background-secondary);color:var(--color-text-secondary)}
+.pills{display:flex;gap:4px;flex-wrap:wrap;margin-bottom:8px}
+.pill{padding:3px 9px;border-radius:20px;font-size:10px;cursor:pointer;border:0.5px solid var(--color-border-secondary);color:var(--color-text-secondary);background:transparent}
+.pill.active{background:var(--color-background-secondary);color:var(--color-text-primary);border-color:var(--color-border-primary)}
+.comp-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(120px,1fr));gap:6px;margin-bottom:10px}
+.comp-card{background:var(--color-background-secondary);border-radius:var(--border-radius-md);padding:7px 9px;display:flex;align-items:center;gap:6px}
+.comp-name{font-size:11px;font-weight:500;color:var(--color-text-primary)}
+.comp-sub{font-size:9px;color:var(--color-text-secondary)}
+.bar-wrap{display:flex;align-items:center;gap:4px}
+.bar-bg{flex:1;height:4px;background:var(--color-background-secondary);border-radius:3px;overflow:hidden}
+.bar-fill{height:100%;border-radius:3px}
+.score-ring{display:inline-flex;align-items:center;justify-content:center;width:44px;height:44px;border-radius:50%;font-size:15px;font-weight:500;border:2px solid}
+.score-good{border-color:#3B6D11;color:#3B6D11;background:#EAF3DE}
+.score-mid{border-color:#854F0B;color:#854F0B;background:#FAEEDA}
+.score-bad{border-color:#A32D2D;color:#A32D2D;background:#FCEBEB}
+.check-item{display:flex;align-items:flex-start;gap:8px;padding:5px 0;border-bottom:0.5px solid var(--color-border-tertiary)}
+.check-item:last-child{border-bottom:none}
+.check-label{font-size:11px;color:var(--color-text-primary);flex:1;line-height:1.4}
+.check-status{font-size:10px;padding:1px 7px;border-radius:20px;flex-shrink:0;margin-top:1px}
+.cs-done{background:#EAF3DE;color:#27500A}
+.cs-todo{background:#FCEBEB;color:#791F1F}
+.cs-na{background:var(--color-background-secondary);color:var(--color-text-secondary)}
+.check-toggle{cursor:pointer}
+.two-col{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+.alert-item{background:var(--color-background-secondary);border-radius:var(--border-radius-md);padding:7px 10px;margin-bottom:6px;display:flex;align-items:flex-start;gap:8px;font-size:11px}
+.alert-dot{width:6px;height:6px;border-radius:50%;flex-shrink:0;margin-top:3px}
+.alert-high{background:#A32D2D}
+.alert-mid{background:#854F0B}
+.alert-low{background:#3B6D11}
+.priority-badge{font-size:9px;padding:1px 5px;border-radius:10px;margin-left:5px}
+.pb-h{background:#FCEBEB;color:#791F1F}
+.pb-m{background:#FAEEDA;color:#633806}
+.pb-l{background:#EAF3DE;color:#27500A}
+.season-grid{display:grid;grid-template-columns:repeat(4,1fr);gap:6px}
+.season-card{background:var(--color-background-secondary);border-radius:var(--border-radius-md);padding:7px 8px;text-align:center}
+.season-name{font-size:10px;font-weight:500;color:var(--color-text-primary);margin-bottom:3px}
+.season-vol{font-size:9px;color:var(--color-text-secondary)}
+.insight-row{display:flex;justify-content:space-between;align-items:center;padding:5px 0;border-bottom:0.5px solid var(--color-border-tertiary);font-size:11px}
+.insight-row:last-child{border-bottom:none}
+@media(max-width:520px){.sites-grid{grid-template-columns:1fr}.two-col{grid-template-columns:1fr}.season-grid{grid-template-columns:repeat(2,1fr)}}
+</style>
+
+</head><body><div class="app">
+<div class="topbar">
+  <div class="brand">
+    <div class="brand-dots"><div class="dot" style="background:#185FA5"></div><div class="dot" style="background:#D85A30"></div></div>
+    <div><div class="brand-title">SEO Command Center</div><div class="brand-sub">Pickl &amp; Bonbird — UAE</div></div>
+  </div>
+  <div class="tabs">
+    <button class="tab active" onclick="sw('keywords')">Keywords</button>
+    <button class="tab" onclick="sw('competitors')">Competitors</button>
+    <button class="tab" onclick="sw('compare')">Compare</button>
+    <button class="tab" onclick="sw('trends')">Trends</button>
+    <button class="tab" onclick="sw('local')">Local SEO</button>
+    <button class="tab" onclick="sw('audit')">Page Audit</button>
+    <button class="tab" onclick="sw('alerts')">Alerts</button>
+    <button class="tab" onclick="sw('ai')">AI Tools</button>
+  </div>
+</div>
+
+<div class="sites-grid">
+  <div class="site-card">
+    <div class="site-header"><div class="dot" style="background:#185FA5"></div><div><div class="site-name">Pickl</div><div class="site-url">eatpickl.com</div></div></div>
+    <div class="stat-row">
+      <div class="stat"><div class="stat-val" id="s1total">0</div><div class="stat-label">keywords</div></div>
+      <div class="stat"><div class="stat-val" id="s1top">0</div><div class="stat-label">top 10</div></div>
+      <div class="stat"><div class="stat-val" id="s1avg">—</div><div class="stat-label">avg rank</div></div>
+      <div class="stat"><div class="stat-val" id="s1moved">0</div><div class="stat-label">improved</div></div>
+    </div>
+  </div>
+  <div class="site-card">
+    <div class="site-header"><div class="dot" style="background:#D85A30"></div><div><div class="site-name">Bonbird</div><div class="site-url">bonbirdchicken.com</div></div></div>
+    <div class="stat-row">
+      <div class="stat"><div class="stat-val" id="s2total">0</div><div class="stat-label">keywords</div></div>
+      <div class="stat"><div class="stat-val" id="s2top">0</div><div class="stat-label">top 10</div></div>
+      <div class="stat"><div class="stat-val" id="s2avg">—</div><div class="stat-label">avg rank</div></div>
+      <div class="stat"><div class="stat-val" id="s2moved">0</div><div class="stat-label">improved</div></div>
+    </div>
+  </div>
+</div>
+
+<!-- KEYWORDS TAB -->
+<div id="tab-keywords">
+  <div class="section">
+    <div class="section-title">Add / update keyword</div>
+    <div class="row">
+      <input type="text" id="kw-input" placeholder="Keyword (e.g. best chicken sandwich Dubai)" style="flex:2;min-width:150px">
+      <select id="kw-site" style="min-width:90px"><option value="1">Pickl</option><option value="2">Bonbird</option><option value="both">Both</option></select>
+      <select id="kw-cat" style="min-width:95px"><option value="">Category</option><option value="brand">Brand</option><option value="menu">Menu item</option><option value="local">Local/area</option><option value="comp">Competitor</option><option value="general">General</option></select>
+      <input type="number" id="kw-rank1" placeholder="Pickl rank" min="1" max="200" style="width:85px">
+      <input type="number" id="kw-rank2" placeholder="Bonbird rank" min="1" max="200" style="width:90px">
+      <input type="number" id="kw-vol" placeholder="Volume" min="0" style="width:75px">
+      <input type="text" id="kw-note" placeholder="Note" style="width:90px">
+      <button class="btn-blue" onclick="addKeyword()">+ Add</button>
+    </div>
+    <div class="pills">
+      <span class="pill active" onclick="filterCat(this,'')">All</span>
+      <span class="pill" onclick="filterCat(this,'brand')">Brand</span>
+      <span class="pill" onclick="filterCat(this,'menu')">Menu</span>
+      <span class="pill" onclick="filterCat(this,'local')">Local</span>
+      <span class="pill" onclick="filterCat(this,'comp')">Competitor</span>
+      <span class="pill" onclick="filterCat(this,'general')">General</span>
+    </div>
+    <table class="kw-table">
+      <thead><tr>
+        <th style="width:22%">Keyword</th><th style="width:7%">Cat</th><th style="width:8%">Vol</th>
+        <th style="width:9%">Pickl</th><th style="width:9%">Bonbird</th>
+        <th style="width:8%">↑ Pickl</th><th style="width:8%">↑ Bonbird</th>
+        <th style="width:12%">Note</th><th style="width:7%">Priority</th><th style="width:5%"></th>
+      </tr></thead>
+      <tbody id="kw-body"></tbody>
+    </table>
+    <div class="empty" id="kw-empty">No keywords yet — add one above</div>
+  </div>
+  <div style="display:flex;gap:6px;justify-content:flex-end">
+    <button class="btn-sm" onclick="exportCSV()">Export CSV</button>
+    <button class="btn-sm" onclick="document.getElementById('csv-file').click()">Import CSV</button>
+    <input type="file" id="csv-file" accept=".csv" style="display:none" onchange="handleCSV(event)">
+  </div>
+</div>
+
+<!-- COMPETITORS TAB -->
+<div id="tab-competitors" style="display:none">
+  <div class="section">
+    <div class="section-title">Competitor overview</div>
+    <div class="comp-grid" id="comp-cards"></div>
+    <div class="row">
+      <input type="text" id="comp-kw-sel" placeholder="Keyword..." list="comp-kw-list" style="flex:1;min-width:130px">
+      <datalist id="comp-kw-list"></datalist>
+      <select id="comp-sel" style="min-width:120px">
+        <option value="">Competitor...</option>
+        <option>Shake Shack</option><option>Five Guys</option><option>Salt</option><option>Highjoint</option><option>Maxzi</option>
+      </select>
+      <input type="number" id="comp-rank" placeholder="Their rank" min="1" max="200" style="width:80px">
+      <button class="btn-blue" onclick="addCompRank()">+ Add</button>
+    </div>
+  </div>
+  <div class="section">
+    <div class="section-title">Keyword showdown</div>
+    <div style="display:flex;gap:6px;margin-bottom:10px;align-items:center">
+      <label style="font-size:11px;color:var(--color-text-secondary)">Keyword:</label>
+      <select id="comp-view-kw" style="flex:1" onchange="renderCompView()"></select>
+    </div>
+    <div id="comp-view-wrap"><div class="empty">Add competitor ranks to compare</div></div>
+  </div>
+</div>
+
+<!-- COMPARE TAB -->
+<div id="tab-compare" style="display:none">
+  <div class="section">
+    <div class="section-title">Pickl vs Bonbird</div>
+    <div id="compare-wrap"><div class="empty">Add keywords on both sites to compare</div></div>
+  </div>
+</div>
+
+<!-- TRENDS TAB -->
+<div id="tab-trends" style="display:none">
+  <div class="section">
+    <div class="section-title">Rank history</div>
+    <div style="display:flex;gap:6px;margin-bottom:10px;align-items:center">
+      <label style="font-size:11px;color:var(--color-text-secondary)">Keyword:</label>
+      <select id="trend-kw-sel" onchange="renderTrends()" style="flex:1"></select>
+    </div>
+    <div class="chart-wrap"><canvas id="trendChart" role="img" aria-label="Rank history line chart"></canvas></div>
+    <div id="trend-legend" style="display:flex;gap:12px;margin-top:6px;font-size:10px;color:var(--color-text-secondary)"></div>
+  </div>
+  <div class="section">
+    <div class="section-title">UAE seasonal search calendar</div>
+    <div class="section-sub">When search volume spikes for restaurants in the UAE — plan content ahead</div>
+    <div class="season-grid">
+      <div class="season-card"><div class="season-name">Ramadan</div><div class="season-vol">Mar–Apr · iftar, suhoor searches spike 3–5x</div></div>
+      <div class="season-card"><div class="season-name">Eid Al Fitr</div><div class="season-vol">Apr · family dining, celebrations</div></div>
+      <div class="season-card"><div class="season-name">Dubai Food Fest</div><div class="season-vol">Feb–Mar · food discovery peaks</div></div>
+      <div class="season-card"><div class="season-name">Summer</div><div class="season-vol">Jun–Aug · delivery &amp; indoor dining up</div></div>
+      <div class="season-card"><div class="season-name">DSF</div><div class="season-vol">Dec–Jan · tourist searches surge</div></div>
+      <div class="season-card"><div class="season-name">UAE National Day</div><div class="season-vol">Dec · celebrations, group dining</div></div>
+      <div class="season-card"><div class="season-name">Back to School</div><div class="season-vol">Sep · quick meals, value searches</div></div>
+      <div class="season-card"><div class="season-name">Eid Al Adha</div><div class="season-vol">Jun · halal, meat-focused keywords</div></div>
+    </div>
+  </div>
+</div>
+
+<!-- LOCAL SEO TAB -->
+<div id="tab-local" style="display:none">
+  <div class="two-col">
+    <div>
+      <div class="section">
+        <div class="section-title">Pickl — local SEO checklist</div>
+        <div class="section-sub">eatpickl.com · UAE market</div>
+        <div id="local-checks-1"></div>
+      </div>
+    </div>
+    <div>
+      <div class="section">
+        <div class="section-title">Bonbird — local SEO checklist</div>
+        <div class="section-sub">bonbirdchicken.com · UAE market</div>
+        <div id="local-checks-2"></div>
+      </div>
+    </div>
+  </div>
+  <div class="section">
+    <div class="section-title">UAE restaurant directories to list on</div>
+    <div class="section-sub">Being listed on these platforms boosts local SEO authority and drives direct traffic</div>
+    <table class="kw-table" style="table-layout:auto">
+      <thead><tr><th>Platform</th><th>Type</th><th>Priority</th><th>Pickl</th><th>Bonbird</th></tr></thead>
+      <tbody id="dir-table"></tbody>
+    </table>
+  </div>
+  <div class="section">
+    <div class="section-title">Bilingual SEO — Arabic keywords to target</div>
+    <div class="section-sub">UAE has 40%+ Arabic-speaking users. These searches are often less competitive</div>
+    <div id="arabic-kws"></div>
+    <button class="btn-blue btn-sm" style="margin-top:8px" onclick="aiArabicKw()">Generate more Arabic keywords with AI</button>
+    <div id="ai-arabic-out" style="display:none"><div id="ai-arabic-content" class="ai-out"></div><div class="cache-note" id="ai-arabic-cache"></div></div>
+  </div>
+</div>
+
+<!-- PAGE AUDIT TAB -->
+<div id="tab-audit" style="display:none">
+  <div class="section">
+    <div class="section-title">On-page SEO audit</div>
+    <div class="section-sub">Paste your page details below — Claude will audit and score it against UAE SEO best practices</div>
+    <div class="row">
+      <select id="audit-site" style="min-width:100px"><option value="Pickl (eatpickl.com)">Pickl</option><option value="Bonbird (bonbirdchicken.com)">Bonbird</option></select>
+      <input type="text" id="audit-page" placeholder="Page (e.g. Homepage, Menu page)" style="flex:1;min-width:120px">
+      <input type="text" id="audit-kw" placeholder="Target keyword" style="flex:1;min-width:140px">
+    </div>
+    <div style="margin-bottom:7px"><input type="text" id="audit-title" placeholder="Current meta title (paste it here)" style="width:100%"></div>
+    <div style="margin-bottom:7px"><input type="text" id="audit-desc" placeholder="Current meta description (paste it here)" style="width:100%"></div>
+    <textarea id="audit-content" placeholder="Paste your H1, H2s, and first 2-3 paragraphs of page content here..." rows="4"></textarea>
+    <div style="margin-top:8px"><button class="btn-blue" onclick="aiPageAudit()">Run AI audit</button></div>
+    <div id="ai-audit-out" style="display:none"><div id="ai-audit-content" class="ai-out"></div><div class="cache-note" id="ai-audit-cache"></div></div>
+  </div>
+  <div class="section">
+    <div class="section-title">Technical SEO checklist</div>
+    <div class="section-sub">Core technical issues to fix for both sites — check off as you complete them</div>
+    <div id="tech-checks"></div>
+  </div>
+</div>
+
+<!-- ALERTS TAB -->
+<div id="tab-alerts" style="display:none">
+  <div class="section">
+    <div class="section-title">Rank movement alerts</div>
+    <div class="section-sub">Keywords that have moved significantly since last update</div>
+    <div id="alerts-wrap"></div>
+  </div>
+  <div class="section">
+    <div class="section-title">Priority opportunities</div>
+    <div class="section-sub">Keywords with high volume but low rank — highest ROI targets</div>
+    <div id="opps-wrap"></div>
+  </div>
+  <div class="section">
+    <div class="section-title">Quick wins</div>
+    <div class="section-sub">Rankings between #11–20 — one push could get these to page 1</div>
+    <div id="quickwins-wrap"></div>
+  </div>
+</div>
+
+<!-- AI TOOLS TAB -->
+<div id="tab-ai" style="display:none">
+  <div class="section">
+    <div class="section-title">Keyword suggestions</div>
+    <div class="section-sub">Results cached — repeated searches use no API calls</div>
+    <div class="row">
+      <input type="text" id="ai-seed" placeholder="Seed topic (e.g. fried chicken Dubai)" style="flex:2;min-width:150px">
+      <select id="ai-site-sel" style="min-width:95px"><option value="Pickl (eatpickl.com)">Pickl</option><option value="Bonbird (bonbirdchicken.com)">Bonbird</option><option value="both Pickl and Bonbird">Both</option></select>
+      <button class="btn-blue" onclick="aiSuggestKeywords()">Suggest keywords</button>
+    </div>
+    <div id="ai-kw-out" style="display:none">
+      <div id="ai-kw-content" class="ai-out"></div>
+      <div class="cache-note" id="ai-kw-cache"></div>
+      <button class="btn-sm btn-blue" style="margin-top:6px" onclick="importAISuggestions()">Import to keyword tracker</button>
+    </div>
+  </div>
+  <div class="section">
+    <div class="section-title">Content brief generator</div>
+    <div class="section-sub">Full SEO brief: headings, word count, FAQs, CTAs</div>
+    <div class="row">
+      <input type="text" id="ai-brief-kw" placeholder="Target keyword" style="flex:2;min-width:150px">
+      <select id="ai-brief-site" style="min-width:95px"><option value="Pickl (eatpickl.com)">Pickl</option><option value="Bonbird (bonbirdchicken.com)">Bonbird</option></select>
+      <button class="btn-blue" onclick="aiContentBrief()">Generate brief</button>
+    </div>
+    <div id="ai-brief-out" style="display:none"><div id="ai-brief-content" class="ai-out"></div><div class="cache-note" id="ai-brief-cache"></div></div>
+  </div>
+  <div class="section">
+    <div class="section-title">Meta title &amp; description writer</div>
+    <div class="row">
+      <input type="text" id="ai-meta-kw" placeholder="Target keyword" style="flex:1;min-width:120px">
+      <input type="text" id="ai-meta-page" placeholder="Page name" style="flex:1;min-width:110px">
+      <select id="ai-meta-site" style="min-width:95px"><option value="Pickl (eatpickl.com)">Pickl</option><option value="Bonbird (bonbirdchicken.com)">Bonbird</option></select>
+      <button class="btn-blue" onclick="aiMetaWriter()">Write meta</button>
+    </div>
+    <div id="ai-meta-out" style="display:none"><div id="ai-meta-content" class="ai-out"></div><div class="cache-note" id="ai-meta-cache"></div></div>
+  </div>
+  <div class="section">
+    <div class="section-title">Competitor gap analysis</div>
+    <div class="row">
+      <select id="ai-gap-site" style="min-width:95px"><option value="Pickl">Pickl</option><option value="Bonbird">Bonbird</option></select>
+      <select id="ai-gap-comp" style="min-width:120px">
+        <option value="Shake Shack">vs Shake Shack</option><option value="Five Guys">vs Five Guys</option>
+        <option value="Salt">vs Salt</option><option value="Highjoint">vs Highjoint</option><option value="Maxzi">vs Maxzi</option>
+      </select>
+      <button class="btn-blue" onclick="aiGapAnalysis()">Analyse gaps</button>
+    </div>
+    <div id="ai-gap-out" style="display:none"><div id="ai-gap-content" class="ai-out"></div><div class="cache-note" id="ai-gap-cache"></div></div>
+  </div>
+  <div class="section">
+    <div class="section-title">Schema markup generator</div>
+    <div class="section-sub">Generates Restaurant schema JSON-LD to paste into your site's &lt;head&gt; — helps Google understand your business</div>
+    <div class="row">
+      <select id="schema-site" style="min-width:95px"><option value="Pickl">Pickl</option><option value="Bonbird">Bonbird</option></select>
+      <input type="text" id="schema-loc" placeholder="Location (e.g. Dubai Marina)" style="flex:1;min-width:120px">
+      <input type="text" id="schema-phone" placeholder="Phone number" style="flex:1;min-width:120px">
+      <button class="btn-blue" onclick="aiSchema()">Generate schema</button>
+    </div>
+    <div id="ai-schema-out" style="display:none"><div id="ai-schema-content" class="ai-out" style="font-family:var(--font-mono);font-size:11px"></div><div class="cache-note" id="ai-schema-cache"></div></div>
+  </div>
+  <div class="section">
+    <div class="section-title">Review response writer</div>
+    <div class="section-sub">Responding to Google reviews with keywords boosts local SEO — generate a reply instantly</div>
+    <div class="row">
+      <select id="review-site" style="min-width:95px"><option value="Pickl">Pickl</option><option value="Bonbird">Bonbird</option></select>
+      <select id="review-sentiment" style="min-width:100px"><option value="positive">Positive review</option><option value="negative">Negative review</option><option value="mixed">Mixed review</option></select>
+    </div>
+    <textarea id="review-text" placeholder="Paste the customer review here..." rows="3"></textarea>
+    <div style="margin-top:7px"><button class="btn-blue" onclick="aiReviewReply()">Write response</button></div>
+    <div id="ai-review-out" style="display:none"><div id="ai-review-content" class="ai-out"></div><div class="cache-note" id="ai-review-cache"></div></div>
+  </div>
+</div>
+</div>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.js"></script>
+<script>
+const COMPS=[{name:'Shake Shack',color:'#185FA5'},{name:'Five Guys',color:'#3B6D11'},{name:'Salt',color:'#D85A30'},{name:'Highjoint',color:'#854F0B'},{name:'Maxzi',color:'#72243E'}];
+let keywords=[],compRanks=[],aiCache={},localChecks={1:{},2:{}},techChecks={},dirChecks={1:{},2:{}},trendChart=null,activeFilter='';
+
+const LOCAL_CHECKS=[
+  {id:'gbp',label:'Google Business Profile claimed & verified'},
+  {id:'halal',label:'Halal attribute set on GBP (critical for UAE)'},
+  {id:'arabic',label:'Arabic business name added to GBP'},
+  {id:'photos',label:'10+ high-quality photos on GBP'},
+  {id:'hours',label:'Ramadan & holiday hours updated'},
+  {id:'posts',label:'Weekly GBP posts published'},
+  {id:'reviews',label:'Responding to all reviews within 48hrs'},
+  {id:'zomato',label:'Listed on Zomato UAE'},
+  {id:'tripadvisor',label:'Listed on TripAdvisor'},
+  {id:'deliveroo',label:'Listed on Deliveroo/Talabat'},
+  {id:'schema',label:'Restaurant schema markup on website'},
+  {id:'nap',label:'NAP consistent across all directories'},
+  {id:'mobile',label:'Mobile page speed < 3 seconds'},
+  {id:'arabic_page',label:'Arabic language page or content exists'},
+];
+
+const TECH_CHECKS=[
+  {id:'ssl',label:'HTTPS enabled on all pages'},
+  {id:'mobile',label:'Mobile-responsive design'},
+  {id:'speed',label:'Page speed < 3s (test with PageSpeed Insights)'},
+  {id:'sitemap',label:'XML sitemap submitted to Google Search Console'},
+  {id:'robots',label:'robots.txt correctly configured'},
+  {id:'h1',label:'Each page has exactly one H1 tag'},
+  {id:'meta',label:'Unique meta titles & descriptions on all pages'},
+  {id:'images',label:'All images have descriptive alt text'},
+  {id:'canonical',label:'Canonical tags set to prevent duplicate content'},
+  {id:'schema_rest',label:'Restaurant schema JSON-LD in <head>'},
+  {id:'gsc',label:'Google Search Console connected'},
+  {id:'ga4',label:'Google Analytics 4 installed'},
+  {id:'breadcrumbs',label:'Breadcrumb navigation (helps Google crawl)'},
+  {id:'internal',label:'Internal links between related pages'},
+];
+
+const DIRS=[
+  {name:'Zomato UAE',type:'Food',priority:'high',url:'zomato.com/ae'},
+  {name:'TripAdvisor',type:'Travel/Food',priority:'high',url:'tripadvisor.com'},
+  {name:'Talabat',type:'Delivery',priority:'high',url:'talabat.com'},
+  {name:'Deliveroo UAE',type:'Delivery',priority:'high',url:'deliveroo.ae'},
+  {name:'Noon Food',type:'Delivery',priority:'high',url:'food.noon.com'},
+  {name:'Google Maps',type:'Local',priority:'high',url:'maps.google.com'},
+  {name:'Dubizzle',type:'General',priority:'medium',url:'dubizzle.com'},
+  {name:'UAE Yellow Pages',type:'Directory',priority:'medium',url:'yellowpages.ae'},
+  {name:'OpenTable',type:'Reservations',priority:'medium',url:'opentable.com'},
+  {name:'Yelp',type:'Reviews',priority:'low',url:'yelp.com'},
+];
+
+const ARABIC_KWS=[
+  {ar:'مطعم برجر دبي',en:'burger restaurant dubai',vol:'~1200/mo'},
+  {ar:'أفضل دجاج مقلي الإمارات',en:'best fried chicken UAE',vol:'~800/mo'},
+  {ar:'مطعم حلال قريب مني',en:'halal restaurant near me',vol:'~2000/mo'},
+  {ar:'برجر سماش دبي',en:'smash burger dubai',vol:'~600/mo'},
+  {ar:'توصيل طعام دبي',en:'food delivery dubai',vol:'~3500/mo'},
+  {ar:'مطعم عائلي أبوظبي',en:'family restaurant abu dhabi',vol:'~900/mo'},
+];
+
+function save(){try{localStorage.setItem('pb2_kw',JSON.stringify(keywords));localStorage.setItem('pb2_cr',JSON.stringify(compRanks));localStorage.setItem('pb2_cache',JSON.stringify(aiCache));localStorage.setItem('pb2_lc',JSON.stringify(localChecks));localStorage.setItem('pb2_tc',JSON.stringify(techChecks));localStorage.setItem('pb2_dc',JSON.stringify(dirChecks));}catch(e){}}
+function load(){try{const k=localStorage.getItem('pb2_kw'),c=localStorage.getItem('pb2_cr'),a=localStorage.getItem('pb2_cache'),lc=localStorage.getItem('pb2_lc'),tc=localStorage.getItem('pb2_tc'),dc=localStorage.getItem('pb2_dc');if(k)keywords=JSON.parse(k);if(c)compRanks=JSON.parse(c);if(a)aiCache=JSON.parse(a);if(lc)localChecks=JSON.parse(lc);if(tc)techChecks=JSON.parse(tc);if(dc)dirChecks=JSON.parse(dc);}catch(e){}}
+function today(){return new Date().toLocaleDateString('en-GB',{day:'numeric',month:'short'});}
+
+function addKeyword(){
+  const kw=document.getElementById('kw-input').value.trim().toLowerCase();if(!kw)return;
+  const site=document.getElementById('kw-site').value,cat=document.getElementById('kw-cat').value;
+  const r1=site==='2'?null:parseInt(document.getElementById('kw-rank1').value)||null;
+  const r2=site==='1'?null:parseInt(document.getElementById('kw-rank2').value)||null;
+  const vol=parseInt(document.getElementById('kw-vol').value)||null,note=document.getElementById('kw-note').value.trim();
+  const ex=keywords.find(k=>k.kw===kw);
+  if(ex){if(r1!==null)ex.rank1=r1;if(r2!==null)ex.rank2=r2;if(vol!==null)ex.vol=vol;if(note)ex.note=note;if(cat)ex.cat=cat;ex.history.push({date:today(),s1:r1!==null?r1:ex.rank1,s2:r2!==null?r2:ex.rank2});}
+  else keywords.push({kw,rank1:r1,rank2:r2,vol,cat,note,history:[{date:today(),s1:r1,s2:r2}]});
+  ['kw-input','kw-rank1','kw-rank2','kw-vol','kw-note'].forEach(id=>document.getElementById(id).value='');
+  save();renderAll();
+}
+function removeKeyword(i){keywords.splice(i,1);save();renderAll();}
+function filterCat(el,cat){activeFilter=cat;document.querySelectorAll('.pill').forEach(p=>p.classList.remove('active'));el.classList.add('active');renderKeywords();}
+
+function priority(k){
+  const vol=k.vol||0,r1=k.rank1||999,r2=k.rank2||999,minR=Math.min(r1,r2);
+  if(vol>1000&&minR>10)return'high';
+  if(vol>500&&minR>5)return'med';
+  return'low';
+}
+
+function rb(r){if(!r)return'<span class="rb rn">—</span>';const c=r<=10?'rt':r<=30?'rm':'rl';return`<span class="rb ${c}">#${r}</span>`;}
+function trend(history,key){if(!history||history.length<2)return'<span class="tf">—</span>';const l=history[history.length-1][key],p=history[history.length-2][key];if(!l||!p)return'<span class="tf">—</span>';const d=p-l;if(d>0)return`<span class="tu">▲${d}</span>`;if(d<0)return`<span class="td">▼${Math.abs(d)}</span>`;return'<span class="tf">→</span>';}
+function ctag(cat){if(!cat)return'';return`<span class="tag tag-${cat}">${cat}</span>`;}
+function pbadge(p){if(p==='high')return'<span class="priority-badge pb-h">high</span>';if(p==='med')return'<span class="priority-badge pb-m">med</span>';return'<span class="priority-badge pb-l">low</span>';}
+
+function renderKeywords(){
+  const body=document.getElementById('kw-body'),empty=document.getElementById('kw-empty');
+  const filtered=activeFilter?keywords.filter(k=>k.cat===activeFilter):keywords;
+  if(!filtered.length){body.innerHTML='';empty.style.display='block';return;}
+  empty.style.display='none';
+  body.innerHTML=filtered.map(k=>{const i=keywords.indexOf(k);return`<tr>
+    <td style="font-weight:500">${k.kw}</td><td>${ctag(k.cat)}</td>
+    <td style="color:var(--color-text-secondary)">${k.vol?k.vol.toLocaleString():'—'}</td>
+    <td>${rb(k.rank1)}</td><td>${rb(k.rank2)}</td>
+    <td>${trend(k.history,'s1')}</td><td>${trend(k.history,'s2')}</td>
+    <td style="font-size:10px;color:var(--color-text-secondary);max-width:90px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap" title="${k.note||''}">${k.note||''}</td>
+    <td>${pbadge(priority(k))}</td>
+    <td><button class="del-btn" onclick="removeKeyword(${i})">✕</button></td>
+  </tr>`;}).join('');
+}
+
+function renderStats(){
+  [1,2].forEach(n=>{
+    const key='rank'+n,ranks=keywords.map(k=>k[key]).filter(r=>r!=null);
+    document.getElementById('s'+n+'total').textContent=ranks.length;
+    document.getElementById('s'+n+'top').textContent=ranks.filter(r=>r<=10).length;
+    document.getElementById('s'+n+'avg').textContent=ranks.length?Math.round(ranks.reduce((a,b)=>a+b,0)/ranks.length):'—';
+    const improved=keywords.filter(k=>{const h=k.history;if(h.length<2)return false;const last=h[h.length-1]['s'+n],prev=h[h.length-2]['s'+n];return last&&prev&&last<prev;}).length;
+    document.getElementById('s'+n+'moved').textContent=improved;
+  });
+}
+
+function renderCompCards(){
+  document.getElementById('comp-cards').innerHTML=COMPS.map(c=>{
+    const entries=compRanks.filter(r=>r.comp===c.name);
+    const avg=entries.length?Math.round(entries.reduce((a,b)=>a+b.rank,0)/entries.length):null;
+    return`<div class="comp-card"><div class="dot" style="background:${c.color}"></div><div><div class="comp-name">${c.name}</div><div class="comp-sub">${entries.length} kws${avg?', avg #'+avg:''}</div></div></div>`;
+  }).join('');
+}
+
+function renderCompKwList(){
+  document.getElementById('comp-kw-list').innerHTML=keywords.map(k=>`<option value="${k.kw}">`).join('');
+  const sel=document.getElementById('comp-view-kw'),cur=sel.value;
+  sel.innerHTML=keywords.map(k=>`<option value="${k.kw}">${k.kw}</option>`).join('');
+  if(keywords.find(k=>k.kw===cur))sel.value=cur;
+}
+
+function addCompRank(){
+  const kw=document.getElementById('comp-kw-sel').value.trim().toLowerCase();
+  const comp=document.getElementById('comp-sel').value,rank=parseInt(document.getElementById('comp-rank').value)||null;
+  if(!kw||!comp||!rank)return;
+  const ex=compRanks.find(r=>r.kw===kw&&r.comp===comp);
+  if(ex){ex.rank=rank;ex.date=today();}else compRanks.push({kw,comp,rank,date:today()});
+  document.getElementById('comp-rank').value='';save();renderAll();
+}
+
+function renderCompView(){
+  const kw=document.getElementById('comp-view-kw').value,wrap=document.getElementById('comp-view-wrap');
+  const kwData=keywords.find(k=>k.kw===kw),cData=compRanks.filter(r=>r.kw===kw);
+  const entries=[];
+  if(kwData?.rank1)entries.push({name:'Pickl',rank:kwData.rank1,color:'#185FA5'});
+  if(kwData?.rank2)entries.push({name:'Bonbird',rank:kwData.rank2,color:'#D85A30'});
+  cData.forEach(c=>{const col=COMPS.find(x=>x.name===c.comp);entries.push({name:c.comp,rank:c.rank,color:col?col.color:'#888'});});
+  if(!entries.length){wrap.innerHTML='<div class="empty">No data for this keyword yet</div>';return;}
+  entries.sort((a,b)=>a.rank-b.rank);
+  const maxR=Math.max(...entries.map(e=>e.rank),100);
+  wrap.innerHTML=`<table class="kw-table" style="table-layout:auto"><thead><tr><th>Brand</th><th>Rank</th><th>Position</th></tr></thead><tbody>${entries.map((e,i)=>`<tr><td><span style="display:inline-flex;align-items:center;gap:5px"><span style="width:7px;height:7px;border-radius:50%;background:${e.color}"></span><span style="font-weight:${i===0?500:400}">${e.name}</span></span></td><td>${rb(e.rank)}</td><td><div class="bar-wrap"><div class="bar-bg"><div class="bar-fill" style="width:${Math.round((1-e.rank/maxR)*100)}%;background:${e.color}"></div></div><span style="font-size:10px;color:var(--color-text-secondary);min-width:28px">#${e.rank}</span></div></td></tr>`).join('')}</tbody></table>`;
+}
+
+function renderCompare(){
+  const wrap=document.getElementById('compare-wrap'),shared=keywords.filter(k=>k.rank1&&k.rank2);
+  if(!shared.length){wrap.innerHTML='<div class="empty">Add keywords on both sites</div>';return;}
+  const maxR=Math.max(...shared.flatMap(k=>[k.rank1,k.rank2]),100);
+  wrap.innerHTML=`<table class="kw-table" style="table-layout:auto"><thead><tr><th>Keyword</th><th>Pickl</th><th>Bonbird</th><th>Winner</th></tr></thead><tbody>${shared.map(k=>{const aW=k.rank1<k.rank2,tied=k.rank1===k.rank2;return`<tr><td style="font-weight:500">${k.kw}</td><td><div class="bar-wrap"><div class="bar-bg"><div class="bar-fill" style="width:${Math.round((1-k.rank1/maxR)*100)}%;background:#185FA5"></div></div><span style="font-size:10px;min-width:26px">#${k.rank1}</span></div></td><td><div class="bar-wrap"><div class="bar-bg"><div class="bar-fill" style="width:${Math.round((1-k.rank2/maxR)*100)}%;background:#D85A30"></div></div><span style="font-size:10px;min-width:26px">#${k.rank2}</span></div></td><td style="font-size:11px;font-weight:500;color:${tied?'var(--color-text-secondary)':aW?'#185FA5':'#D85A30'}">${tied?'Tied':aW?'Pickl':'Bonbird'}</td></tr>`;}).join('')}</tbody></table>`;
+}
+
+function renderTrends(){
+  const sel=document.getElementById('trend-kw-sel'),legend=document.getElementById('trend-legend');
+  const kw=keywords.find(k=>k.kw===sel.value);
+  if(trendChart){trendChart.destroy();trendChart=null;}
+  if(!kw){legend.innerHTML='';return;}
+  trendChart=new Chart(document.getElementById('trendChart'),{type:'line',data:{labels:kw.history.map(h=>h.date),datasets:[{label:'Pickl',data:kw.history.map(h=>h.s1),borderColor:'#185FA5',backgroundColor:'rgba(24,95,165,0.06)',tension:0.3,pointRadius:3,fill:true,borderDash:[],pointStyle:'circle'},{label:'Bonbird',data:kw.history.map(h=>h.s2),borderColor:'#D85A30',backgroundColor:'rgba(216,90,48,0.06)',tension:0.3,pointRadius:3,fill:true,borderDash:[5,3],pointStyle:'rect'}]},options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{display:false}},scales:{y:{reverse:true,min:1,title:{display:true,text:'Rank',font:{size:10}},grid:{color:'rgba(128,128,128,0.07)'}},x:{grid:{display:false}}}}});
+  legend.innerHTML=`<span style="display:flex;align-items:center;gap:3px"><span style="width:10px;height:2px;background:#185FA5;display:inline-block"></span>Pickl</span><span style="display:flex;align-items:center;gap:3px"><span style="width:10px;height:2px;background:#D85A30;display:inline-block;border-top:2px dashed #D85A30"></span>Bonbird</span>`;
+}
+
+function populateTrendSel(){const sel=document.getElementById('trend-kw-sel'),cur=sel.value;sel.innerHTML=keywords.map(k=>`<option value="${k.kw}">${k.kw}</option>`).join('');if(keywords.find(k=>k.kw===cur))sel.value=cur;}
+
+function renderLocalChecks(){
+  [1,2].forEach(n=>{
+    document.getElementById('local-checks-'+n).innerHTML=LOCAL_CHECKS.map(c=>{
+      const done=localChecks[n][c.id]||false;
+      return`<div class="check-item"><div class="check-label">${c.label}</div><span class="check-status ${done?'cs-done':'cs-todo'} check-toggle" onclick="toggleCheck('local',${n},'${c.id}',this)">${done?'Done':'To-do'}</span></div>`;
+    }).join('');
+  });
+}
+
+function renderDirTable(){
+  document.getElementById('dir-table').innerHTML=DIRS.map(d=>{
+    const p1=dirChecks[1][d.name]||false,p2=dirChecks[2][d.name]||false;
+    const pc=d.priority==='high'?'pb-h':d.priority==='medium'?'pb-m':'pb-l';
+    return`<tr><td style="font-weight:500">${d.name}</td><td style="color:var(--color-text-secondary)">${d.type}</td><td><span class="priority-badge ${pc}">${d.priority}</span></td><td><span class="check-status ${p1?'cs-done':'cs-todo'} check-toggle" onclick="toggleCheck('dir',1,'${d.name}',this)" style="cursor:pointer">${p1?'Listed':'Not listed'}</span></td><td><span class="check-status ${p2?'cs-done':'cs-todo'} check-toggle" onclick="toggleCheck('dir',2,'${d.name}',this)" style="cursor:pointer">${p2?'Listed':'Not listed'}</span></td></tr>`;
+  }).join('');
+}
+
+function renderArabicKws(){
+  document.getElementById('arabic-kws').innerHTML=`<table class="kw-table" style="table-layout:auto"><thead><tr><th>Arabic keyword</th><th>English meaning</th><th>Est. volume</th><th></th></tr></thead><tbody>${ARABIC_KWS.map(k=>`<tr><td style="font-weight:500;direction:rtl">${k.ar}</td><td style="color:var(--color-text-secondary)">${k.en}</td><td>${k.vol}</td><td><button class="btn-sm btn-blue" onclick="importArabic('${k.kw||k.en}')">Add</button></td></tr>`).join('')}</tbody></table>`;
+}
+
+function importArabic(kw){
+  if(!keywords.find(k=>k.kw===kw)){keywords.push({kw,rank1:null,rank2:null,vol:null,cat:'local',note:'Arabic kw',history:[{date:today(),s1:null,s2:null}]});save();renderAll();}
+}
+
+function renderTechChecks(){
+  document.getElementById('tech-checks').innerHTML=TECH_CHECKS.map(c=>{
+    const done=techChecks[c.id]||false;
+    return`<div class="check-item"><div class="check-label">${c.label}</div><span class="check-status ${done?'cs-done':'cs-todo'} check-toggle" onclick="toggleCheck('tech',0,'${c.id}',this)">${done?'Done':'To-do'}</span></div>`;
+  }).join('');
+}
+
+function toggleCheck(type,site,id,el){
+  if(type==='local'){localChecks[site]=localChecks[site]||{};localChecks[site][id]=!localChecks[site][id];el.textContent=localChecks[site][id]?'Done':'To-do';el.className='check-status '+(localChecks[site][id]?'cs-done':'cs-todo')+' check-toggle';}
+  else if(type==='tech'){techChecks[id]=!techChecks[id];el.textContent=techChecks[id]?'Done':'To-do';el.className='check-status '+(techChecks[id]?'cs-done':'cs-todo')+' check-toggle';}
+  else if(type==='dir'){dirChecks[site]=dirChecks[site]||{};dirChecks[site][id]=!dirChecks[site][id];el.textContent=dirChecks[site][id]?'Listed':'Not listed';el.className='check-status '+(dirChecks[site][id]?'cs-done':'cs-todo')+' check-toggle';}
+  save();
+}
+
+function renderAlerts(){
+  const wrap=document.getElementById('alerts-wrap');
+  const moved=[];
+  keywords.forEach(k=>{
+    [1,2].forEach(n=>{
+      const h=k.history;if(h.length<2)return;
+      const last=h[h.length-1]['s'+n],prev=h[h.length-2]['s'+n];
+      if(!last||!prev)return;
+      const diff=prev-last;
+      if(Math.abs(diff)>=3)moved.push({kw:k.kw,site:n===1?'Pickl':'Bonbird',diff,last,prev});
+    });
+  });
+  if(!moved.length){wrap.innerHTML='<div class="empty">No significant movements yet — update ranks regularly to see alerts</div>';return;}
+  moved.sort((a,b)=>Math.abs(b.diff)-Math.abs(a.diff));
+  wrap.innerHTML=moved.map(m=>`<div class="alert-item"><div class="alert-dot ${m.diff>0?'alert-low':'alert-high'}"></div><div><span style="font-weight:500">${m.kw}</span> <span style="color:var(--color-text-secondary)">(${m.site})</span> — ${m.diff>0?'improved':'dropped'} ${Math.abs(m.diff)} positions to <strong>#${m.last}</strong></div></div>`).join('');
+  
+  const opps=keywords.filter(k=>(k.vol||0)>500&&((k.rank1&&k.rank1>10)||(k.rank2&&k.rank2>10))).sort((a,b)=>(b.vol||0)-(a.vol||0)).slice(0,6);
+  const oppWrap=document.getElementById('opps-wrap');
+  oppWrap.innerHTML=opps.length?opps.map(k=>`<div class="alert-item"><div class="alert-dot alert-mid"></div><div><span style="font-weight:500">${k.kw}</span> — vol: ${(k.vol||0).toLocaleString()}${k.rank1?', Pickl #'+k.rank1:''}${k.rank2?', Bonbird #'+k.rank2:''} <span class="priority-badge pb-h">opportunity</span></div></div>`).join(''):'<div class="empty">Add keywords with search volume to see opportunities</div>';
+
+  const qw=keywords.filter(k=>(k.rank1&&k.rank1>=11&&k.rank1<=20)||(k.rank2&&k.rank2>=11&&k.rank2<=20)).slice(0,6);
+  const qwWrap=document.getElementById('quickwins-wrap');
+  qwWrap.innerHTML=qw.length?qw.map(k=>`<div class="alert-item"><div class="alert-dot alert-low"></div><div><span style="font-weight:500">${k.kw}</span>${k.rank1&&k.rank1>=11&&k.rank1<=20?` — Pickl at <strong>#${k.rank1}</strong>`:''}${k.rank2&&k.rank2>=11&&k.rank2<=20?` — Bonbird at <strong>#${k.rank2}</strong>`:''} <span class="priority-badge pb-l">page 1 within reach</span></div></div>`).join(''):'<div class="empty">No quick-win keywords yet</div>';
+}
+
+function exportCSV(){
+  const rows=[['keyword','category','volume','pickl_rank','bonbird_rank','note']];
+  keywords.forEach(k=>rows.push([k.kw,k.cat||'',k.vol||'',k.rank1||'',k.rank2||'',k.note||'']));
+  const csv=rows.map(r=>r.map(c=>`"${c}"`).join(',')).join('\n');
+  const a=document.createElement('a');a.href='data:text/csv;charset=utf-8,'+encodeURIComponent(csv);a.download='seo_'+new Date().toISOString().slice(0,10)+'.csv';a.click();
+}
+function handleCSV(e){
+  const f=e.target.files[0];if(!f)return;
+  const reader=new FileReader();
+  reader.onload=ev=>{
+    ev.target.result.split('\n').slice(1).forEach(line=>{
+      if(!line.trim())return;
+      const cols=line.split(',').map(c=>c.replace(/^"|"$/g,'').trim());
+      if(!cols[0])return;
+      const kw=cols[0].toLowerCase(),ex=keywords.find(k=>k.kw===kw);
+      const entry={kw,cat:cols[1]||'',vol:parseInt(cols[2])||null,rank1:parseInt(cols[3])||null,rank2:parseInt(cols[4])||null,note:cols[5]||'',history:[{date:today(),s1:parseInt(cols[3])||null,s2:parseInt(cols[4])||null}]};
+      if(ex)Object.assign(ex,entry);else keywords.push(entry);
+    });save();renderAll();
+  };reader.readAsText(f);e.target.value='';
+}
+
+async function callClaude(prompt,cacheKey){
+  if(aiCache[cacheKey])return{text:aiCache[cacheKey],cached:true};
+  const res=await fetch('/api/claude',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({model:'claude-sonnet-4-20250514',max_tokens:1000,messages:[{role:'user',content:prompt}]})});
+  const data=await res.json();
+  const text=data.content?.map(b=>b.text||'').join('')||'Error getting response.';
+  aiCache[cacheKey]=text;save();return{text,cached:false};
+}
+
+function setAI(outId,contentId,cacheId,loading,text,cached){
+  document.getElementById(outId).style.display='block';
+  const c=document.getElementById(contentId);c.className='ai-out'+(loading?' ai-loading':'');
+  c.textContent=loading?'Asking Claude...':(text||'');
+  if(cacheId)document.getElementById(cacheId).textContent=cached?'Cached — no API call used':'New result — API call used';
+}
+
+async function aiSuggestKeywords(){
+  const seed=document.getElementById('ai-seed').value.trim(),site=document.getElementById('ai-site-sel').value;
+  if(!seed)return;const ck=`kw_${seed}_${site}`;setAI('ai-kw-out','ai-kw-content','ai-kw-cache',true);
+  try{const{text,cached}=await callClaude(`You are an SEO expert for a UAE restaurant. Generate 20 keyword suggestions for ${site} in the UAE based on: "${seed}". For each: keyword phrase, search intent (informational/transactional/local), difficulty (low/medium/high), brief reason. Focus on UAE/Dubai/Abu Dhabi context, halal searches, Arabic transliterations, delivery keywords, "near me" variants. Format as numbered list.`,ck);setAI('ai-kw-out','ai-kw-content','ai-kw-cache',false,text,cached);}
+  catch(e){setAI('ai-kw-out','ai-kw-content','ai-kw-cache',false,'Error: '+e.message,false);}
+}
+
+function importAISuggestions(){
+  const content=document.getElementById('ai-kw-content').textContent;let added=0;
+  content.split('\n').forEach(line=>{const m=line.match(/^\d+\.\s+(.+?)(?:\s*[-–(]|$)/);if(m){const kw=m[1].trim().toLowerCase();if(kw.length>2&&!keywords.find(k=>k.kw===kw)){keywords.push({kw,rank1:null,rank2:null,vol:null,cat:'general',note:'AI suggested',history:[{date:today(),s1:null,s2:null}]});added++;}}});
+  save();renderAll();if(added>0){sw('keywords');alert(`Added ${added} keywords.`);}
+}
+
+async function aiContentBrief(){
+  const kw=document.getElementById('ai-brief-kw').value.trim(),site=document.getElementById('ai-brief-site').value;
+  if(!kw)return;const ck=`brief_${kw}_${site}`;setAI('ai-brief-out','ai-brief-content','ai-brief-cache',true);
+  try{const{text,cached}=await callClaude(`SEO content brief for ${site} (UAE restaurant) targeting: "${kw}". Include: 1) Target + 5 LSI keywords 2) Search intent 3) Page type 4) Word count 5) 3 H1 options 6) 5-7 H2 subheadings 7) Key topics 8) 5 FAQ questions 9) Internal linking suggestions 10) CTA recommendation. UAE-specific, practical.`,ck);setAI('ai-brief-out','ai-brief-content','ai-brief-cache',false,text,cached);}
+  catch(e){setAI('ai-brief-out','ai-brief-content','ai-brief-cache',false,'Error: '+e.message,false);}
+}
+
+async function aiMetaWriter(){
+  const kw=document.getElementById('ai-meta-kw').value.trim(),page=document.getElementById('ai-meta-page').value.trim(),site=document.getElementById('ai-meta-site').value;
+  if(!kw||!page)return;const ck=`meta_${kw}_${page}_${site}`;setAI('ai-meta-out','ai-meta-content','ai-meta-cache',true);
+  try{const{text,cached}=await callClaude(`Write 3 variations of SEO meta titles and descriptions for ${site} UAE. Page: ${page}. Keyword: "${kw}". Title: 50-60 chars, include keyword. Description: 150-160 chars, include keyword + CTA. Tone: appetising, confident, UAE-local. Format each variation clearly.`,ck);setAI('ai-meta-out','ai-meta-content','ai-meta-cache',false,text,cached);}
+  catch(e){setAI('ai-meta-out','ai-meta-content','ai-meta-cache',false,'Error: '+e.message,false);}
+}
+
+async function aiGapAnalysis(){
+  const site=document.getElementById('ai-gap-site').value,comp=document.getElementById('ai-gap-comp').value;
+  const ck=`gap_${site}_${comp}`;setAI('ai-gap-out','ai-gap-content','ai-gap-cache',true);
+  const myKws=keywords.filter(k=>site==='Pickl'?k.rank1:k.rank2).map(k=>k.kw).slice(0,15).join(', ');
+  try{const{text,cached}=await callClaude(`SEO competitive analysis: ${site} (UAE restaurant) vs ${comp}. ${myKws?`${site} tracks: ${myKws}.`:''} Identify: 1) 10 keywords ${comp} likely ranks for that ${site} should target 2) Content gaps 3) UAE local SEO opportunities 4) Menu item keyword opportunities 5) 3 quick-win recommendations. Be specific, UAE-focused.`,ck);setAI('ai-gap-out','ai-gap-content','ai-gap-cache',false,text,cached);}
+  catch(e){setAI('ai-gap-out','ai-gap-content','ai-gap-cache',false,'Error: '+e.message,false);}
+}
+
+async function aiPageAudit(){
+  const site=document.getElementById('audit-site').value,page=document.getElementById('audit-page').value.trim();
+  const kw=document.getElementById('audit-kw').value.trim(),title=document.getElementById('audit-title').value.trim();
+  const desc=document.getElementById('audit-desc').value.trim(),content=document.getElementById('audit-content').value.trim();
+  if(!page&&!kw)return;const ck=`audit_${page}_${kw}`;setAI('ai-audit-out','ai-audit-content','ai-audit-cache',true);
+  try{const{text,cached}=await callClaude(`On-page SEO audit for ${site} (UAE restaurant). Page: "${page}". Target keyword: "${kw}". Meta title: "${title||'not provided'}". Meta description: "${desc||'not provided'}". Content: "${content||'not provided'}". Audit against UAE SEO best practices. Score each section (title, meta, content, keyword usage, local signals) out of 10. List specific fixes. Be direct and actionable.`,ck);setAI('ai-audit-out','ai-audit-content','ai-audit-cache',false,text,cached);}
+  catch(e){setAI('ai-audit-out','ai-audit-content','ai-audit-cache',false,'Error: '+e.message,false);}
+}
+
+async function aiSchema(){
+  const site=document.getElementById('schema-site').value,loc=document.getElementById('schema-loc').value.trim();
+  const phone=document.getElementById('schema-phone').value.trim();
+  const ck=`schema_${site}_${loc}`;setAI('ai-schema-out','ai-schema-content','ai-schema-cache',true);
+  const info=site==='Pickl'?{name:'Pickl',url:'https://eatpickl.com',cuisine:'American, Burgers'}:{name:'Bonbird',url:'https://bonbirdchicken.com',cuisine:'American, Fried Chicken'};
+  try{const{text,cached}=await callClaude(`Generate a complete Restaurant JSON-LD schema markup for: Name: ${info.name}, URL: ${info.url}, Cuisine: ${info.cuisine}, Location: ${loc||'Dubai, UAE'}, Phone: ${phone||'+971 XX XXX XXXX'}, Country: UAE. Include: @context, @type Restaurant, name, url, telephone, address (UAE format), servesCuisine, priceRange, openingHours, hasMenu. Output only the JSON-LD script tag, no explanation.`,ck);setAI('ai-schema-out','ai-schema-content','ai-schema-cache',false,text,cached);}
+  catch(e){setAI('ai-schema-out','ai-schema-content','ai-schema-cache',false,'Error: '+e.message,false);}
+}
+
+async function aiReviewReply(){
+  const site=document.getElementById('review-site').value,sentiment=document.getElementById('review-sentiment').value;
+  const review=document.getElementById('review-text').value.trim();
+  if(!review)return;const ck=`review_${site}_${review.slice(0,30)}`;setAI('ai-review-out','ai-review-content','ai-review-cache',true);
+  try{const{text,cached}=await callClaude(`Write a professional Google review response for ${site} (UAE restaurant). Sentiment: ${sentiment}. Review: "${review}". Response should: naturally include the restaurant name and location (Dubai/UAE), thank the customer, address specific points, include a relevant keyword naturally (e.g. "best smash burger Dubai" or "halal chicken UAE"), be warm and on-brand, stay under 150 words. Output only the response text.`,ck);setAI('ai-review-out','ai-review-content','ai-review-cache',false,text,cached);}
+  catch(e){setAI('ai-review-out','ai-review-content','ai-review-cache',false,'Error: '+e.message,false);}
+}
+
+async function aiArabicKw(){
+  const ck='arabic_kw_extended';setAI('ai-arabic-out','ai-arabic-content','ai-arabic-cache',true);
+  try{const{text,cached}=await callClaude(`Generate 15 Arabic search keywords UAE residents use to find restaurants like Pickl (smash burgers) and Bonbird (fried chicken) in Dubai/UAE. For each: Arabic keyword (Arabic script), romanized version, English meaning, estimated monthly searches. Focus on food delivery, halal, near me, location-specific (Dubai, Abu Dhabi, Sharjah). Format as numbered list.`,ck);setAI('ai-arabic-out','ai-arabic-content','ai-arabic-cache',false,text,cached);}
+  catch(e){setAI('ai-arabic-out','ai-arabic-content','ai-arabic-cache',false,'Error: '+e.message,false);}
+}
+
+function renderAll(){
+  renderStats();renderKeywords();renderCompare();renderCompCards();renderCompKwList();renderCompView();
+  populateTrendSel();renderTrends();renderLocalChecks();renderDirTable();renderArabicKws();
+  renderTechChecks();renderAlerts();
+}
+
+function sw(t){
+  ['keywords','competitors','compare','trends','local','audit','alerts','ai'].forEach(id=>document.getElementById('tab-'+id).style.display=id===t?'block':'none');
+  document.querySelectorAll('.tab').forEach((b,i)=>b.classList.toggle('active',['keywords','competitors','compare','trends','local','audit','alerts','ai'][i]===t));
+  if(t==='trends')renderTrends();if(t==='competitors'){renderCompCards();renderCompView();}if(t==='alerts')renderAlerts();
+}
+
+load();
+if(!keywords.length){
+  keywords=[
+    {kw:'smash burger dubai',rank1:4,rank2:null,vol:2400,cat:'local',note:'Priority',history:[{date:'1 Mar',s1:7,s2:null},{date:'15 Mar',s1:5,s2:null},{date:'1 Apr',s1:4,s2:null}]},
+    {kw:'best fried chicken uae',rank1:null,rank2:8,vol:1800,cat:'general',note:'',history:[{date:'1 Mar',s1:null,s2:12},{date:'15 Mar',s1:null,s2:10},{date:'1 Apr',s1:null,s2:8}]},
+    {kw:'pickl dubai',rank1:1,rank2:null,vol:890,cat:'brand',note:'Brand',history:[{date:'1 Mar',s1:1,s2:null},{date:'15 Mar',s1:1,s2:null},{date:'1 Apr',s1:1,s2:null}]},
+    {kw:'bonbird chicken',rank1:null,rank2:1,vol:620,cat:'brand',note:'Brand',history:[{date:'1 Mar',s1:null,s2:2},{date:'15 Mar',s1:null,s2:1},{date:'1 Apr',s1:null,s2:1}]},
+    {kw:'chicken sandwich abu dhabi',rank1:14,rank2:9,vol:1200,cat:'local',note:'',history:[{date:'1 Mar',s1:18,s2:14},{date:'15 Mar',s1:16,s2:11},{date:'1 Apr',s1:14,s2:9}]},
+    {kw:'halal burger dubai',rank1:22,rank2:null,vol:3100,cat:'menu',note:'High vol',history:[{date:'1 Mar',s1:28,s2:null},{date:'15 Mar',s1:25,s2:null},{date:'1 Apr',s1:22,s2:null}]},
+  ];
+  compRanks=[{kw:'smash burger dubai',comp:'Shake Shack',rank:2,date:'1 Apr'},{kw:'smash burger dubai',comp:'Five Guys',rank:6,date:'1 Apr'},{kw:'halal burger dubai',comp:'Shake Shack',rank:3,date:'1 Apr'}];
+  save();
+}
+renderAll();
+</script>
+</body></html>
