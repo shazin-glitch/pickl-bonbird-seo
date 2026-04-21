@@ -180,10 +180,10 @@ button:hover{background:var(--color-background-secondary)}
   </div>
   <div id="gsc-filter-row" style="display:none;margin-top:10px;padding-top:10px;border-top:0.5px solid var(--color-border-tertiary)">
     <div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap">
-      <span style="font-size:11px;color:var(--color-text-secondary)">Min clicks:</span>
-      <input type="range" id="gsc-min-clicks" min="50" max="1000" step="50" value="200" oninput="document.getElementById('gsc-clicks-val').textContent=this.value" style="width:140px">
-      <span id="gsc-clicks-val" style="font-size:11px;font-weight:500;min-width:30px">200</span>
-      <span style="font-size:11px;color:var(--color-text-secondary);margin-left:4px">clicks minimum (last 90 days)</span>
+      <span style="font-size:11px;color:var(--color-text-secondary)">Min impressions:</span>
+      <input type="range" id="gsc-min-clicks" min="50" max="2000" step="50" value="100" oninput="document.getElementById('gsc-clicks-val').textContent=this.value" style="width:140px">
+      <span id="gsc-clicks-val" style="font-size:11px;font-weight:500;min-width:30px">100</span>
+      <span style="font-size:11px;color:var(--color-text-secondary);margin-left:4px">impressions minimum (last 90 days)</span>
     </div>
   </div>
 </div>
@@ -1012,7 +1012,7 @@ function updateGscUI(connected){
     sync.style.display='inline-block';
     dis.style.display='inline-block';
     if(filterRow)filterRow.style.display='block';
-    status.textContent=lastSync?'Last synced: '+lastSync:'Connected — set your click threshold and click Sync';
+    status.textContent=lastSync?'Last synced: '+lastSync:'Connected — set your impressions threshold and click Sync';
     status.style.color='#3B6D11';
   } else {
     btn.style.display='inline-block';
@@ -1048,8 +1048,8 @@ async function gscFetchAndPreview(){
     }
     const minClicks=parseInt(document.getElementById('gsc-min-clicks').value)||200;
     gscPreviewData=data.rows
-      .filter(r=>r.clicks>=minClicks)
-      .sort((a,b)=>b.clicks-a.clicks)
+      .filter(r=>r.impressions>=minClicks)
+      .sort((a,b)=>b.impressions-a.impressions)
       .map(r=>({...r,selected:true}));
     gscPreviewCurrentFilter='all';
     renderGscPreview();
@@ -1091,8 +1091,8 @@ function renderGscPreview(){
     </tr>`;
   }).join('');
   const selected=gscPreviewData.filter(r=>r.selected).length;
-  document.getElementById('gsc-preview-sub').textContent=`${rows.length} keywords shown (${minClicks}+ clicks) · ${selected} selected`;
-  document.getElementById('gsc-preview-count').textContent=`${selected} of ${gscPreviewData.length} keywords selected for import`;
+  document.getElementById('gsc-preview-sub').textContent=`${rows.length} keywords shown (${minClicks}+ impressions) · ${selected} selected`;
+  document.getElementById('gsc-preview-count').textContent=`${selected} of ${gscPreviewData.length} keywords selected for import (filtered by ${minClicks}+ impressions)`;
 }
 
 function gscSelectAll(val){
