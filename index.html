@@ -841,22 +841,7 @@ function sw(t){
   if(t==='trends')renderTrends();if(t==='ai'){const k=localStorage.getItem('anthropic_key');const s=document.getElementById('apikey-status');if(s){s.textContent=k?'✓ API key is set — AI features ready':'Enter your Anthropic API key above to use AI features';s.style.color=k?'#3B6D11':'var(--color-text-secondary)';}}if(t==='competitors'){renderCompCards();renderCompView();}if(t==='alerts')renderAlerts();
 }
 
-(async()=>{
-await load();
-if(!keywords.length){
-  keywords=[
-    {kw:'smash burger dubai',rank1:4,rank2:null,vol:2400,cat:'local',note:'Priority',history:[{date:'1 Mar',s1:7,s2:null},{date:'15 Mar',s1:5,s2:null},{date:'1 Apr',s1:4,s2:null}]},
-    {kw:'best fried chicken uae',rank1:null,rank2:8,vol:1800,cat:'general',note:'',history:[{date:'1 Mar',s1:null,s2:12},{date:'15 Mar',s1:null,s2:10},{date:'1 Apr',s1:null,s2:8}]},
-    {kw:'pickl dubai',rank1:1,rank2:null,vol:890,cat:'brand',note:'Brand',history:[{date:'1 Mar',s1:1,s2:null},{date:'15 Mar',s1:1,s2:null},{date:'1 Apr',s1:1,s2:null}]},
-    {kw:'bonbird chicken',rank1:null,rank2:1,vol:620,cat:'brand',note:'Brand',history:[{date:'1 Mar',s1:null,s2:2},{date:'15 Mar',s1:null,s2:1},{date:'1 Apr',s1:null,s2:1}]},
-    {kw:'chicken sandwich abu dhabi',rank1:14,rank2:9,vol:1200,cat:'local',note:'',history:[{date:'1 Mar',s1:18,s2:14},{date:'15 Mar',s1:16,s2:11},{date:'1 Apr',s1:14,s2:9}]},
-    {kw:'halal burger dubai',rank1:22,rank2:null,vol:3100,cat:'menu',note:'High vol',history:[{date:'1 Mar',s1:28,s2:null},{date:'15 Mar',s1:25,s2:null},{date:'1 Apr',s1:22,s2:null}]},
-  ];
-  compRanks=[{kw:'smash burger dubai',comp:'Shake Shack',rank:2,date:'1 Apr'},{kw:'smash burger dubai',comp:'Five Guys',rank:6,date:'1 Apr'},{kw:'halal burger dubai',comp:'Shake Shack',rank:3,date:'1 Apr'}];
-  save();
-}
-renderAll();
-
+// API key functions (global scope)
 function saveApiKey(){
   const k=document.getElementById('apikey-input').value.trim();
   if(!k||!k.startsWith('sk-')){document.getElementById('apikey-status').textContent='⚠ Key should start with sk-ant-...';document.getElementById('apikey-status').style.color='#D85A30';return;}
@@ -872,7 +857,7 @@ function clearApiKey(){
   document.getElementById('apikey-status').style.color='var(--color-text-secondary)';
 }
 
-// GSC OAuth & data sync — tokens stored server-side, shared by all users
+// GSC functions (global scope)
 function gscConnect(){window.location.href='/api/auth/login';}
 
 async function gscDisconnect(){
@@ -887,6 +872,7 @@ function updateGscUI(connected){
   const dis=document.getElementById('gsc-disconnect-btn');
   const status=document.getElementById('gsc-status-text');
   const lastSync=localStorage.getItem('gsc_last_sync');
+  if(!btn)return;
   if(connected){
     btn.style.display='none';
     sync.style.display='inline-block';
@@ -906,8 +892,8 @@ async function checkGscStatus(){
   try{
     const res=await fetch('/api/db/get');
     const data=await res.json();
-    updateGscUI(!!(data.gscTokens && data.gscTokens.access_token));
-  } catch(e){ updateGscUI(false); }
+    updateGscUI(!!(data.gscTokens&&data.gscTokens.access_token));
+  }catch(e){updateGscUI(false);}
 }
 
 async function gscSync(){
@@ -943,22 +929,21 @@ async function gscSync(){
     localStorage.setItem('gsc_last_sync',now);
     updateGscUI(true);
     alert('Sync complete! '+added+' new keywords added, '+updated+' updated from GSC.');
-  } catch(e){
+  }catch(e){
     alert('Sync failed: '+e.message);
-  } finally {
+  }finally{
     syncBtn.textContent='↻ Sync now';syncBtn.disabled=false;
   }
 }
 
-// Handle OAuth callback
+// Handle OAuth callback params on page load
 (function handleGscCallback(){
   const params=new URLSearchParams(window.location.search);
   const connected=params.get('gsc_connected');
   const error=params.get('gsc_error');
   if(connected){
     window.history.replaceState({},'','/');
-    updateGscUI(true);
-    alert('Google Search Console connected for the whole team! Click "Sync now" to import Pickl keywords.');
+    setTimeout(()=>{updateGscUI(true);alert('GSC connected for the whole team! Click "Sync now" to import Pickl keywords.');},500);
   }
   if(error){
     window.history.replaceState({},'','/');
@@ -966,6 +951,23 @@ async function gscSync(){
   }
 })();
 
+// Init — async so we can await shared data load
+(async()=>{
+  await load();
+  if(!keywords.length){
+    keywords=[
+      {kw:'smash burger dubai',rank1:4,rank2:null,vol:2400,cat:'local',note:'Priority',history:[{date:'1 Mar',s1:7,s2:null},{date:'15 Mar',s1:5,s2:null},{date:'1 Apr',s1:4,s2:null}]},
+      {kw:'best fried chicken uae',rank1:null,rank2:8,vol:1800,cat:'general',note:'',history:[{date:'1 Mar',s1:null,s2:12},{date:'15 Mar',s1:null,s2:10},{date:'1 Apr',s1:null,s2:8}]},
+      {kw:'pickl dubai',rank1:1,rank2:null,vol:890,cat:'brand',note:'Brand',history:[{date:'1 Mar',s1:1,s2:null},{date:'15 Mar',s1:1,s2:null},{date:'1 Apr',s1:1,s2:null}]},
+      {kw:'bonbird chicken',rank1:null,rank2:1,vol:620,cat:'brand',note:'Brand',history:[{date:'1 Mar',s1:null,s2:2},{date:'15 Mar',s1:null,s2:1},{date:'1 Apr',s1:null,s2:1}]},
+      {kw:'chicken sandwich abu dhabi',rank1:14,rank2:9,vol:1200,cat:'local',note:'',history:[{date:'1 Mar',s1:18,s2:14},{date:'15 Mar',s1:16,s2:11},{date:'1 Apr',s1:14,s2:9}]},
+      {kw:'halal burger dubai',rank1:22,rank2:null,vol:3100,cat:'menu',note:'High vol',history:[{date:'1 Mar',s1:28,s2:null},{date:'15 Mar',s1:25,s2:null},{date:'1 Apr',s1:22,s2:null}]},
+    ];
+    compRanks=[{kw:'smash burger dubai',comp:'Shake Shack',rank:2,date:'1 Apr'},{kw:'smash burger dubai',comp:'Five Guys',rank:6,date:'1 Apr'},{kw:'halal burger dubai',comp:'Shake Shack',rank:3,date:'1 Apr'}];
+    save();
+  }
+  renderAll();
+  checkGscStatus();
 })();
 </script>
 </body></html>
