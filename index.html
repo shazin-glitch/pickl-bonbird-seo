@@ -514,8 +514,43 @@ const ARABIC_KWS=[
   {ar:'مطعم عائلي أبوظبي',en:'family restaurant abu dhabi',vol:'~900/mo'},
 ];
 
-function save(){try{localStorage.setItem('pb2_kw',JSON.stringify(keywords));localStorage.setItem('pb2_cr',JSON.stringify(compRanks));localStorage.setItem('pb2_cache',JSON.stringify(aiCache));localStorage.setItem('pb2_lc',JSON.stringify(localChecks));localStorage.setItem('pb2_tc',JSON.stringify(techChecks));localStorage.setItem('pb2_dc',JSON.stringify(dirChecks));}catch(e){}}
-function load(){try{const k=localStorage.getItem('pb2_kw'),c=localStorage.getItem('pb2_cr'),a=localStorage.getItem('pb2_cache'),lc=localStorage.getItem('pb2_lc'),tc=localStorage.getItem('pb2_tc'),dc=localStorage.getItem('pb2_dc');if(k)keywords=JSON.parse(k);if(c)compRanks=JSON.parse(c);if(a)aiCache=JSON.parse(a);if(lc)localChecks=JSON.parse(lc);if(tc)techChecks=JSON.parse(tc);if(dc)dirChecks=JSON.parse(dc);}catch(e){}}
+let saveTimer=null;
+function save(){
+  // AI cache stays local only
+  try{localStorage.setItem('pb2_cache',JSON.stringify(aiCache));}catch(e){}
+  // Debounce shared saves to avoid hammering the API
+  clearTimeout(saveTimer);
+  saveTimer=setTimeout(async()=>{
+    try{
+      await fetch('/api/db/save',{method:'POST',headers:{'Content-Type':'application/json'},
+        body:JSON.stringify({keywords,compRanks,localChecks,techChecks,dirChecks})});
+    }catch(e){console.warn('Save failed:',e);}
+  },800);
+}
+
+async function load(){
+  // Load AI cache from localStorage
+  try{const a=localStorage.getItem('pb2_cache');if(a)aiCache=JSON.parse(a);}catch(e){}
+  // Show loading state
+  document.getElementById('kw-empty').textContent='Loading shared data...';
+  try{
+    const res=await fetch('/api/db/get');
+    const data=await res.json();
+    if(data.keywords && data.keywords.length){keywords=data.keywords;}
+    if(data.compRanks && data.compRanks.length){compRanks=data.compRanks;}
+    if(data.localChecks){localChecks=data.localChecks;}
+    if(data.techChecks){techChecks=data.techChecks;}
+    if(data.dirChecks){dirChecks=data.dirChecks;}
+  }catch(e){
+    console.warn('Could not load shared data, falling back to localStorage');
+    try{
+      const k=localStorage.getItem('pb2_kw'),c=localStorage.getItem('pb2_cr');
+      const lc=localStorage.getItem('pb2_lc'),tc=localStorage.getItem('pb2_tc'),dc=localStorage.getItem('pb2_dc');
+      if(k)keywords=JSON.parse(k);if(c)compRanks=JSON.parse(c);
+      if(lc)localChecks=JSON.parse(lc);if(tc)techChecks=JSON.parse(tc);if(dc)dirChecks=JSON.parse(dc);
+    }catch(e2){}
+  }
+}
 function today(){return new Date().toLocaleDateString('en-GB',{day:'numeric',month:'short'});}
 
 function addKeyword(){
@@ -806,7 +841,8 @@ function sw(t){
   if(t==='trends')renderTrends();if(t==='ai'){const k=localStorage.getItem('anthropic_key');const s=document.getElementById('apikey-status');if(s){s.textContent=k?'✓ API key is set — AI features ready':'Enter your Anthropic API key above to use AI features';s.style.color=k?'#3B6D11':'var(--color-text-secondary)';}}if(t==='competitors'){renderCompCards();renderCompView();}if(t==='alerts')renderAlerts();
 }
 
-load();
+(async()=>{
+await load();
 if(!keywords.length){
   keywords=[
     {kw:'smash burger dubai',rank1:4,rank2:null,vol:2400,cat:'local',note:'Priority',history:[{date:'1 Mar',s1:7,s2:null},{date:'15 Mar',s1:5,s2:null},{date:'1 Apr',s1:4,s2:null}]},
@@ -836,18 +872,22 @@ function clearApiKey(){
   document.getElementById('apikey-status').style.color='var(--color-text-secondary)';
 }
 
-// GSC OAuth & data sync
+// GSC OAuth & data sync — tokens stored server-side, shared by all users
 function gscConnect(){window.location.href='/api/auth/login';}
-function gscDisconnect(){localStorage.removeItem('gsc_access_token');localStorage.removeItem('gsc_refresh_token');updateGscUI();alert('Disconnected from Google Search Console.');}
 
-function updateGscUI(){
-  const token=localStorage.getItem('gsc_access_token');
+async function gscDisconnect(){
+  await fetch('/api/db/save',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({gscTokens:null})});
+  updateGscUI(false);
+  alert('Disconnected from Google Search Console.');
+}
+
+function updateGscUI(connected){
   const btn=document.getElementById('gsc-connect-btn');
   const sync=document.getElementById('gsc-sync-btn');
   const dis=document.getElementById('gsc-disconnect-btn');
   const status=document.getElementById('gsc-status-text');
   const lastSync=localStorage.getItem('gsc_last_sync');
-  if(token){
+  if(connected){
     btn.style.display='none';
     sync.style.display='inline-block';
     dis.style.display='inline-block';
@@ -857,23 +897,30 @@ function updateGscUI(){
     btn.style.display='inline-block';
     sync.style.display='none';
     dis.style.display='none';
-    status.textContent='Not connected — rankings entered manually';
+    status.textContent='Not connected — connect once to enable for all team members';
     status.style.color='var(--color-text-secondary)';
   }
 }
 
+async function checkGscStatus(){
+  try{
+    const res=await fetch('/api/db/get');
+    const data=await res.json();
+    updateGscUI(!!(data.gscTokens && data.gscTokens.access_token));
+  } catch(e){ updateGscUI(false); }
+}
+
 async function gscSync(){
-  const token=localStorage.getItem('gsc_access_token');
-  const refresh=localStorage.getItem('gsc_refresh_token');
-  if(!token){alert('Please connect Google Search Console first.');return;}
   const syncBtn=document.getElementById('gsc-sync-btn');
   syncBtn.textContent='Syncing...';syncBtn.disabled=true;
   try{
     const res=await fetch('/api/gsc-data',{method:'POST',headers:{'Content-Type':'application/json'},
-      body:JSON.stringify({access_token:token,refresh_token:refresh,site_url:'https://eatpickl.com/'})});
+      body:JSON.stringify({site_url:'https://eatpickl.com/'})});
     const data=await res.json();
-    if(data.error){alert('GSC error: '+data.error);return;}
-    if(data.refreshed_token)localStorage.setItem('gsc_access_token',data.refreshed_token);
+    if(data.error){
+      if(data.error.includes('not connected')||data.error.includes('401')){updateGscUI(false);}
+      alert('GSC error: '+data.error);return;
+    }
     let added=0,updated=0;
     const today_=today();
     data.rows.forEach(row=>{
@@ -883,21 +930,19 @@ async function gscSync(){
       const ex=keywords.find(k=>k.kw===kw);
       if(ex){
         const oldRank=ex.rank1;
-        ex.rank1=rank;
-        ex.vol=vol;
+        ex.rank1=rank;ex.vol=vol;
         if(oldRank!==rank)ex.history.push({date:today_,s1:rank,s2:ex.rank2});
         updated++;
       } else {
-        keywords.push({kw,rank1:rank,rank2:null,vol,cat:'general',note:'GSC import',
-          history:[{date:today_,s1:rank,s2:null}]});
+        keywords.push({kw,rank1:rank,rank2:null,vol,cat:'general',note:'GSC import',history:[{date:today_,s1:rank,s2:null}]});
         added++;
       }
     });
     save();renderAll();
     const now=new Date().toLocaleString('en-GB',{day:'numeric',month:'short',hour:'2-digit',minute:'2-digit'});
     localStorage.setItem('gsc_last_sync',now);
-    updateGscUI();
-    alert(`Sync complete! ${added} new keywords added, ${updated} updated from GSC.`);
+    updateGscUI(true);
+    alert('Sync complete! '+added+' new keywords added, '+updated+' updated from GSC.');
   } catch(e){
     alert('Sync failed: '+e.message);
   } finally {
@@ -905,23 +950,22 @@ async function gscSync(){
   }
 }
 
-// Handle OAuth callback tokens in URL
+// Handle OAuth callback
 (function handleGscCallback(){
   const params=new URLSearchParams(window.location.search);
-  const accessToken=params.get('gsc_access_token');
-  const refreshToken=params.get('gsc_refresh_token');
+  const connected=params.get('gsc_connected');
   const error=params.get('gsc_error');
-  if(accessToken){
-    localStorage.setItem('gsc_access_token',accessToken);
-    if(refreshToken)localStorage.setItem('gsc_refresh_token',refreshToken);
+  if(connected){
     window.history.replaceState({},'','/');
-    updateGscUI();
-    alert('Connected to Google Search Console! Click "Sync now" to import Pickl keywords.');
+    updateGscUI(true);
+    alert('Google Search Console connected for the whole team! Click "Sync now" to import Pickl keywords.');
   }
   if(error){
     window.history.replaceState({},'','/');
     alert('GSC connection error: '+decodeURIComponent(error));
   }
+})();
+
 })();
 </script>
 </body></html>

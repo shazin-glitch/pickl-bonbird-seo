@@ -17,3 +17,13 @@
   from = "/api/gsc-data"
   to = "/.netlify/functions/gsc-data"
   status = 200
+
+[[redirects]]
+  from = "/api/db/get"
+  to = "/.netlify/functions/db-get"
+  status = 200
+
+[[redirects]]
+  from = "/api/db/save"
+  to = "/.netlify/functions/db-save"
+  status = 200
