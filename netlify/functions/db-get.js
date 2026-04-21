@@ -6,7 +6,7 @@ exports.handler = async (event) => {
   }
 
   try {
-    const store = getStore({ name: 'seo-tool', consistency: 'strong' });
+    const store = getStore({ name: 'seo-tool', consistency: 'strong', siteID: process.env.NETLIFY_SITE_ID, token: process.env.NETLIFY_AUTH_TOKEN });
     const [keywords, compRanks, localChecks, techChecks, dirChecks, gscTokens] = await Promise.all([
       store.get('keywords', { type: 'json' }).catch(() => []),
       store.get('compRanks', { type: 'json' }).catch(() => []),

@@ -21,7 +21,7 @@ exports.handler = async (event) => {
 
   try {
     // Load shared tokens from Blobs
-    const store = getStore({ name: 'seo-tool', consistency: 'strong' });
+    const store = getStore({ name: 'seo-tool', consistency: 'strong', siteID: process.env.NETLIFY_SITE_ID, token: process.env.NETLIFY_AUTH_TOKEN });
     const gscTokens = await store.get('gscTokens', { type: 'json' }).catch(() => null);
 
     if (!gscTokens || !gscTokens.access_token) {
