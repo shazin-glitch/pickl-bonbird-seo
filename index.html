@@ -166,16 +166,63 @@ button:hover{background:var(--color-background-secondary)}
 
 
 <!-- GSC CONNECT BANNER -->
-<div id="gsc-banner" class="section" style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:10px;margin-bottom:12px">
-  <div>
-    <div class="section-title">Google Search Console — Pickl (eatpickl.com)</div>
-    <div class="section-sub" id="gsc-status-text">Not connected — rankings entered manually</div>
+<div id="gsc-banner" class="section" style="margin-bottom:12px">
+  <div style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:10px">
+    <div>
+      <div class="section-title">Google Search Console — Pickl (eatpickl.com)</div>
+      <div class="section-sub" id="gsc-status-text">Not connected — rankings entered manually</div>
+    </div>
+    <div style="display:flex;gap:6px;align-items:center;flex-wrap:wrap">
+      <button class="btn-blue btn-sm" id="gsc-connect-btn" onclick="gscConnect()">Connect GSC</button>
+      <button class="btn-sm" id="gsc-sync-btn" onclick="gscFetchAndPreview()" style="display:none">↻ Sync now</button>
+      <button class="btn-sm" id="gsc-disconnect-btn" onclick="gscDisconnect()" style="display:none">Disconnect</button>
+    </div>
   </div>
-  <div style="display:flex;gap:6px;align-items:center">
-    <button class="btn-blue btn-sm" id="gsc-connect-btn" onclick="gscConnect()">Connect GSC</button>
-    <button class="btn-sm" id="gsc-sync-btn" onclick="gscSync()" style="display:none">↻ Sync now</button>
-    <button class="btn-sm" id="gsc-disconnect-btn" onclick="gscDisconnect()" style="display:none">Disconnect</button>
+  <div id="gsc-filter-row" style="display:none;margin-top:10px;padding-top:10px;border-top:0.5px solid var(--color-border-tertiary)">
+    <div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap">
+      <span style="font-size:11px;color:var(--color-text-secondary)">Min clicks:</span>
+      <input type="range" id="gsc-min-clicks" min="50" max="1000" step="50" value="200" oninput="document.getElementById('gsc-clicks-val').textContent=this.value" style="width:140px">
+      <span id="gsc-clicks-val" style="font-size:11px;font-weight:500;min-width:30px">200</span>
+      <span style="font-size:11px;color:var(--color-text-secondary);margin-left:4px">clicks minimum (last 90 days)</span>
+    </div>
   </div>
+</div>
+
+<!-- GSC PREVIEW MODAL -->
+<div id="gsc-preview" style="display:none" class="section">
+  <div style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:8px;margin-bottom:10px">
+    <div>
+      <div class="section-title">Select keywords to import</div>
+      <div class="section-sub" id="gsc-preview-sub">Showing keywords above click threshold</div>
+    </div>
+    <div style="display:flex;gap:6px">
+      <button class="btn-sm" onclick="gscSelectAll(true)">Select all</button>
+      <button class="btn-sm" onclick="gscSelectAll(false)">Deselect all</button>
+      <button class="btn-blue btn-sm" onclick="gscImportSelected()">Import selected</button>
+      <button class="btn-sm" onclick="document.getElementById('gsc-preview').style.display='none'">Cancel</button>
+    </div>
+  </div>
+  <div style="display:flex;gap:6px;margin-bottom:8px;flex-wrap:wrap" id="gsc-preview-filters">
+    <span class="pill active" onclick="gscPreviewFilter(this,'all')">All</span>
+    <span class="pill" onclick="gscPreviewFilter(this,'brand')">Brand</span>
+    <span class="pill" onclick="gscPreviewFilter(this,'nonbrand')">Non-brand</span>
+    <span class="pill" onclick="gscPreviewFilter(this,'new')">New only</span>
+    <span class="pill" onclick="gscPreviewFilter(this,'existing')">Already tracked</span>
+  </div>
+  <div style="max-height:400px;overflow-y:auto">
+    <table class="kw-table" style="table-layout:fixed">
+      <thead><tr>
+        <th style="width:32px"><input type="checkbox" id="gsc-check-all" onchange="gscSelectAll(this.checked)"></th>
+        <th>Keyword</th>
+        <th style="width:70px">Clicks</th>
+        <th style="width:80px">Impressions</th>
+        <th style="width:70px">Avg pos</th>
+        <th style="width:70px">Status</th>
+      </tr></thead>
+      <tbody id="gsc-preview-body"></tbody>
+    </table>
+  </div>
+  <div style="font-size:11px;color:var(--color-text-secondary);margin-top:8px" id="gsc-preview-count"></div>
 </div>
 <div class="sites-grid">
   <div class="site-card">
@@ -219,6 +266,9 @@ button:hover{background:var(--color-background-secondary)}
       <span class="pill" onclick="filterCat(this,'local')">Local</span>
       <span class="pill" onclick="filterCat(this,'comp')">Competitor</span>
       <span class="pill" onclick="filterCat(this,'general')">General</span>
+      <span class="pill" onclick="filterBrand(this,'pickl')">Pickl brand</span>
+      <span class="pill" onclick="filterBrand(this,'bonbird')">Bonbird brand</span>
+      <span class="pill" onclick="filterBrand(this,'non')">Non-brand</span>
     </div>
     <table class="kw-table">
       <thead><tr>
@@ -456,7 +506,7 @@ button:hover{background:var(--color-background-secondary)}
 <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.js"></script>
 <script>
 const COMPS=[{name:'Shake Shack',color:'#185FA5'},{name:'Five Guys',color:'#3B6D11'},{name:'Salt',color:'#D85A30'},{name:'Highjoint',color:'#854F0B'},{name:'Maxzi',color:'#72243E'}];
-let keywords=[],compRanks=[],aiCache={},localChecks={1:{},2:{}},techChecks={},dirChecks={1:{},2:{}},trendChart=null,activeFilter='';
+let keywords=[],compRanks=[],aiCache={},localChecks={1:{},2:{}},techChecks={},dirChecks={1:{},2:{}},trendChart=null,activeFilter='',activeBrandFilter='';
 
 const LOCAL_CHECKS=[
   {id:'gbp',label:'Google Business Profile claimed & verified'},
@@ -566,7 +616,8 @@ function addKeyword(){
   save();renderAll();
 }
 function removeKeyword(i){keywords.splice(i,1);save();renderAll();}
-function filterCat(el,cat){activeFilter=cat;document.querySelectorAll('.pill').forEach(p=>p.classList.remove('active'));el.classList.add('active');renderKeywords();}
+function filterCat(el,cat){activeFilter=cat;activeBrandFilter='';document.querySelectorAll('.pill').forEach(p=>p.classList.remove('active'));el.classList.add('active');renderKeywords();}
+function filterBrand(el,type){activeBrandFilter=type;activeFilter='';document.querySelectorAll('.pill').forEach(p=>p.classList.remove('active'));el.classList.add('active');renderKeywords();}
 
 function priority(k){
   const vol=k.vol||0,r1=k.rank1||999,r2=k.rank2||999,minR=Math.min(r1,r2);
@@ -582,7 +633,11 @@ function pbadge(p){if(p==='high')return'<span class="priority-badge pb-h">high</
 
 function renderKeywords(){
   const body=document.getElementById('kw-body'),empty=document.getElementById('kw-empty');
-  const filtered=activeFilter?keywords.filter(k=>k.cat===activeFilter):keywords;
+  let filtered=keywords;
+  if(activeFilter)filtered=keywords.filter(k=>k.cat===activeFilter);
+  else if(activeBrandFilter==='pickl')filtered=keywords.filter(k=>k.kw.includes('pickl'));
+  else if(activeBrandFilter==='bonbird')filtered=keywords.filter(k=>k.kw.includes('bonbird'));
+  else if(activeBrandFilter==='non')filtered=keywords.filter(k=>!k.kw.includes('pickl')&&!k.kw.includes('bonbird'));
   if(!filtered.length){body.innerHTML='';empty.style.display='block';return;}
   empty.style.display='none';
   body.innerHTML=filtered.map(k=>{const i=keywords.indexOf(k);return`<tr>
@@ -873,16 +928,19 @@ function updateGscUI(connected){
   const status=document.getElementById('gsc-status-text');
   const lastSync=localStorage.getItem('gsc_last_sync');
   if(!btn)return;
+  const filterRow=document.getElementById('gsc-filter-row');
   if(connected){
     btn.style.display='none';
     sync.style.display='inline-block';
     dis.style.display='inline-block';
-    status.textContent=lastSync?'Last synced: '+lastSync:'Connected — click Sync to import data';
+    if(filterRow)filterRow.style.display='block';
+    status.textContent=lastSync?'Last synced: '+lastSync:'Connected — set your click threshold and click Sync';
     status.style.color='#3B6D11';
   } else {
     btn.style.display='inline-block';
     sync.style.display='none';
     dis.style.display='none';
+    if(filterRow)filterRow.style.display='none';
     status.textContent='Not connected — connect once to enable for all team members';
     status.style.color='var(--color-text-secondary)';
   }
@@ -896,9 +954,12 @@ async function checkGscStatus(){
   }catch(e){updateGscUI(false);}
 }
 
-async function gscSync(){
+let gscPreviewData=[];
+let gscPreviewCurrentFilter='all';
+
+async function gscFetchAndPreview(){
   const syncBtn=document.getElementById('gsc-sync-btn');
-  syncBtn.textContent='Syncing...';syncBtn.disabled=true;
+  syncBtn.textContent='Fetching...';syncBtn.disabled=true;
   try{
     const res=await fetch('/api/gsc-data',{method:'POST',headers:{'Content-Type':'application/json'},
       body:JSON.stringify({site_url:'https://eatpickl.com/'})});
@@ -907,33 +968,88 @@ async function gscSync(){
       if(data.error.includes('not connected')||data.error.includes('401')){updateGscUI(false);}
       alert('GSC error: '+data.error);return;
     }
-    let added=0,updated=0;
-    const today_=today();
-    data.rows.forEach(row=>{
-      const kw=row.keyword.toLowerCase();
-      const rank=Math.round(row.position);
-      const vol=row.impressions;
-      const ex=keywords.find(k=>k.kw===kw);
-      if(ex){
-        const oldRank=ex.rank1;
-        ex.rank1=rank;ex.vol=vol;
-        if(oldRank!==rank)ex.history.push({date:today_,s1:rank,s2:ex.rank2});
-        updated++;
-      } else {
-        keywords.push({kw,rank1:rank,rank2:null,vol,cat:'general',note:'GSC import',history:[{date:today_,s1:rank,s2:null}]});
-        added++;
-      }
-    });
-    save();renderAll();
-    const now=new Date().toLocaleString('en-GB',{day:'numeric',month:'short',hour:'2-digit',minute:'2-digit'});
-    localStorage.setItem('gsc_last_sync',now);
-    updateGscUI(true);
-    alert('Sync complete! '+added+' new keywords added, '+updated+' updated from GSC.');
+    const minClicks=parseInt(document.getElementById('gsc-min-clicks').value)||200;
+    gscPreviewData=data.rows
+      .filter(r=>r.clicks>=minClicks)
+      .sort((a,b)=>b.clicks-a.clicks)
+      .map(r=>({...r,selected:true}));
+    gscPreviewCurrentFilter='all';
+    renderGscPreview();
+    document.getElementById('gsc-preview').style.display='block';
+    document.getElementById('gsc-preview').scrollIntoView({behavior:'smooth',block:'start'});
   }catch(e){
-    alert('Sync failed: '+e.message);
+    alert('Fetch failed: '+e.message);
   }finally{
     syncBtn.textContent='↻ Sync now';syncBtn.disabled=false;
   }
+}
+
+function gscPreviewFilter(el,type){
+  gscPreviewCurrentFilter=type;
+  document.querySelectorAll('#gsc-preview-filters .pill').forEach(p=>p.classList.remove('active'));
+  el.classList.add('active');
+  renderGscPreview();
+}
+
+function renderGscPreview(){
+  const minClicks=parseInt(document.getElementById('gsc-min-clicks').value)||200;
+  let rows=gscPreviewData;
+  if(gscPreviewCurrentFilter==='brand')rows=rows.filter(r=>r.keyword.includes('pickl')||r.keyword.includes('bonbird'));
+  else if(gscPreviewCurrentFilter==='nonbrand')rows=rows.filter(r=>!r.keyword.includes('pickl')&&!r.keyword.includes('bonbird'));
+  else if(gscPreviewCurrentFilter==='new')rows=rows.filter(r=>!keywords.find(k=>k.kw===r.keyword.toLowerCase()));
+  else if(gscPreviewCurrentFilter==='existing')rows=rows.filter(r=>!!keywords.find(k=>k.kw===r.keyword.toLowerCase()));
+  
+  const body=document.getElementById('gsc-preview-body');
+  body.innerHTML=rows.map((r,i)=>{
+    const realIdx=gscPreviewData.indexOf(r);
+    const exists=keywords.find(k=>k.kw===r.keyword.toLowerCase());
+    return`<tr style="opacity:${r.selected?1:0.45}">
+      <td><input type="checkbox" ${r.selected?'checked':''} onchange="gscPreviewData[${realIdx}].selected=this.checked;renderGscPreview()"></td>
+      <td style="font-weight:500">${r.keyword}</td>
+      <td style="color:var(--color-text-secondary)">${r.clicks}</td>
+      <td style="color:var(--color-text-secondary)">${r.impressions}</td>
+      <td>${rb(Math.round(r.position))}</td>
+      <td><span class="rb ${exists?'rm':'rt'}">${exists?'update':'new'}</span></td>
+    </tr>`;
+  }).join('');
+  const selected=gscPreviewData.filter(r=>r.selected).length;
+  document.getElementById('gsc-preview-sub').textContent=`${rows.length} keywords shown (${minClicks}+ clicks) · ${selected} selected`;
+  document.getElementById('gsc-preview-count').textContent=`${selected} of ${gscPreviewData.length} keywords selected for import`;
+}
+
+function gscSelectAll(val){
+  gscPreviewData.forEach(r=>r.selected=val);
+  document.getElementById('gsc-check-all').checked=val;
+  renderGscPreview();
+}
+
+function gscImportSelected(){
+  const toImport=gscPreviewData.filter(r=>r.selected);
+  if(!toImport.length){alert('No keywords selected.');return;}
+  let added=0,updated=0;
+  const today_=today();
+  toImport.forEach(row=>{
+    const kw=row.keyword.toLowerCase();
+    const rank=Math.round(row.position);
+    const vol=row.impressions;
+    const ex=keywords.find(k=>k.kw===kw);
+    if(ex){
+      const oldRank=ex.rank1;
+      ex.rank1=rank;ex.vol=vol;
+      if(oldRank!==rank)ex.history.push({date:today_,s1:rank,s2:ex.rank2});
+      updated++;
+    } else {
+      const isBrand=kw.includes('pickl')||kw.includes('bonbird');
+      keywords.push({kw,rank1:rank,rank2:null,vol,cat:isBrand?'brand':'general',note:'GSC import',history:[{date:today_,s1:rank,s2:null}]});
+      added++;
+    }
+  });
+  save();renderAll();
+  const now=new Date().toLocaleString('en-GB',{day:'numeric',month:'short',hour:'2-digit',minute:'2-digit'});
+  localStorage.setItem('gsc_last_sync',now);
+  updateGscUI(true);
+  document.getElementById('gsc-preview').style.display='none';
+  alert('Imported '+added+' new keywords, updated '+updated+' existing.');
 }
 
 // Handle OAuth callback params on page load
