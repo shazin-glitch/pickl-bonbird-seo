@@ -443,7 +443,30 @@ button:hover{background:var(--color-background-secondary)}
     <div id="ai-kw-out" style="display:none">
       <div id="ai-kw-content" class="ai-out"></div>
       <div class="cache-note" id="ai-kw-cache"></div>
-      <button class="btn-sm btn-blue" style="margin-top:6px" onclick="importAISuggestions()">Import to keyword tracker</button>
+      <button class="btn-sm btn-blue" style="margin-top:6px" onclick="showAIPreview()">Select keywords to import</button>
+    </div>
+    <!-- AI keyword preview -->
+    <div id="ai-kw-preview" style="display:none;margin-top:10px;border-top:0.5px solid var(--color-border-tertiary);padding-top:10px">
+      <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:8px;flex-wrap:wrap;gap:6px">
+        <span style="font-size:12px;font-weight:500;color:var(--color-text-primary)" id="ai-preview-title">Select keywords to import</span>
+        <div style="display:flex;gap:6px">
+          <button class="btn-sm" onclick="aiSelectAll(true)">Select all</button>
+          <button class="btn-sm" onclick="aiSelectAll(false)">Deselect all</button>
+          <button class="btn-blue btn-sm" onclick="importAISelected()">Import selected</button>
+          <button class="btn-sm" onclick="document.getElementById('ai-kw-preview').style.display='none'">Cancel</button>
+        </div>
+      </div>
+      <div style="max-height:320px;overflow-y:auto">
+        <table class="kw-table" style="table-layout:fixed">
+          <thead><tr>
+            <th style="width:32px"><input type="checkbox" id="ai-check-all" onchange="aiSelectAll(this.checked)" checked></th>
+            <th>Keyword</th>
+            <th style="width:80px">Intent</th>
+            <th style="width:70px">Status</th>
+          </tr></thead>
+          <tbody id="ai-preview-body"></tbody>
+        </table>
+      </div>
     </div>
   </div>
   <div class="section">
@@ -824,10 +847,65 @@ async function aiSuggestKeywords(){
   catch(e){setAI('ai-kw-out','ai-kw-content','ai-kw-cache',false,'Error: '+e.message,false);}
 }
 
-function importAISuggestions(){
-  const content=document.getElementById('ai-kw-content').textContent;let added=0;
-  content.split('\n').forEach(line=>{const m=line.match(/^\d+\.\s+(.+?)(?:\s*[-–(]|$)/);if(m){const kw=m[1].trim().toLowerCase();if(kw.length>2&&!keywords.find(k=>k.kw===kw)){keywords.push({kw,rank1:null,rank2:null,vol:null,cat:'general',note:'AI suggested',history:[{date:today(),s1:null,s2:null}]});added++;}}});
-  save();renderAll();if(added>0){sw('keywords');alert(`Added ${added} keywords.`);}
+let aiSuggestedKeywords=[];
+
+function showAIPreview(){
+  const rawContent=document.getElementById('ai-kw-content').textContent;
+  aiSuggestedKeywords=[];
+  rawContent.split('\n').forEach(line=>{
+    const m=line.match(/^\d+\.\s+(.+?)(?:\s*[-–(]|$)/);
+    if(m){
+      const kw=m[1].trim().toLowerCase();
+      if(kw.length>2){
+        // Try to detect intent from the line
+        const lower=line.toLowerCase();
+        const intent=lower.includes('transactional')?'transact':lower.includes('local')?'local':lower.includes('informational')?'info':'general';
+        aiSuggestedKeywords.push({kw,intent,selected:true});
+      }
+    }
+  });
+  if(!aiSuggestedKeywords.length){alert('No keywords found. Make sure you have generated suggestions first.');return;}
+  document.getElementById('ai-preview-title').textContent=aiSuggestedKeywords.length+' keywords found — select which to import';
+  renderAIPreview();
+  document.getElementById('ai-kw-preview').style.display='block';
+}
+
+function renderAIPreview(){
+  const body=document.getElementById('ai-preview-body');
+  body.innerHTML=aiSuggestedKeywords.map((k,i)=>{
+    const exists=keywords.find(kw=>kw.kw===k.kw);
+    const intentLabel=k.intent==='transact'?'transact':k.intent==='local'?'local':k.intent==='info'?'info':'general';
+    const intentClass=k.intent==='transact'?'rt':k.intent==='local'?'tag-local':k.intent==='info'?'rn':'rn';
+    return`<tr style="opacity:${k.selected?1:0.45}">
+      <td><input type="checkbox" ${k.selected?'checked':''} onchange="aiSuggestedKeywords[${i}].selected=this.checked;renderAIPreview()"></td>
+      <td style="font-weight:500">${k.kw}</td>
+      <td><span class="rb ${intentClass}">${intentLabel}</span></td>
+      <td><span class="rb ${exists?'rm':'rt'}">${exists?'exists':'new'}</span></td>
+    </tr>`;
+  }).join('');
+  const sel=aiSuggestedKeywords.filter(k=>k.selected).length;
+  document.getElementById('ai-check-all').checked=sel===aiSuggestedKeywords.length;
+}
+
+function aiSelectAll(val){
+  aiSuggestedKeywords.forEach(k=>k.selected=val);
+  document.getElementById('ai-check-all').checked=val;
+  renderAIPreview();
+}
+
+function importAISelected(){
+  const toImport=aiSuggestedKeywords.filter(k=>k.selected);
+  if(!toImport.length){alert('No keywords selected.');return;}
+  let added=0;
+  toImport.forEach(k=>{
+    if(!keywords.find(kw=>kw.kw===k.kw)){
+      keywords.push({kw:k.kw,rank1:null,rank2:null,vol:null,cat:'general',note:'AI suggested',history:[{date:today(),s1:null,s2:null}]});
+      added++;
+    }
+  });
+  save();renderAll();
+  document.getElementById('ai-kw-preview').style.display='none';
+  if(added>0){sw('keywords');alert(added+' keywords added to tracker.');}
 }
 
 async function aiContentBrief(){
@@ -1036,7 +1114,10 @@ function gscImportSelected(){
     if(ex){
       const oldRank=ex.rank1;
       ex.rank1=rank;ex.vol=vol;
-      if(oldRank!==rank)ex.history.push({date:today_,s1:rank,s2:ex.rank2});
+      const lastH=ex.history[ex.history.length-1];
+      if(!lastH||lastH.s1!==rank||lastH.date!==today_){
+        ex.history.push({date:today_,s1:rank,s2:ex.rank2});
+      }
       updated++;
     } else {
       const isBrand=kw.includes('pickl')||kw.includes('bonbird');
