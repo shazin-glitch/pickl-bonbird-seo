@@ -164,6 +164,19 @@ button:hover{background:var(--color-background-secondary)}
   </div>
 </div>
 
+
+<!-- GSC CONNECT BANNER -->
+<div id="gsc-banner" class="section" style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:10px;margin-bottom:12px">
+  <div>
+    <div class="section-title">Google Search Console — Pickl (eatpickl.com)</div>
+    <div class="section-sub" id="gsc-status-text">Not connected — rankings entered manually</div>
+  </div>
+  <div style="display:flex;gap:6px;align-items:center">
+    <button class="btn-blue btn-sm" id="gsc-connect-btn" onclick="gscConnect()">Connect GSC</button>
+    <button class="btn-sm" id="gsc-sync-btn" onclick="gscSync()" style="display:none">↻ Sync now</button>
+    <button class="btn-sm" id="gsc-disconnect-btn" onclick="gscDisconnect()" style="display:none">Disconnect</button>
+  </div>
+</div>
 <div class="sites-grid">
   <div class="site-card">
     <div class="site-header"><div class="dot" style="background:#185FA5"></div><div><div class="site-name">Pickl</div><div class="site-url">eatpickl.com</div></div></div>
@@ -822,5 +835,93 @@ function clearApiKey(){
   document.getElementById('apikey-status').textContent='Key cleared.';
   document.getElementById('apikey-status').style.color='var(--color-text-secondary)';
 }
+
+// GSC OAuth & data sync
+function gscConnect(){window.location.href='/api/auth/login';}
+function gscDisconnect(){localStorage.removeItem('gsc_access_token');localStorage.removeItem('gsc_refresh_token');updateGscUI();alert('Disconnected from Google Search Console.');}
+
+function updateGscUI(){
+  const token=localStorage.getItem('gsc_access_token');
+  const btn=document.getElementById('gsc-connect-btn');
+  const sync=document.getElementById('gsc-sync-btn');
+  const dis=document.getElementById('gsc-disconnect-btn');
+  const status=document.getElementById('gsc-status-text');
+  const lastSync=localStorage.getItem('gsc_last_sync');
+  if(token){
+    btn.style.display='none';
+    sync.style.display='inline-block';
+    dis.style.display='inline-block';
+    status.textContent=lastSync?'Last synced: '+lastSync:'Connected — click Sync to import data';
+    status.style.color='#3B6D11';
+  } else {
+    btn.style.display='inline-block';
+    sync.style.display='none';
+    dis.style.display='none';
+    status.textContent='Not connected — rankings entered manually';
+    status.style.color='var(--color-text-secondary)';
+  }
+}
+
+async function gscSync(){
+  const token=localStorage.getItem('gsc_access_token');
+  const refresh=localStorage.getItem('gsc_refresh_token');
+  if(!token){alert('Please connect Google Search Console first.');return;}
+  const syncBtn=document.getElementById('gsc-sync-btn');
+  syncBtn.textContent='Syncing...';syncBtn.disabled=true;
+  try{
+    const res=await fetch('/api/gsc-data',{method:'POST',headers:{'Content-Type':'application/json'},
+      body:JSON.stringify({access_token:token,refresh_token:refresh,site_url:'https://eatpickl.com/'})});
+    const data=await res.json();
+    if(data.error){alert('GSC error: '+data.error);return;}
+    if(data.refreshed_token)localStorage.setItem('gsc_access_token',data.refreshed_token);
+    let added=0,updated=0;
+    const today_=today();
+    data.rows.forEach(row=>{
+      const kw=row.keyword.toLowerCase();
+      const rank=Math.round(row.position);
+      const vol=row.impressions;
+      const ex=keywords.find(k=>k.kw===kw);
+      if(ex){
+        const oldRank=ex.rank1;
+        ex.rank1=rank;
+        ex.vol=vol;
+        if(oldRank!==rank)ex.history.push({date:today_,s1:rank,s2:ex.rank2});
+        updated++;
+      } else {
+        keywords.push({kw,rank1:rank,rank2:null,vol,cat:'general',note:'GSC import',
+          history:[{date:today_,s1:rank,s2:null}]});
+        added++;
+      }
+    });
+    save();renderAll();
+    const now=new Date().toLocaleString('en-GB',{day:'numeric',month:'short',hour:'2-digit',minute:'2-digit'});
+    localStorage.setItem('gsc_last_sync',now);
+    updateGscUI();
+    alert(`Sync complete! ${added} new keywords added, ${updated} updated from GSC.`);
+  } catch(e){
+    alert('Sync failed: '+e.message);
+  } finally {
+    syncBtn.textContent='↻ Sync now';syncBtn.disabled=false;
+  }
+}
+
+// Handle OAuth callback tokens in URL
+(function handleGscCallback(){
+  const params=new URLSearchParams(window.location.search);
+  const accessToken=params.get('gsc_access_token');
+  const refreshToken=params.get('gsc_refresh_token');
+  const error=params.get('gsc_error');
+  if(accessToken){
+    localStorage.setItem('gsc_access_token',accessToken);
+    if(refreshToken)localStorage.setItem('gsc_refresh_token',refreshToken);
+    window.history.replaceState({},'','/');
+    updateGscUI();
+    alert('Connected to Google Search Console! Click "Sync now" to import Pickl keywords.');
+  }
+  if(error){
+    window.history.replaceState({},'','/');
+    alert('GSC connection error: '+decodeURIComponent(error));
+  }
+})();
 </script>
 </body></html>

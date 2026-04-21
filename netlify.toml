@@ -2,3 +2,18 @@
   from = "/api/claude"
   to = "/.netlify/functions/claude"
   status = 200
+
+[[redirects]]
+  from = "/api/auth/login"
+  to = "/.netlify/functions/auth-login"
+  status = 200
+
+[[redirects]]
+  from = "/api/auth/callback"
+  to = "/.netlify/functions/auth-callback"
+  status = 200
+
+[[redirects]]
+  from = "/api/gsc-data"
+  to = "/.netlify/functions/gsc-data"
+  status = 200
