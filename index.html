@@ -272,10 +272,10 @@ button:hover{background:var(--color-background-secondary)}
     </div>
     <table class="kw-table">
       <thead><tr>
-        <th style="width:22%">Keyword</th><th style="width:7%">Cat</th><th style="width:8%">Vol</th>
-        <th style="width:9%">Pickl</th><th style="width:9%">Bonbird</th>
-        <th style="width:8%">↑ Pickl</th><th style="width:8%">↑ Bonbird</th>
-        <th style="width:12%">Note</th><th style="width:7%">Priority</th><th style="width:5%"></th>
+        <th style="width:20%">Keyword</th><th style="width:6%">Cat</th><th style="width:7%">Impr.</th><th style="width:6%">CTR</th>
+        <th style="width:8%">Pickl</th><th style="width:8%">Bonbird</th>
+        <th style="width:7%">↑ Pickl</th><th style="width:7%">↑ Bonbird</th>
+        <th style="width:10%">Note</th><th style="width:6%">Priority</th><th style="width:5%"></th>
       </tr></thead>
       <tbody id="kw-body"></tbody>
     </table>
@@ -293,13 +293,23 @@ button:hover{background:var(--color-background-secondary)}
   <div class="section">
     <div class="section-title">Competitor overview</div>
     <div class="comp-grid" id="comp-cards"></div>
+  </div>
+  <div class="section">
+    <div class="section-title">Ranking matrix</div>
+    <div class="section-sub">All your tracked keywords vs competitors at a glance — add competitor ranks below</div>
+    <div style="overflow-x:auto">
+      <div id="comp-matrix-wrap"><div class="empty">Add competitor ranks to see the matrix</div></div>
+    </div>
+  </div>
+  <div class="section">
+    <div class="section-title">Add competitor rank</div>
     <div class="row">
       <input type="text" id="comp-kw-sel" placeholder="Keyword..." list="comp-kw-list" style="flex:1;min-width:130px">
       <datalist id="comp-kw-list"></datalist>
-      <select id="comp-sel" style="min-width:120px">
-        <option value="">Competitor...</option>
-        <option>Shake Shack</option><option>Five Guys</option><option>Salt</option><option>Highjoint</option><option>Maxzi</option>
-      </select>
+      <input type="text" id="comp-sel-input" placeholder="Competitor name..." style="min-width:130px" list="comp-name-list">
+      <datalist id="comp-name-list">
+        <option>Shake Shack</option><option>Five Guys</option><option>Salt</option><option>Highjoint</option><option>Maxzi</option><option>McDonald's</option><option>Burger King</option><option>Hardee's</option>
+      </datalist>
       <input type="number" id="comp-rank" placeholder="Their rank" min="1" max="200" style="width:80px">
       <button class="btn-blue" onclick="addCompRank()">+ Add</button>
     </div>
@@ -317,21 +327,36 @@ button:hover{background:var(--color-background-secondary)}
 <!-- COMPARE TAB -->
 <div id="tab-compare" style="display:none">
   <div class="section">
-    <div class="section-title">Pickl vs Bonbird</div>
-    <div id="compare-wrap"><div class="empty">Add keywords on both sites to compare</div></div>
+    <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:10px">
+      <div class="section-title" style="margin:0">Pickl vs Bonbird</div>
+      <div style="display:flex;gap:5px">
+        <span class="pill active" onclick="compareFilter(this,'all')">All keywords</span>
+        <span class="pill" onclick="compareFilter(this,'pickl')">Pickl wins</span>
+        <span class="pill" onclick="compareFilter(this,'bonbird')">Bonbird wins</span>
+        <span class="pill" onclick="compareFilter(this,'one')">One brand only</span>
+      </div>
+    </div>
+    <div id="compare-wrap"><div class="empty">Add keywords to compare</div></div>
   </div>
 </div>
 
 <!-- TRENDS TAB -->
 <div id="tab-trends" style="display:none">
   <div class="section">
-    <div class="section-title">Rank history</div>
-    <div style="display:flex;gap:6px;margin-bottom:10px;align-items:center">
-      <label style="font-size:11px;color:var(--color-text-secondary)">Keyword:</label>
-      <select id="trend-kw-sel" onchange="renderTrends()" style="flex:1"></select>
+    <div style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:8px;margin-bottom:10px">
+      <div class="section-title" style="margin:0">Rank history</div>
+      <div style="display:flex;gap:6px;align-items:center;flex-wrap:wrap">
+        <label style="font-size:11px;color:var(--color-text-secondary)">Keyword:</label>
+        <select id="trend-kw-sel" onchange="renderTrends()" style="min-width:180px"></select>
+        <select id="trend-chart-type" onchange="renderTrends()" style="min-width:110px">
+          <option value="rank">Rank position</option>
+          <option value="impressions">Impressions</option>
+        </select>
+      </div>
     </div>
-    <div class="chart-wrap"><canvas id="trendChart" role="img" aria-label="Rank history line chart"></canvas></div>
+    <div class="chart-wrap" style="height:220px"><canvas id="trendChart" role="img" aria-label="Rank history line chart"></canvas></div>
     <div id="trend-legend" style="display:flex;gap:12px;margin-top:6px;font-size:10px;color:var(--color-text-secondary)"></div>
+    <div id="trend-stats" style="display:flex;gap:8px;margin-top:10px;flex-wrap:wrap"></div>
   </div>
   <div class="section">
     <div class="section-title">UAE seasonal search calendar</div>
@@ -397,7 +422,10 @@ button:hover{background:var(--color-background-secondary)}
     <div style="margin-bottom:7px"><input type="text" id="audit-title" placeholder="Current meta title (paste it here)" style="width:100%"></div>
     <div style="margin-bottom:7px"><input type="text" id="audit-desc" placeholder="Current meta description (paste it here)" style="width:100%"></div>
     <textarea id="audit-content" placeholder="Paste your H1, H2s, and first 2-3 paragraphs of page content here..." rows="4"></textarea>
-    <div style="margin-top:8px"><button class="btn-blue" onclick="aiPageAudit()">Run AI audit</button></div>
+    <div style="margin-top:8px;display:flex;gap:6px">
+      <button class="btn-blue" onclick="aiPageAudit()">Run AI audit</button>
+      <button class="btn-sm" onclick="refreshAudit()">↻ Refresh</button>
+    </div>
     <div id="ai-audit-out" style="display:none"><div id="ai-audit-content" class="ai-out"></div><div class="cache-note" id="ai-audit-cache"></div></div>
   </div>
   <div class="section">
@@ -666,6 +694,7 @@ function renderKeywords(){
   body.innerHTML=filtered.map(k=>{const i=keywords.indexOf(k);return`<tr>
     <td style="font-weight:500">${k.kw}</td><td>${ctag(k.cat)}</td>
     <td style="color:var(--color-text-secondary)">${k.vol?k.vol.toLocaleString():'—'}</td>
+    <td style="color:var(--color-text-secondary)">${k.ctr!=null?k.ctr+'%':'—'}</td>
     <td>${rb(k.rank1)}</td><td>${rb(k.rank2)}</td>
     <td>${trend(k.history,'s1')}</td><td>${trend(k.history,'s2')}</td>
     <td style="font-size:10px;color:var(--color-text-secondary);max-width:90px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap" title="${k.note||''}">${k.note||''}</td>
@@ -686,11 +715,39 @@ function renderStats(){
 }
 
 function renderCompCards(){
-  document.getElementById('comp-cards').innerHTML=COMPS.map(c=>{
-    const entries=compRanks.filter(r=>r.comp===c.name);
+  // Build dynamic competitor list from actual data + defaults
+  const allComps=[...new Set([...COMPS.map(c=>c.name),...compRanks.map(r=>r.comp)])];
+  document.getElementById('comp-cards').innerHTML=allComps.map(name=>{
+    const entries=compRanks.filter(r=>r.comp===name);
+    const preset=COMPS.find(c=>c.name===name);
+    const color=preset?preset.color:'#888780';
     const avg=entries.length?Math.round(entries.reduce((a,b)=>a+b.rank,0)/entries.length):null;
-    return`<div class="comp-card"><div class="dot" style="background:${c.color}"></div><div><div class="comp-name">${c.name}</div><div class="comp-sub">${entries.length} kws${avg?', avg #'+avg:''}</div></div></div>`;
+    return`<div class="comp-card"><div class="dot" style="background:${color}"></div><div><div class="comp-name">${name}</div><div class="comp-sub">${entries.length} kws${avg?', avg #'+avg:''}</div></div></div>`;
   }).join('');
+  renderCompMatrix();
+}
+
+function renderCompMatrix(){
+  const wrap=document.getElementById('comp-matrix-wrap');
+  if(!compRanks.length){wrap.innerHTML='<div class="empty">Add competitor ranks above to see the full matrix</div>';return;}
+  const allComps=[...new Set(compRanks.map(r=>r.comp))];
+  const kwsWithData=keywords.filter(k=>compRanks.some(r=>r.kw===k.kw)||k.rank1||k.rank2);
+  if(!kwsWithData.length){wrap.innerHTML='<div class="empty">Add keywords first</div>';return;}
+  const headers=['Keyword','Impr.','Pickl','Bonbird',...allComps];
+  let html=`<table class="kw-table" style="table-layout:auto;white-space:nowrap"><thead><tr>${headers.map((h,i)=>`<th style="${i===0?'min-width:160px':'min-width:70px;text-align:center'}">${h}</th>`).join('')}</tr></thead><tbody>`;
+  kwsWithData.forEach(k=>{
+    html+=`<tr><td style="font-weight:500">${k.kw}</td>`;
+    html+=`<td style="text-align:center;color:var(--color-text-secondary)">${k.vol?k.vol.toLocaleString():'—'}</td>`;
+    html+=`<td style="text-align:center">${rb(k.rank1)}</td>`;
+    html+=`<td style="text-align:center">${rb(k.rank2)}</td>`;
+    allComps.forEach(comp=>{
+      const cr=compRanks.find(r=>r.kw===k.kw&&r.comp===comp);
+      html+=`<td style="text-align:center">${cr?rb(cr.rank):'<span style="color:var(--color-text-tertiary)">—</span>'}</td>`;
+    });
+    html+='</tr>';
+  });
+  html+='</tbody></table>';
+  wrap.innerHTML=html;
 }
 
 function renderCompKwList(){
@@ -702,7 +759,8 @@ function renderCompKwList(){
 
 function addCompRank(){
   const kw=document.getElementById('comp-kw-sel').value.trim().toLowerCase();
-  const comp=document.getElementById('comp-sel').value,rank=parseInt(document.getElementById('comp-rank').value)||null;
+  const comp=(document.getElementById('comp-sel-input')||document.getElementById('comp-sel')).value.trim();
+  const rank=parseInt(document.getElementById('comp-rank').value)||null;
   if(!kw||!comp||!rank)return;
   const ex=compRanks.find(r=>r.kw===kw&&r.comp===comp);
   if(ex){ex.rank=rank;ex.date=today();}else compRanks.push({kw,comp,rank,date:today()});
@@ -722,20 +780,84 @@ function renderCompView(){
   wrap.innerHTML=`<table class="kw-table" style="table-layout:auto"><thead><tr><th>Brand</th><th>Rank</th><th>Position</th></tr></thead><tbody>${entries.map((e,i)=>`<tr><td><span style="display:inline-flex;align-items:center;gap:5px"><span style="width:7px;height:7px;border-radius:50%;background:${e.color}"></span><span style="font-weight:${i===0?500:400}">${e.name}</span></span></td><td>${rb(e.rank)}</td><td><div class="bar-wrap"><div class="bar-bg"><div class="bar-fill" style="width:${Math.round((1-e.rank/maxR)*100)}%;background:${e.color}"></div></div><span style="font-size:10px;color:var(--color-text-secondary);min-width:28px">#${e.rank}</span></div></td></tr>`).join('')}</tbody></table>`;
 }
 
+let compareFilterMode='all';
+function compareFilter(el,mode){
+  compareFilterMode=mode;
+  document.querySelectorAll('#tab-compare .pill').forEach(p=>p.classList.remove('active'));
+  el.classList.add('active');
+  renderCompare();
+}
 function renderCompare(){
-  const wrap=document.getElementById('compare-wrap'),shared=keywords.filter(k=>k.rank1&&k.rank2);
-  if(!shared.length){wrap.innerHTML='<div class="empty">Add keywords on both sites</div>';return;}
-  const maxR=Math.max(...shared.flatMap(k=>[k.rank1,k.rank2]),100);
-  wrap.innerHTML=`<table class="kw-table" style="table-layout:auto"><thead><tr><th>Keyword</th><th>Pickl</th><th>Bonbird</th><th>Winner</th></tr></thead><tbody>${shared.map(k=>{const aW=k.rank1<k.rank2,tied=k.rank1===k.rank2;return`<tr><td style="font-weight:500">${k.kw}</td><td><div class="bar-wrap"><div class="bar-bg"><div class="bar-fill" style="width:${Math.round((1-k.rank1/maxR)*100)}%;background:#185FA5"></div></div><span style="font-size:10px;min-width:26px">#${k.rank1}</span></div></td><td><div class="bar-wrap"><div class="bar-bg"><div class="bar-fill" style="width:${Math.round((1-k.rank2/maxR)*100)}%;background:#D85A30"></div></div><span style="font-size:10px;min-width:26px">#${k.rank2}</span></div></td><td style="font-size:11px;font-weight:500;color:${tied?'var(--color-text-secondary)':aW?'#185FA5':'#D85A30'}">${tied?'Tied':aW?'Pickl':'Bonbird'}</td></tr>`;}).join('')}</tbody></table>`;
+  const wrap=document.getElementById('compare-wrap');
+  let list=keywords.filter(k=>k.rank1||k.rank2);
+  if(compareFilterMode==='pickl')list=list.filter(k=>k.rank1&&k.rank2&&k.rank1<k.rank2);
+  else if(compareFilterMode==='bonbird')list=list.filter(k=>k.rank1&&k.rank2&&k.rank2<k.rank1);
+  else if(compareFilterMode==='one')list=list.filter(k=>!(k.rank1&&k.rank2));
+  if(!list.length){wrap.innerHTML='<div class="empty">No keywords match this filter</div>';return;}
+  const maxR=Math.max(...list.flatMap(k=>[k.rank1||200,k.rank2||200]),100);
+  wrap.innerHTML=`<table class="kw-table" style="table-layout:auto"><thead><tr><th>Keyword</th><th>Impr.</th><th>Pickl</th><th>Bonbird</th><th>Winner</th></tr></thead><tbody>${list.map(k=>{
+    const aW=k.rank1&&k.rank2&&k.rank1<k.rank2,tied=k.rank1&&k.rank2&&k.rank1===k.rank2,pickWin=aW,birdWin=k.rank1&&k.rank2&&k.rank2<k.rank1;
+    return`<tr>
+      <td style="font-weight:500">${k.kw}</td>
+      <td style="color:var(--color-text-secondary)">${k.vol?k.vol.toLocaleString():'—'}</td>
+      <td>${k.rank1?`<div class="bar-wrap"><div class="bar-bg"><div class="bar-fill" style="width:${Math.round((1-k.rank1/maxR)*100)}%;background:#185FA5"></div></div><span style="font-size:10px;min-width:26px">#${k.rank1}</span></div>`:'<span style="color:var(--color-text-tertiary)">—</span>'}</td>
+      <td>${k.rank2?`<div class="bar-wrap"><div class="bar-bg"><div class="bar-fill" style="width:${Math.round((1-k.rank2/maxR)*100)}%;background:#D85A30"></div></div><span style="font-size:10px;min-width:26px">#${k.rank2}</span></div>`:'<span style="color:var(--color-text-tertiary)">—</span>'}</td>
+      <td style="font-size:11px;font-weight:500;color:${tied?'var(--color-text-secondary)':pickWin?'#185FA5':birdWin?'#D85A30':'var(--color-text-secondary)'}">${tied?'Tied':pickWin?'Pickl':birdWin?'Bonbird':'—'}</td>
+    </tr>`;}).join('')}</tbody></table>`;
 }
 
 function renderTrends(){
   const sel=document.getElementById('trend-kw-sel'),legend=document.getElementById('trend-legend');
+  const chartType=document.getElementById('trend-chart-type')?.value||'rank';
   const kw=keywords.find(k=>k.kw===sel.value);
   if(trendChart){trendChart.destroy();trendChart=null;}
-  if(!kw){legend.innerHTML='';return;}
-  trendChart=new Chart(document.getElementById('trendChart'),{type:'line',data:{labels:kw.history.map(h=>h.date),datasets:[{label:'Pickl',data:kw.history.map(h=>h.s1),borderColor:'#185FA5',backgroundColor:'rgba(24,95,165,0.06)',tension:0.3,pointRadius:3,fill:true,borderDash:[],pointStyle:'circle'},{label:'Bonbird',data:kw.history.map(h=>h.s2),borderColor:'#D85A30',backgroundColor:'rgba(216,90,48,0.06)',tension:0.3,pointRadius:3,fill:true,borderDash:[5,3],pointStyle:'rect'}]},options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{display:false}},scales:{y:{reverse:true,min:1,title:{display:true,text:'Rank',font:{size:10}},grid:{color:'rgba(128,128,128,0.07)'}},x:{grid:{display:false}}}}});
-  legend.innerHTML=`<span style="display:flex;align-items:center;gap:3px"><span style="width:10px;height:2px;background:#185FA5;display:inline-block"></span>Pickl</span><span style="display:flex;align-items:center;gap:3px"><span style="width:10px;height:2px;background:#D85A30;display:inline-block;border-top:2px dashed #D85A30"></span>Bonbird</span>`;
+  const statsWrap=document.getElementById('trend-stats');
+  if(!kw){legend.innerHTML='';if(statsWrap)statsWrap.innerHTML='';return;}
+  
+  const isRank=chartType==='rank';
+  let datasets=[];
+  if(isRank){
+    datasets=[
+      {label:'Pickl',data:kw.history.map(h=>h.s1),borderColor:'#185FA5',backgroundColor:'rgba(24,95,165,0.06)',tension:0.3,pointRadius:3,fill:true,spanGaps:true},
+      {label:'Bonbird',data:kw.history.map(h=>h.s2),borderColor:'#D85A30',backgroundColor:'rgba(216,90,48,0.06)',tension:0.3,pointRadius:3,fill:true,borderDash:[5,3],spanGaps:true}
+    ];
+  } else {
+    datasets=[{label:'Impressions',data:kw.history.map(h=>h.impr||null),borderColor:'#3B6D11',backgroundColor:'rgba(59,109,17,0.06)',tension:0.3,pointRadius:3,fill:true,spanGaps:true}];
+  }
+  
+  trendChart=new Chart(document.getElementById('trendChart'),{
+    type:'line',
+    data:{labels:kw.history.map(h=>h.date),datasets},
+    options:{
+      responsive:true,maintainAspectRatio:false,
+      plugins:{legend:{display:false}},
+      scales:{
+        y:{
+          reverse:isRank,
+          min:isRank?1:0,
+          title:{display:true,text:isRank?'Rank position':'Impressions',font:{size:10}},
+          grid:{color:'rgba(128,128,128,0.07)'}
+        },
+        x:{grid:{display:false}}
+      }
+    }
+  });
+  
+  legend.innerHTML=isRank
+    ?`<span style="display:flex;align-items:center;gap:3px"><span style="width:10px;height:2px;background:#185FA5;display:inline-block"></span>Pickl</span><span style="display:flex;align-items:center;gap:3px"><span style="width:10px;height:2px;background:#D85A30;display:inline-block"></span>Bonbird</span>`
+    :`<span style="display:flex;align-items:center;gap:3px"><span style="width:10px;height:2px;background:#3B6D11;display:inline-block"></span>Impressions</span>`;
+  
+  // Stats strip
+  if(statsWrap){
+    const r1vals=kw.history.map(h=>h.s1).filter(v=>v!=null);
+    const r2vals=kw.history.map(h=>h.s2).filter(v=>v!=null);
+    const stats=[];
+    if(r1vals.length>=2){const d=r1vals[0]-r1vals[r1vals.length-1];stats.push(`<div class="stat" style="flex:none;min-width:100px"><div class="stat-val" style="font-size:13px;color:${d>0?'#3B6D11':d<0?'#A32D2D':'var(--color-text-secondary)'}">${d>0?'▲'+d:d<0?'▼'+Math.abs(d):'→'}</div><div class="stat-label">Pickl change</div></div>`);}
+    if(r2vals.length>=2){const d=r2vals[0]-r2vals[r2vals.length-1];stats.push(`<div class="stat" style="flex:none;min-width:100px"><div class="stat-val" style="font-size:13px;color:${d>0?'#3B6D11':d<0?'#A32D2D':'var(--color-text-secondary)'}">${d>0?'▲'+d:d<0?'▼'+Math.abs(d):'→'}</div><div class="stat-label">Bonbird change</div></div>`);}
+    if(kw.vol)stats.push(`<div class="stat" style="flex:none;min-width:100px"><div class="stat-val" style="font-size:13px">${kw.vol.toLocaleString()}</div><div class="stat-label">Impressions</div></div>`);
+    if(kw.ctr!=null)stats.push(`<div class="stat" style="flex:none;min-width:100px"><div class="stat-val" style="font-size:13px">${kw.ctr}%</div><div class="stat-label">CTR</div></div>`);
+    statsWrap.innerHTML=stats.join('');
+  }
 }
 
 function populateTrendSel(){const sel=document.getElementById('trend-kw-sel'),cur=sel.value;sel.innerHTML=keywords.map(k=>`<option value="${k.kw}">${k.kw}</option>`).join('');if(keywords.find(k=>k.kw===cur))sel.value=cur;}
@@ -795,13 +917,13 @@ function renderAlerts(){
   moved.sort((a,b)=>Math.abs(b.diff)-Math.abs(a.diff));
   wrap.innerHTML=moved.map(m=>`<div class="alert-item"><div class="alert-dot ${m.diff>0?'alert-low':'alert-high'}"></div><div><span style="font-weight:500">${m.kw}</span> <span style="color:var(--color-text-secondary)">(${m.site})</span> — ${m.diff>0?'improved':'dropped'} ${Math.abs(m.diff)} positions to <strong>#${m.last}</strong></div></div>`).join('');
   
-  const opps=keywords.filter(k=>(k.vol||0)>500&&((k.rank1&&k.rank1>10)||(k.rank2&&k.rank2>10))).sort((a,b)=>(b.vol||0)-(a.vol||0)).slice(0,6);
+  const opps=keywords.filter(k=>((k.vol||k.impressions||0)>100)&&((k.rank1&&k.rank1>10)||(k.rank2&&k.rank2>10))).sort((a,b)=>((b.vol||b.impressions||0))-(a.vol||a.impressions||0)).slice(0,10);
   const oppWrap=document.getElementById('opps-wrap');
-  oppWrap.innerHTML=opps.length?opps.map(k=>`<div class="alert-item"><div class="alert-dot alert-mid"></div><div><span style="font-weight:500">${k.kw}</span> — vol: ${(k.vol||0).toLocaleString()}${k.rank1?', Pickl #'+k.rank1:''}${k.rank2?', Bonbird #'+k.rank2:''} <span class="priority-badge pb-h">opportunity</span></div></div>`).join(''):'<div class="empty">Add keywords with search volume to see opportunities</div>';
+  oppWrap.innerHTML=opps.length?opps.map(k=>`<div class="alert-item"><div class="alert-dot alert-mid"></div><div><span style="font-weight:500">${k.kw}</span> — ${(k.vol||k.impressions||0).toLocaleString()} impr.${k.ctr!=null?', '+k.ctr+'% CTR':''}${k.rank1?', Pickl #'+k.rank1:''}${k.rank2?', Bonbird #'+k.rank2:''} <span class="priority-badge pb-h">opportunity</span></div></div>`).join(''):'<div class="empty">Impressions data will appear after GSC sync</div>';
 
-  const qw=keywords.filter(k=>(k.rank1&&k.rank1>=11&&k.rank1<=20)||(k.rank2&&k.rank2>=11&&k.rank2<=20)).slice(0,6);
+  const qw=keywords.filter(k=>(k.rank1&&k.rank1>=11&&k.rank1<=25)||(k.rank2&&k.rank2>=11&&k.rank2<=25)).sort((a,b)=>((b.vol||b.impressions||0))-(a.vol||a.impressions||0)).slice(0,10);
   const qwWrap=document.getElementById('quickwins-wrap');
-  qwWrap.innerHTML=qw.length?qw.map(k=>`<div class="alert-item"><div class="alert-dot alert-low"></div><div><span style="font-weight:500">${k.kw}</span>${k.rank1&&k.rank1>=11&&k.rank1<=20?` — Pickl at <strong>#${k.rank1}</strong>`:''}${k.rank2&&k.rank2>=11&&k.rank2<=20?` — Bonbird at <strong>#${k.rank2}</strong>`:''} <span class="priority-badge pb-l">page 1 within reach</span></div></div>`).join(''):'<div class="empty">No quick-win keywords yet</div>';
+  qwWrap.innerHTML=qw.length?qw.map(k=>`<div class="alert-item"><div class="alert-dot alert-low"></div><div><span style="font-weight:500">${k.kw}</span>${k.rank1&&k.rank1>=11&&k.rank1<=25?` — Pickl <strong>#${k.rank1}</strong>`:''}${k.rank2&&k.rank2>=11&&k.rank2<=25?` — Bonbird <strong>#${k.rank2}</strong>`:''}${(k.vol||k.impressions)?` · ${(k.vol||k.impressions||0).toLocaleString()} impr.`:''} <span class="priority-badge pb-l">page 1 within reach</span></div></div>`).join(''):'<div class="empty">No quick-win keywords yet (positions 11–25)</div>';
 }
 
 function exportCSV(){
@@ -930,6 +1052,11 @@ async function aiGapAnalysis(){
   catch(e){setAI('ai-gap-out','ai-gap-content','ai-gap-cache',false,'Error: '+e.message,false);}
 }
 
+function refreshAudit(){
+  const page=document.getElementById('audit-page').value.trim(),kw=document.getElementById('audit-kw').value.trim();
+  const ck=`audit_${page}_${kw}`;delete aiCache[ck];
+  aiPageAudit();
+}
 async function aiPageAudit(){
   const site=document.getElementById('audit-site').value,page=document.getElementById('audit-page').value.trim();
   const kw=document.getElementById('audit-kw').value.trim(),title=document.getElementById('audit-title').value.trim();
@@ -965,7 +1092,7 @@ async function aiArabicKw(){
 function renderAll(){
   renderStats();renderKeywords();renderCompare();renderCompCards();renderCompKwList();renderCompView();
   populateTrendSel();renderTrends();renderLocalChecks();renderDirTable();renderArabicKws();
-  renderTechChecks();renderAlerts();
+  renderTechChecks();renderAlerts();renderCompMatrix();
 }
 
 function sw(t){
@@ -1116,12 +1243,12 @@ function gscImportSelected(){
       ex.rank1=rank;ex.vol=vol;
       const lastH=ex.history[ex.history.length-1];
       if(!lastH||lastH.s1!==rank||lastH.date!==today_){
-        ex.history.push({date:today_,s1:rank,s2:ex.rank2});
+        ex.history.push({date:today_,s1:rank,s2:ex.rank2,impr:row.impressions});
       }
       updated++;
     } else {
       const isBrand=kw.includes('pickl')||kw.includes('bonbird');
-      keywords.push({kw,rank1:rank,rank2:null,vol,cat:isBrand?'brand':'general',note:'GSC import',history:[{date:today_,s1:rank,s2:null}]});
+      keywords.push({kw,rank1:rank,rank2:null,vol,cat:isBrand?'brand':'general',note:'GSC import',history:[{date:today_,s1:rank,s2:null,impr:row.impressions}]});
       added++;
     }
   });
