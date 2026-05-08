@@ -59,4 +59,4 @@ This is a significant addition (~1 day of work) — worth doing once the tool is
 
 ## Dark mode
 
-The tool auto-detects dark/light mode via `prefers-color-scheme`. No toggle needed.
+The tool auto-detects dark/light mode via `prefers-color-scheme`. No toggle needed. 
