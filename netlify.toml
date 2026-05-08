@@ -1,3 +1,4 @@
+# existing — keep unchanged
 [[redirects]]
   from = "/api/claude"
   to = "/.netlify/functions/claude"
@@ -27,3 +28,31 @@
   from = "/api/db/save"
   to = "/.netlify/functions/db-save"
   status = 200
+
+# new — approval system
+[[redirects]]
+  from = "/api/approvals"
+  to = "/.netlify/functions/approvals"
+  status = 200
+
+[[redirects]]
+  from = "/api/wordpress"
+  to = "/.netlify/functions/wordpress"
+  status = 200
+
+[[redirects]]
+  from = "/api/scheduler"
+  to = "/.netlify/functions/scheduler"
+  status = 200
+
+[[redirects]]
+  from = "/api/reviews"
+  to = "/.netlify/functions/reviews"
+  status = 200
+
+# Scheduled function: weekly autonomous SEO audit.
+# Cron runs in UTC. Mondays 06:00 UTC = 10:00 Dubai time.
+# Change/disable by editing this block. Requires a published deploy (won't
+# run on deploy previews).
+[functions."scheduler"]
+  schedule = "0 6 * * 1"

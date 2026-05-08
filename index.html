@@ -160,6 +160,7 @@ button:hover{background:var(--color-background-secondary)}
     <button class="tab" onclick="sw('local')">Local SEO</button>
     <button class="tab" onclick="sw('audit')">Page Audit</button>
     <button class="tab" onclick="sw('alerts')">Alerts</button>
+    <button class="tab" onclick="sw('approvals')">Approvals<span id="appr-tab-count" style="display:none;margin-left:5px;padding:0 5px;border-radius:20px;background:#FCEBEB;color:#791F1F;font-size:9px;font-weight:600">0</span></button>
     <button class="tab" onclick="sw('ai')">AI Tools</button>
   </div>
 </div>
@@ -451,6 +452,51 @@ button:hover{background:var(--color-background-secondary)}
     <div class="section-title">Quick wins</div>
     <div class="section-sub">Rankings between #11–20 — one push could get these to page 1</div>
     <div id="quickwins-wrap"></div>
+  </div>
+</div>
+
+<!-- APPROVALS TAB -->
+<div id="tab-approvals" style="display:none">
+  <div class="section" style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:10px">
+    <div>
+      <div class="section-title">Approval queue</div>
+      <div class="section-sub" id="appr-summary">Loading…</div>
+    </div>
+    <div style="display:flex;gap:6px;align-items:center;flex-wrap:wrap">
+      <span id="appr-actor" style="font-size:11px;color:var(--color-text-secondary)"></span>
+      <button class="btn-sm" onclick="apprChangeActor()">Change name</button>
+      <button class="btn-sm" onclick="apprRefresh()">↻ Refresh</button>
+      <button class="btn-blue btn-sm" onclick="apprRunAudit()">Run audit now</button>
+    </div>
+  </div>
+
+  <div class="section">
+    <div class="row" style="margin-bottom:6px">
+      <div class="pills" id="appr-status-pills" style="margin-bottom:0">
+        <span class="pill active" data-status="pending" onclick="apprSetStatus(this,'pending')">Pending</span>
+        <span class="pill" data-status="approved" onclick="apprSetStatus(this,'approved')">Approved</span>
+        <span class="pill" data-status="rejected" onclick="apprSetStatus(this,'rejected')">Rejected</span>
+        <span class="pill" data-status="pushed" onclick="apprSetStatus(this,'pushed')">Pushed</span>
+        <span class="pill" data-status="failed" onclick="apprSetStatus(this,'failed')">Failed</span>
+        <span class="pill" data-status="all" onclick="apprSetStatus(this,'all')">All</span>
+      </div>
+    </div>
+    <div class="row">
+      <div class="pills" id="appr-brand-pills" style="margin-bottom:0">
+        <span class="pill active" data-brand="" onclick="apprSetBrand(this,'')">Both brands</span>
+        <span class="pill" data-brand="pickl" onclick="apprSetBrand(this,'pickl')">Pickl</span>
+        <span class="pill" data-brand="bonbird" onclick="apprSetBrand(this,'bonbird')">Bonbird</span>
+      </div>
+    </div>
+  </div>
+
+  <div id="appr-list"></div>
+  <div id="appr-empty" class="section empty" style="display:none">No items match this filter.</div>
+
+  <div class="section" id="appr-audit-section" style="display:none">
+    <div class="section-title">Audit log</div>
+    <div class="section-sub">Recent actions across the queue</div>
+    <div id="appr-audit-list" style="font-size:11px"></div>
   </div>
 </div>
 
@@ -1096,9 +1142,9 @@ function renderAll(){
 }
 
 function sw(t){
-  ['keywords','competitors','compare','trends','local','audit','alerts','ai'].forEach(id=>document.getElementById('tab-'+id).style.display=id===t?'block':'none');
-  document.querySelectorAll('.tab').forEach((b,i)=>b.classList.toggle('active',['keywords','competitors','compare','trends','local','audit','alerts','ai'][i]===t));
-  if(t==='trends')renderTrends();if(t==='ai'){const k=localStorage.getItem('anthropic_key');const s=document.getElementById('apikey-status');if(s){s.textContent=k?'✓ API key is set — AI features ready':'Enter your Anthropic API key above to use AI features';s.style.color=k?'#3B6D11':'var(--color-text-secondary)';}}if(t==='competitors'){renderCompCards();renderCompView();}if(t==='alerts')renderAlerts();
+  ['keywords','competitors','compare','trends','local','audit','alerts','approvals','ai'].forEach(id=>document.getElementById('tab-'+id).style.display=id===t?'block':'none');
+  document.querySelectorAll('.tab').forEach((b,i)=>b.classList.toggle('active',['keywords','competitors','compare','trends','local','audit','alerts','approvals','ai'][i]===t));
+  if(t==='trends')renderTrends();if(t==='ai'){const k=localStorage.getItem('anthropic_key');const s=document.getElementById('apikey-status');if(s){s.textContent=k?'✓ API key is set — AI features ready':'Enter your Anthropic API key above to use AI features';s.style.color=k?'#3B6D11':'var(--color-text-secondary)';}}if(t==='competitors'){renderCompCards();renderCompView();}if(t==='alerts')renderAlerts();if(t==='approvals')renderApprovals();
 }
 
 // API key functions (global scope)
@@ -1275,7 +1321,368 @@ function gscImportSelected(){
   }
 })();
 
-// Init — async so we can await shared data load
+// ============================================================
+// APPROVALS TAB — queue, edit, reject-with-rewrite, diff view
+// ============================================================
+const apprState={items:[],counts:null,filter:{status:'pending',brand:''},editing:{},rejecting:{},diffOpen:{},pollTimer:null,actor:null,parents:{}};
+
+function apprActor(){
+  let a=localStorage.getItem('seo_actor');
+  if(!a){a=apprPromptActor();}
+  apprState.actor=a;
+  const el=document.getElementById('appr-actor');
+  if(el)el.textContent=a?'Signed in as '+a:'';
+  return a;
+}
+function apprPromptActor(){
+  let name=null;
+  while(!name||!name.trim()){
+    name=window.prompt('Who is using the SEO tool? (your name — used in the audit log)','');
+    if(name===null){name='guest';break;}
+  }
+  name=name.trim().slice(0,40)||'guest';
+  localStorage.setItem('seo_actor',name);
+  // Fire-and-forget: log the identification on the server
+  fetch('/api/approvals',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({action:'identify',actor:name})}).catch(()=>{});
+  return name;
+}
+function apprChangeActor(){
+  localStorage.removeItem('seo_actor');
+  apprActor();
+  apprRefresh();
+}
+
+function apprSetStatus(el,s){apprState.filter.status=s;document.querySelectorAll('#appr-status-pills .pill').forEach(p=>p.classList.remove('active'));el.classList.add('active');renderApprovals();}
+function apprSetBrand(el,b){apprState.filter.brand=b;document.querySelectorAll('#appr-brand-pills .pill').forEach(p=>p.classList.remove('active'));el.classList.add('active');renderApprovals();}
+
+async function apprRefresh(){await renderApprovals();}
+
+async function renderApprovals(){
+  apprActor();
+  const params=new URLSearchParams();
+  params.set('status',apprState.filter.status);
+  if(apprState.filter.brand)params.set('brand',apprState.filter.brand);
+  const list=document.getElementById('appr-list');
+  if(!apprState.items.length)list.innerHTML='<div class="section empty">Loading…</div>';
+  try{
+    const res=await fetch('/api/approvals?'+params.toString());
+    const data=await res.json();
+    apprState.items=data.items||[];
+    apprState.counts=data.counts||null;
+  }catch(e){
+    list.innerHTML='<div class="section empty" style="color:#A32D2D">Failed to load: '+(e.message||'network error')+'</div>';
+    return;
+  }
+  apprUpdateSummary();
+  apprUpdateTabBadge();
+  // Build a parent lookup so rewrites can find their original
+  apprState.parents={};
+  apprState.items.forEach(it=>{if(it.id)apprState.parents[it.id]=it;});
+
+  if(!apprState.items.length){
+    list.innerHTML='';
+    document.getElementById('appr-empty').style.display='block';
+  }else{
+    document.getElementById('appr-empty').style.display='none';
+    list.innerHTML=apprState.items.map(apprCardHtml).join('');
+  }
+  apprRenderAudit();
+}
+
+function apprUpdateSummary(){
+  const c=apprState.counts;const el=document.getElementById('appr-summary');
+  if(!c){el.textContent='No items yet.';return;}
+  el.textContent=`${c.pending} pending · ${c.pushed} pushed · ${c.rejected} rejected · ${c.failed} failed · ${c.total} total`;
+}
+function apprUpdateTabBadge(){
+  const badge=document.getElementById('appr-tab-count');
+  if(!badge||!apprState.counts)return;
+  const n=apprState.counts.pending||0;
+  if(n>0){badge.textContent=String(n);badge.style.display='inline-block';}
+  else{badge.style.display='none';}
+}
+
+function apprBrandColor(b){return b==='pickl'?'#185FA5':b==='bonbird'?'#D85A30':'var(--color-text-secondary)';}
+function apprBrandLabel(b){return b==='pickl'?'Pickl':b==='bonbird'?'Bonbird':b;}
+function apprTypeLabel(t){return({blog_draft:'Blog draft',meta_update:'Meta update',onpage_suggestion:'On-page suggestion',review_response:'Review response',schema_update:'Schema update'})[t]||t;}
+function apprStatusBadge(s){
+  const m={pending:'rn',approved:'rt',pushed:'rt',rejected:'rl',failed:'rl'};
+  return `<span class="rb ${m[s]||'rn'}" style="text-transform:uppercase;font-size:9px">${s}</span>`;
+}
+function apprRel(ts){if(!ts)return'';const d=Date.now()-ts;if(d<60000)return'just now';if(d<3600000)return Math.floor(d/60000)+'m ago';if(d<86400000)return Math.floor(d/3600000)+'h ago';return Math.floor(d/86400000)+'d ago';}
+function apprEsc(s){return String(s==null?'':s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;').replace(/'/g,'&#39;');}
+
+function apprCardHtml(it){
+  const editing=apprState.editing[it.id];
+  const rejecting=apprState.rejecting[it.id];
+  const diff=apprState.diffOpen[it.id];
+  const parent=it.parentId?apprState.parents[it.parentId]:null;
+  const brandDot=`<span style="display:inline-block;width:8px;height:8px;border-radius:50%;background:${apprBrandColor(it.brand)};margin-right:6px;vertical-align:middle"></span>`;
+  const headerMeta=`<div style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:8px;margin-bottom:6px">
+    <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;flex:1;min-width:0">
+      <span style="font-size:13px;font-weight:500;color:var(--color-text-primary)">${brandDot}${apprBrandLabel(it.brand)}</span>
+      <span style="font-size:11px;color:var(--color-text-secondary)">${apprEsc(apprTypeLabel(it.type))}</span>
+      ${apprStatusBadge(it.status)}
+      ${parent?`<span class="tag tag-comp" style="cursor:pointer" onclick="apprToggleDiff('${it.id}')">↺ Rewrite — ${diff?'hide':'show'} original</span>`:''}
+    </div>
+    <span style="font-size:10px;color:var(--color-text-tertiary)">by ${apprEsc(it.actor||'claude')} · ${apprRel(it.createdAt)}</span>
+  </div>`;
+  const title=`<div style="font-size:13px;font-weight:500;color:var(--color-text-primary);margin-bottom:3px">${apprEsc(it.title||apprTypeLabel(it.type))}</div>`;
+  const reason=it.reason?`<div class="section-sub" style="margin-bottom:8px">${apprEsc(it.reason)}</div>`:'';
+
+  let body='';
+  if(editing){
+    body=apprEditorHtml(it);
+  }else{
+    body=apprPreviewHtml(it,it.payload);
+    if(diff&&parent){
+      body+=`<div style="margin-top:10px;border-top:0.5px dashed var(--color-border-tertiary);padding-top:8px">
+        <div style="font-size:11px;color:var(--color-text-secondary);margin-bottom:6px">Original (rejected):</div>
+        ${apprPreviewHtml(parent,parent.payload)}
+        ${parent.rejectionFeedback?`<div style="margin-top:6px;padding:6px 8px;background:var(--color-background-secondary);border-radius:var(--border-radius-md);font-size:11px"><span style="color:var(--color-text-secondary)">Your feedback:</span> ${apprEsc(parent.rejectionFeedback)}</div>`:''}
+      </div>`;
+    }
+  }
+
+  let actions='';
+  if(it.status==='pending'){
+    if(rejecting){
+      actions=`<div style="margin-top:10px;padding-top:8px;border-top:0.5px solid var(--color-border-tertiary)">
+        <textarea id="rej-${it.id}" placeholder="What's wrong with this? Claude will rewrite based on your feedback." rows="2" style="width:100%;font-size:12px"></textarea>
+        <div style="display:flex;gap:6px;margin-top:6px;flex-wrap:wrap">
+          <button class="btn-orange btn-sm" onclick="apprDoReject('${it.id}',true)">Reject &amp; rewrite</button>
+          <button class="btn-sm" onclick="apprDoReject('${it.id}',false)">Reject (no rewrite)</button>
+          <button class="btn-sm" onclick="apprCancelReject('${it.id}')">Cancel</button>
+        </div>
+      </div>`;
+    }else if(editing){
+      actions=`<div style="display:flex;gap:6px;margin-top:10px;flex-wrap:wrap">
+        <button class="btn-blue btn-sm" onclick="apprDoEditApprove('${it.id}')">Save &amp; approve</button>
+        <button class="btn-sm" onclick="apprCancelEdit('${it.id}')">Cancel</button>
+      </div>`;
+    }else{
+      actions=`<div style="display:flex;gap:6px;margin-top:10px;flex-wrap:wrap">
+        <button class="btn-blue btn-sm" onclick="apprDoApprove('${it.id}')">Approve</button>
+        <button class="btn-sm" onclick="apprStartEdit('${it.id}')">Edit &amp; approve</button>
+        <button class="btn-orange btn-sm" onclick="apprStartReject('${it.id}')">Reject with feedback</button>
+      </div>`;
+    }
+  }else if(it.status==='pushed'&&it.pushResult){
+    actions=`<div style="margin-top:8px;font-size:11px;color:#27500A">✓ ${apprEsc(it.pushResult.message||'Pushed')} ${it.pushResult.ref?`— <a href="${apprEsc(it.pushResult.ref)}" target="_blank" style="color:#185FA5">open</a>`:''}</div>`;
+  }else if(it.status==='failed'&&it.pushResult){
+    actions=`<div style="margin-top:8px;font-size:11px;color:#A32D2D">✗ ${apprEsc(it.pushResult.message||'Push failed')}</div>`;
+  }else if(it.status==='rejected'){
+    actions=`<div style="margin-top:8px;font-size:11px;color:var(--color-text-secondary)">Rejected${it.rejectionFeedback?': '+apprEsc(it.rejectionFeedback):''}</div>`;
+  }
+
+  return `<div class="section" id="appr-card-${it.id}">${headerMeta}${title}${reason}${body}${actions}</div>`;
+}
+
+// Per-type preview/editor renderers
+function apprPreviewHtml(it,p){
+  if(!p)return '<div class="ai-out">(empty payload)</div>';
+  if(it.type==='blog_draft'){
+    return `<div style="font-size:12px">
+      <div style="margin-bottom:4px"><span style="color:var(--color-text-secondary);font-size:10px">TITLE</span><br>${apprEsc(p.title||'')}</div>
+      <div style="margin-bottom:4px"><span style="color:var(--color-text-secondary);font-size:10px">META DESCRIPTION</span><br>${apprEsc(p.metaDescription||'')}</div>
+      <div style="margin-bottom:4px"><span style="color:var(--color-text-secondary);font-size:10px">TARGET KEYWORD</span> · ${apprEsc(p.targetKeyword||'')} <span style="color:var(--color-text-tertiary)">· slug: ${apprEsc(p.slug||'')}</span></div>
+      <details style="margin-top:6px"><summary style="cursor:pointer;font-size:11px;color:var(--color-text-secondary)">Show full body</summary>
+      <div class="ai-out" style="margin-top:6px;font-family:var(--font-mono);font-size:11px">${apprEsc(p.body||'')}</div>
+      </details>
+    </div>`;
+  }
+  if(it.type==='meta_update'){
+    return `<div style="font-size:12px">
+      <div style="margin-bottom:4px"><span style="color:var(--color-text-secondary);font-size:10px">URL</span><br>${apprEsc(p.url||p.postId||'')}</div>
+      <div style="margin-bottom:4px"><span style="color:var(--color-text-secondary);font-size:10px">NEW TITLE</span><br>${apprEsc(p.title||'')}</div>
+      <div style="margin-bottom:4px"><span style="color:var(--color-text-secondary);font-size:10px">NEW DESCRIPTION</span><br>${apprEsc(p.description||'')}</div>
+      ${p.targetKeyword?`<div style="font-size:10px;color:var(--color-text-tertiary)">target: ${apprEsc(p.targetKeyword)}</div>`:''}
+    </div>`;
+  }
+  if(it.type==='onpage_suggestion'){
+    return `<div style="font-size:12px">
+      ${p.url?`<div style="margin-bottom:4px"><span style="color:var(--color-text-secondary);font-size:10px">PAGE</span><br>${apprEsc(p.url)}</div>`:''}
+      ${p.keyword?`<div style="margin-bottom:4px"><span style="color:var(--color-text-secondary);font-size:10px">KEYWORD</span> · ${apprEsc(p.keyword)} ${p.currentPosition?`(pos ${p.currentPosition})`:''}</div>`:''}
+      <div style="margin-bottom:4px"><span style="color:var(--color-text-secondary);font-size:10px">SUGGESTION</span><br>${apprEsc(p.suggestion||'')}</div>
+      ${p.effortMinutes?`<div style="font-size:10px;color:var(--color-text-tertiary)">Estimated effort: ~${p.effortMinutes} min</div>`:''}
+    </div>`;
+  }
+  if(it.type==='review_response'){
+    return `<div style="font-size:12px">
+      <div style="margin-bottom:6px;padding:6px 8px;background:var(--color-background-secondary);border-radius:var(--border-radius-md)">
+        <div style="font-size:10px;color:var(--color-text-secondary)">Review from ${apprEsc(p.reviewerName||'')} · ${'★'.repeat(p.starRating||0)}${'☆'.repeat(5-(p.starRating||0))}</div>
+        <div style="margin-top:3px">${apprEsc(p.reviewText||'')}</div>
+      </div>
+      <div><span style="color:var(--color-text-secondary);font-size:10px">DRAFT REPLY</span><br>${apprEsc(p.responseText||'')}</div>
+    </div>`;
+  }
+  if(it.type==='schema_update'){
+    const sch=typeof p.schema==='string'?p.schema:JSON.stringify(p.schema,null,2);
+    return `<div style="font-size:12px">
+      ${p.url?`<div style="margin-bottom:4px"><span style="color:var(--color-text-secondary);font-size:10px">URL</span><br>${apprEsc(p.url)}</div>`:''}
+      <div class="ai-out" style="font-family:var(--font-mono);font-size:11px;max-height:200px">${apprEsc(sch)}</div>
+    </div>`;
+  }
+  return `<div class="ai-out" style="font-family:var(--font-mono);font-size:11px">${apprEsc(JSON.stringify(p,null,2))}</div>`;
+}
+
+function apprEditorHtml(it){
+  const p=apprState.editing[it.id]||it.payload||{};
+  const id=it.id;
+  if(it.type==='blog_draft'){
+    return `<div style="font-size:12px;display:grid;gap:6px">
+      <div><label style="font-size:10px;color:var(--color-text-secondary)">Title</label><input type="text" id="ed-${id}-title" value="${apprEsc(p.title||'')}" style="width:100%"></div>
+      <div><label style="font-size:10px;color:var(--color-text-secondary)">Meta description</label><input type="text" id="ed-${id}-metaDescription" value="${apprEsc(p.metaDescription||'')}" style="width:100%"></div>
+      <div style="display:flex;gap:6px"><div style="flex:1"><label style="font-size:10px;color:var(--color-text-secondary)">Target keyword</label><input type="text" id="ed-${id}-targetKeyword" value="${apprEsc(p.targetKeyword||'')}" style="width:100%"></div><div style="flex:1"><label style="font-size:10px;color:var(--color-text-secondary)">Slug</label><input type="text" id="ed-${id}-slug" value="${apprEsc(p.slug||'')}" style="width:100%"></div></div>
+      <div><label style="font-size:10px;color:var(--color-text-secondary)">Excerpt</label><input type="text" id="ed-${id}-excerpt" value="${apprEsc(p.excerpt||'')}" style="width:100%"></div>
+      <div><label style="font-size:10px;color:var(--color-text-secondary)">Body (HTML)</label><textarea id="ed-${id}-body" rows="10" style="width:100%;font-family:var(--font-mono);font-size:11px">${apprEsc(p.body||'')}</textarea></div>
+    </div>`;
+  }
+  if(it.type==='meta_update'){
+    return `<div style="font-size:12px;display:grid;gap:6px">
+      <div><label style="font-size:10px;color:var(--color-text-secondary)">URL</label><input type="text" id="ed-${id}-url" value="${apprEsc(p.url||'')}" style="width:100%"></div>
+      <div><label style="font-size:10px;color:var(--color-text-secondary)">Title (50-60 chars)</label><input type="text" id="ed-${id}-title" value="${apprEsc(p.title||'')}" style="width:100%"></div>
+      <div><label style="font-size:10px;color:var(--color-text-secondary)">Description (150-160 chars)</label><textarea id="ed-${id}-description" rows="2" style="width:100%">${apprEsc(p.description||'')}</textarea></div>
+      <div><label style="font-size:10px;color:var(--color-text-secondary)">Target keyword</label><input type="text" id="ed-${id}-targetKeyword" value="${apprEsc(p.targetKeyword||'')}" style="width:100%"></div>
+    </div>`;
+  }
+  if(it.type==='review_response'){
+    return `<div style="font-size:12px;display:grid;gap:6px">
+      <div style="padding:6px 8px;background:var(--color-background-secondary);border-radius:var(--border-radius-md);font-size:11px"><span style="color:var(--color-text-secondary)">Original review:</span> ${apprEsc(p.reviewText||'')}</div>
+      <div><label style="font-size:10px;color:var(--color-text-secondary)">Reply</label><textarea id="ed-${id}-responseText" rows="6" style="width:100%">${apprEsc(p.responseText||'')}</textarea></div>
+    </div>`;
+  }
+  if(it.type==='onpage_suggestion'){
+    return `<div style="font-size:12px;display:grid;gap:6px">
+      <div><label style="font-size:10px;color:var(--color-text-secondary)">URL</label><input type="text" id="ed-${id}-url" value="${apprEsc(p.url||'')}" style="width:100%"></div>
+      <div><label style="font-size:10px;color:var(--color-text-secondary)">Suggestion</label><textarea id="ed-${id}-suggestion" rows="4" style="width:100%">${apprEsc(p.suggestion||'')}</textarea></div>
+    </div>`;
+  }
+  // Generic JSON editor as fallback
+  return `<div style="font-size:12px"><label style="font-size:10px;color:var(--color-text-secondary)">Payload (JSON)</label><textarea id="ed-${id}-_json" rows="10" style="width:100%;font-family:var(--font-mono);font-size:11px">${apprEsc(JSON.stringify(p,null,2))}</textarea></div>`;
+}
+
+function apprStartEdit(id){apprState.editing[id]=Object.assign({},findItem(id).payload||{});renderApprovals();}
+function apprCancelEdit(id){delete apprState.editing[id];renderApprovals();}
+function apprStartReject(id){apprState.rejecting[id]=true;renderApprovals();setTimeout(()=>{const t=document.getElementById('rej-'+id);if(t)t.focus();},50);}
+function apprCancelReject(id){delete apprState.rejecting[id];renderApprovals();}
+function apprToggleDiff(id){apprState.diffOpen[id]=!apprState.diffOpen[id];renderApprovals();}
+
+function findItem(id){return apprState.items.find(x=>x.id===id);}
+
+function apprCollectEdit(id){
+  const it=findItem(id);if(!it)return null;
+  const fields=['title','metaDescription','targetKeyword','slug','excerpt','body','url','description','responseText','suggestion'];
+  const out={};let any=false;
+  for(const f of fields){
+    const el=document.getElementById('ed-'+id+'-'+f);
+    if(el){out[f]=el.value;any=true;}
+  }
+  // JSON fallback
+  const jsonEl=document.getElementById('ed-'+id+'-_json');
+  if(jsonEl){
+    try{return JSON.parse(jsonEl.value);}
+    catch(e){alert('Invalid JSON in payload editor: '+e.message);return null;}
+  }
+  if(!any)return it.payload||{};
+  // Merge over the original payload to keep fields we don't expose in the editor
+  return Object.assign({},it.payload||{},out);
+}
+
+async function apprDoApprove(id){
+  if(!confirm('Approve and push this item?'))return;
+  try{
+    const card=document.getElementById('appr-card-'+id);
+    if(card)card.style.opacity='0.6';
+    const res=await fetch('/api/approvals',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({action:'approve',id,actor:apprActor()})});
+    const data=await res.json();
+    if(!res.ok)alert('Failed: '+(data.error||res.status));
+  }catch(e){alert('Error: '+e.message);}
+  await renderApprovals();
+}
+
+async function apprDoEditApprove(id){
+  const payload=apprCollectEdit(id);if(!payload)return;
+  if(!confirm('Save your edits and push to '+findItem(id).brand+'?'))return;
+  try{
+    const res=await fetch('/api/approvals',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({action:'edit_approve',id,payload,actor:apprActor()})});
+    const data=await res.json();
+    if(!res.ok)alert('Failed: '+(data.error||res.status));
+  }catch(e){alert('Error: '+e.message);}
+  delete apprState.editing[id];
+  await renderApprovals();
+}
+
+async function apprDoReject(id,requeue){
+  const t=document.getElementById('rej-'+id);
+  const feedback=t?t.value.trim():'';
+  if(!feedback){alert('Please tell Claude what to fix.');return;}
+  try{
+    const res=await fetch('/api/approvals',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({action:'reject',id,feedback,requeue,actor:apprActor()})});
+    const data=await res.json();
+    if(!res.ok){alert('Failed: '+(data.error||res.status));return;}
+    if(requeue&&data.rewrite){
+      // Switch to "all" so user immediately sees both items in the diff view
+      apprState.filter.status='all';
+      document.querySelectorAll('#appr-status-pills .pill').forEach(p=>p.classList.toggle('active',p.dataset.status==='all'));
+      apprState.diffOpen[data.rewrite.id]=true;
+    }else if(data.rewriteError){
+      alert(data.rewriteError);
+    }
+  }catch(e){alert('Error: '+e.message);}
+  delete apprState.rejecting[id];
+  await renderApprovals();
+}
+
+async function apprRunAudit(){
+  if(!confirm('Run a full SEO audit on both sites now? (This calls Claude and may take 20-40 seconds.)'))return;
+  const btn=event.target;const orig=btn.textContent;btn.disabled=true;btn.textContent='Running…';
+  try{
+    const res=await fetch('/api/scheduler',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({})});
+    const data=await res.json();
+    if(!res.ok){alert('Audit failed: '+(data.error||res.status));}
+    else{alert(`Audit complete. Queued ${data.queued||0} new item(s).`);}
+  }catch(e){alert('Error: '+e.message);}
+  btn.disabled=false;btn.textContent=orig;
+  await renderApprovals();
+}
+
+async function apprRenderAudit(){
+  const wrap=document.getElementById('appr-audit-section');
+  const list=document.getElementById('appr-audit-list');
+  if(!wrap||!list)return;
+  try{
+    const res=await fetch('/api/approvals?audit=1&limit=20');
+    const data=await res.json();
+    const ev=data.events||[];
+    if(!ev.length){wrap.style.display='none';return;}
+    wrap.style.display='block';
+    list.innerHTML=ev.map(e=>`<div style="display:flex;justify-content:space-between;padding:4px 0;border-bottom:0.5px solid var(--color-border-tertiary);gap:8px"><span><span style="color:var(--color-text-primary)">${apprEsc(e.actor||'')}</span> <span style="color:var(--color-text-secondary)">${apprEsc(e.action||'')}</span> ${e.brand?`<span class="tag tag-${e.brand==='pickl'?'brand':'menu'}">${apprBrandLabel(e.brand)}</span>`:''} <span style="color:var(--color-text-tertiary)">${apprEsc(e.note||'').slice(0,80)}</span></span><span style="color:var(--color-text-tertiary);white-space:nowrap">${apprRel(e.at)}</span></div>`).join('');
+  }catch(e){/* silent */}
+}
+
+// Light polling for the badge — every 60s while the page is open. Stops if hidden.
+function apprStartPolling(){
+  if(apprState.pollTimer)return;
+  apprState.pollTimer=setInterval(async()=>{
+    if(document.hidden)return;
+    try{
+      const res=await fetch('/api/approvals?status=pending&limit=1');
+      const data=await res.json();
+      if(data.counts){apprState.counts=data.counts;apprUpdateTabBadge();}
+    }catch(_){}
+  },60000);
+}
+
+// Open the Approvals tab via ?tab=approvals (used in notification CTAs)
+function apprMaybeOpenFromUrl(){
+  try{
+    const t=new URLSearchParams(window.location.search).get('tab');
+    if(t==='approvals'){window.history.replaceState({},'','/');setTimeout(()=>sw('approvals'),100);}
+  }catch(_){}
+}
+
+
 (async()=>{
   await load();
   if(!keywords.length){
@@ -1292,6 +1699,12 @@ function gscImportSelected(){
   }
   renderAll();
   checkGscStatus();
+  // Approval system bootstrap
+  apprActor();
+  apprStartPolling();
+  apprMaybeOpenFromUrl();
+  // Initial badge fetch (no UI block)
+  fetch('/api/approvals?status=pending&limit=1').then(r=>r.json()).then(d=>{if(d&&d.counts){apprState.counts=d.counts;apprUpdateTabBadge();}}).catch(()=>{});
 })();
 </script>
 </body></html>
