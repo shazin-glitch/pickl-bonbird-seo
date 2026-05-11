@@ -3,1708 +3,1237 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>SEO Command Center — Pickl & Bonbird</title>
+<title>SEO Command Center</title>
 <style>
-:root {
-  --font-sans: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
-  --font-mono: "SFMono-Regular", Consolas, "Liberation Mono", Menlo, monospace;
-  --border-radius-md: 8px;
-  --border-radius-lg: 12px;
-  --border-radius-xl: 16px;
-
-  --color-background-primary: #ffffff;
-  --color-background-secondary: #f4f4f2;
-  --color-background-tertiary: #ebebea;
-
-  --color-text-primary: #1a1915;
-  --color-text-secondary: #6b6b67;
-  --color-text-tertiary: #9b9b97;
-
-  --color-border-primary: rgba(0,0,0,0.4);
-  --color-border-secondary: rgba(0,0,0,0.3);
-  --color-border-tertiary: rgba(0,0,0,0.15);
-}
-
-@media (prefers-color-scheme: dark) {
   :root {
-    --color-background-primary: #1c1c1a;
-    --color-background-secondary: #2a2a27;
-    --color-background-tertiary: #141412;
-
-    --color-text-primary: #f0ede8;
-    --color-text-secondary: #9b9b97;
-    --color-text-tertiary: #6b6b67;
-
-    --color-border-primary: rgba(255,255,255,0.4);
-    --color-border-secondary: rgba(255,255,255,0.3);
-    --color-border-tertiary: rgba(255,255,255,0.15);
+    --bg-base: #f9fafb;
+    --bg-surface: #ffffff;
+    --text-main: #111827;
+    --text-muted: #6b7280;
+    --border: #e5e7eb;
+    --primary: #2563eb;
+    --primary-hover: #1d4ed8;
+    --pickl: #185FA5;
+    --bonbird: #D85A30;
+    --success: #10b981;
+    --warning: #f59e0b;
+    --danger: #ef4444;
+    --sidebar-bg: #111827;
+    --sidebar-text: #f3f4f6;
+    --sidebar-hover: #1f2937;
+    --radius: 12px;
+    --font-sans: 'Inter', -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
   }
-}
 
-body { background: var(--color-background-tertiary); }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body { font-family: var(--font-sans); background-color: var(--bg-base); color: var(--text-main); display: flex; height: 100vh; overflow: hidden; }
+
+  /* ── Sidebar ── */
+  .sidebar { width: 260px; background-color: var(--sidebar-bg); color: var(--sidebar-text); display: flex; flex-direction: column; flex-shrink: 0; }
+  .sidebar-header { padding: 24px; font-size: 18px; font-weight: 600; letter-spacing: -0.5px; display: flex; align-items: center; gap: 8px; border-bottom: 1px solid #374151; }
+  .nav-menu { padding: 16px 12px; display: flex; flex-direction: column; gap: 4px; flex: 1; }
+  .nav-item { padding: 10px 16px; border-radius: 8px; cursor: pointer; display: flex; align-items: center; justify-content: space-between; font-size: 14px; font-weight: 500; color: #9ca3af; transition: all 0.2s; user-select: none; }
+  .nav-item:hover { background-color: var(--sidebar-hover); color: white; }
+  .nav-item.active { background-color: var(--primary); color: white; }
+  .badge { background: #ef4444; color: white; font-size: 11px; padding: 2px 8px; border-radius: 99px; font-weight: 600; min-width: 22px; text-align: center; }
+  .sidebar-footer { padding: 16px; border-top: 1px solid #374151; }
+  .gsc-status { font-size: 11px; padding: 8px 12px; border-radius: 8px; display: flex; align-items: center; gap: 6px; }
+  .gsc-status.connected { background: #064e3b; color: #6ee7b7; }
+  .gsc-status.disconnected { background: #7f1d1d; color: #fca5a5; cursor: pointer; }
+  .gsc-dot { width: 6px; height: 6px; border-radius: 50%; background: currentColor; flex-shrink: 0; }
+
+  /* ── Main Layout ── */
+  .main-content { flex: 1; display: flex; flex-direction: column; overflow: hidden; }
+  .top-header { height: 64px; background: var(--bg-surface); border-bottom: 1px solid var(--border); display: flex; align-items: center; justify-content: space-between; padding: 0 32px; flex-shrink: 0; }
+  .page-title { font-size: 20px; font-weight: 600; }
+  .header-right { display: flex; align-items: center; gap: 16px; }
+  .user-profile { font-size: 14px; font-weight: 500; color: var(--text-muted); display: flex; align-items: center; gap: 8px; }
+  .avatar { width: 32px; height: 32px; border-radius: 50%; background: #e5e7eb; display: flex; align-items: center; justify-content: center; font-weight: 600; font-size: 13px; color: var(--text-muted); }
+
+  /* ── Page Views ── */
+  .views-wrapper { flex: 1; overflow-y: auto; }
+  .page-view { display: none; padding: 32px; max-width: 1200px; margin: 0 auto; width: 100%; }
+  .page-view.active { display: block; }
+
+  /* ── Common UI ── */
+  .section-header { display: flex; justify-content: space-between; align-items: flex-end; margin-bottom: 16px; }
+  .section-title { font-size: 18px; font-weight: 600; }
+  .section-desc { font-size: 13px; color: var(--text-muted); margin-top: 4px; }
+  .btn { padding: 8px 16px; border-radius: 8px; font-size: 13px; font-weight: 600; cursor: pointer; transition: all 0.2s; border: none; display: inline-flex; align-items: center; gap: 6px; font-family: var(--font-sans); }
+  .btn-primary { background: var(--primary); color: white; }
+  .btn-primary:hover { background: var(--primary-hover); }
+  .btn-outline { background: transparent; border: 1px solid var(--border); color: var(--text-main); }
+  .btn-outline:hover { background: #f3f4f6; }
+  .btn-danger-outline { background: transparent; color: var(--danger); border: 1px solid #fecaca; }
+  .btn-danger-outline:hover { background: #fef2f2; }
+  .btn-ghost { background: transparent; color: var(--text-muted); padding: 8px 10px; border: none; }
+  .btn-ghost:hover { color: var(--danger); background: #fef2f2; border-radius: 8px; }
+  .card { background: var(--bg-surface); border-radius: var(--radius); border: 1px solid var(--border); padding: 24px; box-shadow: 0 1px 3px rgba(0,0,0,0.05); }
+
+  /* ── Pills ── */
+  .pill-nav { display: flex; gap: 8px; margin-bottom: 20px; flex-wrap: wrap; }
+  .pill { padding: 6px 16px; border-radius: 99px; font-size: 13px; font-weight: 500; cursor: pointer; border: 1px solid var(--border); background: var(--bg-surface); color: var(--text-muted); transition: all 0.2s; user-select: none; }
+  .pill:hover { border-color: var(--text-muted); color: var(--text-main); }
+  .pill.active { background: var(--text-main); color: white; border-color: var(--text-main); }
+
+  /* ── Metrics ── */
+  .metrics-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); gap: 20px; margin-bottom: 32px; }
+  .metric-card { background: var(--bg-surface); padding: 24px; border-radius: var(--radius); border: 1px solid var(--border); box-shadow: 0 1px 2px rgba(0,0,0,0.05); }
+  .metric-title { font-size: 13px; color: var(--text-muted); font-weight: 500; margin-bottom: 8px; display: flex; align-items: center; gap: 8px; }
+  .metric-val { font-size: 28px; font-weight: 700; color: var(--text-main); }
+  .metric-sub { font-size: 14px; font-weight: 500; color: var(--text-muted); }
+  .metric-trend { font-size: 12px; font-weight: 500; margin-top: 8px; }
+  .trend-up { color: var(--success); }
+  .trend-down { color: var(--danger); }
+  .dot { width: 8px; height: 8px; border-radius: 50%; flex-shrink: 0; }
+
+  /* ── Action Queue Cards ── */
+  .queue-list { display: flex; flex-direction: column; gap: 16px; }
+  .action-card { display: flex; flex-direction: column; transition: opacity 0.3s; }
+  .action-card.dismissing { opacity: 0; transform: translateY(-4px); transition: opacity 0.25s, transform 0.25s; }
+  .card-header { display: flex; justify-content: space-between; margin-bottom: 16px; align-items: flex-start; }
+  .card-title { font-size: 15px; font-weight: 600; display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+  .tag { font-size: 11px; padding: 4px 10px; border-radius: 6px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.5px; }
+  .tag-blue { background: #eff6ff; color: #2563eb; }
+  .tag-orange { background: #fff7ed; color: #ea580c; }
+  .tag-green { background: #dcfce7; color: #166534; }
+  .tag-purple { background: #f5f3ff; color: #7c3aed; }
+  .card-body { background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 8px; padding: 16px; font-size: 13px; color: #475569; margin-bottom: 20px; line-height: 1.6; }
+  .card-body strong { color: var(--text-main); font-weight: 600; }
+  .card-actions { display: flex; justify-content: space-between; align-items: center; }
+  .action-group-left { display: flex; gap: 10px; flex-wrap: wrap; }
+
+  /* ── Empty State ── */
+  .empty-state { text-align: center; padding: 48px 24px; color: var(--text-muted); }
+  .empty-state-icon { font-size: 32px; margin-bottom: 12px; }
+  .empty-state h3 { font-size: 16px; font-weight: 600; color: var(--text-main); margin-bottom: 6px; }
+  .empty-state p { font-size: 13px; }
+
+  /* ── Analytics Tables ── */
+  .table-wrap { background: var(--bg-surface); border-radius: var(--radius); border: 1px solid var(--border); overflow: hidden; box-shadow: 0 1px 3px rgba(0,0,0,0.05); }
+  .data-table { width: 100%; border-collapse: collapse; text-align: left; }
+  .data-table th { padding: 12px 16px; border-bottom: 1px solid var(--border); font-size: 12px; color: var(--text-muted); font-weight: 500; text-transform: uppercase; letter-spacing: 0.04em; white-space: nowrap; }
+  .data-table td { padding: 16px; border-bottom: 1px solid var(--border); font-size: 14px; }
+  .data-table tbody tr:last-child td { border-bottom: none; }
+  .data-table tbody tr:hover { background: #f9fafb; }
+  .rank-badge { display: inline-block; padding: 4px 10px; border-radius: 6px; font-size: 12px; font-weight: 600; }
+  .rank-good { background: #dcfce7; color: #166534; }
+  .rank-mid { background: #fef9c3; color: #854d0e; }
+  .rank-bad { background: #fee2e2; color: #991b1b; }
+  .roi-badge { font-size: 11px; font-weight: 600; color: #0284c7; background: #e0f2fe; padding: 3px 8px; border-radius: 4px; display: inline-flex; align-items: center; gap: 4px; }
+  .phase2-banner { background: #fefce8; border: 1px solid #fde047; border-radius: 8px; padding: 10px 16px; font-size: 12px; color: #854d0e; font-weight: 500; margin-bottom: 16px; display: flex; align-items: center; gap: 8px; }
+
+  /* ── AI Studio ── */
+  .studio-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); gap: 20px; }
+  .tool-card { border: 1px solid var(--border); border-radius: var(--radius); padding: 24px; background: var(--bg-surface); cursor: pointer; transition: all 0.2s; }
+  .tool-card:hover { border-color: var(--primary); box-shadow: 0 4px 12px rgba(37,99,235,0.1); transform: translateY(-2px); }
+  .tool-icon { width: 40px; height: 40px; background: #eff6ff; color: var(--primary); border-radius: 8px; display: flex; align-items: center; justify-content: center; margin-bottom: 16px; flex-shrink: 0; }
+  .tool-title { font-weight: 600; font-size: 15px; margin-bottom: 8px; }
+  .tool-desc { font-size: 13px; color: var(--text-muted); line-height: 1.6; }
+  .tool-modal-overlay { position: fixed; inset: 0; background: rgba(0,0,0,0.4); z-index: 100; display: flex; align-items: center; justify-content: center; padding: 24px; }
+  .tool-modal { background: var(--bg-surface); border-radius: var(--radius); max-width: 640px; width: 100%; padding: 32px; box-shadow: 0 20px 60px rgba(0,0,0,0.2); }
+  .tool-modal h2 { font-size: 18px; font-weight: 600; margin-bottom: 6px; }
+  .tool-modal .tool-modal-desc { font-size: 13px; color: var(--text-muted); margin-bottom: 20px; }
+  .tool-modal textarea, .tool-modal input[type="text"] { width: 100%; padding: 10px 12px; border: 1px solid var(--border); border-radius: 8px; font-family: var(--font-sans); font-size: 13px; resize: vertical; }
+  .tool-modal textarea { min-height: 120px; }
+  .tool-modal-actions { display: flex; justify-content: flex-end; gap: 10px; margin-top: 16px; }
+  .modal-result { background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 8px; padding: 16px; font-size: 13px; color: #475569; margin-top: 16px; white-space: pre-wrap; line-height: 1.7; max-height: 320px; overflow-y: auto; display: none; }
+
+  /* ── Settings ── */
+  .settings-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 24px; }
+  @media (max-width: 900px) { .settings-grid { grid-template-columns: 1fr; } }
+  .form-group { margin-bottom: 16px; }
+  .form-label { display: block; font-size: 13px; font-weight: 500; margin-bottom: 6px; color: var(--text-main); }
+  .form-input { width: 100%; padding: 10px 12px; border: 1px solid var(--border); border-radius: 6px; font-size: 13px; font-family: monospace; color: var(--text-muted); background: #f9fafb; }
+  .form-input:focus { outline: 2px solid var(--primary); border-color: var(--primary); background: white; }
+  .toggle-row { display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px; padding-bottom: 20px; border-bottom: 1px solid var(--border); }
+  .toggle-label h4 { font-size: 14px; font-weight: 500; }
+  .toggle-label p { font-size: 12px; color: var(--text-muted); margin-top: 2px; }
+  .toggle-switch { width: 36px; height: 20px; background: var(--success); border-radius: 99px; position: relative; cursor: pointer; flex-shrink: 0; }
+  .toggle-switch::after { content: ''; position: absolute; width: 16px; height: 16px; background: white; border-radius: 50%; top: 2px; right: 2px; box-shadow: 0 1px 2px rgba(0,0,0,0.15); transition: right 0.2s; }
+  .toggle-switch.off { background: #d1d5db; }
+  .toggle-switch.off::after { right: unset; left: 2px; }
+  .log-item { padding: 12px 0; border-bottom: 1px solid var(--border); font-size: 13px; display: flex; justify-content: space-between; align-items: center; gap: 12px; }
+  .log-item:last-child { border-bottom: none; }
+  .log-detail { font-size: 11px; color: var(--text-muted); margin-top: 3px; }
+
+  /* ── Spinner ── */
+  .spinner { display: inline-block; width: 14px; height: 14px; border: 2px solid rgba(255,255,255,0.4); border-top-color: white; border-radius: 50%; animation: spin 0.6s linear infinite; }
+  .spinner.dark { border-color: rgba(0,0,0,0.15); border-top-color: var(--text-muted); }
+  @keyframes spin { to { transform: rotate(360deg); } }
+
+  /* ── Toast ── */
+  .toast { position: fixed; bottom: 24px; right: 24px; background: var(--text-main); color: white; padding: 12px 20px; border-radius: 10px; font-size: 13px; font-weight: 500; z-index: 200; transform: translateY(8px); opacity: 0; transition: all 0.25s; pointer-events: none; }
+  .toast.show { transform: translateY(0); opacity: 1; }
+  .toast.success { background: #059669; }
+  .toast.error { background: #dc2626; }
 </style>
-<head><style>
-*{box-sizing:border-box;margin:0;padding:0}
-body{font-family:var(--font-sans);font-size:13px}
-.app{padding:1rem 0}
-.topbar{display:flex;align-items:center;justify-content:space-between;margin-bottom:1.25rem;flex-wrap:wrap;gap:8px}
-.brand{display:flex;align-items:center;gap:8px}
-.brand-dots{display:flex;gap:3px}
-.dot{width:8px;height:8px;border-radius:50%}
-.brand-title{font-size:15px;font-weight:500;color:var(--color-text-primary)}
-.brand-sub{font-size:11px;color:var(--color-text-secondary)}
-.tabs{display:flex;gap:5px;flex-wrap:wrap}
-.tab{padding:5px 12px;border:0.5px solid var(--color-border-secondary);border-radius:var(--border-radius-md);font-size:11px;cursor:pointer;background:transparent;color:var(--color-text-secondary);transition:all 0.15s}
-.tab.active{background:var(--color-background-secondary);color:var(--color-text-primary);font-weight:500}
-.sites-grid{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:1rem}
-.site-card{background:var(--color-background-primary);border:0.5px solid var(--color-border-tertiary);border-radius:var(--border-radius-lg);padding:.875rem 1rem}
-.site-header{display:flex;align-items:center;gap:7px;margin-bottom:9px}
-.site-name{font-size:13px;font-weight:500;color:var(--color-text-primary)}
-.site-url{font-size:10px;color:var(--color-text-secondary)}
-.stat-row{display:flex;gap:5px}
-.stat{background:var(--color-background-secondary);border-radius:var(--border-radius-md);padding:6px 8px;flex:1;text-align:center}
-.stat-val{font-size:16px;font-weight:500;color:var(--color-text-primary)}
-.stat-label{font-size:9px;color:var(--color-text-secondary);margin-top:1px}
-.section{background:var(--color-background-primary);border:0.5px solid var(--color-border-tertiary);border-radius:var(--border-radius-lg);padding:.875rem 1rem;margin-bottom:12px}
-.section-title{font-size:13px;font-weight:500;color:var(--color-text-primary);margin-bottom:4px}
-.section-sub{font-size:10px;color:var(--color-text-secondary);margin-bottom:10px}
-.row{display:flex;gap:5px;margin-bottom:8px;flex-wrap:wrap;align-items:flex-start}
-input[type=text],input[type=number],input[type=url],select,textarea{padding:5px 8px;border:0.5px solid var(--color-border-secondary);border-radius:var(--border-radius-md);font-size:12px;background:var(--color-background-primary);color:var(--color-text-primary);font-family:var(--font-sans)}
-input:focus,select:focus,textarea:focus{outline:none;border-color:var(--color-border-primary)}
-textarea{resize:vertical;min-height:50px;width:100%}
-button{padding:5px 11px;border:0.5px solid var(--color-border-secondary);border-radius:var(--border-radius-md);font-size:12px;cursor:pointer;background:transparent;color:var(--color-text-primary);font-family:var(--font-sans)}
-button:hover{background:var(--color-background-secondary)}
-.btn-blue{color:#185FA5;border-color:#185FA5}
-.btn-blue:hover{background:#E6F1FB}
-.btn-orange{color:#993C1D;border-color:#D85A30}
-.btn-orange:hover{background:#FAECE7}
-.btn-sm{padding:3px 8px;font-size:11px}
-.kw-table{width:100%;border-collapse:collapse;font-size:11px;table-layout:fixed}
-.kw-table th{text-align:left;padding:4px 6px;color:var(--color-text-secondary);font-weight:400;font-size:10px;border-bottom:0.5px solid var(--color-border-tertiary)}
-.kw-table td{padding:6px 6px;border-bottom:0.5px solid var(--color-border-tertiary);color:var(--color-text-primary);vertical-align:middle}
-.kw-table tr:last-child td{border-bottom:none}
-.kw-table tr:hover td{background:var(--color-background-secondary)}
-.rb{display:inline-block;padding:1px 6px;border-radius:20px;font-size:10px;font-weight:500}
-.rt{background:#EAF3DE;color:#27500A}
-.rm{background:#FAEEDA;color:#633806}
-.rl{background:#FCEBEB;color:#791F1F}
-.rn{background:var(--color-background-secondary);color:var(--color-text-secondary)}
-.tu{color:#3B6D11;font-size:10px}
-.td{color:#A32D2D;font-size:10px}
-.tf{color:var(--color-text-secondary);font-size:10px}
-.del-btn{background:none;border:none;color:var(--color-text-secondary);cursor:pointer;padding:1px 4px;font-size:12px}
-.del-btn:hover{color:#A32D2D;background:none}
-.empty{text-align:center;padding:1.25rem;color:var(--color-text-secondary);font-size:12px}
-.chart-wrap{position:relative;width:100%;height:180px}
-.ai-out{background:var(--color-background-secondary);border-radius:var(--border-radius-md);padding:9px 11px;font-size:12px;color:var(--color-text-primary);line-height:1.6;white-space:pre-wrap;max-height:280px;overflow-y:auto;margin-top:7px}
-.ai-loading{color:var(--color-text-secondary);font-style:italic}
-.cache-note{font-size:10px;color:var(--color-text-secondary);margin-top:3px}
-.tag{display:inline-block;padding:1px 6px;border-radius:20px;font-size:10px;margin-right:2px}
-.tag-local{background:#E6F1FB;color:#0C447C}
-.tag-brand{background:#EAF3DE;color:#27500A}
-.tag-menu{background:#FAEEDA;color:#633806}
-.tag-comp{background:#FBEAF0;color:#72243E}
-.tag-general{background:var(--color-background-secondary);color:var(--color-text-secondary)}
-.pills{display:flex;gap:4px;flex-wrap:wrap;margin-bottom:8px}
-.pill{padding:3px 9px;border-radius:20px;font-size:10px;cursor:pointer;border:0.5px solid var(--color-border-secondary);color:var(--color-text-secondary);background:transparent}
-.pill.active{background:var(--color-background-secondary);color:var(--color-text-primary);border-color:var(--color-border-primary)}
-.comp-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(120px,1fr));gap:6px;margin-bottom:10px}
-.comp-card{background:var(--color-background-secondary);border-radius:var(--border-radius-md);padding:7px 9px;display:flex;align-items:center;gap:6px}
-.comp-name{font-size:11px;font-weight:500;color:var(--color-text-primary)}
-.comp-sub{font-size:9px;color:var(--color-text-secondary)}
-.bar-wrap{display:flex;align-items:center;gap:4px}
-.bar-bg{flex:1;height:4px;background:var(--color-background-secondary);border-radius:3px;overflow:hidden}
-.bar-fill{height:100%;border-radius:3px}
-.score-ring{display:inline-flex;align-items:center;justify-content:center;width:44px;height:44px;border-radius:50%;font-size:15px;font-weight:500;border:2px solid}
-.score-good{border-color:#3B6D11;color:#3B6D11;background:#EAF3DE}
-.score-mid{border-color:#854F0B;color:#854F0B;background:#FAEEDA}
-.score-bad{border-color:#A32D2D;color:#A32D2D;background:#FCEBEB}
-.check-item{display:flex;align-items:flex-start;gap:8px;padding:5px 0;border-bottom:0.5px solid var(--color-border-tertiary)}
-.check-item:last-child{border-bottom:none}
-.check-label{font-size:11px;color:var(--color-text-primary);flex:1;line-height:1.4}
-.check-status{font-size:10px;padding:1px 7px;border-radius:20px;flex-shrink:0;margin-top:1px}
-.cs-done{background:#EAF3DE;color:#27500A}
-.cs-todo{background:#FCEBEB;color:#791F1F}
-.cs-na{background:var(--color-background-secondary);color:var(--color-text-secondary)}
-.check-toggle{cursor:pointer}
-.two-col{display:grid;grid-template-columns:1fr 1fr;gap:10px}
-.alert-item{background:var(--color-background-secondary);border-radius:var(--border-radius-md);padding:7px 10px;margin-bottom:6px;display:flex;align-items:flex-start;gap:8px;font-size:11px}
-.alert-dot{width:6px;height:6px;border-radius:50%;flex-shrink:0;margin-top:3px}
-.alert-high{background:#A32D2D}
-.alert-mid{background:#854F0B}
-.alert-low{background:#3B6D11}
-.priority-badge{font-size:9px;padding:1px 5px;border-radius:10px;margin-left:5px}
-.pb-h{background:#FCEBEB;color:#791F1F}
-.pb-m{background:#FAEEDA;color:#633806}
-.pb-l{background:#EAF3DE;color:#27500A}
-.season-grid{display:grid;grid-template-columns:repeat(4,1fr);gap:6px}
-.season-card{background:var(--color-background-secondary);border-radius:var(--border-radius-md);padding:7px 8px;text-align:center}
-.season-name{font-size:10px;font-weight:500;color:var(--color-text-primary);margin-bottom:3px}
-.season-vol{font-size:9px;color:var(--color-text-secondary)}
-.insight-row{display:flex;justify-content:space-between;align-items:center;padding:5px 0;border-bottom:0.5px solid var(--color-border-tertiary);font-size:11px}
-.insight-row:last-child{border-bottom:none}
-@media(max-width:520px){.sites-grid{grid-template-columns:1fr}.two-col{grid-template-columns:1fr}.season-grid{grid-template-columns:repeat(2,1fr)}}
-</style>
+</head>
+<body>
 
-</head><body><div class="app">
-<div class="topbar">
-  <div class="brand">
-    <div class="brand-dots"><div class="dot" style="background:#185FA5"></div><div class="dot" style="background:#D85A30"></div></div>
-    <div><div class="brand-title">SEO Command Center</div><div class="brand-sub">Pickl &amp; Bonbird — UAE</div></div>
+<!-- ═══════════════════════════════════════
+     SIDEBAR
+════════════════════════════════════════ -->
+<div class="sidebar">
+  <div class="sidebar-header">
+    <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="color:#60a5fa;flex-shrink:0">
+      <polygon points="12 2 2 7 12 12 22 7 12 2"/><polyline points="2 17 12 22 22 17"/><polyline points="2 12 12 17 22 12"/>
+    </svg>
+    SEO Command
   </div>
-  <div class="tabs">
-    <button class="tab active" onclick="sw('keywords')">Keywords</button>
-    <button class="tab" onclick="sw('competitors')">Competitors</button>
-    <button class="tab" onclick="sw('compare')">Compare</button>
-    <button class="tab" onclick="sw('trends')">Trends</button>
-    <button class="tab" onclick="sw('local')">Local SEO</button>
-    <button class="tab" onclick="sw('audit')">Page Audit</button>
-    <button class="tab" onclick="sw('alerts')">Alerts</button>
-    <button class="tab" onclick="sw('approvals')">Approvals<span id="appr-tab-count" style="display:none;margin-left:5px;padding:0 5px;border-radius:20px;background:#FCEBEB;color:#791F1F;font-size:9px;font-weight:600">0</span></button>
-    <button class="tab" onclick="sw('ai')">AI Tools</button>
-  </div>
-</div>
 
-
-<!-- GSC CONNECT BANNER -->
-<div id="gsc-banner" class="section" style="margin-bottom:12px">
-  <div style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:10px">
-    <div>
-      <div class="section-title">Google Search Console — Pickl (eatpickl.com)</div>
-      <div class="section-sub" id="gsc-status-text">Not connected — rankings entered manually</div>
+  <nav class="nav-menu" id="nav-menu">
+    <div class="nav-item active" data-target="dashboard">
+      <span>Dashboard &amp; Approvals</span>
+      <span class="badge" id="badge-approvals" style="display:none">0</span>
     </div>
-    <div style="display:flex;gap:6px;align-items:center;flex-wrap:wrap">
-      <button class="btn-blue btn-sm" id="gsc-connect-btn" onclick="gscConnect()">Connect GSC</button>
-      <button class="btn-sm" id="gsc-sync-btn" onclick="gscFetchAndPreview()" style="display:none">↻ Sync now</button>
-      <button class="btn-sm" id="gsc-disconnect-btn" onclick="gscDisconnect()" style="display:none">Disconnect</button>
+    <div class="nav-item" data-target="analytics">
+      <span>Analytics &amp; ROI</span>
     </div>
-  </div>
-  <div id="gsc-filter-row" style="display:none;margin-top:10px;padding-top:10px;border-top:0.5px solid var(--color-border-tertiary)">
-    <div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap">
-      <span style="font-size:11px;color:var(--color-text-secondary)">Min impressions:</span>
-      <input type="range" id="gsc-min-clicks" min="50" max="2000" step="50" value="100" oninput="document.getElementById('gsc-clicks-val').textContent=this.value" style="width:140px">
-      <span id="gsc-clicks-val" style="font-size:11px;font-weight:500;min-width:30px">100</span>
-      <span style="font-size:11px;color:var(--color-text-secondary);margin-left:4px">impressions minimum (last 90 days)</span>
+    <div class="nav-item" data-target="studio">
+      <span>AI Content Studio</span>
+    </div>
+    <div class="nav-item" data-target="settings">
+      <span>Settings &amp; Logs</span>
+    </div>
+  </nav>
+
+  <div class="sidebar-footer">
+    <div class="gsc-status disconnected" id="gsc-status-indicator" onclick="handleGscConnect()">
+      <span class="gsc-dot"></span>
+      <span id="gsc-status-text">GSC: Click to Connect</span>
     </div>
   </div>
 </div>
 
-<!-- GSC PREVIEW MODAL -->
-<div id="gsc-preview" style="display:none" class="section">
-  <div style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:8px;margin-bottom:10px">
-    <div>
-      <div class="section-title">Select keywords to import</div>
-      <div class="section-sub" id="gsc-preview-sub">Showing keywords above click threshold</div>
-    </div>
-    <div style="display:flex;gap:6px">
-      <button class="btn-sm" onclick="gscSelectAll(true)">Select all</button>
-      <button class="btn-sm" onclick="gscSelectAll(false)">Deselect all</button>
-      <button class="btn-blue btn-sm" onclick="gscImportSelected()">Import selected</button>
-      <button class="btn-sm" onclick="document.getElementById('gsc-preview').style.display='none'">Cancel</button>
-    </div>
-  </div>
-  <div style="display:flex;gap:6px;margin-bottom:8px;flex-wrap:wrap" id="gsc-preview-filters">
-    <span class="pill active" onclick="gscPreviewFilter(this,'all')">All</span>
-    <span class="pill" onclick="gscPreviewFilter(this,'brand')">Brand</span>
-    <span class="pill" onclick="gscPreviewFilter(this,'nonbrand')">Non-brand</span>
-    <span class="pill" onclick="gscPreviewFilter(this,'new')">New only</span>
-    <span class="pill" onclick="gscPreviewFilter(this,'existing')">Already tracked</span>
-  </div>
-  <div style="max-height:400px;overflow-y:auto">
-    <table class="kw-table" style="table-layout:fixed">
-      <thead><tr>
-        <th style="width:32px"><input type="checkbox" id="gsc-check-all" onchange="gscSelectAll(this.checked)"></th>
-        <th>Keyword</th>
-        <th style="width:70px">Clicks</th>
-        <th style="width:80px">Impressions</th>
-        <th style="width:70px">Avg pos</th>
-        <th style="width:70px">Status</th>
-      </tr></thead>
-      <tbody id="gsc-preview-body"></tbody>
-    </table>
-  </div>
-  <div style="font-size:11px;color:var(--color-text-secondary);margin-top:8px" id="gsc-preview-count"></div>
-</div>
-<div class="sites-grid">
-  <div class="site-card">
-    <div class="site-header"><div class="dot" style="background:#185FA5"></div><div><div class="site-name">Pickl</div><div class="site-url">eatpickl.com</div></div></div>
-    <div class="stat-row">
-      <div class="stat"><div class="stat-val" id="s1total">0</div><div class="stat-label">keywords</div></div>
-      <div class="stat"><div class="stat-val" id="s1top">0</div><div class="stat-label">top 10</div></div>
-      <div class="stat"><div class="stat-val" id="s1avg">—</div><div class="stat-label">avg rank</div></div>
-      <div class="stat"><div class="stat-val" id="s1moved">0</div><div class="stat-label">improved</div></div>
-    </div>
-  </div>
-  <div class="site-card">
-    <div class="site-header"><div class="dot" style="background:#D85A30"></div><div><div class="site-name">Bonbird</div><div class="site-url">bonbirdchicken.com</div></div></div>
-    <div class="stat-row">
-      <div class="stat"><div class="stat-val" id="s2total">0</div><div class="stat-label">keywords</div></div>
-      <div class="stat"><div class="stat-val" id="s2top">0</div><div class="stat-label">top 10</div></div>
-      <div class="stat"><div class="stat-val" id="s2avg">—</div><div class="stat-label">avg rank</div></div>
-      <div class="stat"><div class="stat-val" id="s2moved">0</div><div class="stat-label">improved</div></div>
-    </div>
-  </div>
-</div>
-
-<!-- KEYWORDS TAB -->
-<div id="tab-keywords">
-  <div class="section">
-    <div class="section-title">Add / update keyword</div>
-    <div class="row">
-      <input type="text" id="kw-input" placeholder="Keyword (e.g. best chicken sandwich Dubai)" style="flex:2;min-width:150px">
-      <select id="kw-site" style="min-width:90px"><option value="1">Pickl</option><option value="2">Bonbird</option><option value="both">Both</option></select>
-      <select id="kw-cat" style="min-width:95px"><option value="">Category</option><option value="brand">Brand</option><option value="menu">Menu item</option><option value="local">Local/area</option><option value="comp">Competitor</option><option value="general">General</option></select>
-      <input type="number" id="kw-rank1" placeholder="Pickl rank" min="1" max="200" style="width:85px">
-      <input type="number" id="kw-rank2" placeholder="Bonbird rank" min="1" max="200" style="width:90px">
-      <input type="number" id="kw-vol" placeholder="Volume" min="0" style="width:75px">
-      <input type="text" id="kw-note" placeholder="Note" style="width:90px">
-      <button class="btn-blue" onclick="addKeyword()">+ Add</button>
-    </div>
-    <div class="pills">
-      <span class="pill active" onclick="filterCat(this,'')">All</span>
-      <span class="pill" onclick="filterCat(this,'brand')">Brand</span>
-      <span class="pill" onclick="filterCat(this,'menu')">Menu</span>
-      <span class="pill" onclick="filterCat(this,'local')">Local</span>
-      <span class="pill" onclick="filterCat(this,'comp')">Competitor</span>
-      <span class="pill" onclick="filterCat(this,'general')">General</span>
-      <span class="pill" onclick="filterBrand(this,'pickl')">Pickl brand</span>
-      <span class="pill" onclick="filterBrand(this,'bonbird')">Bonbird brand</span>
-      <span class="pill" onclick="filterBrand(this,'non')">Non-brand</span>
-    </div>
-    <table class="kw-table">
-      <thead><tr>
-        <th style="width:20%">Keyword</th><th style="width:6%">Cat</th><th style="width:7%">Impr.</th><th style="width:6%">CTR</th>
-        <th style="width:8%">Pickl</th><th style="width:8%">Bonbird</th>
-        <th style="width:7%">↑ Pickl</th><th style="width:7%">↑ Bonbird</th>
-        <th style="width:10%">Note</th><th style="width:6%">Priority</th><th style="width:5%"></th>
-      </tr></thead>
-      <tbody id="kw-body"></tbody>
-    </table>
-    <div class="empty" id="kw-empty">No keywords yet — add one above</div>
-  </div>
-  <div style="display:flex;gap:6px;justify-content:flex-end">
-    <button class="btn-sm" onclick="exportCSV()">Export CSV</button>
-    <button class="btn-sm" onclick="document.getElementById('csv-file').click()">Import CSV</button>
-    <input type="file" id="csv-file" accept=".csv" style="display:none" onchange="handleCSV(event)">
-  </div>
-</div>
-
-<!-- COMPETITORS TAB -->
-<div id="tab-competitors" style="display:none">
-  <div class="section">
-    <div class="section-title">Competitor overview</div>
-    <div class="comp-grid" id="comp-cards"></div>
-  </div>
-  <div class="section">
-    <div class="section-title">Ranking matrix</div>
-    <div class="section-sub">All your tracked keywords vs competitors at a glance — add competitor ranks below</div>
-    <div style="overflow-x:auto">
-      <div id="comp-matrix-wrap"><div class="empty">Add competitor ranks to see the matrix</div></div>
-    </div>
-  </div>
-  <div class="section">
-    <div class="section-title">Add competitor rank</div>
-    <div class="row">
-      <input type="text" id="comp-kw-sel" placeholder="Keyword..." list="comp-kw-list" style="flex:1;min-width:130px">
-      <datalist id="comp-kw-list"></datalist>
-      <input type="text" id="comp-sel-input" placeholder="Competitor name..." style="min-width:130px" list="comp-name-list">
-      <datalist id="comp-name-list">
-        <option>Shake Shack</option><option>Five Guys</option><option>Salt</option><option>Highjoint</option><option>Maxzi</option><option>McDonald's</option><option>Burger King</option><option>Hardee's</option>
-      </datalist>
-      <input type="number" id="comp-rank" placeholder="Their rank" min="1" max="200" style="width:80px">
-      <button class="btn-blue" onclick="addCompRank()">+ Add</button>
-    </div>
-  </div>
-  <div class="section">
-    <div class="section-title">Keyword showdown</div>
-    <div style="display:flex;gap:6px;margin-bottom:10px;align-items:center">
-      <label style="font-size:11px;color:var(--color-text-secondary)">Keyword:</label>
-      <select id="comp-view-kw" style="flex:1" onchange="renderCompView()"></select>
-    </div>
-    <div id="comp-view-wrap"><div class="empty">Add competitor ranks to compare</div></div>
-  </div>
-</div>
-
-<!-- COMPARE TAB -->
-<div id="tab-compare" style="display:none">
-  <div class="section">
-    <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:10px">
-      <div class="section-title" style="margin:0">Pickl vs Bonbird</div>
-      <div style="display:flex;gap:5px">
-        <span class="pill active" onclick="compareFilter(this,'all')">All keywords</span>
-        <span class="pill" onclick="compareFilter(this,'pickl')">Pickl wins</span>
-        <span class="pill" onclick="compareFilter(this,'bonbird')">Bonbird wins</span>
-        <span class="pill" onclick="compareFilter(this,'one')">One brand only</span>
-      </div>
-    </div>
-    <div id="compare-wrap"><div class="empty">Add keywords to compare</div></div>
-  </div>
-</div>
-
-<!-- TRENDS TAB -->
-<div id="tab-trends" style="display:none">
-  <div class="section">
-    <div style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:8px;margin-bottom:10px">
-      <div class="section-title" style="margin:0">Rank history</div>
-      <div style="display:flex;gap:6px;align-items:center;flex-wrap:wrap">
-        <label style="font-size:11px;color:var(--color-text-secondary)">Keyword:</label>
-        <select id="trend-kw-sel" onchange="renderTrends()" style="min-width:180px"></select>
-        <select id="trend-chart-type" onchange="renderTrends()" style="min-width:110px">
-          <option value="rank">Rank position</option>
-          <option value="impressions">Impressions</option>
-        </select>
-      </div>
-    </div>
-    <div class="chart-wrap" style="height:220px"><canvas id="trendChart" role="img" aria-label="Rank history line chart"></canvas></div>
-    <div id="trend-legend" style="display:flex;gap:12px;margin-top:6px;font-size:10px;color:var(--color-text-secondary)"></div>
-    <div id="trend-stats" style="display:flex;gap:8px;margin-top:10px;flex-wrap:wrap"></div>
-  </div>
-  <div class="section">
-    <div class="section-title">UAE seasonal search calendar</div>
-    <div class="section-sub">When search volume spikes for restaurants in the UAE — plan content ahead</div>
-    <div class="season-grid">
-      <div class="season-card"><div class="season-name">Ramadan</div><div class="season-vol">Mar–Apr · iftar, suhoor searches spike 3–5x</div></div>
-      <div class="season-card"><div class="season-name">Eid Al Fitr</div><div class="season-vol">Apr · family dining, celebrations</div></div>
-      <div class="season-card"><div class="season-name">Dubai Food Fest</div><div class="season-vol">Feb–Mar · food discovery peaks</div></div>
-      <div class="season-card"><div class="season-name">Summer</div><div class="season-vol">Jun–Aug · delivery &amp; indoor dining up</div></div>
-      <div class="season-card"><div class="season-name">DSF</div><div class="season-vol">Dec–Jan · tourist searches surge</div></div>
-      <div class="season-card"><div class="season-name">UAE National Day</div><div class="season-vol">Dec · celebrations, group dining</div></div>
-      <div class="season-card"><div class="season-name">Back to School</div><div class="season-vol">Sep · quick meals, value searches</div></div>
-      <div class="season-card"><div class="season-name">Eid Al Adha</div><div class="season-vol">Jun · halal, meat-focused keywords</div></div>
-    </div>
-  </div>
-</div>
-
-<!-- LOCAL SEO TAB -->
-<div id="tab-local" style="display:none">
-  <div class="two-col">
-    <div>
-      <div class="section">
-        <div class="section-title">Pickl — local SEO checklist</div>
-        <div class="section-sub">eatpickl.com · UAE market</div>
-        <div id="local-checks-1"></div>
-      </div>
-    </div>
-    <div>
-      <div class="section">
-        <div class="section-title">Bonbird — local SEO checklist</div>
-        <div class="section-sub">bonbirdchicken.com · UAE market</div>
-        <div id="local-checks-2"></div>
-      </div>
-    </div>
-  </div>
-  <div class="section">
-    <div class="section-title">UAE restaurant directories to list on</div>
-    <div class="section-sub">Being listed on these platforms boosts local SEO authority and drives direct traffic</div>
-    <table class="kw-table" style="table-layout:auto">
-      <thead><tr><th>Platform</th><th>Type</th><th>Priority</th><th>Pickl</th><th>Bonbird</th></tr></thead>
-      <tbody id="dir-table"></tbody>
-    </table>
-  </div>
-  <div class="section">
-    <div class="section-title">Bilingual SEO — Arabic keywords to target</div>
-    <div class="section-sub">UAE has 40%+ Arabic-speaking users. These searches are often less competitive</div>
-    <div id="arabic-kws"></div>
-    <button class="btn-blue btn-sm" style="margin-top:8px" onclick="aiArabicKw()">Generate more Arabic keywords with AI</button>
-    <div id="ai-arabic-out" style="display:none"><div id="ai-arabic-content" class="ai-out"></div><div class="cache-note" id="ai-arabic-cache"></div></div>
-  </div>
-</div>
-
-<!-- PAGE AUDIT TAB -->
-<div id="tab-audit" style="display:none">
-  <div class="section">
-    <div class="section-title">On-page SEO audit</div>
-    <div class="section-sub">Paste your page details below — Claude will audit and score it against UAE SEO best practices</div>
-    <div class="row">
-      <select id="audit-site" style="min-width:100px"><option value="Pickl (eatpickl.com)">Pickl</option><option value="Bonbird (bonbirdchicken.com)">Bonbird</option></select>
-      <input type="text" id="audit-page" placeholder="Page (e.g. Homepage, Menu page)" style="flex:1;min-width:120px">
-      <input type="text" id="audit-kw" placeholder="Target keyword" style="flex:1;min-width:140px">
-    </div>
-    <div style="margin-bottom:7px"><input type="text" id="audit-title" placeholder="Current meta title (paste it here)" style="width:100%"></div>
-    <div style="margin-bottom:7px"><input type="text" id="audit-desc" placeholder="Current meta description (paste it here)" style="width:100%"></div>
-    <textarea id="audit-content" placeholder="Paste your H1, H2s, and first 2-3 paragraphs of page content here..." rows="4"></textarea>
-    <div style="margin-top:8px;display:flex;gap:6px">
-      <button class="btn-blue" onclick="aiPageAudit()">Run AI audit</button>
-      <button class="btn-sm" onclick="refreshAudit()">↻ Refresh</button>
-    </div>
-    <div id="ai-audit-out" style="display:none"><div id="ai-audit-content" class="ai-out"></div><div class="cache-note" id="ai-audit-cache"></div></div>
-  </div>
-  <div class="section">
-    <div class="section-title">Technical SEO checklist</div>
-    <div class="section-sub">Core technical issues to fix for both sites — check off as you complete them</div>
-    <div id="tech-checks"></div>
-  </div>
-</div>
-
-<!-- ALERTS TAB -->
-<div id="tab-alerts" style="display:none">
-  <div class="section">
-    <div class="section-title">Rank movement alerts</div>
-    <div class="section-sub">Keywords that have moved significantly since last update</div>
-    <div id="alerts-wrap"></div>
-  </div>
-  <div class="section">
-    <div class="section-title">Priority opportunities</div>
-    <div class="section-sub">Keywords with high volume but low rank — highest ROI targets</div>
-    <div id="opps-wrap"></div>
-  </div>
-  <div class="section">
-    <div class="section-title">Quick wins</div>
-    <div class="section-sub">Rankings between #11–20 — one push could get these to page 1</div>
-    <div id="quickwins-wrap"></div>
-  </div>
-</div>
-
-<!-- APPROVALS TAB -->
-<div id="tab-approvals" style="display:none">
-  <div class="section" style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:10px">
-    <div>
-      <div class="section-title">Approval queue</div>
-      <div class="section-sub" id="appr-summary">Loading…</div>
-    </div>
-    <div style="display:flex;gap:6px;align-items:center;flex-wrap:wrap">
-      <span id="appr-actor" style="font-size:11px;color:var(--color-text-secondary)"></span>
-      <button class="btn-sm" onclick="apprChangeActor()">Change name</button>
-      <button class="btn-sm" onclick="apprRefresh()">↻ Refresh</button>
-      <button class="btn-blue btn-sm" onclick="apprRunAudit()">Run audit now</button>
-    </div>
-  </div>
-
-  <div class="section">
-    <div class="row" style="margin-bottom:6px">
-      <div class="pills" id="appr-status-pills" style="margin-bottom:0">
-        <span class="pill active" data-status="pending" onclick="apprSetStatus(this,'pending')">Pending</span>
-        <span class="pill" data-status="approved" onclick="apprSetStatus(this,'approved')">Approved</span>
-        <span class="pill" data-status="rejected" onclick="apprSetStatus(this,'rejected')">Rejected</span>
-        <span class="pill" data-status="pushed" onclick="apprSetStatus(this,'pushed')">Pushed</span>
-        <span class="pill" data-status="failed" onclick="apprSetStatus(this,'failed')">Failed</span>
-        <span class="pill" data-status="all" onclick="apprSetStatus(this,'all')">All</span>
-      </div>
-    </div>
-    <div class="row">
-      <div class="pills" id="appr-brand-pills" style="margin-bottom:0">
-        <span class="pill active" data-brand="" onclick="apprSetBrand(this,'')">Both brands</span>
-        <span class="pill" data-brand="pickl" onclick="apprSetBrand(this,'pickl')">Pickl</span>
-        <span class="pill" data-brand="bonbird" onclick="apprSetBrand(this,'bonbird')">Bonbird</span>
+<!-- ═══════════════════════════════════════
+     MAIN CONTENT
+════════════════════════════════════════ -->
+<div class="main-content">
+  <div class="top-header">
+    <div class="page-title" id="top-title">Dashboard &amp; Approvals</div>
+    <div class="header-right">
+      <div class="user-profile">
+        <div class="avatar" id="user-avatar">?</div>
+        <span id="user-name">Loading…</span>
       </div>
     </div>
   </div>
 
-  <div id="appr-list"></div>
-  <div id="appr-empty" class="section empty" style="display:none">No items match this filter.</div>
+  <div class="views-wrapper">
 
-  <div class="section" id="appr-audit-section" style="display:none">
-    <div class="section-title">Audit log</div>
-    <div class="section-sub">Recent actions across the queue</div>
-    <div id="appr-audit-list" style="font-size:11px"></div>
-  </div>
-</div>
+    <!-- ═══ VIEW 1: DASHBOARD & APPROVALS ═══ -->
+    <div class="page-view active" id="view-dashboard">
 
-<!-- AI TOOLS TAB -->
-<div id="tab-ai" style="display:none">
-  <div class="section" id="apikey-section" style="display:flex;align-items:center;justify-content:space-between">
-    <div><div class="section-title">AI powered by Claude</div><div class="section-sub">API key configured server-side — all features ready to use</div></div>
-    <span style="font-size:11px;color:#3B6D11;font-weight:500">✓ Connected</span>
-  </div>
-  <div class="section">
-    <div class="section-title">Keyword suggestions</div>
-    <div class="section-sub">Results cached — repeated searches use no API calls</div>
-    <div class="row">
-      <input type="text" id="ai-seed" placeholder="Seed topic (e.g. fried chicken Dubai)" style="flex:2;min-width:150px">
-      <select id="ai-site-sel" style="min-width:95px"><option value="Pickl (eatpickl.com)">Pickl</option><option value="Bonbird (bonbirdchicken.com)">Bonbird</option><option value="both Pickl and Bonbird">Both</option></select>
-      <button class="btn-blue" onclick="aiSuggestKeywords()">Suggest keywords</button>
-    </div>
-    <div id="ai-kw-out" style="display:none">
-      <div id="ai-kw-content" class="ai-out"></div>
-      <div class="cache-note" id="ai-kw-cache"></div>
-      <button class="btn-sm btn-blue" style="margin-top:6px" onclick="showAIPreview()">Select keywords to import</button>
-    </div>
-    <!-- AI keyword preview -->
-    <div id="ai-kw-preview" style="display:none;margin-top:10px;border-top:0.5px solid var(--color-border-tertiary);padding-top:10px">
-      <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:8px;flex-wrap:wrap;gap:6px">
-        <span style="font-size:12px;font-weight:500;color:var(--color-text-primary)" id="ai-preview-title">Select keywords to import</span>
-        <div style="display:flex;gap:6px">
-          <button class="btn-sm" onclick="aiSelectAll(true)">Select all</button>
-          <button class="btn-sm" onclick="aiSelectAll(false)">Deselect all</button>
-          <button class="btn-blue btn-sm" onclick="importAISelected()">Import selected</button>
-          <button class="btn-sm" onclick="document.getElementById('ai-kw-preview').style.display='none'">Cancel</button>
+      <div class="metrics-grid">
+        <div class="metric-card">
+          <div class="metric-title"><div class="dot" style="background:var(--pickl)"></div>Pickl Top 10s</div>
+          <div class="metric-val" id="metric-pickl">— <span class="metric-sub">keywords</span></div>
+          <div class="metric-trend" id="metric-pickl-trend" style="color:var(--text-muted)">Loading GSC…</div>
+        </div>
+        <div class="metric-card">
+          <div class="metric-title"><div class="dot" style="background:var(--bonbird)"></div>Bonbird Top 10s</div>
+          <div class="metric-val" id="metric-bonbird">— <span class="metric-sub">keywords</span></div>
+          <div class="metric-trend" id="metric-bonbird-trend" style="color:var(--text-muted)">Loading GSC…</div>
+        </div>
+        <div class="metric-card">
+          <div class="metric-title">Automated Actions</div>
+          <div class="metric-val" id="metric-queue">— <span class="metric-sub">pending</span></div>
+          <div class="metric-trend" style="color:var(--text-muted)">Queued by Claude</div>
         </div>
       </div>
-      <div style="max-height:320px;overflow-y:auto">
-        <table class="kw-table" style="table-layout:fixed">
-          <thead><tr>
-            <th style="width:32px"><input type="checkbox" id="ai-check-all" onchange="aiSelectAll(this.checked)" checked></th>
-            <th>Keyword</th>
-            <th style="width:80px">Intent</th>
-            <th style="width:70px">Status</th>
-          </tr></thead>
-          <tbody id="ai-preview-body"></tbody>
-        </table>
+
+      <div class="section-header">
+        <div>
+          <div class="section-title">Your Action Items</div>
+          <div class="section-desc">Review, edit, or reject AI-generated optimizations before they go live.</div>
+        </div>
+        <button class="btn btn-primary" onclick="runAuditNow(this)">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="23 4 23 10 17 10"/><path d="M20.49 15a9 9 0 1 1-2.12-9.36L23 10"/></svg>
+          Run Audit Now
+        </button>
+      </div>
+
+      <div class="pill-nav" id="queue-pills">
+        <div class="pill active" data-qfilter="all" onclick="filterQueue(this)">All Approvals</div>
+        <div class="pill" data-qfilter="meta_update" onclick="filterQueue(this)">Meta Updates</div>
+        <div class="pill" data-qfilter="onpage_suggestion" onclick="filterQueue(this)">On-Page Edits</div>
+        <div class="pill" data-qfilter="blog_draft" onclick="filterQueue(this)">Blog Drafts</div>
+        <div class="pill" data-qfilter="review_response" onclick="filterQueue(this)">Review Replies</div>
+      </div>
+
+      <div class="queue-list" id="queue-list">
+        <div class="empty-state">
+          <div class="empty-state-icon">⏳</div>
+          <h3>Loading queue…</h3>
+          <p>Fetching approval items from the database.</p>
+        </div>
       </div>
     </div>
-  </div>
-  <div class="section">
-    <div class="section-title">Content brief generator</div>
-    <div class="section-sub">Full SEO brief: headings, word count, FAQs, CTAs</div>
-    <div class="row">
-      <input type="text" id="ai-brief-kw" placeholder="Target keyword" style="flex:2;min-width:150px">
-      <select id="ai-brief-site" style="min-width:95px"><option value="Pickl (eatpickl.com)">Pickl</option><option value="Bonbird (bonbirdchicken.com)">Bonbird</option></select>
-      <button class="btn-blue" onclick="aiContentBrief()">Generate brief</button>
+
+    <!-- ═══ VIEW 2: ANALYTICS & ROI ═══ -->
+    <div class="page-view" id="view-analytics">
+      <div class="section-header">
+        <div>
+          <div class="section-title">Rankings &amp; Competitor Tracking</div>
+          <div class="section-desc">First-party rankings from Google Search Console. Competitor data via DataForSEO (Phase 2).</div>
+        </div>
+        <button class="btn btn-primary" onclick="showAddKeywordModal()">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+          Add Target Keyword
+        </button>
+      </div>
+
+      <div class="pill-nav" id="analytics-pills">
+        <div class="pill active" data-view="gsc" data-brand="all" onclick="switchAnalyticsView(this)">All Domains (GSC)</div>
+        <div class="pill" data-view="gsc" data-brand="pickl" onclick="switchAnalyticsView(this)">Pickl Only</div>
+        <div class="pill" data-view="gsc" data-brand="bonbird" onclick="switchAnalyticsView(this)">Bonbird Only</div>
+        <div class="pill" data-view="comp" data-brand="all" onclick="switchAnalyticsView(this)">Competitor Matrix (SERP API)</div>
+      </div>
+
+      <!-- GSC TABLE -->
+      <div id="panel-gsc">
+        <div class="table-wrap">
+          <table class="data-table">
+            <thead>
+              <tr>
+                <th>Keyword</th>
+                <th>Brand</th>
+                <th>Position</th>
+                <th>Monthly Clicks</th>
+                <th>Impressions</th>
+                <th>CTR</th>
+                <th>Trend</th>
+              </tr>
+            </thead>
+            <tbody id="gsc-tbody">
+              <tr><td colspan="7" style="text-align:center;padding:32px;color:var(--text-muted)">
+                Connect GSC to load keyword data
+              </td></tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+
+      <!-- COMPETITOR MATRIX TABLE (Phase 2 — static) -->
+      <div id="panel-comp" style="display:none">
+        <div class="phase2-banner">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>
+          Phase 2 — DataForSEO API integration coming next week. Data below is static for preview.
+        </div>
+        <div class="table-wrap">
+          <table class="data-table">
+            <thead>
+              <tr>
+                <th>Target Keyword</th>
+                <th>Search Volume</th>
+                <th>Pickl Rank</th>
+                <th>Salt Rank</th>
+                <th>High Joint Rank</th>
+                <th>Movement</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr>
+                <td style="font-weight:500">smash burger dubai</td>
+                <td>12,000</td>
+                <td><span class="rank-badge rank-good">#2</span></td>
+                <td><span class="rank-badge rank-good">#1</span></td>
+                <td><span class="rank-badge rank-mid">#6</span></td>
+                <td class="trend-up" style="font-size:12px;font-weight:600">▲ Overtook High Joint</td>
+              </tr>
+              <tr>
+                <td style="font-weight:500">best burgers near me</td>
+                <td>8,500</td>
+                <td><span class="rank-badge rank-mid">#5</span></td>
+                <td><span class="rank-badge rank-good">#2</span></td>
+                <td><span class="rank-badge rank-good">#3</span></td>
+                <td style="color:var(--text-muted);font-size:12px">→ Unchanged</td>
+              </tr>
+              <tr>
+                <td style="font-weight:500">halal fried chicken uae</td>
+                <td>6,200</td>
+                <td><span style="color:var(--text-muted);font-size:12px">—</span></td>
+                <td><span style="color:var(--text-muted);font-size:12px">—</span></td>
+                <td><span class="rank-badge rank-mid">#4</span></td>
+                <td style="color:var(--text-muted);font-size:12px">→ Unchanged</td>
+              </tr>
+              <tr>
+                <td style="font-weight:500">burger delivery dubai marina</td>
+                <td>3,800</td>
+                <td><span class="rank-badge rank-good">#1</span></td>
+                <td><span class="rank-badge rank-mid">#7</span></td>
+                <td><span style="color:var(--text-muted);font-size:12px">—</span></td>
+                <td class="trend-up" style="font-size:12px;font-weight:600">▲ New #1</td>
+              </tr>
+              <tr>
+                <td style="font-weight:500">al baik alternative dubai</td>
+                <td>2,900</td>
+                <td><span style="color:var(--text-muted);font-size:12px">—</span></td>
+                <td><span style="color:var(--text-muted);font-size:12px">—</span></td>
+                <td><span class="rank-badge rank-bad">#18</span></td>
+                <td class="trend-down" style="font-size:12px;font-weight:600">▼ Dropped 3</td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
     </div>
-    <div id="ai-brief-out" style="display:none"><div id="ai-brief-content" class="ai-out"></div><div class="cache-note" id="ai-brief-cache"></div></div>
-  </div>
-  <div class="section">
-    <div class="section-title">Meta title &amp; description writer</div>
-    <div class="row">
-      <input type="text" id="ai-meta-kw" placeholder="Target keyword" style="flex:1;min-width:120px">
-      <input type="text" id="ai-meta-page" placeholder="Page name" style="flex:1;min-width:110px">
-      <select id="ai-meta-site" style="min-width:95px"><option value="Pickl (eatpickl.com)">Pickl</option><option value="Bonbird (bonbirdchicken.com)">Bonbird</option></select>
-      <button class="btn-blue" onclick="aiMetaWriter()">Write meta</button>
+
+    <!-- ═══ VIEW 3: AI CONTENT STUDIO ═══ -->
+    <div class="page-view" id="view-studio">
+      <div class="section-header" style="margin-bottom:24px">
+        <div>
+          <div class="section-title">AI Content Studio</div>
+          <div class="section-desc">Generate specific SEO assets on demand without waiting for the weekly audit.</div>
+        </div>
+      </div>
+
+      <div class="studio-grid">
+        <!-- Card 1: Review Responder -->
+        <div class="tool-card" onclick="openTool('review')">
+          <div class="tool-icon">
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg>
+          </div>
+          <div class="tool-title">Review Responder</div>
+          <div class="tool-desc">Paste a Google Review to instantly generate an SEO-optimized, on-brand response for Pickl or Bonbird.</div>
+        </div>
+
+        <!-- Card 2: Schema Generator -->
+        <div class="tool-card" onclick="openTool('schema')">
+          <div class="tool-icon">
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="16 18 22 12 16 6"/><polyline points="8 6 2 12 8 18"/></svg>
+          </div>
+          <div class="tool-title">Schema Generator</div>
+          <div class="tool-desc">Generate technical JSON-LD LocalBusiness markup for your restaurant locations ready to paste into WordPress.</div>
+        </div>
+
+        <!-- Card 3: Content Brief Builder -->
+        <div class="tool-card" onclick="openTool('brief')">
+          <div class="tool-icon">
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/><polyline points="10 9 9 9 8 9"/></svg>
+          </div>
+          <div class="tool-title">Content Brief Builder</div>
+          <div class="tool-desc">Enter a seed keyword to get a full outline with H1s, FAQs, word counts, and internal link suggestions for your copywriters.</div>
+        </div>
+
+        <!-- Card 4: On-Demand Page Audit -->
+        <div class="tool-card" onclick="openTool('audit')">
+          <div class="tool-icon">
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/><polyline points="22 4 12 14.01 9 11.01"/></svg>
+          </div>
+          <div class="tool-title">On-Demand Page Audit</div>
+          <div class="tool-desc">Paste a URL for any landing page to get an instant SEO technical audit with prioritized recommendations.</div>
+        </div>
+      </div>
     </div>
-    <div id="ai-meta-out" style="display:none"><div id="ai-meta-content" class="ai-out"></div><div class="cache-note" id="ai-meta-cache"></div></div>
+
+    <!-- ═══ VIEW 4: SETTINGS & LOGS ═══ -->
+    <div class="page-view" id="view-settings">
+      <div class="section-header">
+        <div>
+          <div class="section-title">Settings &amp; Logs</div>
+          <div class="section-desc">Manage your connections, notifications, and revert accidental changes.</div>
+        </div>
+      </div>
+
+      <div class="settings-grid">
+        <!-- System Preferences -->
+        <div class="card">
+          <h3 style="font-size:16px;font-weight:600;margin-bottom:20px">System Preferences</h3>
+
+          <div class="toggle-row">
+            <div class="toggle-label">
+              <h4>Slack Notifications</h4>
+              <p>Get a weekly digest when new tasks are queued.</p>
+            </div>
+            <div class="toggle-switch" id="slack-toggle" onclick="this.classList.toggle('off')"></div>
+          </div>
+
+          <div class="toggle-row">
+            <div class="toggle-label">
+              <h4>Email Notifications</h4>
+              <p>Get notified via Resend when the queue has new items.</p>
+            </div>
+            <div class="toggle-switch" id="email-toggle" onclick="this.classList.toggle('off')"></div>
+          </div>
+
+          <div class="form-group">
+            <label class="form-label">Anthropic API Key (Claude)</label>
+            <input type="password" class="form-input" value="sk-ant-api03-xxxxxxxxxxxxxxxxx" readonly>
+          </div>
+          <div class="form-group">
+            <label class="form-label">DataForSEO API Login</label>
+            <input type="text" class="form-input" placeholder="Plug in during Phase 2" readonly style="color:var(--text-muted)">
+          </div>
+          <div class="form-group">
+            <label class="form-label">Google Search Console</label>
+            <button class="btn btn-outline" style="width:100%;justify-content:center" id="gsc-connect-btn" onclick="handleGscConnect()">Connect GSC Account</button>
+          </div>
+        </div>
+
+        <!-- Audit Log -->
+        <div class="card">
+          <h3 style="font-size:16px;font-weight:600;margin-bottom:20px">Audit Log &amp; Rollbacks</h3>
+          <div id="audit-log-list">
+            <div style="text-align:center;padding:24px;color:var(--text-muted);font-size:13px">Loading audit log…</div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+  </div><!-- /views-wrapper -->
+</div><!-- /main-content -->
+
+<!-- ═══ AI STUDIO MODAL ═══ -->
+<div class="tool-modal-overlay" id="tool-modal" style="display:none" onclick="if(event.target===this)closeTool()">
+  <div class="tool-modal">
+    <div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:20px">
+      <div>
+        <h2 id="modal-title">Tool</h2>
+        <div class="tool-modal-desc" id="modal-desc"></div>
+      </div>
+      <button class="btn btn-ghost" onclick="closeTool()" style="margin-top:-4px">✕</button>
+    </div>
+    <div id="modal-body"></div>
+    <div class="modal-result" id="modal-result"></div>
+    <div class="tool-modal-actions">
+      <button class="btn btn-outline" onclick="closeTool()">Close</button>
+      <button class="btn btn-primary" id="modal-run-btn" onclick="runTool()">Generate</button>
+    </div>
   </div>
-  <div class="section">
-    <div class="section-title">Competitor gap analysis</div>
-    <div class="row">
-      <select id="ai-gap-site" style="min-width:95px"><option value="Pickl">Pickl</option><option value="Bonbird">Bonbird</option></select>
-      <select id="ai-gap-comp" style="min-width:120px">
-        <option value="Shake Shack">vs Shake Shack</option><option value="Five Guys">vs Five Guys</option>
-        <option value="Salt">vs Salt</option><option value="Highjoint">vs Highjoint</option><option value="Maxzi">vs Maxzi</option>
+</div>
+
+<!-- ═══ ADD KEYWORD MODAL ═══ -->
+<div class="tool-modal-overlay" id="kw-modal" style="display:none" onclick="if(event.target===this)closeKwModal()">
+  <div class="tool-modal" style="max-width:480px">
+    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:20px">
+      <h2>Add Target Keyword</h2>
+      <button class="btn btn-ghost" onclick="closeKwModal()">✕</button>
+    </div>
+    <div class="form-group">
+      <label class="form-label">Keyword</label>
+      <input type="text" id="kw-input" class="form-input" style="font-family:var(--font-sans)" placeholder="e.g. smash burger dubai">
+    </div>
+    <div class="form-group">
+      <label class="form-label">Brand</label>
+      <select id="kw-brand" class="form-input" style="font-family:var(--font-sans)">
+        <option value="pickl">Pickl</option>
+        <option value="bonbird">Bonbird</option>
       </select>
-      <button class="btn-blue" onclick="aiGapAnalysis()">Analyse gaps</button>
     </div>
-    <div id="ai-gap-out" style="display:none"><div id="ai-gap-content" class="ai-out"></div><div class="cache-note" id="ai-gap-cache"></div></div>
-  </div>
-  <div class="section">
-    <div class="section-title">Schema markup generator</div>
-    <div class="section-sub">Generates Restaurant schema JSON-LD to paste into your site's &lt;head&gt; — helps Google understand your business</div>
-    <div class="row">
-      <select id="schema-site" style="min-width:95px"><option value="Pickl">Pickl</option><option value="Bonbird">Bonbird</option></select>
-      <input type="text" id="schema-loc" placeholder="Location (e.g. Dubai Marina)" style="flex:1;min-width:120px">
-      <input type="text" id="schema-phone" placeholder="Phone number" style="flex:1;min-width:120px">
-      <button class="btn-blue" onclick="aiSchema()">Generate schema</button>
+    <div class="tool-modal-actions">
+      <button class="btn btn-outline" onclick="closeKwModal()">Cancel</button>
+      <button class="btn btn-primary" onclick="addKeyword()">Add Keyword</button>
     </div>
-    <div id="ai-schema-out" style="display:none"><div id="ai-schema-content" class="ai-out" style="font-family:var(--font-mono);font-size:11px"></div><div class="cache-note" id="ai-schema-cache"></div></div>
   </div>
-  <div class="section">
-    <div class="section-title">Review response writer</div>
-    <div class="section-sub">Responding to Google reviews with keywords boosts local SEO — generate a reply instantly</div>
-    <div class="row">
-      <select id="review-site" style="min-width:95px"><option value="Pickl">Pickl</option><option value="Bonbird">Bonbird</option></select>
-      <select id="review-sentiment" style="min-width:100px"><option value="positive">Positive review</option><option value="negative">Negative review</option><option value="mixed">Mixed review</option></select>
-    </div>
-    <textarea id="review-text" placeholder="Paste the customer review here..." rows="3"></textarea>
-    <div style="margin-top:7px"><button class="btn-blue" onclick="aiReviewReply()">Write response</button></div>
-    <div id="ai-review-out" style="display:none"><div id="ai-review-content" class="ai-out"></div><div class="cache-note" id="ai-review-cache"></div></div>
-  </div>
-</div>
 </div>
 
-<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.js"></script>
+<!-- ═══ TOAST ═══ -->
+<div class="toast" id="toast"></div>
+
 <script>
-const COMPS=[{name:'Shake Shack',color:'#185FA5'},{name:'Five Guys',color:'#3B6D11'},{name:'Salt',color:'#D85A30'},{name:'Highjoint',color:'#854F0B'},{name:'Maxzi',color:'#72243E'}];
-let keywords=[],compRanks=[],aiCache={},localChecks={1:{},2:{}},techChecks={},dirChecks={1:{},2:{}},trendChart=null,activeFilter='',activeBrandFilter='';
+'use strict';
 
-const LOCAL_CHECKS=[
-  {id:'gbp',label:'Google Business Profile claimed & verified'},
-  {id:'halal',label:'Halal attribute set on GBP (critical for UAE)'},
-  {id:'arabic',label:'Arabic business name added to GBP'},
-  {id:'photos',label:'10+ high-quality photos on GBP'},
-  {id:'hours',label:'Ramadan & holiday hours updated'},
-  {id:'posts',label:'Weekly GBP posts published'},
-  {id:'reviews',label:'Responding to all reviews within 48hrs'},
-  {id:'zomato',label:'Listed on Zomato UAE'},
-  {id:'tripadvisor',label:'Listed on TripAdvisor'},
-  {id:'deliveroo',label:'Listed on Deliveroo/Talabat'},
-  {id:'schema',label:'Restaurant schema markup on website'},
-  {id:'nap',label:'NAP consistent across all directories'},
-  {id:'mobile',label:'Mobile page speed < 3 seconds'},
-  {id:'arabic_page',label:'Arabic language page or content exists'},
-];
+// ═══════════════════════════════════════════════════════════════
+// STATE
+// ═══════════════════════════════════════════════════════════════
+const state = {
+  actor: null,
+  gscConnected: false,
+  gscRows: {
+    pickl: [],   // { keyword, clicks, impressions, ctr, position }
+    bonbird: []
+  },
+  queue: [],      // approval items from /api/approvals
+  activeQFilter: 'all',
+  activeAnalyticsBrand: 'all',
+  activeAnalyticsView: 'gsc',
+  currentTool: null,
+  keywords: [],   // tracked keywords from db
+};
 
-const TECH_CHECKS=[
-  {id:'ssl',label:'HTTPS enabled on all pages'},
-  {id:'mobile',label:'Mobile-responsive design'},
-  {id:'speed',label:'Page speed < 3s (test with PageSpeed Insights)'},
-  {id:'sitemap',label:'XML sitemap submitted to Google Search Console'},
-  {id:'robots',label:'robots.txt correctly configured'},
-  {id:'h1',label:'Each page has exactly one H1 tag'},
-  {id:'meta',label:'Unique meta titles & descriptions on all pages'},
-  {id:'images',label:'All images have descriptive alt text'},
-  {id:'canonical',label:'Canonical tags set to prevent duplicate content'},
-  {id:'schema_rest',label:'Restaurant schema JSON-LD in <head>'},
-  {id:'gsc',label:'Google Search Console connected'},
-  {id:'ga4',label:'Google Analytics 4 installed'},
-  {id:'breadcrumbs',label:'Breadcrumb navigation (helps Google crawl)'},
-  {id:'internal',label:'Internal links between related pages'},
-];
+const PICKL_GSC   = 'sc-domain:eatpickl.com';
+const BONBIRD_GSC = 'sc-domain:bonbirdchicken.com';
 
-const DIRS=[
-  {name:'Zomato UAE',type:'Food',priority:'high',url:'zomato.com/ae'},
-  {name:'TripAdvisor',type:'Travel/Food',priority:'high',url:'tripadvisor.com'},
-  {name:'Talabat',type:'Delivery',priority:'high',url:'talabat.com'},
-  {name:'Deliveroo UAE',type:'Delivery',priority:'high',url:'deliveroo.ae'},
-  {name:'Noon Food',type:'Delivery',priority:'high',url:'food.noon.com'},
-  {name:'Google Maps',type:'Local',priority:'high',url:'maps.google.com'},
-  {name:'Dubizzle',type:'General',priority:'medium',url:'dubizzle.com'},
-  {name:'UAE Yellow Pages',type:'Directory',priority:'medium',url:'yellowpages.ae'},
-  {name:'OpenTable',type:'Reservations',priority:'medium',url:'opentable.com'},
-  {name:'Yelp',type:'Reviews',priority:'low',url:'yelp.com'},
-];
+const BRAND_LABELS = { pickl: 'Pickl', bonbird: 'Bonbird' };
+const TYPE_LABELS  = {
+  blog_draft: 'Blog Draft',
+  meta_update: 'Meta Update',
+  onpage_suggestion: 'On-Page Edit',
+  review_response: 'Review Reply',
+  schema_update: 'Schema Update',
+};
+const TYPE_TAGS = {
+  blog_draft: 'tag-purple',
+  meta_update: 'tag-green',
+  onpage_suggestion: 'tag-blue',
+  review_response: 'tag-orange',
+  schema_update: 'tag-blue',
+};
 
-const ARABIC_KWS=[
-  {ar:'مطعم برجر دبي',en:'burger restaurant dubai',vol:'~1200/mo'},
-  {ar:'أفضل دجاج مقلي الإمارات',en:'best fried chicken UAE',vol:'~800/mo'},
-  {ar:'مطعم حلال قريب مني',en:'halal restaurant near me',vol:'~2000/mo'},
-  {ar:'برجر سماش دبي',en:'smash burger dubai',vol:'~600/mo'},
-  {ar:'توصيل طعام دبي',en:'food delivery dubai',vol:'~3500/mo'},
-  {ar:'مطعم عائلي أبوظبي',en:'family restaurant abu dhabi',vol:'~900/mo'},
-];
-
-let saveTimer=null;
-function save(){
-  // AI cache stays local only
-  try{localStorage.setItem('pb2_cache',JSON.stringify(aiCache));}catch(e){}
-  // Debounce shared saves to avoid hammering the API
-  clearTimeout(saveTimer);
-  saveTimer=setTimeout(async()=>{
-    try{
-      await fetch('/api/db/save',{method:'POST',headers:{'Content-Type':'application/json'},
-        body:JSON.stringify({keywords,compRanks,localChecks,techChecks,dirChecks})});
-    }catch(e){console.warn('Save failed:',e);}
-  },800);
-}
-
-async function load(){
-  // Load AI cache from localStorage
-  try{const a=localStorage.getItem('pb2_cache');if(a)aiCache=JSON.parse(a);}catch(e){}
-  // Show loading state
-  document.getElementById('kw-empty').textContent='Loading shared data...';
-  try{
-    const res=await fetch('/api/db/get');
-    const data=await res.json();
-    if(data.keywords && data.keywords.length){keywords=data.keywords;}
-    if(data.compRanks && data.compRanks.length){compRanks=data.compRanks;}
-    if(data.localChecks){localChecks=data.localChecks;}
-    if(data.techChecks){techChecks=data.techChecks;}
-    if(data.dirChecks){dirChecks=data.dirChecks;}
-  }catch(e){
-    console.warn('Could not load shared data, falling back to localStorage');
-    try{
-      const k=localStorage.getItem('pb2_kw'),c=localStorage.getItem('pb2_cr');
-      const lc=localStorage.getItem('pb2_lc'),tc=localStorage.getItem('pb2_tc'),dc=localStorage.getItem('pb2_dc');
-      if(k)keywords=JSON.parse(k);if(c)compRanks=JSON.parse(c);
-      if(lc)localChecks=JSON.parse(lc);if(tc)techChecks=JSON.parse(tc);if(dc)dirChecks=JSON.parse(dc);
-    }catch(e2){}
+// ═══════════════════════════════════════════════════════════════
+// INIT
+// ═══════════════════════════════════════════════════════════════
+(async function init() {
+  // Identity
+  let actor = localStorage.getItem('seo_actor');
+  if (!actor) {
+    actor = window.prompt('Who is using the SEO tool? (your name for the audit log)', '') || 'guest';
+    actor = actor.trim().slice(0, 40) || 'guest';
+    localStorage.setItem('seo_actor', actor);
   }
-}
-function today(){return new Date().toLocaleDateString('en-GB',{day:'numeric',month:'short'});}
+  state.actor = actor;
+  document.getElementById('user-name').textContent = actor;
+  document.getElementById('user-avatar').textContent = actor.charAt(0).toUpperCase();
 
-function addKeyword(){
-  const kw=document.getElementById('kw-input').value.trim().toLowerCase();if(!kw)return;
-  const site=document.getElementById('kw-site').value,cat=document.getElementById('kw-cat').value;
-  const r1=site==='2'?null:parseInt(document.getElementById('kw-rank1').value)||null;
-  const r2=site==='1'?null:parseInt(document.getElementById('kw-rank2').value)||null;
-  const vol=parseInt(document.getElementById('kw-vol').value)||null,note=document.getElementById('kw-note').value.trim();
-  const ex=keywords.find(k=>k.kw===kw);
-  if(ex){if(r1!==null)ex.rank1=r1;if(r2!==null)ex.rank2=r2;if(vol!==null)ex.vol=vol;if(note)ex.note=note;if(cat)ex.cat=cat;ex.history.push({date:today(),s1:r1!==null?r1:ex.rank1,s2:r2!==null?r2:ex.rank2});}
-  else keywords.push({kw,rank1:r1,rank2:r2,vol,cat,note,history:[{date:today(),s1:r1,s2:r2}]});
-  ['kw-input','kw-rank1','kw-rank2','kw-vol','kw-note'].forEach(id=>document.getElementById(id).value='');
-  save();renderAll();
-}
-function removeKeyword(i){keywords.splice(i,1);save();renderAll();}
-function filterCat(el,cat){activeFilter=cat;activeBrandFilter='';document.querySelectorAll('.pill').forEach(p=>p.classList.remove('active'));el.classList.add('active');renderKeywords();}
-function filterBrand(el,type){activeBrandFilter=type;activeFilter='';document.querySelectorAll('.pill').forEach(p=>p.classList.remove('active'));el.classList.add('active');renderKeywords();}
+  // Check ?tab= param in URL (from notification deep-links)
+  const urlTab = new URLSearchParams(window.location.search).get('tab');
+  if (urlTab) { window.history.replaceState({}, '', '/'); switchView(urlTab); }
 
-function priority(k){
-  const vol=k.vol||0,r1=k.rank1||999,r2=k.rank2||999,minR=Math.min(r1,r2);
-  if(vol>1000&&minR>10)return'high';
-  if(vol>500&&minR>5)return'med';
-  return'low';
-}
+  // Load db data (keywords etc.)
+  loadDbData();
 
-function rb(r){if(!r)return'<span class="rb rn">—</span>';const c=r<=10?'rt':r<=30?'rm':'rl';return`<span class="rb ${c}">#${r}</span>`;}
-function trend(history,key){if(!history||history.length<2)return'<span class="tf">—</span>';const l=history[history.length-1][key],p=history[history.length-2][key];if(!l||!p)return'<span class="tf">—</span>';const d=p-l;if(d>0)return`<span class="tu">▲${d}</span>`;if(d<0)return`<span class="td">▼${Math.abs(d)}</span>`;return'<span class="tf">→</span>';}
-function ctag(cat){if(!cat)return'';return`<span class="tag tag-${cat}">${cat}</span>`;}
-function pbadge(p){if(p==='high')return'<span class="priority-badge pb-h">high</span>';if(p==='med')return'<span class="priority-badge pb-m">med</span>';return'<span class="priority-badge pb-l">low</span>';}
+  // Load approval queue
+  await loadQueue();
+  // Poll badge every 60s
+  setInterval(pollQueueBadge, 60000);
 
-function renderKeywords(){
-  const body=document.getElementById('kw-body'),empty=document.getElementById('kw-empty');
-  let filtered=keywords;
-  if(activeFilter)filtered=keywords.filter(k=>k.cat===activeFilter);
-  else if(activeBrandFilter==='pickl')filtered=keywords.filter(k=>k.kw.includes('pickl'));
-  else if(activeBrandFilter==='bonbird')filtered=keywords.filter(k=>k.kw.includes('bonbird'));
-  else if(activeBrandFilter==='non')filtered=keywords.filter(k=>!k.kw.includes('pickl')&&!k.kw.includes('bonbird'));
-  if(!filtered.length){body.innerHTML='';empty.style.display='block';return;}
-  empty.style.display='none';
-  body.innerHTML=filtered.map(k=>{const i=keywords.indexOf(k);return`<tr>
-    <td style="font-weight:500">${k.kw}</td><td>${ctag(k.cat)}</td>
-    <td style="color:var(--color-text-secondary)">${k.vol?k.vol.toLocaleString():'—'}</td>
-    <td style="color:var(--color-text-secondary)">${k.ctr!=null?k.ctr+'%':'—'}</td>
-    <td>${rb(k.rank1)}</td><td>${rb(k.rank2)}</td>
-    <td>${trend(k.history,'s1')}</td><td>${trend(k.history,'s2')}</td>
-    <td style="font-size:10px;color:var(--color-text-secondary);max-width:90px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap" title="${k.note||''}">${k.note||''}</td>
-    <td>${pbadge(priority(k))}</td>
-    <td><button class="del-btn" onclick="removeKeyword(${i})">✕</button></td>
-  </tr>`;}).join('');
-}
-
-function renderStats(){
-  [1,2].forEach(n=>{
-    const key='rank'+n,ranks=keywords.map(k=>k[key]).filter(r=>r!=null);
-    document.getElementById('s'+n+'total').textContent=ranks.length;
-    document.getElementById('s'+n+'top').textContent=ranks.filter(r=>r<=10).length;
-    document.getElementById('s'+n+'avg').textContent=ranks.length?Math.round(ranks.reduce((a,b)=>a+b,0)/ranks.length):'—';
-    const improved=keywords.filter(k=>{const h=k.history;if(h.length<2)return false;const last=h[h.length-1]['s'+n],prev=h[h.length-2]['s'+n];return last&&prev&&last<prev;}).length;
-    document.getElementById('s'+n+'moved').textContent=improved;
-  });
-}
-
-function renderCompCards(){
-  // Build dynamic competitor list from actual data + defaults
-  const allComps=[...new Set([...COMPS.map(c=>c.name),...compRanks.map(r=>r.comp)])];
-  document.getElementById('comp-cards').innerHTML=allComps.map(name=>{
-    const entries=compRanks.filter(r=>r.comp===name);
-    const preset=COMPS.find(c=>c.name===name);
-    const color=preset?preset.color:'#888780';
-    const avg=entries.length?Math.round(entries.reduce((a,b)=>a+b.rank,0)/entries.length):null;
-    return`<div class="comp-card"><div class="dot" style="background:${color}"></div><div><div class="comp-name">${name}</div><div class="comp-sub">${entries.length} kws${avg?', avg #'+avg:''}</div></div></div>`;
-  }).join('');
-  renderCompMatrix();
-}
-
-function renderCompMatrix(){
-  const wrap=document.getElementById('comp-matrix-wrap');
-  if(!compRanks.length){wrap.innerHTML='<div class="empty">Add competitor ranks above to see the full matrix</div>';return;}
-  const allComps=[...new Set(compRanks.map(r=>r.comp))];
-  const kwsWithData=keywords.filter(k=>compRanks.some(r=>r.kw===k.kw)||k.rank1||k.rank2);
-  if(!kwsWithData.length){wrap.innerHTML='<div class="empty">Add keywords first</div>';return;}
-  const headers=['Keyword','Impr.','Pickl','Bonbird',...allComps];
-  let html=`<table class="kw-table" style="table-layout:auto;white-space:nowrap"><thead><tr>${headers.map((h,i)=>`<th style="${i===0?'min-width:160px':'min-width:70px;text-align:center'}">${h}</th>`).join('')}</tr></thead><tbody>`;
-  kwsWithData.forEach(k=>{
-    html+=`<tr><td style="font-weight:500">${k.kw}</td>`;
-    html+=`<td style="text-align:center;color:var(--color-text-secondary)">${k.vol?k.vol.toLocaleString():'—'}</td>`;
-    html+=`<td style="text-align:center">${rb(k.rank1)}</td>`;
-    html+=`<td style="text-align:center">${rb(k.rank2)}</td>`;
-    allComps.forEach(comp=>{
-      const cr=compRanks.find(r=>r.kw===k.kw&&r.comp===comp);
-      html+=`<td style="text-align:center">${cr?rb(cr.rank):'<span style="color:var(--color-text-tertiary)">—</span>'}</td>`;
-    });
-    html+='</tr>';
-  });
-  html+='</tbody></table>';
-  wrap.innerHTML=html;
-}
-
-function renderCompKwList(){
-  document.getElementById('comp-kw-list').innerHTML=keywords.map(k=>`<option value="${k.kw}">`).join('');
-  const sel=document.getElementById('comp-view-kw'),cur=sel.value;
-  sel.innerHTML=keywords.map(k=>`<option value="${k.kw}">${k.kw}</option>`).join('');
-  if(keywords.find(k=>k.kw===cur))sel.value=cur;
-}
-
-function addCompRank(){
-  const kw=document.getElementById('comp-kw-sel').value.trim().toLowerCase();
-  const comp=(document.getElementById('comp-sel-input')||document.getElementById('comp-sel')).value.trim();
-  const rank=parseInt(document.getElementById('comp-rank').value)||null;
-  if(!kw||!comp||!rank)return;
-  const ex=compRanks.find(r=>r.kw===kw&&r.comp===comp);
-  if(ex){ex.rank=rank;ex.date=today();}else compRanks.push({kw,comp,rank,date:today()});
-  document.getElementById('comp-rank').value='';save();renderAll();
-}
-
-function renderCompView(){
-  const kw=document.getElementById('comp-view-kw').value,wrap=document.getElementById('comp-view-wrap');
-  const kwData=keywords.find(k=>k.kw===kw),cData=compRanks.filter(r=>r.kw===kw);
-  const entries=[];
-  if(kwData?.rank1)entries.push({name:'Pickl',rank:kwData.rank1,color:'#185FA5'});
-  if(kwData?.rank2)entries.push({name:'Bonbird',rank:kwData.rank2,color:'#D85A30'});
-  cData.forEach(c=>{const col=COMPS.find(x=>x.name===c.comp);entries.push({name:c.comp,rank:c.rank,color:col?col.color:'#888'});});
-  if(!entries.length){wrap.innerHTML='<div class="empty">No data for this keyword yet</div>';return;}
-  entries.sort((a,b)=>a.rank-b.rank);
-  const maxR=Math.max(...entries.map(e=>e.rank),100);
-  wrap.innerHTML=`<table class="kw-table" style="table-layout:auto"><thead><tr><th>Brand</th><th>Rank</th><th>Position</th></tr></thead><tbody>${entries.map((e,i)=>`<tr><td><span style="display:inline-flex;align-items:center;gap:5px"><span style="width:7px;height:7px;border-radius:50%;background:${e.color}"></span><span style="font-weight:${i===0?500:400}">${e.name}</span></span></td><td>${rb(e.rank)}</td><td><div class="bar-wrap"><div class="bar-bg"><div class="bar-fill" style="width:${Math.round((1-e.rank/maxR)*100)}%;background:${e.color}"></div></div><span style="font-size:10px;color:var(--color-text-secondary);min-width:28px">#${e.rank}</span></div></td></tr>`).join('')}</tbody></table>`;
-}
-
-let compareFilterMode='all';
-function compareFilter(el,mode){
-  compareFilterMode=mode;
-  document.querySelectorAll('#tab-compare .pill').forEach(p=>p.classList.remove('active'));
-  el.classList.add('active');
-  renderCompare();
-}
-function renderCompare(){
-  const wrap=document.getElementById('compare-wrap');
-  let list=keywords.filter(k=>k.rank1||k.rank2);
-  if(compareFilterMode==='pickl')list=list.filter(k=>k.rank1&&k.rank2&&k.rank1<k.rank2);
-  else if(compareFilterMode==='bonbird')list=list.filter(k=>k.rank1&&k.rank2&&k.rank2<k.rank1);
-  else if(compareFilterMode==='one')list=list.filter(k=>!(k.rank1&&k.rank2));
-  if(!list.length){wrap.innerHTML='<div class="empty">No keywords match this filter</div>';return;}
-  const maxR=Math.max(...list.flatMap(k=>[k.rank1||200,k.rank2||200]),100);
-  wrap.innerHTML=`<table class="kw-table" style="table-layout:auto"><thead><tr><th>Keyword</th><th>Impr.</th><th>Pickl</th><th>Bonbird</th><th>Winner</th></tr></thead><tbody>${list.map(k=>{
-    const aW=k.rank1&&k.rank2&&k.rank1<k.rank2,tied=k.rank1&&k.rank2&&k.rank1===k.rank2,pickWin=aW,birdWin=k.rank1&&k.rank2&&k.rank2<k.rank1;
-    return`<tr>
-      <td style="font-weight:500">${k.kw}</td>
-      <td style="color:var(--color-text-secondary)">${k.vol?k.vol.toLocaleString():'—'}</td>
-      <td>${k.rank1?`<div class="bar-wrap"><div class="bar-bg"><div class="bar-fill" style="width:${Math.round((1-k.rank1/maxR)*100)}%;background:#185FA5"></div></div><span style="font-size:10px;min-width:26px">#${k.rank1}</span></div>`:'<span style="color:var(--color-text-tertiary)">—</span>'}</td>
-      <td>${k.rank2?`<div class="bar-wrap"><div class="bar-bg"><div class="bar-fill" style="width:${Math.round((1-k.rank2/maxR)*100)}%;background:#D85A30"></div></div><span style="font-size:10px;min-width:26px">#${k.rank2}</span></div>`:'<span style="color:var(--color-text-tertiary)">—</span>'}</td>
-      <td style="font-size:11px;font-weight:500;color:${tied?'var(--color-text-secondary)':pickWin?'#185FA5':birdWin?'#D85A30':'var(--color-text-secondary)'}">${tied?'Tied':pickWin?'Pickl':birdWin?'Bonbird':'—'}</td>
-    </tr>`;}).join('')}</tbody></table>`;
-}
-
-function renderTrends(){
-  const sel=document.getElementById('trend-kw-sel'),legend=document.getElementById('trend-legend');
-  const chartType=document.getElementById('trend-chart-type')?.value||'rank';
-  const kw=keywords.find(k=>k.kw===sel.value);
-  if(trendChart){trendChart.destroy();trendChart=null;}
-  const statsWrap=document.getElementById('trend-stats');
-  if(!kw){legend.innerHTML='';if(statsWrap)statsWrap.innerHTML='';return;}
-  
-  const isRank=chartType==='rank';
-  let datasets=[];
-  if(isRank){
-    datasets=[
-      {label:'Pickl',data:kw.history.map(h=>h.s1),borderColor:'#185FA5',backgroundColor:'rgba(24,95,165,0.06)',tension:0.3,pointRadius:3,fill:true,spanGaps:true},
-      {label:'Bonbird',data:kw.history.map(h=>h.s2),borderColor:'#D85A30',backgroundColor:'rgba(216,90,48,0.06)',tension:0.3,pointRadius:3,fill:true,borderDash:[5,3],spanGaps:true}
-    ];
-  } else {
-    datasets=[{label:'Impressions',data:kw.history.map(h=>h.impr||null),borderColor:'#3B6D11',backgroundColor:'rgba(59,109,17,0.06)',tension:0.3,pointRadius:3,fill:true,spanGaps:true}];
-  }
-  
-  trendChart=new Chart(document.getElementById('trendChart'),{
-    type:'line',
-    data:{labels:kw.history.map(h=>h.date),datasets},
-    options:{
-      responsive:true,maintainAspectRatio:false,
-      plugins:{legend:{display:false}},
-      scales:{
-        y:{
-          reverse:isRank,
-          min:isRank?1:0,
-          title:{display:true,text:isRank?'Rank position':'Impressions',font:{size:10}},
-          grid:{color:'rgba(128,128,128,0.07)'}
-        },
-        x:{grid:{display:false}}
-      }
-    }
-  });
-  
-  legend.innerHTML=isRank
-    ?`<span style="display:flex;align-items:center;gap:3px"><span style="width:10px;height:2px;background:#185FA5;display:inline-block"></span>Pickl</span><span style="display:flex;align-items:center;gap:3px"><span style="width:10px;height:2px;background:#D85A30;display:inline-block"></span>Bonbird</span>`
-    :`<span style="display:flex;align-items:center;gap:3px"><span style="width:10px;height:2px;background:#3B6D11;display:inline-block"></span>Impressions</span>`;
-  
-  // Stats strip
-  if(statsWrap){
-    const r1vals=kw.history.map(h=>h.s1).filter(v=>v!=null);
-    const r2vals=kw.history.map(h=>h.s2).filter(v=>v!=null);
-    const stats=[];
-    if(r1vals.length>=2){const d=r1vals[0]-r1vals[r1vals.length-1];stats.push(`<div class="stat" style="flex:none;min-width:100px"><div class="stat-val" style="font-size:13px;color:${d>0?'#3B6D11':d<0?'#A32D2D':'var(--color-text-secondary)'}">${d>0?'▲'+d:d<0?'▼'+Math.abs(d):'→'}</div><div class="stat-label">Pickl change</div></div>`);}
-    if(r2vals.length>=2){const d=r2vals[0]-r2vals[r2vals.length-1];stats.push(`<div class="stat" style="flex:none;min-width:100px"><div class="stat-val" style="font-size:13px;color:${d>0?'#3B6D11':d<0?'#A32D2D':'var(--color-text-secondary)'}">${d>0?'▲'+d:d<0?'▼'+Math.abs(d):'→'}</div><div class="stat-label">Bonbird change</div></div>`);}
-    if(kw.vol)stats.push(`<div class="stat" style="flex:none;min-width:100px"><div class="stat-val" style="font-size:13px">${kw.vol.toLocaleString()}</div><div class="stat-label">Impressions</div></div>`);
-    if(kw.ctr!=null)stats.push(`<div class="stat" style="flex:none;min-width:100px"><div class="stat-val" style="font-size:13px">${kw.ctr}%</div><div class="stat-label">CTR</div></div>`);
-    statsWrap.innerHTML=stats.join('');
-  }
-}
-
-function populateTrendSel(){const sel=document.getElementById('trend-kw-sel'),cur=sel.value;sel.innerHTML=keywords.map(k=>`<option value="${k.kw}">${k.kw}</option>`).join('');if(keywords.find(k=>k.kw===cur))sel.value=cur;}
-
-function renderLocalChecks(){
-  [1,2].forEach(n=>{
-    document.getElementById('local-checks-'+n).innerHTML=LOCAL_CHECKS.map(c=>{
-      const done=localChecks[n][c.id]||false;
-      return`<div class="check-item"><div class="check-label">${c.label}</div><span class="check-status ${done?'cs-done':'cs-todo'} check-toggle" onclick="toggleCheck('local',${n},'${c.id}',this)">${done?'Done':'To-do'}</span></div>`;
-    }).join('');
-  });
-}
-
-function renderDirTable(){
-  document.getElementById('dir-table').innerHTML=DIRS.map(d=>{
-    const p1=dirChecks[1][d.name]||false,p2=dirChecks[2][d.name]||false;
-    const pc=d.priority==='high'?'pb-h':d.priority==='medium'?'pb-m':'pb-l';
-    return`<tr><td style="font-weight:500">${d.name}</td><td style="color:var(--color-text-secondary)">${d.type}</td><td><span class="priority-badge ${pc}">${d.priority}</span></td><td><span class="check-status ${p1?'cs-done':'cs-todo'} check-toggle" onclick="toggleCheck('dir',1,'${d.name}',this)" style="cursor:pointer">${p1?'Listed':'Not listed'}</span></td><td><span class="check-status ${p2?'cs-done':'cs-todo'} check-toggle" onclick="toggleCheck('dir',2,'${d.name}',this)" style="cursor:pointer">${p2?'Listed':'Not listed'}</span></td></tr>`;
-  }).join('');
-}
-
-function renderArabicKws(){
-  document.getElementById('arabic-kws').innerHTML=`<table class="kw-table" style="table-layout:auto"><thead><tr><th>Arabic keyword</th><th>English meaning</th><th>Est. volume</th><th></th></tr></thead><tbody>${ARABIC_KWS.map(k=>`<tr><td style="font-weight:500;direction:rtl">${k.ar}</td><td style="color:var(--color-text-secondary)">${k.en}</td><td>${k.vol}</td><td><button class="btn-sm btn-blue" onclick="importArabic('${k.kw||k.en}')">Add</button></td></tr>`).join('')}</tbody></table>`;
-}
-
-function importArabic(kw){
-  if(!keywords.find(k=>k.kw===kw)){keywords.push({kw,rank1:null,rank2:null,vol:null,cat:'local',note:'Arabic kw',history:[{date:today(),s1:null,s2:null}]});save();renderAll();}
-}
-
-function renderTechChecks(){
-  document.getElementById('tech-checks').innerHTML=TECH_CHECKS.map(c=>{
-    const done=techChecks[c.id]||false;
-    return`<div class="check-item"><div class="check-label">${c.label}</div><span class="check-status ${done?'cs-done':'cs-todo'} check-toggle" onclick="toggleCheck('tech',0,'${c.id}',this)">${done?'Done':'To-do'}</span></div>`;
-  }).join('');
-}
-
-function toggleCheck(type,site,id,el){
-  if(type==='local'){localChecks[site]=localChecks[site]||{};localChecks[site][id]=!localChecks[site][id];el.textContent=localChecks[site][id]?'Done':'To-do';el.className='check-status '+(localChecks[site][id]?'cs-done':'cs-todo')+' check-toggle';}
-  else if(type==='tech'){techChecks[id]=!techChecks[id];el.textContent=techChecks[id]?'Done':'To-do';el.className='check-status '+(techChecks[id]?'cs-done':'cs-todo')+' check-toggle';}
-  else if(type==='dir'){dirChecks[site]=dirChecks[site]||{};dirChecks[site][id]=!dirChecks[site][id];el.textContent=dirChecks[site][id]?'Listed':'Not listed';el.className='check-status '+(dirChecks[site][id]?'cs-done':'cs-todo')+' check-toggle';}
-  save();
-}
-
-function renderAlerts(){
-  const wrap=document.getElementById('alerts-wrap');
-  const moved=[];
-  keywords.forEach(k=>{
-    [1,2].forEach(n=>{
-      const h=k.history;if(h.length<2)return;
-      const last=h[h.length-1]['s'+n],prev=h[h.length-2]['s'+n];
-      if(!last||!prev)return;
-      const diff=prev-last;
-      if(Math.abs(diff)>=3)moved.push({kw:k.kw,site:n===1?'Pickl':'Bonbird',diff,last,prev});
-    });
-  });
-  if(!moved.length){wrap.innerHTML='<div class="empty">No significant movements yet — update ranks regularly to see alerts</div>';return;}
-  moved.sort((a,b)=>Math.abs(b.diff)-Math.abs(a.diff));
-  wrap.innerHTML=moved.map(m=>`<div class="alert-item"><div class="alert-dot ${m.diff>0?'alert-low':'alert-high'}"></div><div><span style="font-weight:500">${m.kw}</span> <span style="color:var(--color-text-secondary)">(${m.site})</span> — ${m.diff>0?'improved':'dropped'} ${Math.abs(m.diff)} positions to <strong>#${m.last}</strong></div></div>`).join('');
-  
-  const opps=keywords.filter(k=>((k.vol||k.impressions||0)>100)&&((k.rank1&&k.rank1>10)||(k.rank2&&k.rank2>10))).sort((a,b)=>((b.vol||b.impressions||0))-(a.vol||a.impressions||0)).slice(0,10);
-  const oppWrap=document.getElementById('opps-wrap');
-  oppWrap.innerHTML=opps.length?opps.map(k=>`<div class="alert-item"><div class="alert-dot alert-mid"></div><div><span style="font-weight:500">${k.kw}</span> — ${(k.vol||k.impressions||0).toLocaleString()} impr.${k.ctr!=null?', '+k.ctr+'% CTR':''}${k.rank1?', Pickl #'+k.rank1:''}${k.rank2?', Bonbird #'+k.rank2:''} <span class="priority-badge pb-h">opportunity</span></div></div>`).join(''):'<div class="empty">Impressions data will appear after GSC sync</div>';
-
-  const qw=keywords.filter(k=>(k.rank1&&k.rank1>=11&&k.rank1<=25)||(k.rank2&&k.rank2>=11&&k.rank2<=25)).sort((a,b)=>((b.vol||b.impressions||0))-(a.vol||a.impressions||0)).slice(0,10);
-  const qwWrap=document.getElementById('quickwins-wrap');
-  qwWrap.innerHTML=qw.length?qw.map(k=>`<div class="alert-item"><div class="alert-dot alert-low"></div><div><span style="font-weight:500">${k.kw}</span>${k.rank1&&k.rank1>=11&&k.rank1<=25?` — Pickl <strong>#${k.rank1}</strong>`:''}${k.rank2&&k.rank2>=11&&k.rank2<=25?` — Bonbird <strong>#${k.rank2}</strong>`:''}${(k.vol||k.impressions)?` · ${(k.vol||k.impressions||0).toLocaleString()} impr.`:''} <span class="priority-badge pb-l">page 1 within reach</span></div></div>`).join(''):'<div class="empty">No quick-win keywords yet (positions 11–25)</div>';
-}
-
-function exportCSV(){
-  const rows=[['keyword','category','volume','pickl_rank','bonbird_rank','note']];
-  keywords.forEach(k=>rows.push([k.kw,k.cat||'',k.vol||'',k.rank1||'',k.rank2||'',k.note||'']));
-  const csv=rows.map(r=>r.map(c=>`"${c}"`).join(',')).join('\n');
-  const a=document.createElement('a');a.href='data:text/csv;charset=utf-8,'+encodeURIComponent(csv);a.download='seo_'+new Date().toISOString().slice(0,10)+'.csv';a.click();
-}
-function handleCSV(e){
-  const f=e.target.files[0];if(!f)return;
-  const reader=new FileReader();
-  reader.onload=ev=>{
-    ev.target.result.split('\n').slice(1).forEach(line=>{
-      if(!line.trim())return;
-      const cols=line.split(',').map(c=>c.replace(/^"|"$/g,'').trim());
-      if(!cols[0])return;
-      const kw=cols[0].toLowerCase(),ex=keywords.find(k=>k.kw===kw);
-      const entry={kw,cat:cols[1]||'',vol:parseInt(cols[2])||null,rank1:parseInt(cols[3])||null,rank2:parseInt(cols[4])||null,note:cols[5]||'',history:[{date:today(),s1:parseInt(cols[3])||null,s2:parseInt(cols[4])||null}]};
-      if(ex)Object.assign(ex,entry);else keywords.push(entry);
-    });save();renderAll();
-  };reader.readAsText(f);e.target.value='';
-}
-
-async function callClaude(prompt,cacheKey){
-  if(aiCache[cacheKey])return{text:aiCache[cacheKey],cached:true};
-  const res=await fetch('/api/claude',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({model:'claude-sonnet-4-20250514',max_tokens:1000,messages:[{role:'user',content:prompt}]})});
-  const data=await res.json();
-  const text=data.content?.map(b=>b.text||'').join('')||'Error getting response.';
-  aiCache[cacheKey]=text;save();return{text,cached:false};
-}
-
-function setAI(outId,contentId,cacheId,loading,text,cached){
-  document.getElementById(outId).style.display='block';
-  const c=document.getElementById(contentId);c.className='ai-out'+(loading?' ai-loading':'');
-  c.textContent=loading?'Asking Claude...':(text||'');
-  if(cacheId)document.getElementById(cacheId).textContent=cached?'Cached — no API call used':'New result — API call used';
-}
-
-async function aiSuggestKeywords(){
-  const seed=document.getElementById('ai-seed').value.trim(),site=document.getElementById('ai-site-sel').value;
-  if(!seed)return;const ck=`kw_${seed}_${site}`;setAI('ai-kw-out','ai-kw-content','ai-kw-cache',true);
-  try{const{text,cached}=await callClaude(`You are an SEO expert for a UAE restaurant. Generate 20 keyword suggestions for ${site} in the UAE based on: "${seed}". For each: keyword phrase, search intent (informational/transactional/local), difficulty (low/medium/high), brief reason. Focus on UAE/Dubai/Abu Dhabi context, halal searches, Arabic transliterations, delivery keywords, "near me" variants. Format as numbered list.`,ck);setAI('ai-kw-out','ai-kw-content','ai-kw-cache',false,text,cached);}
-  catch(e){setAI('ai-kw-out','ai-kw-content','ai-kw-cache',false,'Error: '+e.message,false);}
-}
-
-let aiSuggestedKeywords=[];
-
-function showAIPreview(){
-  const rawContent=document.getElementById('ai-kw-content').textContent;
-  aiSuggestedKeywords=[];
-  rawContent.split('\n').forEach(line=>{
-    const m=line.match(/^\d+\.\s+(.+?)(?:\s*[-–(]|$)/);
-    if(m){
-      const kw=m[1].trim().toLowerCase();
-      if(kw.length>2){
-        // Try to detect intent from the line
-        const lower=line.toLowerCase();
-        const intent=lower.includes('transactional')?'transact':lower.includes('local')?'local':lower.includes('informational')?'info':'general';
-        aiSuggestedKeywords.push({kw,intent,selected:true});
-      }
-    }
-  });
-  if(!aiSuggestedKeywords.length){alert('No keywords found. Make sure you have generated suggestions first.');return;}
-  document.getElementById('ai-preview-title').textContent=aiSuggestedKeywords.length+' keywords found — select which to import';
-  renderAIPreview();
-  document.getElementById('ai-kw-preview').style.display='block';
-}
-
-function renderAIPreview(){
-  const body=document.getElementById('ai-preview-body');
-  body.innerHTML=aiSuggestedKeywords.map((k,i)=>{
-    const exists=keywords.find(kw=>kw.kw===k.kw);
-    const intentLabel=k.intent==='transact'?'transact':k.intent==='local'?'local':k.intent==='info'?'info':'general';
-    const intentClass=k.intent==='transact'?'rt':k.intent==='local'?'tag-local':k.intent==='info'?'rn':'rn';
-    return`<tr style="opacity:${k.selected?1:0.45}">
-      <td><input type="checkbox" ${k.selected?'checked':''} onchange="aiSuggestedKeywords[${i}].selected=this.checked;renderAIPreview()"></td>
-      <td style="font-weight:500">${k.kw}</td>
-      <td><span class="rb ${intentClass}">${intentLabel}</span></td>
-      <td><span class="rb ${exists?'rm':'rt'}">${exists?'exists':'new'}</span></td>
-    </tr>`;
-  }).join('');
-  const sel=aiSuggestedKeywords.filter(k=>k.selected).length;
-  document.getElementById('ai-check-all').checked=sel===aiSuggestedKeywords.length;
-}
-
-function aiSelectAll(val){
-  aiSuggestedKeywords.forEach(k=>k.selected=val);
-  document.getElementById('ai-check-all').checked=val;
-  renderAIPreview();
-}
-
-function importAISelected(){
-  const toImport=aiSuggestedKeywords.filter(k=>k.selected);
-  if(!toImport.length){alert('No keywords selected.');return;}
-  let added=0;
-  toImport.forEach(k=>{
-    if(!keywords.find(kw=>kw.kw===k.kw)){
-      keywords.push({kw:k.kw,rank1:null,rank2:null,vol:null,cat:'general',note:'AI suggested',history:[{date:today(),s1:null,s2:null}]});
-      added++;
-    }
-  });
-  save();renderAll();
-  document.getElementById('ai-kw-preview').style.display='none';
-  if(added>0){sw('keywords');alert(added+' keywords added to tracker.');}
-}
-
-async function aiContentBrief(){
-  const kw=document.getElementById('ai-brief-kw').value.trim(),site=document.getElementById('ai-brief-site').value;
-  if(!kw)return;const ck=`brief_${kw}_${site}`;setAI('ai-brief-out','ai-brief-content','ai-brief-cache',true);
-  try{const{text,cached}=await callClaude(`SEO content brief for ${site} (UAE restaurant) targeting: "${kw}". Include: 1) Target + 5 LSI keywords 2) Search intent 3) Page type 4) Word count 5) 3 H1 options 6) 5-7 H2 subheadings 7) Key topics 8) 5 FAQ questions 9) Internal linking suggestions 10) CTA recommendation. UAE-specific, practical.`,ck);setAI('ai-brief-out','ai-brief-content','ai-brief-cache',false,text,cached);}
-  catch(e){setAI('ai-brief-out','ai-brief-content','ai-brief-cache',false,'Error: '+e.message,false);}
-}
-
-async function aiMetaWriter(){
-  const kw=document.getElementById('ai-meta-kw').value.trim(),page=document.getElementById('ai-meta-page').value.trim(),site=document.getElementById('ai-meta-site').value;
-  if(!kw||!page)return;const ck=`meta_${kw}_${page}_${site}`;setAI('ai-meta-out','ai-meta-content','ai-meta-cache',true);
-  try{const{text,cached}=await callClaude(`Write 3 variations of SEO meta titles and descriptions for ${site} UAE. Page: ${page}. Keyword: "${kw}". Title: 50-60 chars, include keyword. Description: 150-160 chars, include keyword + CTA. Tone: appetising, confident, UAE-local. Format each variation clearly.`,ck);setAI('ai-meta-out','ai-meta-content','ai-meta-cache',false,text,cached);}
-  catch(e){setAI('ai-meta-out','ai-meta-content','ai-meta-cache',false,'Error: '+e.message,false);}
-}
-
-async function aiGapAnalysis(){
-  const site=document.getElementById('ai-gap-site').value,comp=document.getElementById('ai-gap-comp').value;
-  const ck=`gap_${site}_${comp}`;setAI('ai-gap-out','ai-gap-content','ai-gap-cache',true);
-  const myKws=keywords.filter(k=>site==='Pickl'?k.rank1:k.rank2).map(k=>k.kw).slice(0,15).join(', ');
-  try{const{text,cached}=await callClaude(`SEO competitive analysis: ${site} (UAE restaurant) vs ${comp}. ${myKws?`${site} tracks: ${myKws}.`:''} Identify: 1) 10 keywords ${comp} likely ranks for that ${site} should target 2) Content gaps 3) UAE local SEO opportunities 4) Menu item keyword opportunities 5) 3 quick-win recommendations. Be specific, UAE-focused.`,ck);setAI('ai-gap-out','ai-gap-content','ai-gap-cache',false,text,cached);}
-  catch(e){setAI('ai-gap-out','ai-gap-content','ai-gap-cache',false,'Error: '+e.message,false);}
-}
-
-function refreshAudit(){
-  const page=document.getElementById('audit-page').value.trim(),kw=document.getElementById('audit-kw').value.trim();
-  const ck=`audit_${page}_${kw}`;delete aiCache[ck];
-  aiPageAudit();
-}
-async function aiPageAudit(){
-  const site=document.getElementById('audit-site').value,page=document.getElementById('audit-page').value.trim();
-  const kw=document.getElementById('audit-kw').value.trim(),title=document.getElementById('audit-title').value.trim();
-  const desc=document.getElementById('audit-desc').value.trim(),content=document.getElementById('audit-content').value.trim();
-  if(!page&&!kw)return;const ck=`audit_${page}_${kw}`;setAI('ai-audit-out','ai-audit-content','ai-audit-cache',true);
-  try{const{text,cached}=await callClaude(`On-page SEO audit for ${site} (UAE restaurant). Page: "${page}". Target keyword: "${kw}". Meta title: "${title||'not provided'}". Meta description: "${desc||'not provided'}". Content: "${content||'not provided'}". Audit against UAE SEO best practices. Score each section (title, meta, content, keyword usage, local signals) out of 10. List specific fixes. Be direct and actionable.`,ck);setAI('ai-audit-out','ai-audit-content','ai-audit-cache',false,text,cached);}
-  catch(e){setAI('ai-audit-out','ai-audit-content','ai-audit-cache',false,'Error: '+e.message,false);}
-}
-
-async function aiSchema(){
-  const site=document.getElementById('schema-site').value,loc=document.getElementById('schema-loc').value.trim();
-  const phone=document.getElementById('schema-phone').value.trim();
-  const ck=`schema_${site}_${loc}`;setAI('ai-schema-out','ai-schema-content','ai-schema-cache',true);
-  const info=site==='Pickl'?{name:'Pickl',url:'https://eatpickl.com',cuisine:'American, Burgers'}:{name:'Bonbird',url:'https://bonbirdchicken.com',cuisine:'American, Fried Chicken'};
-  try{const{text,cached}=await callClaude(`Generate a complete Restaurant JSON-LD schema markup for: Name: ${info.name}, URL: ${info.url}, Cuisine: ${info.cuisine}, Location: ${loc||'Dubai, UAE'}, Phone: ${phone||'+971 XX XXX XXXX'}, Country: UAE. Include: @context, @type Restaurant, name, url, telephone, address (UAE format), servesCuisine, priceRange, openingHours, hasMenu. Output only the JSON-LD script tag, no explanation.`,ck);setAI('ai-schema-out','ai-schema-content','ai-schema-cache',false,text,cached);}
-  catch(e){setAI('ai-schema-out','ai-schema-content','ai-schema-cache',false,'Error: '+e.message,false);}
-}
-
-async function aiReviewReply(){
-  const site=document.getElementById('review-site').value,sentiment=document.getElementById('review-sentiment').value;
-  const review=document.getElementById('review-text').value.trim();
-  if(!review)return;const ck=`review_${site}_${review.slice(0,30)}`;setAI('ai-review-out','ai-review-content','ai-review-cache',true);
-  try{const{text,cached}=await callClaude(`Write a professional Google review response for ${site} (UAE restaurant). Sentiment: ${sentiment}. Review: "${review}". Response should: naturally include the restaurant name and location (Dubai/UAE), thank the customer, address specific points, include a relevant keyword naturally (e.g. "best smash burger Dubai" or "halal chicken UAE"), be warm and on-brand, stay under 150 words. Output only the response text.`,ck);setAI('ai-review-out','ai-review-content','ai-review-cache',false,text,cached);}
-  catch(e){setAI('ai-review-out','ai-review-content','ai-review-cache',false,'Error: '+e.message,false);}
-}
-
-async function aiArabicKw(){
-  const ck='arabic_kw_extended';setAI('ai-arabic-out','ai-arabic-content','ai-arabic-cache',true);
-  try{const{text,cached}=await callClaude(`Generate 15 Arabic search keywords UAE residents use to find restaurants like Pickl (smash burgers) and Bonbird (fried chicken) in Dubai/UAE. For each: Arabic keyword (Arabic script), romanized version, English meaning, estimated monthly searches. Focus on food delivery, halal, near me, location-specific (Dubai, Abu Dhabi, Sharjah). Format as numbered list.`,ck);setAI('ai-arabic-out','ai-arabic-content','ai-arabic-cache',false,text,cached);}
-  catch(e){setAI('ai-arabic-out','ai-arabic-content','ai-arabic-cache',false,'Error: '+e.message,false);}
-}
-
-function renderAll(){
-  renderStats();renderKeywords();renderCompare();renderCompCards();renderCompKwList();renderCompView();
-  populateTrendSel();renderTrends();renderLocalChecks();renderDirTable();renderArabicKws();
-  renderTechChecks();renderAlerts();renderCompMatrix();
-}
-
-function sw(t){
-  ['keywords','competitors','compare','trends','local','audit','alerts','approvals','ai'].forEach(id=>document.getElementById('tab-'+id).style.display=id===t?'block':'none');
-  document.querySelectorAll('.tab').forEach((b,i)=>b.classList.toggle('active',['keywords','competitors','compare','trends','local','audit','alerts','approvals','ai'][i]===t));
-  if(t==='trends')renderTrends();if(t==='ai'){const k=localStorage.getItem('anthropic_key');const s=document.getElementById('apikey-status');if(s){s.textContent=k?'✓ API key is set — AI features ready':'Enter your Anthropic API key above to use AI features';s.style.color=k?'#3B6D11':'var(--color-text-secondary)';}}if(t==='competitors'){renderCompCards();renderCompView();}if(t==='alerts')renderAlerts();if(t==='approvals')renderApprovals();
-}
-
-// API key functions (global scope)
-function saveApiKey(){
-  const k=document.getElementById('apikey-input').value.trim();
-  if(!k||!k.startsWith('sk-')){document.getElementById('apikey-status').textContent='⚠ Key should start with sk-ant-...';document.getElementById('apikey-status').style.color='#D85A30';return;}
-  localStorage.setItem('anthropic_key',k);
-  document.getElementById('apikey-input').value='';
-  document.getElementById('apikey-status').textContent='✓ Key saved — AI features are ready';
-  document.getElementById('apikey-status').style.color='#3B6D11';
-}
-function clearApiKey(){
-  localStorage.removeItem('anthropic_key');
-  document.getElementById('apikey-input').value='';
-  document.getElementById('apikey-status').textContent='Key cleared.';
-  document.getElementById('apikey-status').style.color='var(--color-text-secondary)';
-}
-
-// GSC functions (global scope)
-function gscConnect(){window.location.href='/api/auth/login';}
-
-async function gscDisconnect(){
-  await fetch('/api/db/save',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({gscTokens:null})});
-  updateGscUI(false);
-  alert('Disconnected from Google Search Console.');
-}
-
-function updateGscUI(connected){
-  const btn=document.getElementById('gsc-connect-btn');
-  const sync=document.getElementById('gsc-sync-btn');
-  const dis=document.getElementById('gsc-disconnect-btn');
-  const status=document.getElementById('gsc-status-text');
-  const lastSync=localStorage.getItem('gsc_last_sync');
-  if(!btn)return;
-  const filterRow=document.getElementById('gsc-filter-row');
-  if(connected){
-    btn.style.display='none';
-    sync.style.display='inline-block';
-    dis.style.display='inline-block';
-    if(filterRow)filterRow.style.display='block';
-    status.textContent=lastSync?'Last synced: '+lastSync:'Connected — set your impressions threshold and click Sync';
-    status.style.color='#3B6D11';
-  } else {
-    btn.style.display='inline-block';
-    sync.style.display='none';
-    dis.style.display='none';
-    if(filterRow)filterRow.style.display='none';
-    status.textContent='Not connected — connect once to enable for all team members';
-    status.style.color='var(--color-text-secondary)';
-  }
-}
-
-async function checkGscStatus(){
-  try{
-    const res=await fetch('/api/db/get');
-    const data=await res.json();
-    updateGscUI(!!(data.gscTokens&&data.gscTokens.access_token));
-  }catch(e){updateGscUI(false);}
-}
-
-let gscPreviewData=[];
-let gscPreviewCurrentFilter='all';
-
-async function gscFetchAndPreview(){
-  const syncBtn=document.getElementById('gsc-sync-btn');
-  syncBtn.textContent='Fetching...';syncBtn.disabled=true;
-  try{
-    const res=await fetch('/api/gsc-data',{method:'POST',headers:{'Content-Type':'application/json'},
-      body:JSON.stringify({site_url:'https://eatpickl.com/'})});
-    const data=await res.json();
-    if(data.error){
-      if(data.error.includes('not connected')||data.error.includes('401')){updateGscUI(false);}
-      alert('GSC error: '+data.error);return;
-    }
-    const minClicks=parseInt(document.getElementById('gsc-min-clicks').value)||200;
-    gscPreviewData=data.rows
-      .filter(r=>r.impressions>=minClicks)
-      .sort((a,b)=>b.impressions-a.impressions)
-      .map(r=>({...r,selected:true}));
-    gscPreviewCurrentFilter='all';
-    renderGscPreview();
-    document.getElementById('gsc-preview').style.display='block';
-    document.getElementById('gsc-preview').scrollIntoView({behavior:'smooth',block:'start'});
-  }catch(e){
-    alert('Fetch failed: '+e.message);
-  }finally{
-    syncBtn.textContent='↻ Sync now';syncBtn.disabled=false;
-  }
-}
-
-function gscPreviewFilter(el,type){
-  gscPreviewCurrentFilter=type;
-  document.querySelectorAll('#gsc-preview-filters .pill').forEach(p=>p.classList.remove('active'));
-  el.classList.add('active');
-  renderGscPreview();
-}
-
-function renderGscPreview(){
-  const minClicks=parseInt(document.getElementById('gsc-min-clicks').value)||200;
-  let rows=gscPreviewData;
-  if(gscPreviewCurrentFilter==='brand')rows=rows.filter(r=>r.keyword.includes('pickl')||r.keyword.includes('bonbird'));
-  else if(gscPreviewCurrentFilter==='nonbrand')rows=rows.filter(r=>!r.keyword.includes('pickl')&&!r.keyword.includes('bonbird'));
-  else if(gscPreviewCurrentFilter==='new')rows=rows.filter(r=>!keywords.find(k=>k.kw===r.keyword.toLowerCase()));
-  else if(gscPreviewCurrentFilter==='existing')rows=rows.filter(r=>!!keywords.find(k=>k.kw===r.keyword.toLowerCase()));
-  
-  const body=document.getElementById('gsc-preview-body');
-  body.innerHTML=rows.map((r,i)=>{
-    const realIdx=gscPreviewData.indexOf(r);
-    const exists=keywords.find(k=>k.kw===r.keyword.toLowerCase());
-    return`<tr style="opacity:${r.selected?1:0.45}">
-      <td><input type="checkbox" ${r.selected?'checked':''} onchange="gscPreviewData[${realIdx}].selected=this.checked;renderGscPreview()"></td>
-      <td style="font-weight:500">${r.keyword}</td>
-      <td style="color:var(--color-text-secondary)">${r.clicks}</td>
-      <td style="color:var(--color-text-secondary)">${r.impressions}</td>
-      <td>${rb(Math.round(r.position))}</td>
-      <td><span class="rb ${exists?'rm':'rt'}">${exists?'update':'new'}</span></td>
-    </tr>`;
-  }).join('');
-  const selected=gscPreviewData.filter(r=>r.selected).length;
-  document.getElementById('gsc-preview-sub').textContent=`${rows.length} keywords shown (${minClicks}+ impressions) · ${selected} selected`;
-  document.getElementById('gsc-preview-count').textContent=`${selected} of ${gscPreviewData.length} keywords selected for import (filtered by ${minClicks}+ impressions)`;
-}
-
-function gscSelectAll(val){
-  gscPreviewData.forEach(r=>r.selected=val);
-  document.getElementById('gsc-check-all').checked=val;
-  renderGscPreview();
-}
-
-function gscImportSelected(){
-  const toImport=gscPreviewData.filter(r=>r.selected);
-  if(!toImport.length){alert('No keywords selected.');return;}
-  let added=0,updated=0;
-  const today_=today();
-  toImport.forEach(row=>{
-    const kw=row.keyword.toLowerCase();
-    const rank=Math.round(row.position);
-    const vol=row.impressions;
-    const ex=keywords.find(k=>k.kw===kw);
-    if(ex){
-      const oldRank=ex.rank1;
-      ex.rank1=rank;ex.vol=vol;
-      const lastH=ex.history[ex.history.length-1];
-      if(!lastH||lastH.s1!==rank||lastH.date!==today_){
-        ex.history.push({date:today_,s1:rank,s2:ex.rank2,impr:row.impressions});
-      }
-      updated++;
-    } else {
-      const isBrand=kw.includes('pickl')||kw.includes('bonbird');
-      keywords.push({kw,rank1:rank,rank2:null,vol,cat:isBrand?'brand':'general',note:'GSC import',history:[{date:today_,s1:rank,s2:null,impr:row.impressions}]});
-      added++;
-    }
-  });
-  save();renderAll();
-  const now=new Date().toLocaleString('en-GB',{day:'numeric',month:'short',hour:'2-digit',minute:'2-digit'});
-  localStorage.setItem('gsc_last_sync',now);
-  updateGscUI(true);
-  document.getElementById('gsc-preview').style.display='none';
-  alert('Imported '+added+' new keywords, updated '+updated+' existing.');
-}
-
-// Handle OAuth callback params on page load
-(function handleGscCallback(){
-  const params=new URLSearchParams(window.location.search);
-  const connected=params.get('gsc_connected');
-  const error=params.get('gsc_error');
-  if(connected){
-    window.history.replaceState({},'','/');
-    setTimeout(()=>{updateGscUI(true);alert('GSC connected for the whole team! Click "Sync now" to import Pickl keywords.');},500);
-  }
-  if(error){
-    window.history.replaceState({},'','/');
-    alert('GSC connection error: '+decodeURIComponent(error));
-  }
+  // Connect GSC if we have tokens (check via db-get)
+  checkGscConnection();
 })();
 
-// ============================================================
-// APPROVALS TAB — queue, edit, reject-with-rewrite, diff view
-// ============================================================
-const apprState={items:[],counts:null,filter:{status:'pending',brand:''},editing:{},rejecting:{},diffOpen:{},pollTimer:null,actor:null,parents:{}};
+// ═══════════════════════════════════════════════════════════════
+// NAVIGATION
+// ═══════════════════════════════════════════════════════════════
+const VIEW_TITLES = {
+  dashboard: 'Dashboard & Approvals',
+  analytics: 'Analytics & ROI',
+  studio: 'AI Content Studio',
+  settings: 'Settings & Logs',
+};
 
-function apprActor(){
-  let a=localStorage.getItem('seo_actor');
-  if(!a){a=apprPromptActor();}
-  apprState.actor=a;
-  const el=document.getElementById('appr-actor');
-  if(el)el.textContent=a?'Signed in as '+a:'';
-  return a;
+document.getElementById('nav-menu').addEventListener('click', e => {
+  const item = e.target.closest('.nav-item');
+  if (!item) return;
+  switchView(item.dataset.target);
+});
+
+function switchView(target) {
+  document.querySelectorAll('.nav-item').forEach(n => n.classList.toggle('active', n.dataset.target === target));
+  document.querySelectorAll('.page-view').forEach(v => v.classList.toggle('active', v.id === 'view-' + target));
+  document.getElementById('top-title').textContent = VIEW_TITLES[target] || target;
+  if (target === 'analytics') loadGscIfNeeded();
+  if (target === 'settings') renderAuditLog();
 }
-function apprPromptActor(){
-  let name=null;
-  while(!name||!name.trim()){
-    name=window.prompt('Who is using the SEO tool? (your name — used in the audit log)','');
-    if(name===null){name='guest';break;}
+
+// ═══════════════════════════════════════════════════════════════
+// GSC CONNECTION
+// ═══════════════════════════════════════════════════════════════
+async function checkGscConnection() {
+  try {
+    const data = await apiGet('/api/db/get');
+    if (data.gscTokens && data.gscTokens.access_token) {
+      setGscConnected(true);
+      state.keywords = data.keywords || [];
+    }
+  } catch (_) {}
+}
+
+function setGscConnected(yes) {
+  state.gscConnected = yes;
+  const el = document.getElementById('gsc-status-indicator');
+  const txt = document.getElementById('gsc-status-text');
+  const btn = document.getElementById('gsc-connect-btn');
+  if (yes) {
+    el.className = 'gsc-status connected';
+    txt.textContent = 'GSC: Connected';
+    if (btn) { btn.textContent = '✓ GSC Connected'; btn.disabled = true; }
+  } else {
+    el.className = 'gsc-status disconnected';
+    txt.textContent = 'GSC: Click to Connect';
   }
-  name=name.trim().slice(0,40)||'guest';
-  localStorage.setItem('seo_actor',name);
-  // Fire-and-forget: log the identification on the server
-  fetch('/api/approvals',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({action:'identify',actor:name})}).catch(()=>{});
-  return name;
-}
-function apprChangeActor(){
-  localStorage.removeItem('seo_actor');
-  apprActor();
-  apprRefresh();
 }
 
-function apprSetStatus(el,s){apprState.filter.status=s;document.querySelectorAll('#appr-status-pills .pill').forEach(p=>p.classList.remove('active'));el.classList.add('active');renderApprovals();}
-function apprSetBrand(el,b){apprState.filter.brand=b;document.querySelectorAll('#appr-brand-pills .pill').forEach(p=>p.classList.remove('active'));el.classList.add('active');renderApprovals();}
+function handleGscConnect() {
+  if (state.gscConnected) return;
+  window.location.href = '/api/auth/login';
+}
 
-async function apprRefresh(){await renderApprovals();}
+// ═══════════════════════════════════════════════════════════════
+// GSC DATA — brand-filtered Analytics view
+// ═══════════════════════════════════════════════════════════════
+let gscLoaded = false;
 
-async function renderApprovals(){
-  apprActor();
-  const params=new URLSearchParams();
-  params.set('status',apprState.filter.status);
-  if(apprState.filter.brand)params.set('brand',apprState.filter.brand);
-  const list=document.getElementById('appr-list');
-  if(!apprState.items.length)list.innerHTML='<div class="section empty">Loading…</div>';
-  try{
-    const res=await fetch('/api/approvals?'+params.toString());
-    const data=await res.json();
-    apprState.items=data.items||[];
-    apprState.counts=data.counts||null;
-  }catch(e){
-    list.innerHTML='<div class="section empty" style="color:#A32D2D">Failed to load: '+(e.message||'network error')+'</div>';
+async function loadGscIfNeeded() {
+  if (gscLoaded || !state.gscConnected) return;
+  gscLoaded = true;
+  setGscTableLoading();
+  try {
+    const [pickl, bonbird] = await Promise.all([
+      fetchGscRows(PICKL_GSC),
+      fetchGscRows(BONBIRD_GSC),
+    ]);
+    state.gscRows.pickl   = pickl.map(r => ({ ...r, brand: 'pickl' }));
+    state.gscRows.bonbird = bonbird.map(r => ({ ...r, brand: 'bonbird' }));
+    renderGscTable();
+    updateDashboardMetrics();
+  } catch (e) {
+    document.getElementById('gsc-tbody').innerHTML =
+      `<tr><td colspan="7" style="text-align:center;padding:32px;color:var(--danger)">${esc(e.message)}</td></tr>`;
+  }
+}
+
+async function fetchGscRows(siteUrl) {
+  const res = await fetch('/api/gsc-data', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ site_url: siteUrl }),
+  });
+  const data = await res.json();
+  if (!res.ok) throw new Error(data.error || 'GSC fetch failed');
+  return data.rows || [];
+}
+
+function setGscTableLoading() {
+  document.getElementById('gsc-tbody').innerHTML =
+    '<tr><td colspan="7" style="text-align:center;padding:32px;color:var(--text-muted)"><span class="spinner dark"></span> Loading from Google Search Console…</td></tr>';
+}
+
+function renderGscTable() {
+  const brand = state.activeAnalyticsBrand;
+  let rows = [];
+  if (brand === 'all' || brand === 'pickl')   rows = rows.concat(state.gscRows.pickl);
+  if (brand === 'all' || brand === 'bonbird') rows = rows.concat(state.gscRows.bonbird);
+  rows.sort((a, b) => b.clicks - a.clicks);
+
+  const tbody = document.getElementById('gsc-tbody');
+  if (!rows.length) {
+    tbody.innerHTML = '<tr><td colspan="7" style="text-align:center;padding:32px;color:var(--text-muted)">No keyword data found for this filter.</td></tr>';
     return;
   }
-  apprUpdateSummary();
-  apprUpdateTabBadge();
-  // Build a parent lookup so rewrites can find their original
-  apprState.parents={};
-  apprState.items.forEach(it=>{if(it.id)apprState.parents[it.id]=it;});
 
-  if(!apprState.items.length){
-    list.innerHTML='';
-    document.getElementById('appr-empty').style.display='block';
-  }else{
-    document.getElementById('appr-empty').style.display='none';
-    list.innerHTML=apprState.items.map(apprCardHtml).join('');
-  }
-  apprRenderAudit();
+  tbody.innerHTML = rows.map(r => {
+    const posClass = r.position <= 3 ? 'rank-good' : r.position <= 10 ? 'rank-mid' : 'rank-bad';
+    const brandColor = r.brand === 'pickl' ? 'var(--pickl)' : 'var(--bonbird)';
+    return `<tr>
+      <td style="font-weight:500">${esc(r.keyword)}</td>
+      <td><span style="display:inline-flex;align-items:center;gap:5px;font-size:12px;font-weight:600;color:${brandColor}">
+        <div class="dot" style="background:${brandColor}"></div>${BRAND_LABELS[r.brand]}</span></td>
+      <td><span class="rank-badge ${posClass}">#${r.position}</span></td>
+      <td>${r.clicks.toLocaleString()}</td>
+      <td>${r.impressions.toLocaleString()}</td>
+      <td>${r.ctr}%</td>
+      <td>${r.position < 10 ? '<span class="trend-up">▲</span>' : r.position > 20 ? '<span class="trend-down">▼</span>' : '→'}</td>
+    </tr>`;
+  }).join('');
 }
 
-function apprUpdateSummary(){
-  const c=apprState.counts;const el=document.getElementById('appr-summary');
-  if(!c){el.textContent='No items yet.';return;}
-  el.textContent=`${c.pending} pending · ${c.pushed} pushed · ${c.rejected} rejected · ${c.failed} failed · ${c.total} total`;
-}
-function apprUpdateTabBadge(){
-  const badge=document.getElementById('appr-tab-count');
-  if(!badge||!apprState.counts)return;
-  const n=apprState.counts.pending||0;
-  if(n>0){badge.textContent=String(n);badge.style.display='inline-block';}
-  else{badge.style.display='none';}
-}
+function switchAnalyticsView(pill) {
+  document.querySelectorAll('#analytics-pills .pill').forEach(p => p.classList.remove('active'));
+  pill.classList.add('active');
+  state.activeAnalyticsBrand = pill.dataset.brand;
+  state.activeAnalyticsView  = pill.dataset.view;
 
-function apprBrandColor(b){return b==='pickl'?'#185FA5':b==='bonbird'?'#D85A30':'var(--color-text-secondary)';}
-function apprBrandLabel(b){return b==='pickl'?'Pickl':b==='bonbird'?'Bonbird':b;}
-function apprTypeLabel(t){return({blog_draft:'Blog draft',meta_update:'Meta update',onpage_suggestion:'On-page suggestion',review_response:'Review response',schema_update:'Schema update'})[t]||t;}
-function apprStatusBadge(s){
-  const m={pending:'rn',approved:'rt',pushed:'rt',rejected:'rl',failed:'rl'};
-  return `<span class="rb ${m[s]||'rn'}" style="text-transform:uppercase;font-size:9px">${s}</span>`;
-}
-function apprRel(ts){if(!ts)return'';const d=Date.now()-ts;if(d<60000)return'just now';if(d<3600000)return Math.floor(d/60000)+'m ago';if(d<86400000)return Math.floor(d/3600000)+'h ago';return Math.floor(d/86400000)+'d ago';}
-function apprEsc(s){return String(s==null?'':s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;').replace(/'/g,'&#39;');}
+  document.getElementById('panel-gsc').style.display  = state.activeAnalyticsView === 'gsc'  ? 'block' : 'none';
+  document.getElementById('panel-comp').style.display = state.activeAnalyticsView === 'comp' ? 'block' : 'none';
 
-function apprCardHtml(it){
-  const editing=apprState.editing[it.id];
-  const rejecting=apprState.rejecting[it.id];
-  const diff=apprState.diffOpen[it.id];
-  const parent=it.parentId?apprState.parents[it.parentId]:null;
-  const brandDot=`<span style="display:inline-block;width:8px;height:8px;border-radius:50%;background:${apprBrandColor(it.brand)};margin-right:6px;vertical-align:middle"></span>`;
-  const headerMeta=`<div style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:8px;margin-bottom:6px">
-    <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;flex:1;min-width:0">
-      <span style="font-size:13px;font-weight:500;color:var(--color-text-primary)">${brandDot}${apprBrandLabel(it.brand)}</span>
-      <span style="font-size:11px;color:var(--color-text-secondary)">${apprEsc(apprTypeLabel(it.type))}</span>
-      ${apprStatusBadge(it.status)}
-      ${parent?`<span class="tag tag-comp" style="cursor:pointer" onclick="apprToggleDiff('${it.id}')">↺ Rewrite — ${diff?'hide':'show'} original</span>`:''}
-    </div>
-    <span style="font-size:10px;color:var(--color-text-tertiary)">by ${apprEsc(it.actor||'claude')} · ${apprRel(it.createdAt)}</span>
-  </div>`;
-  const title=`<div style="font-size:13px;font-weight:500;color:var(--color-text-primary);margin-bottom:3px">${apprEsc(it.title||apprTypeLabel(it.type))}</div>`;
-  const reason=it.reason?`<div class="section-sub" style="margin-bottom:8px">${apprEsc(it.reason)}</div>`:'';
-
-  let body='';
-  if(editing){
-    body=apprEditorHtml(it);
-  }else{
-    body=apprPreviewHtml(it,it.payload);
-    if(diff&&parent){
-      body+=`<div style="margin-top:10px;border-top:0.5px dashed var(--color-border-tertiary);padding-top:8px">
-        <div style="font-size:11px;color:var(--color-text-secondary);margin-bottom:6px">Original (rejected):</div>
-        ${apprPreviewHtml(parent,parent.payload)}
-        ${parent.rejectionFeedback?`<div style="margin-top:6px;padding:6px 8px;background:var(--color-background-secondary);border-radius:var(--border-radius-md);font-size:11px"><span style="color:var(--color-text-secondary)">Your feedback:</span> ${apprEsc(parent.rejectionFeedback)}</div>`:''}
-      </div>`;
+  if (state.activeAnalyticsView === 'gsc') {
+    if (state.gscConnected) {
+      if (!gscLoaded) { loadGscIfNeeded(); } else { renderGscTable(); }
     }
   }
-
-  let actions='';
-  if(it.status==='pending'){
-    if(rejecting){
-      actions=`<div style="margin-top:10px;padding-top:8px;border-top:0.5px solid var(--color-border-tertiary)">
-        <textarea id="rej-${it.id}" placeholder="What's wrong with this? Claude will rewrite based on your feedback." rows="2" style="width:100%;font-size:12px"></textarea>
-        <div style="display:flex;gap:6px;margin-top:6px;flex-wrap:wrap">
-          <button class="btn-orange btn-sm" onclick="apprDoReject('${it.id}',true)">Reject &amp; rewrite</button>
-          <button class="btn-sm" onclick="apprDoReject('${it.id}',false)">Reject (no rewrite)</button>
-          <button class="btn-sm" onclick="apprCancelReject('${it.id}')">Cancel</button>
-        </div>
-      </div>`;
-    }else if(editing){
-      actions=`<div style="display:flex;gap:6px;margin-top:10px;flex-wrap:wrap">
-        <button class="btn-blue btn-sm" onclick="apprDoEditApprove('${it.id}')">Save &amp; approve</button>
-        <button class="btn-sm" onclick="apprCancelEdit('${it.id}')">Cancel</button>
-      </div>`;
-    }else{
-      actions=`<div style="display:flex;gap:6px;margin-top:10px;flex-wrap:wrap">
-        <button class="btn-blue btn-sm" onclick="apprDoApprove('${it.id}')">Approve</button>
-        <button class="btn-sm" onclick="apprStartEdit('${it.id}')">Edit &amp; approve</button>
-        <button class="btn-orange btn-sm" onclick="apprStartReject('${it.id}')">Reject with feedback</button>
-      </div>`;
-    }
-  }else if(it.status==='pushed'&&it.pushResult){
-    actions=`<div style="margin-top:8px;font-size:11px;color:#27500A">✓ ${apprEsc(it.pushResult.message||'Pushed')} ${it.pushResult.ref?`— <a href="${apprEsc(it.pushResult.ref)}" target="_blank" style="color:#185FA5">open</a>`:''}</div>`;
-  }else if(it.status==='failed'&&it.pushResult){
-    actions=`<div style="margin-top:8px;font-size:11px;color:#A32D2D">✗ ${apprEsc(it.pushResult.message||'Push failed')}</div>`;
-  }else if(it.status==='rejected'){
-    actions=`<div style="margin-top:8px;font-size:11px;color:var(--color-text-secondary)">Rejected${it.rejectionFeedback?': '+apprEsc(it.rejectionFeedback):''}</div>`;
-  }
-
-  return `<div class="section" id="appr-card-${it.id}">${headerMeta}${title}${reason}${body}${actions}</div>`;
 }
 
-// Per-type preview/editor renderers
-function apprPreviewHtml(it,p){
-  if(!p)return '<div class="ai-out">(empty payload)</div>';
-  if(it.type==='blog_draft'){
-    return `<div style="font-size:12px">
-      <div style="margin-bottom:4px"><span style="color:var(--color-text-secondary);font-size:10px">TITLE</span><br>${apprEsc(p.title||'')}</div>
-      <div style="margin-bottom:4px"><span style="color:var(--color-text-secondary);font-size:10px">META DESCRIPTION</span><br>${apprEsc(p.metaDescription||'')}</div>
-      <div style="margin-bottom:4px"><span style="color:var(--color-text-secondary);font-size:10px">TARGET KEYWORD</span> · ${apprEsc(p.targetKeyword||'')} <span style="color:var(--color-text-tertiary)">· slug: ${apprEsc(p.slug||'')}</span></div>
-      <details style="margin-top:6px"><summary style="cursor:pointer;font-size:11px;color:var(--color-text-secondary)">Show full body</summary>
-      <div class="ai-out" style="margin-top:6px;font-family:var(--font-mono);font-size:11px">${apprEsc(p.body||'')}</div>
-      </details>
-    </div>`;
+function updateDashboardMetrics() {
+  const pickl10   = state.gscRows.pickl.filter(r => r.position <= 10).length;
+  const bonbird10 = state.gscRows.bonbird.filter(r => r.position <= 10).length;
+  document.getElementById('metric-pickl').innerHTML   = `${pickl10} <span class="metric-sub">keywords</span>`;
+  document.getElementById('metric-bonbird').innerHTML = `${bonbird10} <span class="metric-sub">keywords</span>`;
+  document.getElementById('metric-pickl-trend').innerHTML   = `<span class="trend-up">✓ Top-10 rankings tracked</span>`;
+  document.getElementById('metric-bonbird-trend').innerHTML = `<span class="trend-up">✓ Top-10 rankings tracked</span>`;
+}
+
+// ═══════════════════════════════════════════════════════════════
+// APPROVAL QUEUE
+// ═══════════════════════════════════════════════════════════════
+async function loadQueue() {
+  try {
+    const data = await apiGet('/api/approvals?status=pending');
+    state.queue = data.items || [];
+    renderQueue();
+    updateQueueBadge(data.counts);
+  } catch (e) {
+    document.getElementById('queue-list').innerHTML =
+      `<div class="empty-state"><div class="empty-state-icon">⚠️</div><h3>Could not load queue</h3><p>${esc(e.message)}</p></div>`;
   }
-  if(it.type==='meta_update'){
-    return `<div style="font-size:12px">
-      <div style="margin-bottom:4px"><span style="color:var(--color-text-secondary);font-size:10px">URL</span><br>${apprEsc(p.url||p.postId||'')}</div>
-      <div style="margin-bottom:4px"><span style="color:var(--color-text-secondary);font-size:10px">NEW TITLE</span><br>${apprEsc(p.title||'')}</div>
-      <div style="margin-bottom:4px"><span style="color:var(--color-text-secondary);font-size:10px">NEW DESCRIPTION</span><br>${apprEsc(p.description||'')}</div>
-      ${p.targetKeyword?`<div style="font-size:10px;color:var(--color-text-tertiary)">target: ${apprEsc(p.targetKeyword)}</div>`:''}
+}
+
+async function pollQueueBadge() {
+  try {
+    const data = await apiGet('/api/approvals?status=pending&limit=1');
+    updateQueueBadge(data.counts);
+  } catch (_) {}
+}
+
+function updateQueueBadge(counts) {
+  const badge = document.getElementById('badge-approvals');
+  if (!counts) return;
+  const n = counts.pending || 0;
+  document.getElementById('metric-queue').innerHTML = `${n} <span class="metric-sub">pending</span>`;
+  if (n > 0) { badge.textContent = n; badge.style.display = 'inline-block'; }
+  else { badge.style.display = 'none'; }
+}
+
+function filterQueue(pill) {
+  document.querySelectorAll('#queue-pills .pill').forEach(p => p.classList.remove('active'));
+  pill.classList.add('active');
+  state.activeQFilter = pill.dataset.qfilter;
+  renderQueue();
+}
+
+function renderQueue() {
+  const list = document.getElementById('queue-list');
+  let items = state.queue;
+  if (state.activeQFilter !== 'all') items = items.filter(i => i.type === state.activeQFilter);
+
+  // Update pill counts
+  document.querySelectorAll('#queue-pills .pill').forEach(p => {
+    const f = p.dataset.qfilter;
+    const count = f === 'all' ? state.queue.length : state.queue.filter(i => i.type === f).length;
+    const label = p.textContent.replace(/ \(\d+\)/, '');
+    p.textContent = count > 0 ? `${label} (${count})` : label;
+  });
+
+  if (!items.length) {
+    list.innerHTML = `<div class="empty-state">
+      <div class="empty-state-icon">✅</div>
+      <h3>Queue is clear</h3>
+      <p>${state.activeQFilter === 'all' ? 'No pending actions. Run an audit to generate new suggestions.' : 'No items in this category.'}</p>
     </div>`;
+    return;
   }
-  if(it.type==='onpage_suggestion'){
-    return `<div style="font-size:12px">
-      ${p.url?`<div style="margin-bottom:4px"><span style="color:var(--color-text-secondary);font-size:10px">PAGE</span><br>${apprEsc(p.url)}</div>`:''}
-      ${p.keyword?`<div style="margin-bottom:4px"><span style="color:var(--color-text-secondary);font-size:10px">KEYWORD</span> · ${apprEsc(p.keyword)} ${p.currentPosition?`(pos ${p.currentPosition})`:''}</div>`:''}
-      <div style="margin-bottom:4px"><span style="color:var(--color-text-secondary);font-size:10px">SUGGESTION</span><br>${apprEsc(p.suggestion||'')}</div>
-      ${p.effortMinutes?`<div style="font-size:10px;color:var(--color-text-tertiary)">Estimated effort: ~${p.effortMinutes} min</div>`:''}
-    </div>`;
-  }
-  if(it.type==='review_response'){
-    return `<div style="font-size:12px">
-      <div style="margin-bottom:6px;padding:6px 8px;background:var(--color-background-secondary);border-radius:var(--border-radius-md)">
-        <div style="font-size:10px;color:var(--color-text-secondary)">Review from ${apprEsc(p.reviewerName||'')} · ${'★'.repeat(p.starRating||0)}${'☆'.repeat(5-(p.starRating||0))}</div>
-        <div style="margin-top:3px">${apprEsc(p.reviewText||'')}</div>
+
+  list.innerHTML = items.map(item => buildActionCard(item)).join('');
+}
+
+function buildActionCard(item) {
+  const brandColor = item.brand === 'pickl' ? 'var(--pickl)' : 'var(--bonbird)';
+  const tagClass = TYPE_TAGS[item.type] || 'tag-blue';
+  const typeLabel = TYPE_LABELS[item.type] || item.type;
+  const brandLabel = BRAND_LABELS[item.brand] || item.brand;
+
+  const preview = buildPreview(item);
+
+  return `<div class="card action-card" id="card-${esc(item.id)}">
+    <div class="card-header">
+      <div class="card-title">
+        <div class="dot" style="background:${brandColor}"></div>
+        ${esc(brandLabel)}: ${esc(item.title || typeLabel)}
+        <span class="tag ${tagClass}">${esc(typeLabel)}</span>
       </div>
-      <div><span style="color:var(--color-text-secondary);font-size:10px">DRAFT REPLY</span><br>${apprEsc(p.responseText||'')}</div>
-    </div>`;
-  }
-  if(it.type==='schema_update'){
-    const sch=typeof p.schema==='string'?p.schema:JSON.stringify(p.schema,null,2);
-    return `<div style="font-size:12px">
-      ${p.url?`<div style="margin-bottom:4px"><span style="color:var(--color-text-secondary);font-size:10px">URL</span><br>${apprEsc(p.url)}</div>`:''}
-      <div class="ai-out" style="font-family:var(--font-mono);font-size:11px;max-height:200px">${apprEsc(sch)}</div>
-    </div>`;
-  }
-  return `<div class="ai-out" style="font-family:var(--font-mono);font-size:11px">${apprEsc(JSON.stringify(p,null,2))}</div>`;
+    </div>
+    <div class="card-body">${preview}</div>
+    <div class="card-actions">
+      <div class="action-group-left">
+        <button class="btn btn-primary" onclick="approveItem('${esc(item.id)}', this)">
+          Approve &amp; Push to WP
+        </button>
+        <button class="btn btn-outline" onclick="editItem('${esc(item.id)}')">Edit Draft</button>
+        <button class="btn btn-danger-outline" onclick="rejectItem('${esc(item.id)}', this)">Rewrite with AI</button>
+      </div>
+      <button class="btn btn-ghost" title="Discard without using API credits" onclick="dismissItem('${esc(item.id)}', this)">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/></svg>
+        Dismiss
+      </button>
+    </div>
+  </div>`;
 }
 
-function apprEditorHtml(it){
-  const p=apprState.editing[it.id]||it.payload||{};
-  const id=it.id;
-  if(it.type==='blog_draft'){
-    return `<div style="font-size:12px;display:grid;gap:6px">
-      <div><label style="font-size:10px;color:var(--color-text-secondary)">Title</label><input type="text" id="ed-${id}-title" value="${apprEsc(p.title||'')}" style="width:100%"></div>
-      <div><label style="font-size:10px;color:var(--color-text-secondary)">Meta description</label><input type="text" id="ed-${id}-metaDescription" value="${apprEsc(p.metaDescription||'')}" style="width:100%"></div>
-      <div style="display:flex;gap:6px"><div style="flex:1"><label style="font-size:10px;color:var(--color-text-secondary)">Target keyword</label><input type="text" id="ed-${id}-targetKeyword" value="${apprEsc(p.targetKeyword||'')}" style="width:100%"></div><div style="flex:1"><label style="font-size:10px;color:var(--color-text-secondary)">Slug</label><input type="text" id="ed-${id}-slug" value="${apprEsc(p.slug||'')}" style="width:100%"></div></div>
-      <div><label style="font-size:10px;color:var(--color-text-secondary)">Excerpt</label><input type="text" id="ed-${id}-excerpt" value="${apprEsc(p.excerpt||'')}" style="width:100%"></div>
-      <div><label style="font-size:10px;color:var(--color-text-secondary)">Body (HTML)</label><textarea id="ed-${id}-body" rows="10" style="width:100%;font-family:var(--font-mono);font-size:11px">${apprEsc(p.body||'')}</textarea></div>
-    </div>`;
-  }
-  if(it.type==='meta_update'){
-    return `<div style="font-size:12px;display:grid;gap:6px">
-      <div><label style="font-size:10px;color:var(--color-text-secondary)">URL</label><input type="text" id="ed-${id}-url" value="${apprEsc(p.url||'')}" style="width:100%"></div>
-      <div><label style="font-size:10px;color:var(--color-text-secondary)">Title (50-60 chars)</label><input type="text" id="ed-${id}-title" value="${apprEsc(p.title||'')}" style="width:100%"></div>
-      <div><label style="font-size:10px;color:var(--color-text-secondary)">Description (150-160 chars)</label><textarea id="ed-${id}-description" rows="2" style="width:100%">${apprEsc(p.description||'')}</textarea></div>
-      <div><label style="font-size:10px;color:var(--color-text-secondary)">Target keyword</label><input type="text" id="ed-${id}-targetKeyword" value="${apprEsc(p.targetKeyword||'')}" style="width:100%"></div>
-    </div>`;
-  }
-  if(it.type==='review_response'){
-    return `<div style="font-size:12px;display:grid;gap:6px">
-      <div style="padding:6px 8px;background:var(--color-background-secondary);border-radius:var(--border-radius-md);font-size:11px"><span style="color:var(--color-text-secondary)">Original review:</span> ${apprEsc(p.reviewText||'')}</div>
-      <div><label style="font-size:10px;color:var(--color-text-secondary)">Reply</label><textarea id="ed-${id}-responseText" rows="6" style="width:100%">${apprEsc(p.responseText||'')}</textarea></div>
-    </div>`;
-  }
-  if(it.type==='onpage_suggestion'){
-    return `<div style="font-size:12px;display:grid;gap:6px">
-      <div><label style="font-size:10px;color:var(--color-text-secondary)">URL</label><input type="text" id="ed-${id}-url" value="${apprEsc(p.url||'')}" style="width:100%"></div>
-      <div><label style="font-size:10px;color:var(--color-text-secondary)">Suggestion</label><textarea id="ed-${id}-suggestion" rows="4" style="width:100%">${apprEsc(p.suggestion||'')}</textarea></div>
-    </div>`;
-  }
-  // Generic JSON editor as fallback
-  return `<div style="font-size:12px"><label style="font-size:10px;color:var(--color-text-secondary)">Payload (JSON)</label><textarea id="ed-${id}-_json" rows="10" style="width:100%;font-family:var(--font-mono);font-size:11px">${apprEsc(JSON.stringify(p,null,2))}</textarea></div>`;
+function buildPreview(item) {
+  const p = item.payload || {};
+  if (item.type === 'blog_draft') return `
+    <div><strong>Title:</strong> ${esc(p.title || '—')}</div>
+    <div style="margin-top:6px"><strong>Meta:</strong> ${esc(p.metaDescription || '—')}</div>
+    <div style="margin-top:6px"><strong>Target Keyword:</strong> ${esc(p.targetKeyword || '—')}</div>`;
+  if (item.type === 'meta_update') return `
+    <div><strong>Page:</strong> ${esc(p.url || p.postId || '—')}</div>
+    <div style="margin-top:6px"><strong>New Title:</strong> ${esc(p.title || '—')}</div>
+    <div style="margin-top:6px"><strong>New Description:</strong> ${esc(p.description || '—')}</div>`;
+  if (item.type === 'onpage_suggestion') return `
+    <div><strong>Page:</strong> ${esc(p.url || '—')}</div>
+    ${p.keyword ? `<div style="margin-top:6px"><strong>Keyword:</strong> "${esc(p.keyword)}" (ranking pos ${p.currentPosition || '?'})</div>` : ''}
+    <div style="margin-top:6px"><strong>Claude's Suggestion:</strong> ${esc(p.suggestion || '—')}</div>`;
+  if (item.type === 'review_response') return `
+    <div><strong>Review:</strong> "${esc(p.reviewText || '—')}"</div>
+    <div style="margin-top:6px"><strong>Draft Reply:</strong> ${esc(p.responseText || '—')}</div>`;
+  return `<div>${esc(item.reason || JSON.stringify(p))}</div>`;
 }
 
-function apprStartEdit(id){apprState.editing[id]=Object.assign({},findItem(id).payload||{});renderApprovals();}
-function apprCancelEdit(id){delete apprState.editing[id];renderApprovals();}
-function apprStartReject(id){apprState.rejecting[id]=true;renderApprovals();setTimeout(()=>{const t=document.getElementById('rej-'+id);if(t)t.focus();},50);}
-function apprCancelReject(id){delete apprState.rejecting[id];renderApprovals();}
-function apprToggleDiff(id){apprState.diffOpen[id]=!apprState.diffOpen[id];renderApprovals();}
-
-function findItem(id){return apprState.items.find(x=>x.id===id);}
-
-function apprCollectEdit(id){
-  const it=findItem(id);if(!it)return null;
-  const fields=['title','metaDescription','targetKeyword','slug','excerpt','body','url','description','responseText','suggestion'];
-  const out={};let any=false;
-  for(const f of fields){
-    const el=document.getElementById('ed-'+id+'-'+f);
-    if(el){out[f]=el.value;any=true;}
-  }
-  // JSON fallback
-  const jsonEl=document.getElementById('ed-'+id+'-_json');
-  if(jsonEl){
-    try{return JSON.parse(jsonEl.value);}
-    catch(e){alert('Invalid JSON in payload editor: '+e.message);return null;}
-  }
-  if(!any)return it.payload||{};
-  // Merge over the original payload to keep fields we don't expose in the editor
-  return Object.assign({},it.payload||{},out);
-}
-
-async function apprDoApprove(id){
-  if(!confirm('Approve and push this item?'))return;
-  try{
-    const card=document.getElementById('appr-card-'+id);
-    if(card)card.style.opacity='0.6';
-    const res=await fetch('/api/approvals',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({action:'approve',id,actor:apprActor()})});
-    const data=await res.json();
-    if(!res.ok)alert('Failed: '+(data.error||res.status));
-  }catch(e){alert('Error: '+e.message);}
-  await renderApprovals();
-}
-
-async function apprDoEditApprove(id){
-  const payload=apprCollectEdit(id);if(!payload)return;
-  if(!confirm('Save your edits and push to '+findItem(id).brand+'?'))return;
-  try{
-    const res=await fetch('/api/approvals',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({action:'edit_approve',id,payload,actor:apprActor()})});
-    const data=await res.json();
-    if(!res.ok)alert('Failed: '+(data.error||res.status));
-  }catch(e){alert('Error: '+e.message);}
-  delete apprState.editing[id];
-  await renderApprovals();
-}
-
-async function apprDoReject(id,requeue){
-  const t=document.getElementById('rej-'+id);
-  const feedback=t?t.value.trim():'';
-  if(!feedback){alert('Please tell Claude what to fix.');return;}
-  try{
-    const res=await fetch('/api/approvals',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({action:'reject',id,feedback,requeue,actor:apprActor()})});
-    const data=await res.json();
-    if(!res.ok){alert('Failed: '+(data.error||res.status));return;}
-    if(requeue&&data.rewrite){
-      // Switch to "all" so user immediately sees both items in the diff view
-      apprState.filter.status='all';
-      document.querySelectorAll('#appr-status-pills .pill').forEach(p=>p.classList.toggle('active',p.dataset.status==='all'));
-      apprState.diffOpen[data.rewrite.id]=true;
-    }else if(data.rewriteError){
-      alert(data.rewriteError);
+// ─── APPROVE ────────────────────────────────────────────────────
+async function approveItem(id, btn) {
+  if (!confirm('Approve and push this item to WordPress?')) return;
+  const orig = btn.innerHTML;
+  btn.innerHTML = '<span class="spinner"></span> Pushing…';
+  btn.disabled = true;
+  try {
+    const res = await apiPost('/api/approvals', { action: 'approve', id, actor: state.actor });
+    if (res.pushResult && res.pushResult.ok) {
+      showToast('Pushed to WordPress ✓', 'success');
+      removeCardFromQueue(id);
+    } else {
+      showToast('Push failed: ' + (res.pushResult?.message || 'unknown error'), 'error');
+      btn.innerHTML = orig; btn.disabled = false;
     }
-  }catch(e){alert('Error: '+e.message);}
-  delete apprState.rejecting[id];
-  await renderApprovals();
-}
-
-async function apprRunAudit(){
-  if(!confirm('Run a full SEO audit on both sites now? (This calls Claude and may take 20-40 seconds.)'))return;
-  const btn=event.target;const orig=btn.textContent;btn.disabled=true;btn.textContent='Running…';
-  try{
-    const res=await fetch('/api/scheduler',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({})});
-    const data=await res.json();
-    if(!res.ok){alert('Audit failed: '+(data.error||res.status));}
-    else{alert(`Audit complete. Queued ${data.queued||0} new item(s).`);}
-  }catch(e){alert('Error: '+e.message);}
-  btn.disabled=false;btn.textContent=orig;
-  await renderApprovals();
-}
-
-async function apprRenderAudit(){
-  const wrap=document.getElementById('appr-audit-section');
-  const list=document.getElementById('appr-audit-list');
-  if(!wrap||!list)return;
-  try{
-    const res=await fetch('/api/approvals?audit=1&limit=20');
-    const data=await res.json();
-    const ev=data.events||[];
-    if(!ev.length){wrap.style.display='none';return;}
-    wrap.style.display='block';
-    list.innerHTML=ev.map(e=>`<div style="display:flex;justify-content:space-between;padding:4px 0;border-bottom:0.5px solid var(--color-border-tertiary);gap:8px"><span><span style="color:var(--color-text-primary)">${apprEsc(e.actor||'')}</span> <span style="color:var(--color-text-secondary)">${apprEsc(e.action||'')}</span> ${e.brand?`<span class="tag tag-${e.brand==='pickl'?'brand':'menu'}">${apprBrandLabel(e.brand)}</span>`:''} <span style="color:var(--color-text-tertiary)">${apprEsc(e.note||'').slice(0,80)}</span></span><span style="color:var(--color-text-tertiary);white-space:nowrap">${apprRel(e.at)}</span></div>`).join('');
-  }catch(e){/* silent */}
-}
-
-// Light polling for the badge — every 60s while the page is open. Stops if hidden.
-function apprStartPolling(){
-  if(apprState.pollTimer)return;
-  apprState.pollTimer=setInterval(async()=>{
-    if(document.hidden)return;
-    try{
-      const res=await fetch('/api/approvals?status=pending&limit=1');
-      const data=await res.json();
-      if(data.counts){apprState.counts=data.counts;apprUpdateTabBadge();}
-    }catch(_){}
-  },60000);
-}
-
-// Open the Approvals tab via ?tab=approvals (used in notification CTAs)
-function apprMaybeOpenFromUrl(){
-  try{
-    const t=new URLSearchParams(window.location.search).get('tab');
-    if(t==='approvals'){window.history.replaceState({},'','/');setTimeout(()=>sw('approvals'),100);}
-  }catch(_){}
-}
-
-
-(async()=>{
-  await load();
-  if(!keywords.length){
-    keywords=[
-      {kw:'smash burger dubai',rank1:4,rank2:null,vol:2400,cat:'local',note:'Priority',history:[{date:'1 Mar',s1:7,s2:null},{date:'15 Mar',s1:5,s2:null},{date:'1 Apr',s1:4,s2:null}]},
-      {kw:'best fried chicken uae',rank1:null,rank2:8,vol:1800,cat:'general',note:'',history:[{date:'1 Mar',s1:null,s2:12},{date:'15 Mar',s1:null,s2:10},{date:'1 Apr',s1:null,s2:8}]},
-      {kw:'pickl dubai',rank1:1,rank2:null,vol:890,cat:'brand',note:'Brand',history:[{date:'1 Mar',s1:1,s2:null},{date:'15 Mar',s1:1,s2:null},{date:'1 Apr',s1:1,s2:null}]},
-      {kw:'bonbird chicken',rank1:null,rank2:1,vol:620,cat:'brand',note:'Brand',history:[{date:'1 Mar',s1:null,s2:2},{date:'15 Mar',s1:null,s2:1},{date:'1 Apr',s1:null,s2:1}]},
-      {kw:'chicken sandwich abu dhabi',rank1:14,rank2:9,vol:1200,cat:'local',note:'',history:[{date:'1 Mar',s1:18,s2:14},{date:'15 Mar',s1:16,s2:11},{date:'1 Apr',s1:14,s2:9}]},
-      {kw:'halal burger dubai',rank1:22,rank2:null,vol:3100,cat:'menu',note:'High vol',history:[{date:'1 Mar',s1:28,s2:null},{date:'15 Mar',s1:25,s2:null},{date:'1 Apr',s1:22,s2:null}]},
-    ];
-    compRanks=[{kw:'smash burger dubai',comp:'Shake Shack',rank:2,date:'1 Apr'},{kw:'smash burger dubai',comp:'Five Guys',rank:6,date:'1 Apr'},{kw:'halal burger dubai',comp:'Shake Shack',rank:3,date:'1 Apr'}];
-    save();
+  } catch (e) {
+    showToast('Error: ' + e.message, 'error');
+    btn.innerHTML = orig; btn.disabled = false;
   }
-  renderAll();
-  checkGscStatus();
-  // Approval system bootstrap
-  apprActor();
-  apprStartPolling();
-  apprMaybeOpenFromUrl();
-  // Initial badge fetch (no UI block)
-  fetch('/api/approvals?status=pending&limit=1').then(r=>r.json()).then(d=>{if(d&&d.counts){apprState.counts=d.counts;apprUpdateTabBadge();}}).catch(()=>{});
-})();
+}
+
+// ─── DISMISS (Task 3 — delete only, no Claude call) ─────────────
+async function dismissItem(id, btn) {
+  const card = document.getElementById('card-' + id);
+  card.classList.add('dismissing');
+  try {
+    await apiPost('/api/approvals', { action: 'delete', id, actor: state.actor });
+    state.queue = state.queue.filter(i => i.id !== id);
+    setTimeout(() => { renderQueue(); }, 260);
+    showToast('Item dismissed', '');
+  } catch (e) {
+    card.classList.remove('dismissing');
+    showToast('Error: ' + e.message, 'error');
+  }
+}
+
+// ─── REJECT / REWRITE ───────────────────────────────────────────
+async function rejectItem(id, btn) {
+  const feedback = window.prompt('What should Claude fix? (This will requeue a revised version)');
+  if (!feedback || !feedback.trim()) return;
+  btn.disabled = true; btn.textContent = 'Rewriting…';
+  try {
+    await apiPost('/api/approvals', { action: 'reject', id, feedback, actor: state.actor });
+    showToast('Rejected. Revised version queued.', 'success');
+    await loadQueue();
+  } catch (e) {
+    showToast('Error: ' + e.message, 'error');
+    btn.disabled = false; btn.textContent = 'Rewrite with AI';
+  }
+}
+
+// ─── EDIT ────────────────────────────────────────────────────────
+function editItem(id) {
+  const item = state.queue.find(i => i.id === id);
+  if (!item) return;
+  // Open the AI studio modal as an editor
+  const payload = JSON.stringify(item.payload || {}, null, 2);
+  openToolRaw('Edit Draft — ' + (item.title || item.type),
+    'Edit the payload JSON below, then click Save & Approve.',
+    `<textarea id="edit-payload" rows="12" style="width:100%;font-family:monospace;font-size:12px">${esc(payload)}</textarea>`,
+    async () => {
+      const raw = document.getElementById('edit-payload').value;
+      let parsed;
+      try { parsed = JSON.parse(raw); } catch (e) { showToast('Invalid JSON', 'error'); return false; }
+      await apiPost('/api/approvals', { action: 'edit_approve', id, payload: parsed, actor: state.actor });
+      showToast('Saved & pushed ✓', 'success');
+      await loadQueue();
+      return true;
+    }, 'Save & Approve');
+}
+
+function removeCardFromQueue(id) {
+  state.queue = state.queue.filter(i => i.id !== id);
+  renderQueue();
+}
+
+// ─── RUN AUDIT NOW ───────────────────────────────────────────────
+async function runAuditNow(btn) {
+  if (!confirm('Run a full SEO audit on both Pickl and Bonbird? This may take 20–40 seconds.')) return;
+  const orig = btn.innerHTML;
+  btn.innerHTML = '<span class="spinner"></span> Auditing…';
+  btn.disabled = true;
+  try {
+    const data = await apiPost('/api/scheduler', {});
+    showToast(`Audit complete — ${data.queued || 0} new items queued`, 'success');
+    await loadQueue();
+  } catch (e) {
+    showToast('Audit failed: ' + e.message, 'error');
+  }
+  btn.innerHTML = orig; btn.disabled = false;
+}
+
+// ═══════════════════════════════════════════════════════════════
+// ADD KEYWORD MODAL
+// ═══════════════════════════════════════════════════════════════
+function showAddKeywordModal() {
+  document.getElementById('kw-modal').style.display = 'flex';
+  setTimeout(() => document.getElementById('kw-input').focus(), 50);
+}
+function closeKwModal() { document.getElementById('kw-modal').style.display = 'none'; }
+async function addKeyword() {
+  const kw = document.getElementById('kw-input').value.trim();
+  if (!kw) { showToast('Enter a keyword first', 'error'); return; }
+  const brand = document.getElementById('kw-brand').value;
+  state.keywords.push({ keyword: kw, brand, addedAt: Date.now() });
+  await apiPost('/api/db/save', { keywords: state.keywords });
+  closeKwModal();
+  showToast(`"${kw}" added to ${BRAND_LABELS[brand]} tracking`, 'success');
+  document.getElementById('kw-input').value = '';
+}
+
+// ═══════════════════════════════════════════════════════════════
+// AI STUDIO TOOLS
+// ═══════════════════════════════════════════════════════════════
+const TOOLS = {
+  review: {
+    title: 'Review Responder',
+    desc: 'Paste a Google Review below. Claude will write an SEO-optimized, on-brand response.',
+    body: () => `
+      <div class="form-group">
+        <label class="form-label">Brand</label>
+        <select id="t-brand" class="form-input" style="font-family:var(--font-sans)">
+          <option value="pickl">Pickl</option><option value="bonbird">Bonbird</option>
+        </select>
+      </div>
+      <div class="form-group">
+        <label class="form-label">Customer Review</label>
+        <textarea id="t-review" placeholder="Paste the full review text here…" rows="5"></textarea>
+      </div>`,
+    prompt: () => {
+      const brand = document.getElementById('t-brand').value;
+      const review = document.getElementById('t-review').value.trim();
+      if (!review) throw new Error('Please paste a review first');
+      return `Write a professional, SEO-optimized Google review response for ${BRAND_LABELS[brand]} (UAE restaurant). Brand: ${brand === 'pickl' ? 'Pickl — smash burgers, casual-premium, Dubai' : 'Bonbird — halal fried chicken, UAE'}. Review: "${review}". Include the restaurant name, mention Dubai/UAE naturally, be warm, under 120 words.`;
+    },
+  },
+  schema: {
+    title: 'Schema Generator',
+    desc: 'Generate JSON-LD LocalBusiness markup ready to paste into WordPress.',
+    body: () => `
+      <div class="form-group">
+        <label class="form-label">Brand</label>
+        <select id="t-brand" class="form-input" style="font-family:var(--font-sans)">
+          <option value="pickl">Pickl</option><option value="bonbird">Bonbird</option>
+        </select>
+      </div>
+      <div class="form-group">
+        <label class="form-label">Location name (e.g. Dubai Marina)</label>
+        <input type="text" id="t-location" placeholder="Dubai Marina">
+      </div>`,
+    prompt: () => {
+      const brand = document.getElementById('t-brand').value;
+      const loc = document.getElementById('t-location').value.trim() || 'Dubai';
+      return `Generate a complete JSON-LD LocalBusiness schema for ${BRAND_LABELS[brand]} at ${loc}, UAE. Include @context, @type: Restaurant, name, address, geo, url, telephone (placeholder), servesCuisine, priceRange, openingHours. Return only valid JSON-LD, no explanation.`;
+    },
+  },
+  brief: {
+    title: 'Content Brief Builder',
+    desc: 'Enter a seed keyword to get a full content brief for your copywriter.',
+    body: () => `
+      <div class="form-group">
+        <label class="form-label">Brand</label>
+        <select id="t-brand" class="form-input" style="font-family:var(--font-sans)">
+          <option value="pickl">Pickl</option><option value="bonbird">Bonbird</option>
+        </select>
+      </div>
+      <div class="form-group">
+        <label class="form-label">Target Keyword</label>
+        <input type="text" id="t-keyword" placeholder="e.g. best smash burger dubai">
+      </div>`,
+    prompt: () => {
+      const brand = document.getElementById('t-brand').value;
+      const kw = document.getElementById('t-keyword').value.trim();
+      if (!kw) throw new Error('Enter a keyword first');
+      return `Create a detailed SEO content brief for a blog post targeting "${kw}" for ${BRAND_LABELS[brand]} (${brand === 'pickl' ? 'smash burger restaurant, Dubai' : 'halal fried chicken, UAE'}). Include: H1 suggestion, 5-6 H2 sections with brief notes, target word count, 4 FAQ questions, internal link suggestions, and 3 semantic keywords. Format clearly with headers.`;
+    },
+  },
+  audit: {
+    title: 'On-Demand Page Audit',
+    desc: 'Paste a URL to get an instant SEO technical audit and prioritized recommendations.',
+    body: () => `
+      <div class="form-group">
+        <label class="form-label">Brand</label>
+        <select id="t-brand" class="form-input" style="font-family:var(--font-sans)">
+          <option value="pickl">Pickl (eatpickl.com)</option><option value="bonbird">Bonbird (bonbirdchicken.com)</option>
+        </select>
+      </div>
+      <div class="form-group">
+        <label class="form-label">Page URL</label>
+        <input type="text" id="t-url" placeholder="https://eatpickl.com/menu">
+      </div>
+      <div class="form-group">
+        <label class="form-label">Target Keyword (optional)</label>
+        <input type="text" id="t-keyword" placeholder="e.g. smash burger dubai">
+      </div>`,
+    prompt: () => {
+      const brand = document.getElementById('t-brand').value;
+      const url = document.getElementById('t-url').value.trim();
+      const kw = document.getElementById('t-keyword').value.trim();
+      if (!url) throw new Error('Enter a URL first');
+      return `Perform a detailed on-page SEO audit for this ${BRAND_LABELS[brand]} page: ${url}${kw ? ` targeting the keyword "${kw}"` : ''}. Cover: title tag, meta description, H1/H2 structure, keyword usage, internal linking, schema markup, page speed considerations, and mobile UX. For each issue rate severity (High/Medium/Low) and give a specific fix. Format as a prioritized action list.`;
+    },
+  },
+};
+
+let editCallback = null;
+
+function openTool(toolKey) {
+  const tool = TOOLS[toolKey];
+  if (!tool) return;
+  state.currentTool = toolKey;
+  document.getElementById('modal-title').textContent = tool.title;
+  document.getElementById('modal-desc').textContent = tool.desc;
+  document.getElementById('modal-body').innerHTML = tool.body();
+  document.getElementById('modal-result').style.display = 'none';
+  document.getElementById('modal-result').textContent = '';
+  document.getElementById('modal-run-btn').textContent = 'Generate';
+  document.getElementById('modal-run-btn').disabled = false;
+  editCallback = null;
+  document.getElementById('tool-modal').style.display = 'flex';
+}
+
+function openToolRaw(title, desc, bodyHtml, onSave, saveBtnLabel) {
+  document.getElementById('modal-title').textContent = title;
+  document.getElementById('modal-desc').textContent = desc;
+  document.getElementById('modal-body').innerHTML = bodyHtml;
+  document.getElementById('modal-result').style.display = 'none';
+  document.getElementById('modal-run-btn').textContent = saveBtnLabel || 'Save';
+  document.getElementById('modal-run-btn').disabled = false;
+  editCallback = onSave;
+  state.currentTool = null;
+  document.getElementById('tool-modal').style.display = 'flex';
+}
+
+function closeTool() {
+  document.getElementById('tool-modal').style.display = 'none';
+  editCallback = null;
+  state.currentTool = null;
+}
+
+async function runTool() {
+  const btn = document.getElementById('modal-run-btn');
+
+  // Edit mode
+  if (editCallback) {
+    btn.disabled = true; btn.textContent = 'Saving…';
+    const ok = await editCallback().catch(e => { showToast(e.message, 'error'); return false; });
+    if (ok) closeTool();
+    else { btn.disabled = false; btn.textContent = 'Save & Approve'; }
+    return;
+  }
+
+  const tool = TOOLS[state.currentTool];
+  if (!tool) return;
+  let prompt;
+  try { prompt = tool.prompt(); } catch (e) { showToast(e.message, 'error'); return; }
+
+  btn.innerHTML = '<span class="spinner"></span> Generating…';
+  btn.disabled = true;
+  const resultEl = document.getElementById('modal-result');
+  resultEl.style.display = 'none';
+
+  try {
+    const data = await apiPost('/api/claude', {
+      model: 'claude-sonnet-4-20250514',
+      max_tokens: 1000,
+      messages: [{ role: 'user', content: prompt }],
+    });
+    const text = (data.content || []).map(b => b.text || '').join('');
+    resultEl.textContent = text;
+    resultEl.style.display = 'block';
+  } catch (e) {
+    showToast('Claude error: ' + e.message, 'error');
+  }
+  btn.innerHTML = '↻ Regenerate'; btn.disabled = false;
+}
+
+// ═══════════════════════════════════════════════════════════════
+// SETTINGS — DB LOAD + AUDIT LOG
+// ═══════════════════════════════════════════════════════════════
+async function loadDbData() {
+  try {
+    const data = await apiGet('/api/db/get');
+    state.keywords = data.keywords || [];
+    if (data.gscTokens && data.gscTokens.access_token) setGscConnected(true);
+  } catch (_) {}
+}
+
+async function renderAuditLog() {
+  const el = document.getElementById('audit-log-list');
+  try {
+    const data = await apiGet('/api/approvals?audit=1&limit=15');
+    const events = data.events || [];
+    if (!events.length) {
+      el.innerHTML = '<div style="text-align:center;padding:24px;color:var(--text-muted);font-size:13px">No audit events yet.</div>';
+      return;
+    }
+    el.innerHTML = events.map(e => `
+      <div class="log-item">
+        <div>
+          <strong>${esc(e.actor || 'System')}</strong>
+          ${esc(e.action || '')} ${e.brand ? `<em>${BRAND_LABELS[e.brand] || e.brand}</em>` : ''}
+          ${e.note ? `— <em>${esc(String(e.note).slice(0, 80))}</em>` : ''}
+          <div class="log-detail">${relTime(e.at)}</div>
+        </div>
+        ${e.action === 'pushed' ? `<button class="btn btn-outline" style="padding:4px 10px;font-size:11px;white-space:nowrap" onclick="showToast('Rollback coming in Phase 2','')">Undo Change</button>` : '<span style="color:var(--text-muted);font-size:11px">—</span>'}
+      </div>`).join('');
+  } catch (e) {
+    el.innerHTML = `<div style="color:var(--danger);font-size:13px;padding:12px">${esc(e.message)}</div>`;
+  }
+}
+
+// ═══════════════════════════════════════════════════════════════
+// UTILITIES
+// ═══════════════════════════════════════════════════════════════
+async function apiGet(url) {
+  const res = await fetch(url);
+  const data = await res.json();
+  if (!res.ok) throw new Error(data.error || `HTTP ${res.status}`);
+  return data;
+}
+
+async function apiPost(url, body) {
+  const res = await fetch(url, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(body),
+  });
+  const data = await res.json();
+  if (!res.ok) throw new Error(data.error || `HTTP ${res.status}`);
+  return data;
+}
+
+function esc(s) {
+  return String(s == null ? '' : s)
+    .replace(/&/g, '&amp;').replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;').replace(/"/g, '&quot;').replace(/'/g, '&#39;');
+}
+
+function relTime(ts) {
+  if (!ts) return '';
+  const d = Date.now() - ts;
+  if (d < 60000) return 'just now';
+  if (d < 3600000) return Math.floor(d / 60000) + 'm ago';
+  if (d < 86400000) return Math.floor(d / 3600000) + 'h ago';
+  return Math.floor(d / 86400000) + 'd ago';
+}
+
+let toastTimer;
+function showToast(msg, type) {
+  const t = document.getElementById('toast');
+  t.textContent = msg;
+  t.className = 'toast show' + (type ? ' ' + type : '');
+  clearTimeout(toastTimer);
+  toastTimer = setTimeout(() => t.classList.remove('show'), 3500);
+}
+
+// Keyboard: Escape closes modals
+document.addEventListener('keydown', e => {
+  if (e.key === 'Escape') {
+    closeTool();
+    closeKwModal();
+  }
+});
 </script>
-</body></html>
+</body>
+</html>

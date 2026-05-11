@@ -1,4 +1,4 @@
-# existing — keep unchanged
+# existing redirects
 [[redirects]]
   from = "/api/claude"
   to = "/.netlify/functions/claude"
@@ -50,9 +50,6 @@
   to = "/.netlify/functions/reviews"
   status = 200
 
-# Scheduled function: weekly autonomous SEO audit.
-# Cron runs in UTC. Mondays 06:00 UTC = 10:00 Dubai time.
-# Change/disable by editing this block. Requires a published deploy (won't
-# run on deploy previews).
+# Weekly autonomous audit — Mondays 06:00 UTC = 10:00 Dubai time
 [functions."scheduler"]
   schedule = "0 6 * * 1"
