@@ -1,45 +1,30 @@
 // netlify/functions/wordpress.js
-// WordPress REST API integration for Pickl (eatpickl.com) and Bonbird (bonbirdchicken.com).
-// Both are self-hosted on WP Engine. We auth with Application Passwords —
-// generated in WP admin → Users → Profile → Application Passwords.
+// WordPress REST API for Pickl (eatpickl.com) and Bonbird (bonbirdchicken.com).
+// Auth: Application Passwords (WP admin → Users → Profile → Application Passwords).
 //
-// REQUIRED env vars (per brand):
-//   WP_PICKL_BASE       e.g. "https://eatpickl.com"
-//   WP_PICKL_USER       admin username
-//   WP_PICKL_APP_PASS   the application password (spaces or no-spaces both fine)
-//   WP_BONBIRD_BASE     "https://bonbirdchicken.com"
-//   WP_BONBIRD_USER
-//   WP_BONBIRD_APP_PASS
+// ENV VARS:
+//   WP_PICKL_BASE / WP_PICKL_USER / WP_PICKL_APP_PASS
+//   WP_BONBIRD_BASE / WP_BONBIRD_USER / WP_BONBIRD_APP_PASS
 //
-// Endpoints exposed:
-//   POST /api/wordpress  body:
-//     { action: 'create_draft',  brand, payload }   -> creates a draft post
-//     { action: 'update_meta',   brand, payload }   -> updates title/desc/etc on existing post
-//     { action: 'list_posts',    brand, q? }        -> search posts (helps the UI pick a post)
-//     { action: 'get_post',      brand, postId }
-//     { action: 'test',          brand }            -> ping /wp/v2/users/me
-//
-// Meta updates support Yoast SEO (`_yoast_wpseo_title` / `_yoast_wpseo_metadesc`)
-// and Rank Math (`rank_math_title` / `rank_math_description`) — we write both
-// keys so it works regardless of which plugin is installed. WordPress core
-// also stores the post title and excerpt natively, which we update too.
-//
-// All push payloads are validated server-side. We never trust the queue blindly:
-// e.g. blog drafts are forced to `status: 'draft'` even if payload says otherwise.
+// ACTIONS:
+//   test            verify credentials
+//   create_draft    new blog POST as draft
+//   create_page     new WP PAGE as draft  ← new: for landing/location pages
+//   update_content  rewrite content of existing post/page, saves as draft  ← new
+//   update_meta     update SEO title/description only
+//   publish         flip draft → published  ← new: triggered by "Approve & Publish"
+//   list_posts      search posts + pages
+//   get_post        get single item by ID
 
-const { ok, bad, preflight, parseBody } = require('./_lib/store');
+const CORS = {
+  'Access-Control-Allow-Origin': '*',
+  'Access-Control-Allow-Headers': 'Content-Type',
+  'Access-Control-Allow-Methods': 'POST, OPTIONS',
+};
 
 const BRAND_ENV = {
-  pickl: {
-    base: 'WP_PICKL_BASE',
-    user: 'WP_PICKL_USER',
-    pass: 'WP_PICKL_APP_PASS'
-  },
-  bonbird: {
-    base: 'WP_BONBIRD_BASE',
-    user: 'WP_BONBIRD_USER',
-    pass: 'WP_BONBIRD_APP_PASS'
-  }
+  pickl:   { base: 'WP_PICKL_BASE',   user: 'WP_PICKL_USER',   pass: 'WP_PICKL_APP_PASS' },
+  bonbird: { base: 'WP_BONBIRD_BASE', user: 'WP_BONBIRD_USER', pass: 'WP_BONBIRD_APP_PASS' },
 };
 
 function getCreds(brand) {
@@ -49,11 +34,11 @@ function getCreds(brand) {
   const user = process.env[cfg.user];
   const pass = process.env[cfg.pass];
   if (!base || !user || !pass) {
-    return { error: `WordPress credentials not set for ${brand} — set ${cfg.base}, ${cfg.user}, ${cfg.pass} in Netlify env vars` };
+    return { error: `WordPress credentials not configured for ${brand}. Set ${cfg.base}, ${cfg.user}, ${cfg.pass} in Netlify environment variables.` };
   }
   return {
     base: base.replace(/\/$/, ''),
-    auth: 'Basic ' + Buffer.from(`${user}:${pass}`).toString('base64')
+    auth: 'Basic ' + Buffer.from(`${user}:${pass.replace(/\s/g, '')}`).toString('base64'),
   };
 }
 
@@ -65,213 +50,248 @@ async function wpFetch(creds, path, opts) {
     headers: Object.assign({
       'Authorization': creds.auth,
       'Content-Type': 'application/json',
-      'Accept': 'application/json'
+      'Accept': 'application/json',
     }, opts.headers || {}),
-    body: opts.body ? JSON.stringify(opts.body) : undefined
+    body: opts.body ? JSON.stringify(opts.body) : undefined,
   });
-  let data;
   const ct = res.headers.get('content-type') || '';
-  if (ct.includes('application/json')) {
-    data = await res.json().catch(() => null);
-  } else {
-    data = { raw: await res.text() };
-  }
+  const data = ct.includes('application/json')
+    ? await res.json().catch(() => null)
+    : { raw: await res.text() };
   return { ok: res.ok, status: res.status, data };
 }
 
 exports.handler = async (event) => {
-  if (event.httpMethod === 'OPTIONS') return preflight();
-  if (event.httpMethod !== 'POST') return bad(405, 'Method Not Allowed');
-
-  const body = parseBody(event);
-  if (body === null) return bad(400, 'Invalid JSON');
-
+  if (event.httpMethod === 'OPTIONS') return { statusCode: 200, headers: CORS, body: '' };
+  if (event.httpMethod !== 'POST') return fail(405, 'Method Not Allowed');
+  let body;
+  try { body = JSON.parse(event.body); } catch (_) { return fail(400, 'Invalid JSON'); }
   const { action, brand } = body;
-  if (!brand || !BRAND_ENV[brand]) return bad(400, 'brand must be "pickl" or "bonbird"');
-
-  const credsOrError = getCreds(brand);
-  if (credsOrError && credsOrError.error) return bad(503, credsOrError.error);
-  const creds = credsOrError;
-
+  if (!brand || !BRAND_ENV[brand]) return fail(400, 'brand must be "pickl" or "bonbird"');
+  const creds = getCreds(brand);
+  if (creds && creds.error) return fail(503, creds.error);
   try {
     switch (action) {
-      case 'test':            return await handleTest(creds);
-      case 'create_draft':    return await handleCreateDraft(creds, body.payload || {});
-      case 'update_meta':     return await handleUpdateMeta(creds, body.payload || {});
-      case 'list_posts':      return await handleListPosts(creds, body);
-      case 'get_post':        return await handleGetPost(creds, body);
-      default:                return bad(400, `unknown action: ${action}`);
+      case 'test':           return await handleTest(creds);
+      case 'create_draft':   return await handleCreateDraft(creds, body.payload || {});
+      case 'create_page':    return await handleCreatePage(creds, body.payload || {});
+      case 'update_content': return await handleUpdateContent(creds, body.payload || {});
+      case 'update_meta':    return await handleUpdateMeta(creds, body.payload || {});
+      case 'publish':        return await handlePublish(creds, body.payload || {});
+      case 'list_posts':     return await handleListPosts(creds, body);
+      case 'get_post':       return await handleGetPost(creds, body);
+      default:               return fail(400, `unknown action: ${action}`);
     }
-  } catch (err) {
-    console.error('wordpress error', err);
-    return bad(500, err.message || 'wordpress error');
+  } catch (e) {
+    console.error('wordpress error', action, e);
+    return fail(500, e.message || 'WordPress function error');
   }
 };
 
-// ---- handlers ---------------------------------------------------------------
-
+// ── test ────────────────────────────────────────────────────────
 async function handleTest(creds) {
   const res = await wpFetch(creds, '/wp/v2/users/me?context=edit');
-  if (!res.ok) {
-    return bad(res.status, `WP test failed: ${res.data?.message || res.status}`);
-  }
-  return ok({
-    ok: true,
-    user: { id: res.data.id, name: res.data.name, slug: res.data.slug },
-    capabilities: res.data.capabilities ? Object.keys(res.data.capabilities).filter(k => res.data.capabilities[k]) : []
-  });
+  if (!res.ok) return fail(res.status, `WP credential test failed: ${describeError(res)}`);
+  return win({ ok: true, user: { id: res.data.id, name: res.data.name }, message: `Connected as ${res.data.name}` });
 }
 
+// ── create blog POST draft ───────────────────────────────────────
 async function handleCreateDraft(creds, payload) {
-  // Required: title + body (HTML).
-  if (!payload.title || !payload.body) {
-    return bad(400, 'title and body are required for a blog draft');
-  }
-
+  if (!payload.title || !payload.body) return fail(400, 'title and body are required');
   const meta = buildSeoMeta(payload);
   const post = {
-    title: payload.title,
-    content: payload.body,
-    excerpt: payload.excerpt || '',
-    slug: payload.slug || undefined,
-    status: 'draft', // FORCED — never publish from the queue
-    meta: meta,
+    title: payload.title, content: payload.body, excerpt: payload.excerpt || '',
+    slug: sanitizeSlug(payload.slug), status: 'draft', meta,
     categories: payload.categoryIds || undefined,
-    tags: payload.tagIds || undefined
+    tags: payload.tagIds || undefined,
   };
-
   const res = await wpFetch(creds, '/wp/v2/posts', { method: 'POST', body: post });
-  if (!res.ok) {
-    return bad(res.status, `WP create draft failed: ${describeWpError(res)}`);
+  if (!res.ok) return fail(res.status, `WP create post draft failed: ${describeError(res)}`);
+  if (Object.keys(meta).length && res.data.id) {
+    await wpFetch(creds, `/wp/v2/posts/${res.data.id}`, { method: 'POST', body: { meta } }).catch(() => null);
   }
-
-  // Some hosts/plugins refuse to set custom meta in the create call. Patch it.
-  if (Object.keys(meta).length) {
-    await wpFetch(creds, `/wp/v2/posts/${res.data.id}`, {
-      method: 'POST',
-      body: { meta }
-    }).catch(() => null);
-  }
-
-  return ok({
-    ok: true,
-    id: res.data.id,
-    ref: res.data.link,
+  return win({
+    ok: true, id: res.data.id, postType: 'post', ref: res.data.link,
     editUrl: `${creds.base}/wp-admin/post.php?post=${res.data.id}&action=edit`,
-    message: `Draft created (#${res.data.id})`
+    message: `Blog post draft #${res.data.id} created — add images then publish`,
   });
 }
 
-async function handleUpdateMeta(creds, payload) {
-  // Either postId is given, OR url is given and we look it up
-  let postId = payload.postId;
-  if (!postId && payload.url) {
-    const found = await findPostByUrl(creds, payload.url);
-    if (!found) return bad(404, `no WP post matches URL: ${payload.url}`);
-    postId = found.id;
+// ── create WP PAGE draft ─────────────────────────────────────────
+// Creates under /wp/v2/pages — appears in Pages menu, not Posts.
+// Used for landing pages, location pages, new content pages.
+// Images left as [IMAGE_PLACEHOLDER] comments for you to swap in WP.
+async function handleCreatePage(creds, payload) {
+  if (!payload.title || !payload.body) return fail(400, 'title and body are required');
+  const meta = buildSeoMeta(payload);
+  const page = {
+    title: payload.title, content: payload.body, excerpt: payload.excerpt || '',
+    slug: sanitizeSlug(payload.slug), status: 'draft', meta,
+    parent: payload.parentId || 0,
+    template: payload.template || '',
+  };
+  const res = await wpFetch(creds, '/wp/v2/pages', { method: 'POST', body: page });
+  if (!res.ok) return fail(res.status, `WP create page draft failed: ${describeError(res)}`);
+  if (Object.keys(meta).length && res.data.id) {
+    await wpFetch(creds, `/wp/v2/pages/${res.data.id}`, { method: 'POST', body: { meta } }).catch(() => null);
   }
-  if (!postId) return bad(400, 'postId or url required');
+  return win({
+    ok: true, id: res.data.id, postType: 'page', ref: res.data.link,
+    editUrl: `${creds.base}/wp-admin/post.php?post=${res.data.id}&action=edit`,
+    message: `Page draft #${res.data.id} created — add images then publish when ready`,
+  });
+}
 
-  const updates = {};
-  if (payload.title) updates.title = payload.title;
-  if (payload.excerpt) updates.excerpt = payload.excerpt;
-  if (payload.content) updates.content = payload.content;
-  // SEO plugin fields
+// ── update existing post/page content → saves as draft ──────────
+// Claude rewrites the content, it lands as a pending draft for review.
+// The existing published version stays live until you hit Publish.
+async function handleUpdateContent(creds, payload) {
+  let { postId, postType } = payload;
+  if (!postId && payload.url) {
+    const found = await findPostByUrl(creds, normalizeUrl(payload.url));
+    if (!found) return fail(404, `No post or page matched URL: ${payload.url} — provide postId directly`);
+    postId = found.id; postType = found.type;
+  }
+  if (!postId) return fail(400, 'postId or url required');
+  if (!payload.title && !payload.body) return fail(400, 'title or body required to update content');
+
+  const endpoint = postType === 'pages' ? 'pages' : 'posts';
+  const updates = { status: 'draft' }; // always save as draft — never auto-publish
+  if (payload.title)   updates.title   = payload.title;
+  if (payload.body)    updates.content  = payload.body;
+  if (payload.excerpt) updates.excerpt  = payload.excerpt;
   const meta = buildSeoMeta(payload);
   if (Object.keys(meta).length) updates.meta = meta;
 
-  if (!Object.keys(updates).length) {
-    return bad(400, 'nothing to update — pass title/excerpt/content/description');
-  }
-
-  const res = await wpFetch(creds, `/wp/v2/posts/${postId}`, {
-    method: 'POST',
-    body: updates
-  });
-  if (!res.ok) {
-    return bad(res.status, `WP update failed: ${describeWpError(res)}`);
-  }
-
-  return ok({
-    ok: true,
-    id: postId,
-    ref: res.data.link,
+  const res = await wpFetch(creds, `/wp/v2/${endpoint}/${postId}`, { method: 'POST', body: updates });
+  if (!res.ok) return fail(res.status, `WP update content failed: ${describeError(res)}`);
+  return win({
+    ok: true, id: postId, postType: endpoint, ref: res.data.link,
     editUrl: `${creds.base}/wp-admin/post.php?post=${postId}&action=edit`,
-    message: `Updated post #${postId}`
+    message: `Content updated on ${endpoint.slice(0,-1)} #${postId} — saved as draft`,
   });
 }
 
+// ── update SEO meta only ─────────────────────────────────────────
+async function handleUpdateMeta(creds, payload) {
+  let { postId, postType } = payload;
+  if (!postId && payload.url) {
+    const found = await findPostByUrl(creds, normalizeUrl(payload.url));
+    if (!found) return fail(404, `No post or page matched URL: ${payload.url}`);
+    postId = found.id; postType = found.type;
+  }
+  if (!postId) return fail(400, 'postId or url required');
+
+  const updates = {};
+  if (payload.title)   updates.title   = payload.title;
+  if (payload.excerpt) updates.excerpt = payload.excerpt;
+  const meta = buildSeoMeta(payload);
+  if (Object.keys(meta).length) updates.meta = meta;
+  if (!Object.keys(updates).length) return fail(400, 'Provide title, description, or targetKeyword');
+
+  const endpoint = postType === 'pages' ? 'pages' : 'posts';
+  const res = await wpFetch(creds, `/wp/v2/${endpoint}/${postId}`, { method: 'POST', body: updates });
+  if (!res.ok) return fail(res.status, `WP meta update failed: ${describeError(res)}`);
+  return win({
+    ok: true, id: postId, postType: endpoint, ref: res.data.link,
+    editUrl: `${creds.base}/wp-admin/post.php?post=${postId}&action=edit`,
+    message: `SEO meta updated on ${endpoint.slice(0,-1)} #${postId}`,
+  });
+}
+
+// ── publish ──────────────────────────────────────────────────────
+// Flips any draft post or page to published status.
+// Called by "Approve & Publish" button or "publish this" Claude command.
+async function handlePublish(creds, payload) {
+  let { postId, postType } = payload;
+  if (!postId && payload.url) {
+    const found = await findPostByUrl(creds, normalizeUrl(payload.url));
+    if (!found) return fail(404, `No post or page matched URL: ${payload.url}`);
+    postId = found.id; postType = found.type;
+  }
+  if (!postId) return fail(400, 'postId required to publish');
+
+  const endpoint = postType === 'pages' ? 'pages' : 'posts';
+  const res = await wpFetch(creds, `/wp/v2/${endpoint}/${postId}`, { method: 'POST', body: { status: 'publish' } });
+  if (!res.ok) return fail(res.status, `WP publish failed: ${describeError(res)}`);
+  return win({
+    ok: true, id: postId, postType: endpoint,
+    ref: res.data.link,
+    message: `Published! Live at ${res.data.link}`,
+  });
+}
+
+// ── list posts + pages ───────────────────────────────────────────
 async function handleListPosts(creds, body) {
   const q = body.q || '';
-  const params = new URLSearchParams({
-    per_page: String(body.per_page || 20),
-    status: body.status || 'publish,draft',
-    _fields: 'id,title,link,status,date'
-  });
+  const params = new URLSearchParams({ per_page: String(body.per_page || 20), status: 'publish,draft', _fields: 'id,title,link,status,date,type' });
   if (q) params.set('search', q);
-  const res = await wpFetch(creds, `/wp/v2/posts?${params.toString()}`);
-  if (!res.ok) return bad(res.status, `WP list failed: ${describeWpError(res)}`);
-  const items = (res.data || []).map(p => ({
-    id: p.id,
-    title: p.title?.rendered || '',
-    link: p.link,
-    status: p.status,
-    date: p.date
-  }));
-  return ok({ items });
+  const [postsRes, pagesRes] = await Promise.all([
+    wpFetch(creds, `/wp/v2/posts?${params}`),
+    wpFetch(creds, `/wp/v2/pages?${params}`),
+  ]);
+  const normalize = (items, type) => (items || []).map(p => ({ id: p.id, title: p.title?.rendered || '', link: p.link, status: p.status, date: p.date, type }));
+  const items = [
+    ...normalize(postsRes.ok ? postsRes.data : [], 'posts'),
+    ...normalize(pagesRes.ok ? pagesRes.data : [], 'pages'),
+  ].sort((a, b) => new Date(b.date) - new Date(a.date));
+  return win({ items });
 }
 
+// ── get single post/page ─────────────────────────────────────────
 async function handleGetPost(creds, body) {
-  if (!body.postId) return bad(400, 'postId required');
-  const res = await wpFetch(creds, `/wp/v2/posts/${body.postId}?context=edit`);
-  if (!res.ok) return bad(res.status, `WP get failed: ${describeWpError(res)}`);
-  return ok({ post: res.data });
+  if (!body.postId) return fail(400, 'postId required');
+  let res = await wpFetch(creds, `/wp/v2/posts/${body.postId}?context=edit`);
+  if (!res.ok) res = await wpFetch(creds, `/wp/v2/pages/${body.postId}?context=edit`);
+  if (!res.ok) return fail(res.status, `WP get failed: ${describeError(res)}`);
+  return win({ post: res.data });
 }
 
-// ---- helpers ----------------------------------------------------------------
-
+// ── shared helpers ───────────────────────────────────────────────
 function buildSeoMeta(p) {
   const meta = {};
-  // Yoast
-  if (p.title)       meta._yoast_wpseo_title = p.title;
-  if (p.description) meta._yoast_wpseo_metadesc = p.description;
-  if (p.targetKeyword) meta._yoast_wpseo_focuskw = p.targetKeyword;
-  // Rank Math
-  if (p.title)       meta.rank_math_title = p.title;
-  if (p.description) meta.rank_math_description = p.description;
-  if (p.targetKeyword) meta.rank_math_focus_keyword = p.targetKeyword;
-  // SEOPress (a third common option, keeping the door open)
-  if (p.title)       meta._seopress_titles_title = p.title;
-  if (p.description) meta._seopress_titles_desc = p.description;
-  // JSON-LD if a custom schema field is being used
-  if (p.schema) meta._seo_custom_schema = typeof p.schema === 'string' ? p.schema : JSON.stringify(p.schema);
+  if (p.title)         { meta._yoast_wpseo_title = p.title;          meta.rank_math_title = p.title;          meta._seopress_titles_title = p.title; }
+  if (p.description)   { meta._yoast_wpseo_metadesc = p.description;  meta.rank_math_description = p.description; meta._seopress_titles_desc = p.description; }
+  if (p.targetKeyword) { meta._yoast_wpseo_focuskw = p.targetKeyword; meta.rank_math_focus_keyword = p.targetKeyword; }
+  if (p.schema)        { meta._seo_custom_schema = typeof p.schema === 'string' ? p.schema : JSON.stringify(p.schema); }
   return meta;
 }
 
+function normalizeUrl(url) {
+  if (!url) return url;
+  if (url.startsWith('http')) return url;
+  return 'https://' + url.replace(/^\/+/, '');
+}
+
+function sanitizeSlug(slug) {
+  if (!slug) return undefined;
+  return slug.toLowerCase().replace(/[^a-z0-9-]/g, '-').replace(/-+/g, '-').replace(/^-|-$/g, '');
+}
+
 async function findPostByUrl(creds, url) {
-  // WP gives us a slug-based lookup. Extract slug from URL.
   let slug;
   try {
     const u = new URL(url);
-    const parts = u.pathname.replace(/\/+$/, '').split('/');
+    const parts = u.pathname.replace(/\/+$/, '').split('/').filter(Boolean);
     slug = parts[parts.length - 1];
   } catch (_) {
-    slug = url.replace(/\/+$/, '').split('/').pop();
+    slug = url.replace(/\/+$/, '').split('/').filter(Boolean).pop();
   }
   if (!slug) return null;
-  const res = await wpFetch(creds, `/wp/v2/posts?slug=${encodeURIComponent(slug)}&_fields=id,link,slug`);
-  if (!res.ok || !Array.isArray(res.data) || !res.data.length) {
-    // Try pages too
-    const r2 = await wpFetch(creds, `/wp/v2/pages?slug=${encodeURIComponent(slug)}&_fields=id,link,slug`);
-    if (r2.ok && Array.isArray(r2.data) && r2.data.length) return r2.data[0];
-    return null;
-  }
-  return res.data[0];
+  const fields = '_fields=id,link,slug,type';
+  const postsRes = await wpFetch(creds, `/wp/v2/posts?slug=${encodeURIComponent(slug)}&${fields}`);
+  if (postsRes.ok && Array.isArray(postsRes.data) && postsRes.data.length) return { ...postsRes.data[0], type: 'posts' };
+  const pagesRes = await wpFetch(creds, `/wp/v2/pages?slug=${encodeURIComponent(slug)}&${fields}`);
+  if (pagesRes.ok && Array.isArray(pagesRes.data) && pagesRes.data.length) return { ...pagesRes.data[0], type: 'pages' };
+  return null;
 }
 
-function describeWpError(res) {
+function describeError(res) {
   if (!res.data) return `HTTP ${res.status}`;
   if (res.data.message) return res.data.message;
-  if (res.data.code) return `${res.data.code} (HTTP ${res.status})`;
+  if (res.data.code)    return `${res.data.code} (HTTP ${res.status})`;
   return `HTTP ${res.status}`;
 }
+
+function win(body)        { return { statusCode: 200, headers: Object.assign({ 'Content-Type': 'application/json' }, CORS), body: JSON.stringify(body) }; }
+function fail(status, msg){ return { statusCode: status, headers: Object.assign({ 'Content-Type': 'application/json' }, CORS), body: JSON.stringify({ error: msg }) }; }

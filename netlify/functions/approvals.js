@@ -195,6 +195,9 @@ exports.handler = async (event) => {
         // ⚠ This path DOES call Claude. Use 'delete' to dismiss without Claude.
         return await handleReject(body, actor);
 
+      case 'publish':
+        return await handlePublishItem(body, actor);
+
       case 'delete': {
         // ══════════════════════════════════════════════════════
         // TASK 3 — DISMISS BUTTON
@@ -294,6 +297,59 @@ async function handleReject(body, actor) {
   return ok({ item: await getItem(id), rewrite: newItem });
 }
 
+// ── publish ──────────────────────────────────────────────────────
+// Triggered by "Approve & Publish" button — flips WP draft → published.
+async function handlePublishItem(body, actor) {
+  const { id } = body;
+  if (!id) return bad(400, 'id required');
+  const item = await getItem(id);
+  if (!item) return bad(404, 'not found');
+
+  const PUBLISHABLE = ['blog_draft', 'page_creation', 'page_update'];
+  if (!PUBLISHABLE.includes(item.type)) {
+    return bad(400, `${item.type} cannot be published directly — approve it first to create the WP draft, then publish from WP admin`);
+  }
+
+  // If not yet pushed to WP, approve first (creates the draft), then publish
+  let postId = item.pushResult && item.pushResult.id ? item.pushResult.id : null;
+  let postType = item.pushResult && item.pushResult.postType ? item.pushResult.postType : null;
+
+  if (!postId) {
+    // Item hasn't been pushed yet — push it first as draft
+    await patchItem(id, { status: 'approved' }, { at: Date.now(), actor, action: 'approve', note: 'auto-approved before publish' });
+    const pushResult = await pushItem(item);
+    if (!pushResult.ok) {
+      await patchItem(id, { status: 'failed', pushResult: Object.assign({ at: Date.now() }, pushResult) }, { at: Date.now(), actor: 'system', action: 'push_failed', note: pushResult.message });
+      return bad(500, `Could not push to WordPress before publishing: ${pushResult.message}`);
+    }
+    postId   = pushResult.id;
+    postType = pushResult.postType;
+    await patchItem(id, { status: 'pushed', pushResult: Object.assign({ at: Date.now() }, pushResult) }, { at: Date.now(), actor: 'system', action: 'pushed', note: pushResult.message });
+  }
+
+  if (!postId) return bad(500, 'Could not determine WP post ID to publish');
+
+  // Now call wordpress.js publish action
+  const base = SITE_URL.replace(/\/$/, '');
+  const res = await fetch(base + '/.netlify/functions/wordpress', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ action: 'publish', brand: item.brand, payload: { postId, postType } }),
+  });
+  const data = await res.json().catch(() => ({}));
+
+  if (!res.ok) {
+    return bad(res.status, `Publish failed: ${data.error || res.status}`);
+  }
+
+  await patchItem(id, {
+    status: 'published',
+    publishResult: { at: Date.now(), ref: data.ref, message: data.message },
+  }, { at: Date.now(), actor, action: 'published', note: data.message || `Published at ${data.ref}` });
+
+  return ok({ item: await getItem(id), publishResult: data });
+}
+
 // ── push dispatcher ──────────────────────────────────────────────
 async function pushItem(item) {
   const base = SITE_URL.replace(/\/$/, '');
@@ -303,16 +359,45 @@ async function pushItem(item) {
       endpoint = '/.netlify/functions/wordpress';
       pushBody = { action: 'create_draft', brand: item.brand, payload: item.payload };
       break;
+
     case 'meta_update':
-    case 'onpage_suggestion':
-    case 'schema_update':
+    case 'schema_update': {
+      const p = Object.assign({}, item.payload);
+      if (p.url && !p.url.startsWith('http')) p.url = 'https://' + p.url.replace(/^\/+/, '');
+      if (!p.postId && !p.url) return { ok: false, message: `${item.type} is missing a URL or postId — use Edit Draft to add the page URL` };
       endpoint = '/.netlify/functions/wordpress';
-      pushBody = { action: 'update_meta', brand: item.brand, payload: item.payload };
+      pushBody = { action: 'update_meta', brand: item.brand, payload: p };
       break;
+    }
+
+    case 'page_update': {
+      // Claude has rewritten content for an existing page — push as a draft revision
+      const p = Object.assign({}, item.payload);
+      if (p.url && !p.url.startsWith('http')) p.url = 'https://' + p.url.replace(/^\/+/, '');
+      if (!p.postId && !p.url) return { ok: false, message: 'page_update is missing a URL — use Edit Draft to set the target page URL' };
+      endpoint = '/.netlify/functions/wordpress';
+      pushBody = { action: 'update_content', brand: item.brand, payload: p };
+      break;
+    }
+
+    case 'page_creation': {
+      // Claude has written a brand new WP Page — create it as a draft
+      const p = Object.assign({}, item.payload);
+      if (!p.title || !p.body) return { ok: false, message: 'page_creation payload is missing title or body' };
+      endpoint = '/.netlify/functions/wordpress';
+      pushBody = { action: 'create_page', brand: item.brand, payload: p };
+      break;
+    }
+
+    case 'onpage_suggestion':
+      // Human-action card — no structured WP write, just mark as actioned
+      return { ok: true, ref: null, message: 'Marked as actioned — implement this suggestion manually in WordPress' };
+
     case 'review_response':
       endpoint = '/.netlify/functions/reviews';
       pushBody = { action: 'post_response', brand: item.brand, payload: item.payload };
       break;
+
     default:
       return { ok: false, message: `no push handler for type: ${item.type}` };
   }
