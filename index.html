@@ -1062,8 +1062,20 @@ async function runAuditNow(btn) {
   btn.innerHTML = '<span class="spinner"></span> Auditing…';
   btn.disabled = true;
   try {
-    const data = await apiPost('/api/scheduler', {});
-    showToast(`Audit complete — ${data.queued || 0} new items queued`, 'success');
+    // Call background function directly — the /api/scheduler wrapper has
+    // unreliable internal fetch due to process.env.URL in Netlify functions
+    await fetch('/.netlify/functions/scheduler-background', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({}),
+    });
+    // Background function returns 202 immediately and keeps running
+    showToast('Audit running — new items will appear in 30-60 seconds', 'success');
+    // Poll for new items after 45 seconds
+    setTimeout(async () => {
+      await loadQueue();
+      showToast('Queue refreshed', '');
+    }, 45000);
     await loadQueue();
   } catch (e) {
     showToast('Audit failed: ' + e.message, 'error');
