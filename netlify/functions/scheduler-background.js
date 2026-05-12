@@ -189,22 +189,31 @@ async function runMetaRewrites(brand, rows, dryRun, forceRun, brandCtx, brandPro
     .slice(0, forceRun ? 6 : 4);
   if (!candidates.length) return { queued: 0, candidates: 0, skipped: 'all candidates already queued' };
 
-  const prompt = `You are a UAE restaurant SEO copywriter for ${cfg.name} (${cfg.site}). Tone: ${cfg.tone}.
+  const menuItems = brandCtx && brandCtx.menu ? [
+    ...(brandCtx.menu.cheeseburgers || []).slice(0, 3),
+    ...(brandCtx.menu.chickenSandos || []).slice(0, 2),
+    ...(brandCtx.menu.friesAndSides || []).slice(0, 2),
+  ].join(' | ') : 'smash burgers, chicken sandos, fries';
 
-These pages rank well but CTR is below expected — the meta title/description is underselling. Rewrite each one. Rules: UAE-local language, appetising descriptions, keyword-led, soft CTA. Title 52-58 chars, description 150-158 chars.
+  const prompt = `${brandPrompt || ''}
 
-PAGES:
-${candidates.map((r, i) => `${i+1}. Keyword: "${r.keyword}" | Pos: ${r.position} | CTR: ${r.ctr}% | Impressions: ${r.impressions}/90d`).join('\n')}
+You are rewriting SEO meta titles and descriptions for ${brandCtx ? brandCtx.name : cfg.name}.
 
-Return ONLY a JSON array:
-[{
-  "keyword": "...",
-  "url": "best-guess URL path on ${cfg.site} e.g. /menu",
-  "title": "...",
-  "description": "...",
-  "targetKeyword": "...",
-  "rationale": "One sentence: what made the old one underperform and why this version will get more clicks"
-}]`;
+TASK: These pages rank well but CTR is below expected — the meta is underselling. Rewrite each one.
+
+STRICT RULES:
+- Title: 52-58 characters exactly
+- Description: 150-158 characters exactly  
+- Only mention REAL menu items from the brand context above — do NOT invent items
+- Real items you can reference: ${menuItems}
+- UAE-local language, keyword-led, ends with a soft CTA
+- Sound like the brand — use the tone rules above
+
+PAGES TO REWRITE:
+${candidates.map((r, i) => `${i+1}. Keyword: "${r.keyword}" | Pos: ${r.position} | CTR: ${r.ctr}% | ${r.impressions} impressions/90d`).join('\n')}
+
+Return ONLY a JSON array, no prose, no fences:
+[{"keyword":"...","url":"URL path e.g. /menu or /location","title":"52-58 chars","description":"150-158 chars","targetKeyword":"...","rationale":"one sentence"}]`;
 
   if (dryRun) return { queued: 0, candidates: candidates.length, preview: candidates.map(r => r.keyword) };
 
