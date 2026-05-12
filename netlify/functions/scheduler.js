@@ -108,8 +108,10 @@ async function runQuickWins(brand, rows, dryRun) {
     .filter(r => r.position >= 11 && r.position <= 20 && r.impressions >= 50)
     .filter(r => !alreadyQueued.has(r.keyword.toLowerCase().trim()))
     .sort((a, b) => b.impressions - a.impressions)
-    .slice(0, 3);
+    .slice(0, 1); // 1 per run to stay within function timeout
   if (!candidates.length) return { queued: 0, candidates: 0, skipped: 'all candidates already queued' };
+
+  if (dryRun) return { queued: 0, candidates: candidates.length, preview: candidates.map(r => r.keyword) };
 
   let queued = 0;
   for (const r of candidates) {
@@ -322,6 +324,7 @@ async function runPageCreation(brand, rows, dryRun) {
     .slice(0, 2);
 
   if (!candidates.length) return { queued: 0, candidates: 0, skipped: 'no location-intent candidates or all already queued' };
+  if (dryRun) return { queued: 0, candidates: candidates.length, preview: candidates.map(r => r.keyword) };
 
   let queued = 0;
   for (const r of candidates) {
