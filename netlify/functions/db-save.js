@@ -26,6 +26,9 @@ exports.handler = async (event) => {
     if (body.techChecks !== undefined) saves.push(store.setJSON('techChecks', body.techChecks));
     if (body.dirChecks !== undefined) saves.push(store.setJSON('dirChecks', body.dirChecks));
     if (body.gscTokens !== undefined) saves.push(store.setJSON('gscTokens', body.gscTokens));
+    // Brand context — stored under brandContext:<brand> to match brand.js convention
+    if (body.brandContext_pickl !== undefined) saves.push(store.setJSON('brandContext:pickl', body.brandContext_pickl));
+    if (body.brandContext_bonbird !== undefined) saves.push(store.setJSON('brandContext:bonbird', body.brandContext_bonbird));
 
     await Promise.all(saves);
 

@@ -474,7 +474,51 @@
           </div>
         </div>
 
-        <!-- Audit Log -->
+        <!-- Brand Context -->
+        <div class="card" style="grid-column:1/-1">
+          <div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:20px">
+            <div>
+              <h3 style="font-size:16px;font-weight:600">Brand Context</h3>
+              <p style="font-size:13px;color:var(--text-muted);margin-top:4px">This is injected into every Claude prompt. The more specific, the better the content.</p>
+            </div>
+            <div style="display:flex;gap:8px">
+              <select id="brand-ctx-selector" class="form-input" style="width:140px;font-family:var(--font-sans)" onchange="loadBrandCtx()">
+                <option value="pickl">Pickl</option>
+                <option value="bonbird">Bonbird</option>
+              </select>
+              <button class="btn btn-primary" onclick="saveBrandCtx()">Save</button>
+            </div>
+          </div>
+          <div style="display:grid;grid-template-columns:1fr 1fr;gap:16px">
+            <div class="form-group">
+              <label class="form-label">Positioning (what the brand is)</label>
+              <textarea id="bctx-positioning" class="form-input" rows="3" style="font-family:var(--font-sans);resize:vertical"></textarea>
+            </div>
+            <div class="form-group">
+              <label class="form-label">Key Differentiators (one per line)</label>
+              <textarea id="bctx-differentiators" class="form-input" rows="3" style="font-family:var(--font-sans);resize:vertical"></textarea>
+            </div>
+            <div class="form-group">
+              <label class="form-label">Tone of Voice Rules (one per line)</label>
+              <textarea id="bctx-tone" class="form-input" rows="4" style="font-family:var(--font-sans);resize:vertical"></textarea>
+            </div>
+            <div class="form-group">
+              <label class="form-label">Brand Language / Menu Terms (one per line)</label>
+              <textarea id="bctx-language" class="form-input" rows="4" style="font-family:var(--font-sans);resize:vertical"></textarea>
+            </div>
+            <div class="form-group">
+              <label class="form-label">DO NOTs (one per line)</label>
+              <textarea id="bctx-donot" class="form-input" rows="3" style="font-family:var(--font-sans);resize:vertical"></textarea>
+            </div>
+            <div class="form-group">
+              <label class="form-label">UAE Locations (comma separated)</label>
+              <textarea id="bctx-locations" class="form-input" rows="3" style="font-family:var(--font-sans);resize:vertical"></textarea>
+            </div>
+          </div>
+          <div id="brand-ctx-status" style="font-size:12px;color:var(--text-muted);margin-top:8px"></div>
+        </div>
+
+      <!-- Audit Log -->
         <div class="card">
           <h3 style="font-size:16px;font-weight:600;margin-bottom:20px">Audit Log &amp; Rollbacks</h3>
           <div id="audit-log-list">
@@ -636,7 +680,7 @@ function switchView(target) {
   document.querySelectorAll('.page-view').forEach(v => v.classList.toggle('active', v.id === 'view-' + target));
   document.getElementById('top-title').textContent = VIEW_TITLES[target] || target;
   if (target === 'analytics') loadGscIfNeeded();
-  if (target === 'settings') renderAuditLog();
+  if (target === 'settings') { renderAuditLog(); loadBrandCtx(); }
 }
 
 // ═══════════════════════════════════════════════════════════════
@@ -1221,6 +1265,84 @@ async function loadDbData() {
     state.keywords = data.keywords || [];
     if (data.gscTokens && data.gscTokens.access_token) setGscConnected(true);
   } catch (_) {}
+}
+
+// ── Brand Context Settings ──────────────────────────────────────
+const BRAND_CTX_DEFAULTS = {
+  pickl: {
+    positioning: "Pickl is a homegrown UAE fast-casual brand serving premium smashed cheeseburgers, hand-breaded chicken sandos (5 heat levels), hot dogs, plant-based options, and shakes. Founded in Dubai, part of Yolk Brands. Fresh, indulgent, perfectly imperfect.",
+    differentiators: "Homegrown UAE brand — not an import\nHouse-made artisanal pickles elevate every item — it's in the name\nTrifecta menu: smashed beef + chicken sandos in 5 heat levels + hot dogs + plant-based\nBuild Your Own — full customisation with any toppings and any 2 sauces\nGrain-fed beef, hand-breaded fresh chicken — premium fast food without the pretension\nHalal",
+    tone: "Playful NOT silly — cheeky, fun, never mean\nRelatable NOT ordinary — colloquial, culturally aware\nWitty NOT comical — clever wordplay, not childish\nAuthentic NOT sales-y — weave personality in naturally\nNever call the brand or food legendary — customers decide\nCall customers and team 'Legends'",
+    language: "'Legends' = customers and team\n'Feel the Heat' = medium-hot spice level\n'The Reaper' = hottest heat level\n'Jeff it up' = add feel the heat spice to anything\n'Gooder' = better (intentionally wrong — brand-approved)\n'Sando' = chicken sandwich\n'Little Legends' = kids\nGrain-fed beef, smashed — describe burgers this way\nHand-breaded fresh chicken — describe chicken sandos this way",
+    donot: "Never call Pickl or its food 'legendary'\nNever use: delicious, tasty, mouth-watering, scrumptious\nNever be salesy or promotional\nNever use jargon or corporate language\nDo not describe price as cheap or affordable\nDo not write generic SEO filler — every word should sound like Pickl",
+    locations: "JBR, City Walk, JLT, Motor City, Mirdif, Al Safa, Khalifa City Abu Dhabi, Mamsha Abu Dhabi, World Trade Centre Abu Dhabi, Al Ain, Al Hirah Beach Sharjah, Al Jada Sharjah, Mina Al Arab RAK"
+  },
+  bonbird: {
+    positioning: "Bonbird is a UAE halal fried chicken restaurant. Crispy, juicy, seasoned properly — no compromise on quality. Family-friendly, proudly halal.",
+    differentiators: "Halal fried chicken — proudly and explicitly\nUAE homegrown brand\nFamily-friendly positioning",
+    tone: "Warm and welcoming — family-first energy\nApproachable — speaks to UAE locals and expats equally\nProud of halal — it's a feature, not a disclaimer",
+    language: "Halal is a feature, mention it naturally\nFamily-friendly language",
+    donot: "Never downplay the halal aspect\nNever use generic fried chicken descriptions",
+    locations: "Multiple UAE locations — check bonbirdchicken.com/locations"
+  }
+};
+
+async function loadBrandCtx() {
+  const brand = document.getElementById('brand-ctx-selector').value;
+  const status = document.getElementById('brand-ctx-status');
+  status.textContent = 'Loading…';
+  try {
+    const data = await apiGet('/api/db/get');
+    const stored = data[`brandContext_${brand}`];
+    const ctx = stored || BRAND_CTX_DEFAULTS[brand] || {};
+    document.getElementById('bctx-positioning').value = ctx.positioning || '';
+    document.getElementById('bctx-differentiators').value = (ctx.differentiators || []).join ? ctx.differentiators.join('\n') : ctx.differentiators || '';
+    document.getElementById('bctx-tone').value = (ctx.tone || []).join ? ctx.tone.join('\n') : ctx.tone || '';
+    document.getElementById('bctx-language').value = (ctx.brandLanguage || []).join ? ctx.brandLanguage.join('\n') : ctx.brandLanguage || '';
+    document.getElementById('bctx-donot').value = (ctx.doNot || []).join ? ctx.doNot.join('\n') : ctx.doNot || '';
+    document.getElementById('bctx-locations').value = ctx.locations && ctx.locations.areas ? ctx.locations.areas.join(', ') : ctx.locations || '';
+    status.textContent = stored ? `Loaded saved context for ${brand}` : `Loaded defaults for ${brand}`;
+  } catch (e) {
+    const d = BRAND_CTX_DEFAULTS[brand] || {};
+    document.getElementById('bctx-positioning').value = d.positioning || '';
+    document.getElementById('bctx-differentiators').value = d.differentiators || '';
+    document.getElementById('bctx-tone').value = d.tone || '';
+    document.getElementById('bctx-language').value = d.language || '';
+    document.getElementById('bctx-donot').value = d.donot || '';
+    document.getElementById('bctx-locations').value = d.locations || '';
+    status.textContent = 'Using defaults (could not load saved)';
+  }
+}
+
+async function saveBrandCtx() {
+  const brand = document.getElementById('brand-ctx-selector').value;
+  const status = document.getElementById('brand-ctx-status');
+  const splitLines = v => v.split('\n').map(s => s.trim()).filter(Boolean);
+  const ctx = {
+    brand,
+    name: brand === 'pickl' ? 'Pickl' : 'Bonbird',
+    website: brand === 'pickl' ? 'https://eatpickl.com' : 'https://bonbirdchicken.com',
+    country: 'UAE',
+    halal: true,
+    positioning: document.getElementById('bctx-positioning').value.trim(),
+    differentiators: splitLines(document.getElementById('bctx-differentiators').value),
+    tone: splitLines(document.getElementById('bctx-tone').value),
+    brandLanguage: splitLines(document.getElementById('bctx-language').value),
+    doNot: splitLines(document.getElementById('bctx-donot').value),
+    locations: { areas: document.getElementById('bctx-locations').value.split(',').map(s => s.trim()).filter(Boolean) },
+    menu: {},
+  };
+  status.textContent = 'Saving…';
+  try {
+    const existing = await apiGet('/api/db/get').catch(() => ({}));
+    await apiPost('/api/db/save', { ...existing, [`brandContext_${brand}`]: ctx });
+    status.textContent = `✓ ${brand} brand context saved — Claude will use this from the next audit run`;
+    status.style.color = 'var(--success)';
+    setTimeout(() => { status.style.color = ''; }, 3000);
+  } catch (e) {
+    status.textContent = 'Save failed: ' + e.message;
+    status.style.color = 'var(--danger)';
+  }
 }
 
 async function renderAuditLog() {

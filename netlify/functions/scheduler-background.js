@@ -15,6 +15,7 @@ const {
   getSetting, setSetting, fetchGscDirect,
   ok, bad, preflight, parseBody,
 } = require('./_lib/store');
+const { getBrandContext, buildBrandPrompt } = require('./_lib/brand');
 
 // Keywords already queued this week — don't re-queue the same ones
 async function getQueuedKeywords(brand) {
@@ -50,6 +51,8 @@ exports.handler = async (event) => {
   for (const brand of brandsToRun) {
     summary.brands[brand] = { jobs: {} };
     try {
+      const brandCtx = await getBrandContext(brand);
+      const brandPrompt = buildBrandPrompt(brandCtx);
       const gscRows = await fetchGscRows(BRANDS[brand].gsc);
       summary.brands[brand].gscRows = gscRows.length;
 
@@ -57,10 +60,10 @@ exports.handler = async (event) => {
       for (const jobName of jobs) {
         try {
           let r;
-          if (jobName === 'quick_wins')    r = await runQuickWins(brand, gscRows, dryRun, forceRun);
-          else if (jobName === 'meta_rewrites') r = await runMetaRewrites(brand, gscRows, dryRun, forceRun);
-          else if (jobName === 'content_gaps')  r = await runContentGaps(brand, gscRows, dryRun, forceRun);
-          else if (jobName === 'page_creation') r = await runPageCreation(brand, gscRows, dryRun, forceRun);
+          if (jobName === 'quick_wins')    r = await runQuickWins(brand, gscRows, dryRun, forceRun, brandCtx, brandPrompt);
+          else if (jobName === 'meta_rewrites') r = await runMetaRewrites(brand, gscRows, dryRun, forceRun, brandCtx, brandPrompt);
+          else if (jobName === 'content_gaps')  r = await runContentGaps(brand, gscRows, dryRun, forceRun, brandCtx, brandPrompt);
+          else if (jobName === 'page_creation') r = await runPageCreation(brand, gscRows, dryRun, forceRun, brandCtx, brandPrompt);
           else r = { queued: 0, error: 'unknown job: ' + jobName };
           summary.brands[brand].jobs[jobName] = r;
           summary.queued += r.queued || 0;
@@ -99,7 +102,7 @@ async function fetchGscRows(siteUrl) {
 // content (full HTML) for the existing page, not just a suggestion.
 // Queued as page_update → pushes via wordpress.js update_content.
 // ════════════════════════════════════════════════════════════════
-async function runQuickWins(brand, rows, dryRun, forceRun) {
+async function runQuickWins(brand, rows, dryRun, forceRun, brandCtx, brandPrompt) {
   const cfg = BRANDS[brand];
   const alreadyQueued = await getQueuedKeywords(brand);
   const candidates = rows
@@ -173,7 +176,7 @@ Return ONLY a JSON object, no prose:
 // High impressions, low CTR. Rewrites title + description only.
 // Queued as meta_update → pushes via wordpress.js update_meta.
 // ════════════════════════════════════════════════════════════════
-async function runMetaRewrites(brand, rows, dryRun, forceRun) {
+async function runMetaRewrites(brand, rows, dryRun, forceRun, brandCtx, brandPrompt) {
   const cfg = BRANDS[brand];
   const expected = pos => Math.max(0.5, 30 / pos);
   const alreadyQueued = await getQueuedKeywords(brand);
@@ -235,7 +238,7 @@ Return ONLY a JSON array:
 // Keywords ranking 30+ where no page exists. Writes full blog post.
 // Queued as blog_draft → pushes via wordpress.js create_draft.
 // ════════════════════════════════════════════════════════════════
-async function runContentGaps(brand, rows, dryRun, forceRun) {
+async function runContentGaps(brand, rows, dryRun, forceRun, brandCtx, brandPrompt) {
   const cfg = BRANDS[brand];
   const alreadyQueued = await getQueuedKeywords(brand);
   const candidates = rows
@@ -245,25 +248,32 @@ async function runContentGaps(brand, rows, dryRun, forceRun) {
     .slice(0, forceRun ? 5 : 3);
   if (!candidates.length) return { queued: 0, candidates: 0, skipped: 'no content gap candidates found' };
 
-  const prompt = `You are a UAE restaurant SEO writer for ${cfg.name} (${cfg.site}). Tone: ${cfg.tone}.
+  const siteName = brandCtx ? brandCtx.name : cfg.name;
+  const siteDomain = brandCtx ? brandCtx.website : cfg.domain;
 
-Write a focused blog post for the keyword with the highest commercial intent from this list:
+  const prompt = `${brandPrompt || ''}
 
-KEYWORDS:
-${candidates.map((r, i) => `${i+1}. "${r.keyword}" — ${r.impressions} impressions, pos ~${r.position}`).join('\n')}
+You are writing an SEO blog post for ${siteName}.
 
-Requirements (keep it tight — quality over length):
-- 400-600 words total
-- H1 leads with the target keyword
-- 3 H2 sections with useful, specific content
-- 3 FAQ questions at the end
-- One internal link to ${cfg.site} (e.g. /menu or /locations)
-- One image placeholder: <!-- IMAGE: [description] -->
-- UAE/Dubai context throughout
-- CTA at the end
+TARGET: Write a focused, on-brand blog post for the keyword with the highest commercial intent from this list.
 
-CRITICAL: Return ONLY valid JSON, nothing else, no markdown fences:
-{"title":"...","metaDescription":"150-160 chars","targetKeyword":"...","slug":"lowercase-hyphens","excerpt":"1-2 sentences","body":"<h2>...</h2><p>...</p> etc","rationale":"one sentence why"}`;
+KEYWORDS (pick the best one):
+${candidates.map((r, i) => `${i+1}. "${r.keyword}" — ${r.impressions} impressions, ranking ~pos ${r.position}`).join('\n')}
+
+CONTENT REQUIREMENTS:
+- 400-600 words — punchy and specific, not padded
+- H1 leads naturally with the target keyword
+- 3 H2 sections: each with actual useful content about ${siteName} (reference real menu items by name)
+- 3 FAQ questions people actually search about this topic in UAE/Dubai
+- One internal link to a ${siteDomain} page (e.g. /menu or /locations) 
+- One image placeholder: <!-- IMAGE: [very specific description of ideal food photo] -->
+- UAE/Dubai local context throughout — mention specific areas, local culture naturally
+- End with a CTA that sounds like ${siteName} — not generic, not salesy
+
+CRITICAL — TONE: Sound exactly like the brand described above. Use the brand language naturally. Mention specific menu items by their actual names. Do not write generic food content.
+
+CRITICAL — FORMAT: Return ONLY valid JSON, no markdown, no fences, nothing else:
+{"title":"...","metaDescription":"exactly 150-160 chars","targetKeyword":"...","slug":"lowercase-hyphens-no-spaces","excerpt":"1-2 sentences","body":"<h2>...</h2><p>...</p> full HTML content","rationale":"one sentence: why this keyword, why this angle"}`;
 
   if (dryRun) return { queued: 0, candidates: candidates.length, preview: candidates.map(r => r.keyword) };
 
@@ -306,7 +316,7 @@ CRITICAL: Return ONLY valid JSON, nothing else, no markdown fences:
 // blog post. Claude builds the full page. Queued as page_creation
 // → pushes via wordpress.js create_page.
 // ════════════════════════════════════════════════════════════════
-async function runPageCreation(brand, rows, dryRun, forceRun) {
+async function runPageCreation(brand, rows, dryRun, forceRun, brandCtx, brandPrompt) {
   const cfg = BRANDS[brand];
 
   // Filter for location/service intent keywords — these deserve pages not posts

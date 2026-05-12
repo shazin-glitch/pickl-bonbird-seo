@@ -7,13 +7,15 @@ exports.handler = async (event) => {
 
   try {
     const store = getStore({ name: 'seo-tool', consistency: 'strong', siteID: process.env.NETLIFY_SITE_ID, token: process.env.NETLIFY_AUTH_TOKEN });
-    const [keywords, compRanks, localChecks, techChecks, dirChecks, gscTokens] = await Promise.all([
+    const [keywords, compRanks, localChecks, techChecks, dirChecks, gscTokens, brandCtxPickl, brandCtxBonbird] = await Promise.all([
       store.get('keywords', { type: 'json' }).catch(() => []),
       store.get('compRanks', { type: 'json' }).catch(() => []),
       store.get('localChecks', { type: 'json' }).catch(() => ({ 1: {}, 2: {} })),
       store.get('techChecks', { type: 'json' }).catch(() => ({})),
       store.get('dirChecks', { type: 'json' }).catch(() => ({ 1: {}, 2: {} })),
       store.get('gscTokens', { type: 'json' }).catch(() => null),
+      store.get('brandContext:pickl', { type: 'json' }).catch(() => null),
+      store.get('brandContext:bonbird', { type: 'json' }).catch(() => null),
     ]);
 
     return {
@@ -25,7 +27,9 @@ exports.handler = async (event) => {
         localChecks: localChecks || { 1: {}, 2: {} },
         techChecks: techChecks || {},
         dirChecks: dirChecks || { 1: {}, 2: {} },
-        gscTokens: gscTokens || null
+        gscTokens: gscTokens || null,
+        brandContext_pickl: brandCtxPickl || null,
+        brandContext_bonbird: brandCtxBonbird || null,
       })
     };
   } catch (err) {
