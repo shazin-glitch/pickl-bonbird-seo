@@ -50,6 +50,19 @@
   to = "/.netlify/functions/reviews"
   status = 200
 
-# Weekly autonomous audit — Mondays 06:00 UTC = 10:00 Dubai time
+# ── Function timeouts ──────────────────────────────────────────
+# scheduler calls GSC + Claude in sequence — needs up to 3 mins
 [functions."scheduler"]
   schedule = "0 6 * * 1"
+  timeout = 180
+
+# approvals handles Claude rewrites on rejection — needs headroom
+[functions."approvals"]
+  timeout = 60
+
+# wordpress and reviews are pure API calls — 30s is fine but give margin
+[functions."wordpress"]
+  timeout = 30
+
+[functions."reviews"]
+  timeout = 60
