@@ -237,11 +237,11 @@ async function runContentGaps(brand, rows, dryRun, forceRun) {
   const cfg = BRANDS[brand];
   const alreadyQueued = await getQueuedKeywords(brand);
   const candidates = rows
-    .filter(r => r.position > 30 && r.impressions >= 80)
+    .filter(r => r.position > 8 && r.impressions >= 20)
     .filter(r => forceRun || !alreadyQueued.has(r.keyword.toLowerCase().trim()))
     .sort((a, b) => b.impressions - a.impressions)
     .slice(0, forceRun ? 5 : 3);
-  if (!candidates.length) return { queued: 0, candidates: 0, skipped: 'all candidates already queued' };
+  if (!candidates.length) return { queued: 0, candidates: 0, skipped: 'no content gap candidates found' };
 
   const prompt = `You are a UAE restaurant content strategist for ${cfg.name} (${cfg.site}). Tone: ${cfg.tone}.
 
