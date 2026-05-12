@@ -245,39 +245,39 @@ async function runContentGaps(brand, rows, dryRun, forceRun) {
     .slice(0, forceRun ? 5 : 3);
   if (!candidates.length) return { queued: 0, candidates: 0, skipped: 'no content gap candidates found' };
 
-  const prompt = `You are a UAE restaurant content strategist for ${cfg.name} (${cfg.site}). Tone: ${cfg.tone}.
+  const prompt = `You are a UAE restaurant SEO writer for ${cfg.name} (${cfg.site}). Tone: ${cfg.tone}.
 
-These search queries are appearing in GSC but ${cfg.name} ranks below position 30 — we have little to no content for these topics. Write a full blog post for the ONE keyword with highest commercial intent.
+Write a focused blog post for the keyword with the highest commercial intent from this list:
 
-KEYWORDS (by impression volume):
+KEYWORDS:
 ${candidates.map((r, i) => `${i+1}. "${r.keyword}" — ${r.impressions} impressions, pos ~${r.position}`).join('\n')}
 
-Requirements:
-- 900-1200 words
+Requirements (keep it tight — quality over length):
+- 400-600 words total
 - H1 leads with the target keyword
-- 5-6 H2 sections with specific, useful content
-- FAQ section (4 questions that match actual search intent)
-- Natural internal links to ${cfg.site} pages (use /menu, /locations, /order etc.)
-- Leave image spots as HTML comments: <!-- IMAGE: [specific description] -->
-- Dubai/UAE local context throughout (mention specific areas where relevant)
-- CTA at the end to visit, order, or find locations
+- 3 H2 sections with useful, specific content
+- 3 FAQ questions at the end
+- One internal link to ${cfg.site} (e.g. /menu or /locations)
+- One image placeholder: <!-- IMAGE: [description] -->
+- UAE/Dubai context throughout
+- CTA at the end
 
-Return ONLY a JSON object:
-{
-  "title": "Blog post title (H1)",
-  "metaDescription": "(150-160 chars)",
-  "targetKeyword": "...",
-  "slug": "url-slug-lowercase-hyphens",
-  "excerpt": "1-2 sentence excerpt for the post list",
-  "body": "<full HTML: h2, p, ul, ol, strong tags — no html/body/head — image placeholders as HTML comments>",
-  "rationale": "Why this keyword, why now"
-}`;
+CRITICAL: Return ONLY valid JSON, nothing else, no markdown fences:
+{"title":"...","metaDescription":"150-160 chars","targetKeyword":"...","slug":"lowercase-hyphens","excerpt":"1-2 sentences","body":"<h2>...</h2><p>...</p> etc","rationale":"one sentence why"}`;
 
   if (dryRun) return { queued: 0, candidates: candidates.length, preview: candidates.map(r => r.keyword) };
 
-  const { text } = await callClaude(prompt, { max_tokens: 2000 });
+  const { text } = await callClaude(prompt, { max_tokens: 3000 });
+
+  // Log what Claude returned for debugging
+  console.log('[content_gaps] Claude response length:', text && text.length);
+  console.log('[content_gaps] Claude response preview:', text && text.slice(0, 200));
+
   const parsed = extractJson(text);
-  if (!parsed || !parsed.title || !parsed.body) return { queued: 0, candidates: candidates.length, error: 'Claude did not return usable content' };
+  if (!parsed || !parsed.title || !parsed.body) {
+    console.error('[content_gaps] JSON parse failed. Raw:', text && text.slice(0, 500));
+    return { queued: 0, candidates: candidates.length, error: 'Claude response could not be parsed — check function logs' };
+  }
 
   await createApproval({
     type: 'blog_draft',
