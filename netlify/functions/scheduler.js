@@ -128,16 +128,16 @@ Return ONLY a JSON object, no prose:
 {
   "keyword": "${r.keyword}",
   "currentPosition": ${r.position},
-  "url": "the most likely existing page URL on ${cfg.site} this targets (e.g. /menu, /locations)",
-  "title": "SEO page title (55-60 chars, keyword first)",
+  "url": "most likely URL path e.g. /menu or /locations",
+  "title": "SEO title (55-60 chars)",
   "description": "Meta description (150-160 chars)",
   "targetKeyword": "${r.keyword}",
   "pageTitle": "H1 for the page",
-  "body": "<full HTML content with h2s, p, ul, faq section, image placeholders — no html/body/head tags>",
-  "changeRationale": "2 sentences: what changed and why it will improve ranking"
+  "body": "<HTML: 1 intro p, 3 h2 sections each with 2-3 p tags, 1 FAQ section with 3 questions, 1 CTA p — keep under 500 words total — image placeholders as HTML comments>",
+  "changeRationale": "1 sentence: why this will improve ranking"
 }`;
 
-    const { text } = await callClaude(prompt, { max_tokens: 3500 });
+    const { text } = await callClaude(prompt, { max_tokens: 1800 });
     const parsed = extractJson(text);
     if (!parsed || !parsed.body) continue;
 
@@ -272,7 +272,7 @@ Return ONLY a JSON object:
 
   if (dryRun) return { queued: 0, candidates: candidates.length, preview: candidates.map(r => r.keyword) };
 
-  const { text } = await callClaude(prompt, { max_tokens: 4500 });
+  const { text } = await callClaude(prompt, { max_tokens: 2000 });
   const parsed = extractJson(text);
   if (!parsed || !parsed.title || !parsed.body) return { queued: 0, candidates: candidates.length, error: 'Claude did not return usable content' };
 
@@ -353,7 +353,7 @@ Return ONLY a JSON object:
   "rationale": "Why a dedicated page for this keyword will outrank blog content"
 }`;
 
-    const { text } = await callClaude(prompt, { max_tokens: 3500 });
+    const { text } = await callClaude(prompt, { max_tokens: 1800 });
     const parsed = extractJson(text);
     if (!parsed || !parsed.body || !parsed.title) continue;
     if (dryRun) { queued++; continue; }
