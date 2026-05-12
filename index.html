@@ -555,8 +555,8 @@ const state = {
   keywords: [],   // tracked keywords from db
 };
 
-const PICKL_GSC   = 'sc-domain:eatpickl.com';
-const BONBIRD_GSC = 'sc-domain:bonbirdchicken.com';
+const PICKL_GSC   = 'https://eatpickl.com/';
+const BONBIRD_GSC = 'https://bonbirdchicken.com/';
 
 const BRAND_LABELS = { pickl: 'Pickl', bonbird: 'Bonbird' };
 const TYPE_LABELS  = {
@@ -596,6 +596,12 @@ const TYPE_TAGS = {
   // Check ?tab= param in URL (from notification deep-links)
   const urlTab = new URLSearchParams(window.location.search).get('tab');
   if (urlTab) { window.history.replaceState({}, '', '/'); switchView(urlTab); }
+
+  // Set dashboard metrics to ready state immediately — update when GSC loads
+  document.getElementById('metric-pickl-trend').innerHTML = '<span style="color:var(--text-muted)">Open Analytics tab to load</span>';
+  document.getElementById('metric-bonbird-trend').innerHTML = '<span style="color:var(--text-muted)">Open Analytics tab to load</span>';
+  document.getElementById('metric-pickl').innerHTML = '- <span class="metric-sub">keywords</span>';
+  document.getElementById('metric-bonbird').innerHTML = '- <span class="metric-sub">keywords</span>';
 
   // Load db data (keywords etc.)
   loadDbData();
@@ -675,18 +681,21 @@ async function loadGscIfNeeded() {
   if (gscLoaded || !state.gscConnected) return;
   gscLoaded = true;
   setGscTableLoading();
+  // Timeout after 15s so it never hangs forever
+  const timeout = new Promise((_, reject) => setTimeout(() => reject(new Error('GSC timed out — token may need refresh. Try reconnecting GSC in Settings.')), 15000));
   try {
-    const [pickl, bonbird] = await Promise.all([
-      fetchGscRows(PICKL_GSC),
-      fetchGscRows(BONBIRD_GSC),
-    ]);
+    const [pickl, bonbird] = await Promise.race([
+      Promise.all([fetchGscRows(PICKL_GSC), fetchGscRows(BONBIRD_GSC)]),
+      timeout.then(() => { throw new Error('timeout'); })
+    ]).catch(e => { throw e; });
     state.gscRows.pickl   = pickl.map(r => ({ ...r, brand: 'pickl' }));
     state.gscRows.bonbird = bonbird.map(r => ({ ...r, brand: 'bonbird' }));
     renderGscTable();
     updateDashboardMetrics();
   } catch (e) {
+    gscLoaded = false; // allow retry
     document.getElementById('gsc-tbody').innerHTML =
-      `<tr><td colspan="7" style="text-align:center;padding:32px;color:var(--danger)">${esc(e.message)}</td></tr>`;
+      `<tr><td colspan="7" style="text-align:center;padding:32px;color:var(--danger)">${esc(e.message)}<br><button class="btn btn-outline" style="margin-top:8px" onclick="gscLoaded=false;loadGscIfNeeded()">Retry</button></td></tr>`;
   }
 }
 
@@ -756,8 +765,8 @@ function updateDashboardMetrics() {
   const bonbird10 = state.gscRows.bonbird.filter(r => r.position <= 10).length;
   document.getElementById('metric-pickl').innerHTML   = `${pickl10} <span class="metric-sub">keywords</span>`;
   document.getElementById('metric-bonbird').innerHTML = `${bonbird10} <span class="metric-sub">keywords</span>`;
-  document.getElementById('metric-pickl-trend').innerHTML   = `<span class="trend-up">✓ Top-10 rankings tracked</span>`;
-  document.getElementById('metric-bonbird-trend').innerHTML = `<span class="trend-up">✓ Top-10 rankings tracked</span>`;
+  document.getElementById('metric-pickl-trend').innerHTML   = `<span class="trend-up">&#x2191; Top-10 tracked via GSC</span>`;
+  document.getElementById('metric-bonbird-trend').innerHTML = `<span class="trend-up">&#x2191; Top-10 tracked via GSC</span>`;
 }
 
 // ═══════════════════════════════════════════════════════════════
