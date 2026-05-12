@@ -177,19 +177,34 @@ module.exports = {
   ok, bad, preflight, parseBody, CORS,
 };
 
-// ── GSC direct fetch (used by scheduler to avoid server-to-server HTTP) ──
-// Reads the OAuth token from Blobs, refreshes if needed, queries GSC directly.
-// Returns an array of { keyword, clicks, impressions, ctr, position } rows.
+// ── GSC fetch — cache-first, live API fallback ───────────────────
+// Reads from Blobs cache (written by gsc-data.js when the Analytics tab loads).
+// Falls back to live GSC API only if cache is missing or older than 24 hours.
+// This keeps scheduler runs fast — no 25s API call on every trigger.
 async function fetchGscDirect(siteUrl) {
   const s = store();
+  const CACHE_TTL = 24 * 60 * 60 * 1000; // 24 hours
+
+  // Try cache first
+  try {
+    const cached = await s.get('gscCache:' + siteUrl, { type: 'json' });
+    if (cached && cached.rows && cached.cachedAt && (Date.now() - cached.cachedAt) < CACHE_TTL) {
+      console.log('GSC cache hit for', siteUrl, '—', cached.rows.length, 'rows, age', Math.round((Date.now()-cached.cachedAt)/60000), 'min');
+      return cached.rows;
+    }
+  } catch (_) {}
+
+  console.log('GSC cache miss for', siteUrl, '— fetching live');
+
+  // Cache miss — fetch live
   const gscTokens = await s.get('gscTokens', { type: 'json' }).catch(() => null);
   if (!gscTokens || !gscTokens.access_token) {
-    throw new Error('GSC not connected — connect GSC via the tool first');
+    throw new Error('GSC not connected — open the Analytics tab first to populate the cache');
   }
 
   let token = gscTokens.access_token;
 
-  // Refresh if expired or within 60s of expiry
+  // Refresh token if needed
   if (gscTokens.refresh_token && gscTokens.expires_at && Date.now() > gscTokens.expires_at - 60000) {
     const refreshRes = await fetch('https://oauth2.googleapis.com/token', {
       method: 'POST',
@@ -235,13 +250,17 @@ async function fetchGscDirect(siteUrl) {
   const gscData = await gscRes.json();
   if (gscData.error) throw new Error(gscData.error.message || 'GSC API error');
 
-  return (gscData.rows || []).map(row => ({
+  const rows = (gscData.rows || []).map(row => ({
     keyword:     row.keys[0],
     clicks:      row.clicks,
     impressions: row.impressions,
     ctr:         Math.round(row.ctr * 1000) / 10,
     position:    Math.round(row.position * 10) / 10,
   }));
+
+  // Write to cache for next scheduler run
+  await s.setJSON('gscCache:' + siteUrl, { rows, cachedAt: Date.now() }).catch(() => null);
+  return rows;
 }
 
 module.exports = Object.assign(module.exports, { fetchGscDirect });
