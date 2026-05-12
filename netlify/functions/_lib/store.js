@@ -176,3 +176,72 @@ module.exports = {
   callClaude, extractJson,
   ok, bad, preflight, parseBody, CORS,
 };
+
+// ── GSC direct fetch (used by scheduler to avoid server-to-server HTTP) ──
+// Reads the OAuth token from Blobs, refreshes if needed, queries GSC directly.
+// Returns an array of { keyword, clicks, impressions, ctr, position } rows.
+async function fetchGscDirect(siteUrl) {
+  const s = store();
+  const gscTokens = await s.get('gscTokens', { type: 'json' }).catch(() => null);
+  if (!gscTokens || !gscTokens.access_token) {
+    throw new Error('GSC not connected — connect GSC via the tool first');
+  }
+
+  let token = gscTokens.access_token;
+
+  // Refresh if expired or within 60s of expiry
+  if (gscTokens.refresh_token && gscTokens.expires_at && Date.now() > gscTokens.expires_at - 60000) {
+    const refreshRes = await fetch('https://oauth2.googleapis.com/token', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+      body: new URLSearchParams({
+        client_id: process.env.GOOGLE_CLIENT_ID,
+        client_secret: process.env.GOOGLE_CLIENT_SECRET,
+        refresh_token: gscTokens.refresh_token,
+        grant_type: 'refresh_token',
+      }),
+    });
+    const refreshData = await refreshRes.json();
+    if (refreshData.access_token) {
+      token = refreshData.access_token;
+      await s.setJSON('gscTokens', {
+        ...gscTokens,
+        access_token: token,
+        expires_at: Date.now() + (refreshData.expires_in || 3600) * 1000,
+      });
+    }
+  }
+
+  const endDate = new Date();
+  const startDate = new Date();
+  startDate.setDate(startDate.getDate() - 90);
+  const fmt = d => d.toISOString().split('T')[0];
+
+  const gscRes = await fetch(
+    `https://searchconsole.googleapis.com/webmasters/v3/sites/${encodeURIComponent(siteUrl)}/searchAnalytics/query`,
+    {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
+      body: JSON.stringify({
+        startDate: fmt(startDate),
+        endDate: fmt(endDate),
+        dimensions: ['query'],
+        rowLimit: 500,
+        dataState: 'final',
+      }),
+    }
+  );
+
+  const gscData = await gscRes.json();
+  if (gscData.error) throw new Error(gscData.error.message || 'GSC API error');
+
+  return (gscData.rows || []).map(row => ({
+    keyword:     row.keys[0],
+    clicks:      row.clicks,
+    impressions: row.impressions,
+    ctr:         Math.round(row.ctr * 1000) / 10,
+    position:    Math.round(row.position * 10) / 10,
+  }));
+}
+
+module.exports = Object.assign(module.exports, { fetchGscDirect });
