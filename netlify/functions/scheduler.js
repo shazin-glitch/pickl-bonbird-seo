@@ -40,6 +40,7 @@ exports.handler = async (event) => {
 
   const body = event.httpMethod === 'POST' ? (parseBody(event) || {}) : {};
   const dryRun      = !!body.dryRun;
+  const forceRun    = !!body.forceRun; // skip dedup — use to force new drafts
   const brandsToRun = body.brand ? [body.brand].filter(b => BRANDS[b]) : Object.keys(BRANDS);
   const jobs        = Array.isArray(body.jobs) && body.jobs.length
     ? body.jobs
@@ -59,10 +60,10 @@ exports.handler = async (event) => {
       // Manual "Run Audit Now" picks the first job in the list.
       const jobToRun = jobs[0];
       const runJob = async (name) => {
-        if (name === 'quick_wins')    return runQuickWins(brand, gscRows, dryRun);
-        if (name === 'meta_rewrites') return runMetaRewrites(brand, gscRows, dryRun);
-        if (name === 'content_gaps')  return runContentGaps(brand, gscRows, dryRun);
-        if (name === 'page_creation') return runPageCreation(brand, gscRows, dryRun);
+        if (name === 'quick_wins')    return runQuickWins(brand, gscRows, dryRun, forceRun);
+        if (name === 'meta_rewrites') return runMetaRewrites(brand, gscRows, dryRun, forceRun);
+        if (name === 'content_gaps')  return runContentGaps(brand, gscRows, dryRun, forceRun);
+        if (name === 'page_creation') return runPageCreation(brand, gscRows, dryRun, forceRun);
         return { queued: 0, error: 'unknown job: ' + name };
       };
       const r = await runJob(jobToRun);
@@ -96,14 +97,14 @@ async function fetchGscRows(siteUrl) {
 // content (full HTML) for the existing page, not just a suggestion.
 // Queued as page_update → pushes via wordpress.js update_content.
 // ════════════════════════════════════════════════════════════════
-async function runQuickWins(brand, rows, dryRun) {
+async function runQuickWins(brand, rows, dryRun, forceRun) {
   const cfg = BRANDS[brand];
   const alreadyQueued = await getQueuedKeywords(brand);
   const candidates = rows
     .filter(r => r.position >= 11 && r.position <= 20 && r.impressions >= 50)
-    .filter(r => !alreadyQueued.has(r.keyword.toLowerCase().trim()))
+    .filter(r => forceRun || !alreadyQueued.has(r.keyword.toLowerCase().trim()))
     .sort((a, b) => b.impressions - a.impressions)
-    .slice(0, 1); // 1 per run to stay within function timeout
+    .slice(0, forceRun ? 3 : 1); // 1 per run to stay within function timeout
   if (!candidates.length) return { queued: 0, candidates: 0, skipped: 'all candidates already queued' };
 
   if (dryRun) return { queued: 0, candidates: candidates.length, preview: candidates.map(r => r.keyword) };
@@ -170,7 +171,7 @@ Return ONLY a JSON object, no prose:
 // High impressions, low CTR. Rewrites title + description only.
 // Queued as meta_update → pushes via wordpress.js update_meta.
 // ════════════════════════════════════════════════════════════════
-async function runMetaRewrites(brand, rows, dryRun) {
+async function runMetaRewrites(brand, rows, dryRun, forceRun) {
   const cfg = BRANDS[brand];
   const expected = pos => Math.max(0.5, 30 / pos);
   const alreadyQueued = await getQueuedKeywords(brand);
@@ -178,9 +179,9 @@ async function runMetaRewrites(brand, rows, dryRun) {
     .filter(r => r.position <= 20 && r.impressions >= 100)
     .map(r => ({ ...r, ctrGap: expected(r.position) - r.ctr }))
     .filter(r => r.ctrGap > 1.5)
-    .filter(r => !alreadyQueued.has(r.keyword.toLowerCase().trim()))
+    .filter(r => forceRun || !alreadyQueued.has(r.keyword.toLowerCase().trim()))
     .sort((a, b) => b.ctrGap - a.ctrGap)
-    .slice(0, 4);
+    .slice(0, forceRun ? 6 : 4);
   if (!candidates.length) return { queued: 0, candidates: 0, skipped: 'all candidates already queued' };
 
   const prompt = `You are a UAE restaurant SEO copywriter for ${cfg.name} (${cfg.site}). Tone: ${cfg.tone}.
@@ -232,14 +233,14 @@ Return ONLY a JSON array:
 // Keywords ranking 30+ where no page exists. Writes full blog post.
 // Queued as blog_draft → pushes via wordpress.js create_draft.
 // ════════════════════════════════════════════════════════════════
-async function runContentGaps(brand, rows, dryRun) {
+async function runContentGaps(brand, rows, dryRun, forceRun) {
   const cfg = BRANDS[brand];
   const alreadyQueued = await getQueuedKeywords(brand);
   const candidates = rows
     .filter(r => r.position > 30 && r.impressions >= 80)
-    .filter(r => !alreadyQueued.has(r.keyword.toLowerCase().trim()))
+    .filter(r => forceRun || !alreadyQueued.has(r.keyword.toLowerCase().trim()))
     .sort((a, b) => b.impressions - a.impressions)
-    .slice(0, 3);
+    .slice(0, forceRun ? 5 : 3);
   if (!candidates.length) return { queued: 0, candidates: 0, skipped: 'all candidates already queued' };
 
   const prompt = `You are a UAE restaurant content strategist for ${cfg.name} (${cfg.site}). Tone: ${cfg.tone}.
@@ -303,7 +304,7 @@ Return ONLY a JSON object:
 // blog post. Claude builds the full page. Queued as page_creation
 // → pushes via wordpress.js create_page.
 // ════════════════════════════════════════════════════════════════
-async function runPageCreation(brand, rows, dryRun) {
+async function runPageCreation(brand, rows, dryRun, forceRun) {
   const cfg = BRANDS[brand];
 
   // Filter for location/service intent keywords — these deserve pages not posts
@@ -315,10 +316,10 @@ async function runPageCreation(brand, rows, dryRun) {
       return r.position > 15
         && r.impressions >= 60
         && locationSignals.some(s => kw.includes(s))
-        && !alreadyQueued.has(kw.trim());
+        && (forceRun || !alreadyQueued.has(kw.trim()));
     })
     .sort((a, b) => b.impressions - a.impressions)
-    .slice(0, 2);
+    .slice(0, forceRun ? 3 : 2);
 
   if (!candidates.length) return { queued: 0, candidates: 0, skipped: 'no location-intent candidates or all already queued' };
   if (dryRun) return { queued: 0, candidates: candidates.length, preview: candidates.map(r => r.keyword) };
