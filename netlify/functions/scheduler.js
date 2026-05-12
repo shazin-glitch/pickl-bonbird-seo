@@ -11,10 +11,22 @@
 // or Approve & Publish (goes live immediately).
 
 const {
-  createApproval, callClaude, extractJson,
-  getSetting, setSetting,
+  createApproval, listApprovals, callClaude, extractJson,
+  getSetting, setSetting, fetchGscDirect,
   ok, bad, preflight, parseBody,
 } = require('./_lib/store');
+
+// Keywords already queued this week — don't re-queue the same ones
+async function getQueuedKeywords(brand) {
+  const pending = await listApprovals({ brand, limit: 200 });
+  const keywords = new Set();
+  for (const item of pending) {
+    if (!item.payload) continue;
+    const kw = item.payload.targetKeyword || item.payload.keyword;
+    if (kw) keywords.add(kw.toLowerCase().trim());
+  }
+  return keywords;
+}
 
 const SITE_URL = process.env.URL || 'https://yolkseo.netlify.app';
 
@@ -73,16 +85,14 @@ exports.handler = async (event) => {
   return ok(summary);
 };
 
-// ── GSC fetch ────────────────────────────────────────────────────
+// ── GSC fetch — direct API call, no internal HTTP hop ───────────
 async function fetchGscRows(siteUrl) {
-  const base = SITE_URL.replace(/\/$/, '');
-  const res = await fetch(`${base}/.netlify/functions/gsc-data`, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ site_url: siteUrl }),
-  });
-  const data = await res.json().catch(() => ({}));
-  return res.ok ? (data.rows || []) : [];
+  try {
+    return await fetchGscDirect(siteUrl);
+  } catch (e) {
+    console.error('GSC fetch failed for', siteUrl, ':', e.message);
+    return [];
+  }
 }
 
 // ════════════════════════════════════════════════════════════════
@@ -93,11 +103,13 @@ async function fetchGscRows(siteUrl) {
 // ════════════════════════════════════════════════════════════════
 async function runQuickWins(brand, rows, dryRun) {
   const cfg = BRANDS[brand];
+  const alreadyQueued = await getQueuedKeywords(brand);
   const candidates = rows
     .filter(r => r.position >= 11 && r.position <= 20 && r.impressions >= 50)
+    .filter(r => !alreadyQueued.has(r.keyword.toLowerCase().trim()))
     .sort((a, b) => b.impressions - a.impressions)
-    .slice(0, 3); // limit to 3 to control Claude cost
-  if (!candidates.length) return { queued: 0, candidates: 0 };
+    .slice(0, 3);
+  if (!candidates.length) return { queued: 0, candidates: 0, skipped: 'all candidates already queued' };
 
   let queued = 0;
   for (const r of candidates) {
@@ -164,13 +176,15 @@ Return ONLY a JSON object, no prose:
 async function runMetaRewrites(brand, rows, dryRun) {
   const cfg = BRANDS[brand];
   const expected = pos => Math.max(0.5, 30 / pos);
+  const alreadyQueued = await getQueuedKeywords(brand);
   const candidates = rows
     .filter(r => r.position <= 20 && r.impressions >= 100)
     .map(r => ({ ...r, ctrGap: expected(r.position) - r.ctr }))
     .filter(r => r.ctrGap > 1.5)
+    .filter(r => !alreadyQueued.has(r.keyword.toLowerCase().trim()))
     .sort((a, b) => b.ctrGap - a.ctrGap)
     .slice(0, 4);
-  if (!candidates.length) return { queued: 0, candidates: 0 };
+  if (!candidates.length) return { queued: 0, candidates: 0, skipped: 'all candidates already queued' };
 
   const prompt = `You are a UAE restaurant SEO copywriter for ${cfg.name} (${cfg.site}). Tone: ${cfg.tone}.
 
@@ -222,11 +236,13 @@ Return ONLY a JSON array:
 // ════════════════════════════════════════════════════════════════
 async function runContentGaps(brand, rows, dryRun) {
   const cfg = BRANDS[brand];
+  const alreadyQueued = await getQueuedKeywords(brand);
   const candidates = rows
     .filter(r => r.position > 30 && r.impressions >= 80)
+    .filter(r => !alreadyQueued.has(r.keyword.toLowerCase().trim()))
     .sort((a, b) => b.impressions - a.impressions)
     .slice(0, 3);
-  if (!candidates.length) return { queued: 0, candidates: 0 };
+  if (!candidates.length) return { queued: 0, candidates: 0, skipped: 'all candidates already queued' };
 
   const prompt = `You are a UAE restaurant content strategist for ${cfg.name} (${cfg.site}). Tone: ${cfg.tone}.
 
@@ -293,17 +309,19 @@ async function runPageCreation(brand, rows, dryRun) {
 
   // Filter for location/service intent keywords — these deserve pages not posts
   const locationSignals = ['dubai', 'abu dhabi', 'sharjah', 'uae', 'delivery', 'near me', 'marina', 'jlt', 'downtown', 'deira', 'jbr', 'mall', 'city walk', 'difc'];
+  const alreadyQueued = await getQueuedKeywords(brand);
   const candidates = rows
     .filter(r => {
       const kw = r.keyword.toLowerCase();
       return r.position > 15
         && r.impressions >= 60
-        && locationSignals.some(s => kw.includes(s));
+        && locationSignals.some(s => kw.includes(s))
+        && !alreadyQueued.has(kw.trim());
     })
     .sort((a, b) => b.impressions - a.impressions)
-    .slice(0, 2); // max 2 new pages per audit run
+    .slice(0, 2);
 
-  if (!candidates.length) return { queued: 0, candidates: 0 };
+  if (!candidates.length) return { queued: 0, candidates: 0, skipped: 'no location-intent candidates or all already queued' };
 
   let queued = 0;
   for (const r of candidates) {
