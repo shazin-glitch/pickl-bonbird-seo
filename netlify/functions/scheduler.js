@@ -14,7 +14,7 @@ const SITE_URL = process.env.URL || 'https://yolkseo.netlify.app';
 
 const BRANDS = {
   pickl:   { gsc: 'https://eatpickl.com/' },
-  bonbird: { gsc: 'https://bonbirdchicken.com/' },
+  bonbird: { gsc: 'sc-domain:bonbirdchicken.com' },
 };
 
 exports.handler = async (event) => {

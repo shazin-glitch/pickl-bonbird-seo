@@ -33,7 +33,7 @@ const SITE_URL = process.env.URL || 'https://yolkseo.netlify.app';
 
 const BRANDS = {
   pickl:   { name: 'Pickl',   site: 'eatpickl.com',       domain: 'https://eatpickl.com',       gsc: 'https://eatpickl.com/',       cuisine: 'smash burgers',        tone: 'bold, casual-premium, Dubai-cool' },
-  bonbird: { name: 'Bonbird', site: 'bonbirdchicken.com', domain: 'https://bonbirdchicken.com', gsc: 'https://bonbirdchicken.com/', cuisine: 'halal fried chicken',  tone: 'warm, family-friendly, UAE-local' },
+  bonbird: { name: 'Bonbird', site: 'bonbirdchicken.com', domain: 'https://bonbirdchicken.com', gsc: 'sc-domain:bonbirdchicken.com', cuisine: 'halal fried chicken',  tone: 'warm, family-friendly, UAE-local' },
 };
 
 exports.handler = async (event) => {
