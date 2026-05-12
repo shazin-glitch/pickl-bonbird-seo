@@ -88,6 +88,11 @@ exports.handler = async (event) => {
       position: Math.round(row.position * 10) / 10
     }));
 
+    // Cache in Blobs so scheduler can read without re-fetching
+    try {
+      await store.setJSON('gscCache:' + site_url, { rows, cachedAt: Date.now() });
+    } catch (_) {}
+
     return {
       statusCode: 200,
       headers: { 'Content-Type': 'application/json', 'Access-Control-Allow-Origin': '*' },
