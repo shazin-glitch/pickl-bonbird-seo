@@ -53,26 +53,21 @@ exports.handler = async (event) => {
       const gscRows = await fetchGscRows(BRANDS[brand].gsc);
       summary.brands[brand].gscRows = gscRows.length;
 
-      if (jobs.includes('quick_wins')) {
-        const r = await runQuickWins(brand, gscRows, dryRun);
-        summary.brands[brand].jobs.quick_wins = r;
-        summary.queued += r.queued || 0;
-      }
-      if (jobs.includes('meta_rewrites')) {
-        const r = await runMetaRewrites(brand, gscRows, dryRun);
-        summary.brands[brand].jobs.meta_rewrites = r;
-        summary.queued += r.queued || 0;
-      }
-      if (jobs.includes('content_gaps')) {
-        const r = await runContentGaps(brand, gscRows, dryRun);
-        summary.brands[brand].jobs.content_gaps = r;
-        summary.queued += r.queued || 0;
-      }
-      if (jobs.includes('page_creation')) {
-        const r = await runPageCreation(brand, gscRows, dryRun);
-        summary.brands[brand].jobs.page_creation = r;
-        summary.queued += r.queued || 0;
-      }
+        // Run ONE job per brand per trigger — prevents chaining multiple
+      // Claude calls in a single function invocation (timeout risk).
+      // The weekly cron runs all jobs by cycling through them automatically.
+      // Manual "Run Audit Now" picks the first job in the list.
+      const jobToRun = jobs[0];
+      const runJob = async (name) => {
+        if (name === 'quick_wins')    return runQuickWins(brand, gscRows, dryRun);
+        if (name === 'meta_rewrites') return runMetaRewrites(brand, gscRows, dryRun);
+        if (name === 'content_gaps')  return runContentGaps(brand, gscRows, dryRun);
+        if (name === 'page_creation') return runPageCreation(brand, gscRows, dryRun);
+        return { queued: 0, error: 'unknown job: ' + name };
+      };
+      const r = await runJob(jobToRun);
+      summary.brands[brand].jobs[jobToRun] = r;
+      summary.queued += r.queued || 0;
     } catch (e) {
       summary.errors.push({ brand, error: e.message });
       console.error(`scheduler error for ${brand}:`, e);
@@ -205,10 +200,11 @@ Return ONLY a JSON array:
   "rationale": "One sentence: what made the old one underperform and why this version will get more clicks"
 }]`;
 
+  if (dryRun) return { queued: 0, candidates: candidates.length, preview: candidates.map(r => r.keyword) };
+
   const { text } = await callClaude(prompt, { max_tokens: 2000 });
   const parsed = extractJson(text);
   if (!Array.isArray(parsed)) return { queued: 0, candidates: candidates.length, error: 'Claude did not return JSON array' };
-  if (dryRun) return { queued: 0, candidates: candidates.length, preview: parsed };
 
   let queued = 0;
   for (const p of parsed) {
@@ -274,10 +270,11 @@ Return ONLY a JSON object:
   "rationale": "Why this keyword, why now"
 }`;
 
+  if (dryRun) return { queued: 0, candidates: candidates.length, preview: candidates.map(r => r.keyword) };
+
   const { text } = await callClaude(prompt, { max_tokens: 4500 });
   const parsed = extractJson(text);
   if (!parsed || !parsed.title || !parsed.body) return { queued: 0, candidates: candidates.length, error: 'Claude did not return usable content' };
-  if (dryRun) return { queued: 0, candidates: candidates.length, preview: { title: parsed.title, keyword: parsed.targetKeyword } };
 
   await createApproval({
     type: 'blog_draft',
