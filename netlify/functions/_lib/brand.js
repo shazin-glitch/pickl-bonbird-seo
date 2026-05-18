@@ -147,29 +147,122 @@ const PICKL_DEFAULT = {
 const BONBIRD_DEFAULT = {
   brand: 'bonbird',
   name: 'Bonbird',
-  tagline: 'Halal fried chicken, done right',
+  brandStatement: 'All bird. No bull.',
+  tagline: 'All bird. No bull.',
   website: 'https://bonbirdchicken.com',
   country: 'UAE',
   halal: true,
-  character: 'Warm, family-friendly, UAE-local. Halal fried chicken with soul.',
+
+  // Brand character (from Brand Guidelines 2025): FEARLESS · EDGY · HONEST · LIGHT
+  character: 'Fearless, edgy, honest and light. A Dubai-born community chicken shop — unapologetic about what it is: seriously good fried chicken made fresh to order, never frozen.',
+
+  // Tone of voice (from Brand Guidelines 2025 pp.8–10 — hard rules for Claude)
   tone: [
-    'Warm and welcoming — family-first energy',
-    'Approachable — speaks to UAE locals and expats equally',
-    'Proud of halal — it\'s a feature, not a disclaimer',
-    'Authentic — honest about what it is: great fried chicken',
+    'DIRECT (not rude) — straightforward, clear, unambiguous, to-the-point. Never evasive or sugar-coated.',
+    'BOLD (not flamboyant) — daring, assertive, confident. Never timid, cautious or restrained.',
+    'DYNAMIC (not chaotic) — energetic, spontaneous, lively. Never routine or predictable.',
+    'CONFIDENT (not cocky) — self-assured, decisive, poised. Never hesitant or wavering.',
+    'UNAPOLOGETIC (not aggressive) — unreserved, fearless, candid. Never apologetic or reserved.',
+    'Call customers and team "Champs" — NEVER use "Legends" (that is Pickl\'s word)',
+    'Key brand statements: "Eat Like A Champ", "All bird. No bull.", "Serving Golden Chicken Daily", "Always Fresh (never frozen)"',
+    'Plain speak — not sales copy. Short, sharp, impactful. No exclamation marks in blog posts or meta descriptions.',
+    'Never use: delicious, tasty, mouth-watering, scrumptious, yummy, finger-licking',
+    'Never call the brand or food legendary — customers decide that',
+    'No clichés: fresh ingredients, passion for food, crafted with love',
+    'No hollow superlatives: best ever, greatest, #1, unbeatable (unless backed by data)',
   ],
-  positioning: 'Bonbird is a UAE halal fried chicken restaurant. Crispy, juicy, seasoned properly — no compromise on quality.',
+
+  positioning: 'Bonbird is a Dubai-born, community-focused fried chicken brand. 100% fresh, hormone-free, antibiotic-free chicken — made to order, never frozen. Like our sibling brand Pickl, proudly part of the Yolk Brands UAE family. A community chicken shop where everyone — Champ or not — can grab a bite and share a bucket.',
+
   differentiators: [
-    'Halal fried chicken — proudly and explicitly',
-    'UAE homegrown brand',
-    'Family-friendly positioning',
+    'Dubai-born homegrown brand — not a franchise or import',
+    '100% fresh, hormone free, antibiotic free chicken — always made to order, never frozen',
+    'Spice system: choose a spice level (Plain Jane / Medium / Hot / XXX) OR a flavour (Garlic Parm / Jamaican Tang / Jalapeño / Lemon Pepper / Chicken Salt)',
+    'Full menu: Bone-In pieces, Tenders, Sandwiches, Wraps (Bon Wrap + Snack-A-Wrap), Rice Bowls',
+    'Signature sides: Chicken Salt Fries, Mac & Three Cheese, Mash Potato, Bon Gravy, Slaw, Dill & Chilli Pickles',
+    'Community-first brand — every customer is a Champ',
   ],
-  menu: { note: 'Menu details to be added via Settings tab' },
-  brandLanguage: [],
-  locations: { note: 'Check bonbirdchicken.com/locations for current UAE locations', areas: [] },
+
+  // Full confirmed menu (from 2025 menu artwork)
+  menu: {
+    spiceSystem: 'Spice levels: Plain Jane / Medium / Hot / XXX — OR — Flavours: Garlic Parm / Jamaican Tang / Jalapeño / Lemon Pepper / Chicken Salt (pick one, not both)',
+    boneIn: [
+      'Bone-In Combo Meals: 2pc AED30 / 3pc AED40 / 5pc AED60 / 8pc AED100 / 12pc AED150 (with side + drink)',
+      'Just Bone-In Pieces: 2pc AED19 / 3pc AED25 / 5pc AED39 / 8pc AED59',
+    ],
+    tenders: [
+      'Tenders Combo Meals: 2pc AED30 / 3pc AED40 / 5pc AED60 / 8pc AED100 / 12pc AED150 (with side + drink)',
+      'Just Tenders: 2pc AED19 / 3pc AED25 / 5pc AED39 / 8pc AED59',
+    ],
+    sandwiches: [
+      'Classic Chicken Burger — fresh fried chicken, lettuce and herb mayo (AED29)',
+      'The Good Good Chicken Burger — fresh fried chicken, lettuce and good good sauce (AED28)',
+      'The Korean Chicken Burger — fresh fried chicken, cabbage, gochujang sauce and ranch (AED30)',
+      'The Chicken Melt — fresh fried chicken, triple cheese, cabbage and good good sauce (AED28)',
+    ],
+    wraps: [
+      'Classic Wrap — chicken tenders, cheese, lettuce, tomato and herb mayo (Bon Wrap AED23 / Snack-A-Wrap AED12)',
+      'Good Good Wrap — chicken tenders, cheese, lettuce, tomato and good good sauce (Bon Wrap AED23 / Snack-A-Wrap AED12)',
+      'Buffalo Wrap — chicken tenders, cheese, lettuce, tomato and buffalo sauce (Bon Wrap AED27 / Snack-A-Wrap AED14)',
+      'Korean Wrap — chicken tenders, cabbage, cheese, tomato, gochujang sauce and ranch (Bon Wrap AED27 / Snack-A-Wrap AED14)',
+    ],
+    riceBowls: [
+      'Classic Chicken Rice Bowl — fresh fried chicken, turmeric rice, lettuce, tomato, herb mayo (AED27)',
+      'Korean Chicken Rice Bowl — fresh fried chicken, turmeric rice, cabbage, tomato, gochujang sauce, ranch (AED29)',
+    ],
+    sides: [
+      'Plain Fries AED14 | Chicken Salt Fries AED16 | Spicy Fries AED16',
+      'Mac & Three Cheese AED10/16 | Mash Potato AED10/16 | Bon Gravy AED8/12',
+      'Rice AED8/12 | Slaw AED8/12 | Tub of Dill Pickles AED8/12 | Tub of Chilli Pickles AED8/12',
+      'Bread AED2 | Bag of Chicken Salt AED5',
+    ],
+    sauces: [
+      'Regular Sauce AED4 | Large Sauce AED12 (125ml) | Mega Sauce AED20 (250ml)',
+    ],
+    shakes: [
+      'Vanilla Shake AED22 | Chocolate Shake AED22 | Strawberry Shake AED22',
+      'Ice Cream: Single Scoop AED10 | Double Scoop AED15 (Vanilla / Chocolate / Strawberry)',
+    ],
+    drinks: ['Soft Drinks AED11 | Water AED6'],
+  },
+
+  // Signature brand language — use naturally in copy
+  brandLanguage: [
+    '"Champs" = customers and team members (NEVER "Legends")',
+    '"All bird. No bull." = master brand statement',
+    '"Eat Like A Champ" = key consumer statement',
+    '"Serving Golden Chicken Daily" = product statement',
+    '"Always Fresh (never frozen)" = food credibility',
+    '"Good Good Sauce" = proprietary sauce — always capitalise',
+    '"Bon Gravy" = proprietary gravy — always capitalise',
+    '"Chicken Salt" = signature seasoning — always capitalise',
+    '"Bon Wrap" = full-size wrap — always capitalise',
+    '"Snack-A-Wrap" = smaller wrap — always capitalise',
+    '"Made fresh. To order." = key food credibility line',
+    '"Homegrown. Handmade." = origin story',
+    '"Antibiotic free" / "Hormone free" = use small and confident, like a label',
+  ],
+
+  // UAE locations (all confirmed)
+  locations: {
+    areas: [
+      'Motor City, Dubai',
+      'City Walk, Dubai',
+      'City Centre Mirdif, Dubai',
+      'Aljada, Sharjah',
+      'Khalifa City, Abu Dhabi',
+    ],
+    international: 'Also in Oman, Pakistan and Qatar',
+  },
+
   doNot: [
-    'Never use generic fried chicken descriptions',
-    'Never downplay the halal aspect',
+    'Never use: delicious, tasty, mouth-watering, scrumptious, yummy, finger-licking',
+    'Never call the brand or food "legendary" — customers decide that',
+    'Never use "Legends" for customers — that is Pickl\'s word. Bonbird uses "Champs"',
+    'No exclamation marks in blog posts, meta descriptions or long-form copy',
+    'Never sound generic, flamboyant, chaotic, apologetic or aggressive',
+    'No boardroom speak or marketing buzzwords',
+    'Do not describe chicken as "southern fried" or "boneless" — not Bonbird\'s language',
   ],
 };
 
@@ -188,6 +281,28 @@ async function setBrandContext(brand, context) {
 
 // Build the system prompt block that gets injected into every Claude call
 function buildBrandPrompt(ctx) {
+  // Build menu summary — handles both Pickl and Bonbird structures
+  let menuLines = '';
+  if (ctx.menu) {
+    if (ctx.menu.cheeseburgers) {
+      // Pickl structure
+      menuLines = `Cheeseburgers: ${ctx.menu.cheeseburgers ? ctx.menu.cheeseburgers.slice(0, 4).join(' | ') : 'See menu'}
+Chicken: ${ctx.menu.chickenSandos ? ctx.menu.chickenSandos.slice(0, 3).join(' | ') : 'See menu'}
+Sides: ${ctx.menu.friesAndSides ? ctx.menu.friesAndSides.slice(0, 3).join(' | ') : 'See menu'}`;
+    } else if (ctx.menu.sandwiches) {
+      // Bonbird structure
+      menuLines = `Spice System: ${ctx.menu.spiceSystem || ''}
+Bone-In: ${(ctx.menu.boneIn || []).slice(0, 2).join(' | ')}
+Tenders: ${(ctx.menu.tenders || []).slice(0, 1).join(' | ')}
+Sandwiches: ${(ctx.menu.sandwiches || []).slice(0, 4).join(' | ')}
+Wraps: ${(ctx.menu.wraps || []).slice(0, 2).join(' | ')}
+Rice Bowls: ${(ctx.menu.riceBowls || []).join(' | ')}
+Sides: ${(ctx.menu.sides || []).slice(0, 2).join(' | ')}`;
+    } else {
+      menuLines = 'See menu on website';
+    }
+  }
+
   return `=== BRAND CONTEXT: ${ctx.name.toUpperCase()} ===
 You are writing SEO content for ${ctx.name} (${ctx.website}), a ${ctx.country} restaurant brand.
 
@@ -204,12 +319,11 @@ ${ctx.brandLanguage.map(l => `- ${l}`).join('\n')}
 
 HALAL: ${ctx.halal ? 'Yes — all food is halal. Mention naturally where relevant.' : 'Not specified'}
 
-KEY MENU ITEMS (reference these specifically — no generic burger descriptions):
-Cheeseburgers: ${ctx.menu.cheeseburgers ? ctx.menu.cheeseburgers.slice(0, 4).join(' | ') : 'See menu'}
-Chicken: ${ctx.menu.chickenSandos ? ctx.menu.chickenSandos.slice(0, 3).join(' | ') : 'See menu'}
-Sides: ${ctx.menu.friesAndSides ? ctx.menu.friesAndSides.slice(0, 3).join(' | ') : 'See menu'}
+KEY MENU ITEMS (reference these specifically — no generic descriptions):
+${menuLines}
 
-LOCATIONS (UAE): ${ctx.locations && ctx.locations.areas ? ctx.locations.areas.slice(0, 6).join(', ') + ' and more' : 'Multiple UAE locations'}
+LOCATIONS (UAE): ${ctx.locations && ctx.locations.areas ? ctx.locations.areas.join(', ') : 'Multiple UAE locations'}
+${ctx.locations && ctx.locations.international ? `INTERNATIONAL: ${ctx.locations.international}` : ''}
 
 ABSOLUTE DO NOTS:
 ${ctx.doNot.map(d => `- ${d}`).join('\n')}
