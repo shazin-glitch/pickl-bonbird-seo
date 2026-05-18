@@ -63,7 +63,7 @@ const BRAND_CONFIG = {
   },
 };
 
-// ─── DataForSEO fetch ─────────────────────────────────────────────────────────
+// ─── DataForSEO fetch — one keyword per request (plan limitation) ─────────────
 async function fetchSerpRankings(brand, keywords) {
   const config   = BRAND_CONFIG[brand];
   const login    = process.env.DATAFORSEO_LOGIN;
@@ -72,77 +72,77 @@ async function fetchSerpRankings(brand, keywords) {
 
   const authHeader = "Basic " + Buffer.from(`${login}:${password}`).toString("base64");
 
-  const tasks = keywords.map((kw) => ({
-    keyword:       kw,
-    location_code: config.location_code,
-    language_code: config.language_code,
-    device:        "desktop",
-    os:            "windows",
-    depth:         30,
-  }));
-
-  const postRes = await fetch(
-    "https://api.dataforseo.com/v3/serp/google/organic/live/advanced",
-    {
-      method:  "POST",
-      headers: { Authorization: authHeader, "Content-Type": "application/json" },
-      body:    JSON.stringify(tasks),
-    }
-  );
-
-  if (!postRes.ok) {
-    throw new Error(`DataForSEO API error ${postRes.status}: ${await postRes.text()}`);
-  }
-
-  const data = await postRes.json();
-  if (data.status_code !== 20000) {
-    throw new Error(`DataForSEO status ${data.status_code}: ${data.status_message}`);
-  }
-
   const rows = [];
 
-  for (const task of data.tasks || []) {
-    if (task.status_code !== 20000) {
-      console.warn(`[competitor-matrix-background] Task skipped — keyword: "${task.data?.keyword}" status: ${task.status_code} message: ${task.status_message}`);
-      continue;
-    }
-
-    const keyword   = task.data?.keyword || "";
-    const items     = task.result?.[0]?.items || [];
-    const ourDomain = new URL(config.siteUrl).hostname.replace(/^www\./, "");
-
-    let ourRank = null;
-    for (const item of items) {
-      if (item.type !== "organic") continue;
-      const itemDomain = (item.domain || "").replace(/^www\./, "");
-      if (itemDomain === ourDomain || itemDomain.includes(ourDomain)) {
-        ourRank = item.rank_absolute;
-        break;
+  for (const kw of keywords) {
+    const postRes = await fetch(
+      "https://api.dataforseo.com/v3/serp/google/organic/live/advanced",
+      {
+        method:  "POST",
+        headers: { Authorization: authHeader, "Content-Type": "application/json" },
+        body: JSON.stringify([{
+          keyword:       kw,
+          location_code: config.location_code,
+          language_code: config.language_code,
+          device:        "desktop",
+          os:            "windows",
+          depth:         30,
+        }]),
       }
+    );
+
+    if (!postRes.ok) {
+      throw new Error(`DataForSEO API error ${postRes.status}: ${await postRes.text()}`);
     }
 
-    const competitorRanks = {};
-    for (const comp of config.competitors) {
-      const compDomain = comp.domain.replace(/^www\./, "");
-      competitorRanks[comp.name] = null;
+    const data = await postRes.json();
+    if (data.status_code !== 20000) {
+      throw new Error(`DataForSEO status ${data.status_code}: ${data.status_message}`);
+    }
+
+    for (const task of data.tasks || []) {
+      if (task.status_code !== 20000) {
+        console.warn(`[competitor-matrix-background] Task skipped — keyword: "${task.data?.keyword}" status: ${task.status_code} message: ${task.status_message}`);
+        continue;
+      }
+
+      const keyword = task.data?.keyword || "";
+      const items   = task.result?.[0]?.items || [];
+      const ourDomain = new URL(config.siteUrl).hostname.replace(/^www\./, "");
+
+      let ourRank = null;
       for (const item of items) {
         if (item.type !== "organic") continue;
         const itemDomain = (item.domain || "").replace(/^www\./, "");
-        if (itemDomain === compDomain || itemDomain.includes(compDomain)) {
-          competitorRanks[comp.name] = item.rank_absolute;
+        if (itemDomain === ourDomain || itemDomain.includes(ourDomain)) {
+          ourRank = item.rank_absolute;
           break;
         }
       }
-    }
 
-    rows.push({
-      keyword,
-      brand,
-      ourRank,
-      ourDomain,
-      competitorRanks,
-      fetchedAt: new Date().toISOString(),
-    });
+      const competitorRanks = {};
+      for (const comp of config.competitors) {
+        const compDomain = comp.domain.replace(/^www\./, "");
+        competitorRanks[comp.name] = null;
+        for (const item of items) {
+          if (item.type !== "organic") continue;
+          const itemDomain = (item.domain || "").replace(/^www\./, "");
+          if (itemDomain === compDomain || itemDomain.includes(compDomain)) {
+            competitorRanks[comp.name] = item.rank_absolute;
+            break;
+          }
+        }
+      }
+
+      rows.push({
+        keyword,
+        brand,
+        ourRank,
+        ourDomain,
+        competitorRanks,
+        fetchedAt: new Date().toISOString(),
+      });
+    }
   }
 
   return rows;
