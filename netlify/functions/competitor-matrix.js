@@ -10,18 +10,19 @@
 
 const { getStore } = require("@netlify/blobs");
 
-const CACHE_TTL_MS = 7 * 24 * 60 * 60 * 1000; // 7 days
+const CACHE_TTL_MS    = 7 * 24 * 60 * 60 * 1000; // 7 days
 const CACHE_KEY_PREFIX = "competitorMatrix:";
+const BATCH_SIZE       = 5; // keywords per DataForSEO request — keeps each call well under 10s
 
 // ─── Brand config — strictly separated, never mixed ───────────────────────────
 const BRAND_CONFIG = {
   pickl: {
     siteUrl: "https://eatpickl.com/",
     competitors: [
-      { name: "Salt",        domain: "saltuae.com"   },
-      { name: "High Joint",  domain: "highjoint.co"  },
+      { name: "Salt",        domain: "saltuae.com"    },
+      { name: "High Joint",  domain: "highjoint.co"   },
       { name: "Shake Shack", domain: "shakeshack.com" },
-      { name: "Five Guys",   domain: "fiveguys.ae"   },
+      { name: "Five Guys",   domain: "fiveguys.ae"    },
     ],
     targetKeywords: [
       "smash burger dubai",
@@ -42,10 +43,10 @@ const BRAND_CONFIG = {
   bonbird: {
     siteUrl: "https://bonbirdchicken.com/",
     competitors: [
-      { name: "Salt",        domain: "saltuae.com"   },
-      { name: "High Joint",  domain: "highjoint.co"  },
+      { name: "Salt",        domain: "saltuae.com"    },
+      { name: "High Joint",  domain: "highjoint.co"   },
       { name: "Shake Shack", domain: "shakeshack.com" },
-      { name: "Five Guys",   domain: "fiveguys.ae"   },
+      { name: "Five Guys",   domain: "fiveguys.ae"    },
     ],
     // Keywords reflect actual Bonbird menu: bone-in, tenders, sandwiches, wraps, rice bowls
     // International markets: Oman, Pakistan, Qatar (NOT Jordan/Egypt/Saudi — those are Pickl)
@@ -67,6 +68,8 @@ const BRAND_CONFIG = {
 };
 
 // ─── DataForSEO SERP fetch ────────────────────────────────────────────────────
+// Sends keywords in batches of BATCH_SIZE to avoid Netlify's ~10s function timeout.
+// Each batch is awaited sequentially; results are accumulated into a single rows array.
 async function fetchSerpRankings(brand, keywords) {
   const config = BRAND_CONFIG[brand];
   if (!config) throw new Error(`Unknown brand: ${brand}`);
@@ -76,78 +79,86 @@ async function fetchSerpRankings(brand, keywords) {
   if (!login || !password) throw new Error("DataForSEO credentials missing from env vars");
 
   const authHeader = "Basic " + Buffer.from(`${login}:${password}`).toString("base64");
+  const ourDomain  = new URL(config.siteUrl).hostname.replace(/^www\./, "");
 
-  const tasks = keywords.map((kw) => ({
-    keyword:       kw,
-    location_code: config.location_code,
-    language_code: config.language_code,
-    device:        "desktop",
-    os:            "windows",
-    depth:         30, // fetch top 30 results to find all competitors
-  }));
-
-  const postRes = await fetch(
-    "https://api.dataforseo.com/v3/serp/google/organic/live/advanced",
-    {
-      method:  "POST",
-      headers: { Authorization: authHeader, "Content-Type": "application/json" },
-      body:    JSON.stringify(tasks),
-    }
-  );
-
-  if (!postRes.ok) {
-    const errText = await postRes.text();
-    throw new Error(`DataForSEO API error ${postRes.status}: ${errText}`);
-  }
-
-  const data = await postRes.json();
-  if (data.status_code !== 20000) {
-    throw new Error(`DataForSEO status ${data.status_code}: ${data.status_message}`);
+  // Split keywords into chunks of BATCH_SIZE
+  const chunks = [];
+  for (let i = 0; i < keywords.length; i += BATCH_SIZE) {
+    chunks.push(keywords.slice(i, i + BATCH_SIZE));
   }
 
   const rows = [];
 
-  for (const task of data.tasks || []) {
-    if (task.status_code !== 20000) continue;
+  for (const chunk of chunks) {
+    const tasks = chunk.map((kw) => ({
+      keyword:       kw,
+      location_code: config.location_code,
+      language_code: config.language_code,
+      device:        "desktop",
+      os:            "windows",
+      depth:         30, // fetch top 30 results to find all competitors
+    }));
 
-    const keyword   = task.data?.keyword || "";
-    const items     = task.result?.[0]?.items || [];
-    const ourDomain = new URL(config.siteUrl).hostname.replace(/^www\./, "");
-
-    // Find our rank
-    let ourRank = null;
-    for (const item of items) {
-      if (item.type !== "organic") continue;
-      const itemDomain = (item.domain || "").replace(/^www\./, "");
-      if (itemDomain === ourDomain || itemDomain.includes(ourDomain)) {
-        ourRank = item.rank_absolute;
-        break;
+    const postRes = await fetch(
+      "https://api.dataforseo.com/v3/serp/google/organic/live/advanced",
+      {
+        method:  "POST",
+        headers: { Authorization: authHeader, "Content-Type": "application/json" },
+        body:    JSON.stringify(tasks),
       }
+    );
+
+    if (!postRes.ok) {
+      const errText = await postRes.text();
+      throw new Error(`DataForSEO API error ${postRes.status}: ${errText}`);
     }
 
-    // Find each competitor's rank
-    const competitorRanks = {};
-    for (const comp of config.competitors) {
-      const compDomain = comp.domain.replace(/^www\./, "");
-      competitorRanks[comp.name] = null;
+    const data = await postRes.json();
+    if (data.status_code !== 20000) {
+      throw new Error(`DataForSEO status ${data.status_code}: ${data.status_message}`);
+    }
+
+    for (const task of data.tasks || []) {
+      if (task.status_code !== 20000) continue;
+
+      const keyword = task.data?.keyword || "";
+      const items   = task.result?.[0]?.items || [];
+
+      // Find our rank
+      let ourRank = null;
       for (const item of items) {
         if (item.type !== "organic") continue;
         const itemDomain = (item.domain || "").replace(/^www\./, "");
-        if (itemDomain === compDomain || itemDomain.includes(compDomain)) {
-          competitorRanks[comp.name] = item.rank_absolute;
+        if (itemDomain === ourDomain || itemDomain.includes(ourDomain)) {
+          ourRank = item.rank_absolute;
           break;
         }
       }
-    }
 
-    rows.push({
-      keyword,
-      brand,
-      ourRank,
-      ourDomain,
-      competitorRanks,
-      fetchedAt: new Date().toISOString(),
-    });
+      // Find each competitor's rank
+      const competitorRanks = {};
+      for (const comp of config.competitors) {
+        const compDomain = comp.domain.replace(/^www\./, "");
+        competitorRanks[comp.name] = null;
+        for (const item of items) {
+          if (item.type !== "organic") continue;
+          const itemDomain = (item.domain || "").replace(/^www\./, "");
+          if (itemDomain === compDomain || itemDomain.includes(compDomain)) {
+            competitorRanks[comp.name] = item.rank_absolute;
+            break;
+          }
+        }
+      }
+
+      rows.push({
+        keyword,
+        brand,
+        ourRank,
+        ourDomain,
+        competitorRanks,
+        fetchedAt: new Date().toISOString(),
+      });
+    }
   }
 
   return rows;
@@ -195,8 +206,8 @@ exports.handler = async (event) => {
           Date.now() - new Date(cached.fetchedAt).getTime() > CACHE_TTL_MS;
 
         if (isStale || forceRefresh) {
-          const config = BRAND_CONFIG[brand];
-          const rows   = await fetchSerpRankings(brand, config.targetKeywords);
+          const config  = BRAND_CONFIG[brand];
+          const rows    = await fetchSerpRankings(brand, config.targetKeywords);
           const payload = { brand, rows, fetchedAt: new Date().toISOString() };
           await store.set(cacheKey, JSON.stringify(payload));
           result[brand] = payload;
