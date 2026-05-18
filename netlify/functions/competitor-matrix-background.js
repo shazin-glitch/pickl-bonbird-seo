@@ -23,16 +23,29 @@ const BRAND_CONFIG = {
       { name: "Five Guys",   domain: "fiveguys.ae"    },
     ],
     targetKeywords: [
-      "smash burger dubai",
-      "best burgers near me dubai",
-      "halal fried chicken uae",
-      "burger delivery dubai marina",
-      "chicken sandwich dubai",
-      "best chicken sandwich uae",
-      "smash burger abu dhabi",
-      "burgers jbr dubai",
-      "burger restaurant city walk dubai",
-      "best fast food dubai",
+      // Product
+      "hot dog", "french fries", "cheese burger", "hot dog sandwich", "chicken tender",
+      "chicken sando", "chocolate shake", "hot dog dubai", "spicy fries", "strawberry shake",
+      "chocolate milk shake", "plant based burger", "beef hot dog", "double cheese burger",
+      "messy fries", "fries dubai", "spicy french fries", "parmesan fries", "vanilla shake",
+      "crispy chicken tender", "cheese slice burger", "buffalo chicken sando",
+      "american cheese burger", "hot dog in dubai", "caramel shake", "crispy chicken sando",
+      "plant based burger dubai", "bbq cheese burger", "cheese melt burger",
+      "messy fries near me", "ice cream sando", "bacon cheese burger", "melt burger dubai",
+      // Long tail
+      "smash burger dubai", "smash burger abu dhabi", "best burger in dubai",
+      "best burger in abu dhabi", "best burger in sharjah", "best burger abu dhabi",
+      "best burger in uae", "best burger in the world", "best burgers near me dubai",
+      "best fries in dubai", "best chicken burger in dubai", "best fast food dubai",
+      "burger restaurant near me", "burger places near me", "burger shop near me",
+      "burger delivery dubai marina", "burger restaurant city walk dubai", "burgers jbr dubai",
+      "loaded fries near me", "hot dog near me", "best hot dog in dubai",
+      "chicken sandwich dubai", "plant based burger restaurants near me",
+      // Franchise
+      "franchise business", "franchise in uae", "franchise dubai", "franchise in dubai",
+      "franchise business in dubai", "franchise opportunities dubai", "franchise business in uae",
+      "restaurant franchise", "restaurant franchise opportunities", "restaurant franchise in dubai",
+      "how to franchise a restaurant", "fast food franchise in dubai", "fast food franchise",
     ],
     location_code: 21191,
     language_code: "en",
@@ -47,16 +60,31 @@ const BRAND_CONFIG = {
       { name: "Five Guys",   domain: "fiveguys.ae"    },
     ],
     targetKeywords: [
-      "fried chicken dubai",
-      "best fried chicken uae",
-      "crispy fried chicken dubai",
-      "chicken tenders dubai",
-      "bone in fried chicken dubai",
-      "chicken sandwich dubai",
-      "fried chicken delivery dubai",
-      "halal fried chicken restaurant dubai",
-      "korean chicken burger dubai",
+      // Product
+      "crispy chicken", "broasted chicken", "fried chicken", "chicken strips", "chicken tenders",
+      "chicken fingers", "chicken tender", "tender chicken", "strips chicken", "chicken strip",
+      "chicken finger", "chicken wrap", "chicken tortilla wrap", "crispy chicken wrap",
+      "buffalo chicken wrap", "tortilla wraps", "rice bowl", "chicken rice bowl",
+      "chicken burger", "cheese burger", "crispy chicken burger", "breaded chicken burger",
+      "fried chicken burger", "crunchy chicken burger", "crispy chicken menu",
+      "crispy chicken dubai menu",
+      // Long tail
+      "best chicken abu dhabi", "best fried chicken in dubai", "best burger in dubai",
+      "burger near me", "best burger in abu dhabi", "best burger dubai",
+      "burger restaurant near me", "burger places near me", "best burger in sharjah",
+      "burger shop near me", "best burger near me", "burger restaurant dubai",
+      "best chicken burger dubai", "crispy chicken abu dhabi", "crispy chicken near me",
+      "broasted chicken near me", "fried chicken near me", "crispy chicken dubai",
+      "crispy chicken mussafah", "best chicken near me", "fried chicken dubai",
+      "crispy chicken uae", "broasted chicken sharjah", "fried chicken abu dhabi",
+      "best burger restaurants in dubai", "fried chicken delivery dubai",
+      "halal fried chicken restaurant dubai", "korean chicken burger dubai",
       "chicken rice bowl dubai",
+      // Franchise
+      "franchise business", "franchise in uae", "franchise dubai", "franchise in dubai",
+      "franchise business in dubai", "franchise opportunities dubai", "franchise business in uae",
+      "restaurant franchise", "restaurant franchise in dubai", "fast food franchise in dubai",
+      "fast food franchise", "fried chicken franchise",
     ],
     location_code: 21191,
     language_code: "en",
@@ -106,8 +134,8 @@ async function fetchSerpRankings(brand, keywords) {
         continue;
       }
 
-      const keyword = task.data?.keyword || "";
-      const items   = task.result?.[0]?.items || [];
+      const keyword   = task.data?.keyword || "";
+      const items     = task.result?.[0]?.items || [];
       const ourDomain = new URL(config.siteUrl).hostname.replace(/^www\./, "");
 
       let ourRank = null;
