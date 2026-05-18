@@ -9,7 +9,9 @@
   "use strict";
 
   // ── Config ──────────────────────────────────────────────────────────────
-  const FUNCTION_URL = "/.netlify/functions/competitor-matrix";
+  const FUNCTION_URL        = "/.netlify/functions/competitor-matrix";
+  const BACKGROUND_URL      = "/.netlify/functions/competitor-matrix-background";
+  const REFRESH_POLL_DELAY  = 35000; // ms to wait before polling for fresh cache
 
   // Brand colours matching your existing palette
   const BRAND_COLORS = {
@@ -494,20 +496,33 @@
     if (isLoading) return;
     isLoading = true;
 
-    // Show loading state
-    container.innerHTML = `
-      <div class="cm-loading">
-        <div class="cm-loading-spinner"></div>
-        <div>${forceRefresh ? "Fetching live rankings from DataForSEO…" : "Loading competitor matrix…"}</div>
-        <div style="margin-top:6px;font-size:0.72rem;color:#475569">This may take 10–30 seconds for a full refresh</div>
-      </div>`;
+    if (forceRefresh) {
+      // Fire the background function (returns 202 immediately — runs async on Netlify)
+      container.innerHTML = `
+        <div class="cm-loading">
+          <div class="cm-loading-spinner"></div>
+          <div>Refresh triggered — fetching live rankings from DataForSEO…</div>
+          <div style="margin-top:6px;font-size:0.72rem;color:#475569">This runs in the background and takes ~30 seconds. Checking for results…</div>
+        </div>`;
+
+      try {
+        await fetch(BACKGROUND_URL, { method: "GET" });
+      } catch {
+        // 202 or network hiccup — either way the background job is running
+      }
+
+      // Poll for fresh cache after the background function has had time to finish
+      await new Promise((resolve) => setTimeout(resolve, REFRESH_POLL_DELAY));
+    } else {
+      container.innerHTML = `
+        <div class="cm-loading">
+          <div class="cm-loading-spinner"></div>
+          <div>Loading competitor matrix…</div>
+        </div>`;
+    }
 
     try {
-      const url = forceRefresh
-        ? `${FUNCTION_URL}?brand=all&refresh=true`
-        : `${FUNCTION_URL}?brand=all`;
-
-      const res = await fetch(url);
+      const res = await fetch(`${FUNCTION_URL}?brand=all`);
       if (!res.ok) {
         const err = await res.json().catch(() => ({ error: res.statusText }));
         throw new Error(err.error || `HTTP ${res.status}`);
