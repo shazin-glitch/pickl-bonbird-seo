@@ -102,7 +102,10 @@ async function fetchSerpRankings(brand, keywords) {
   const rows = [];
 
   for (const task of data.tasks || []) {
-    if (task.status_code !== 20000) continue;
+    if (task.status_code !== 20000) {
+      console.warn(`[competitor-matrix-background] Task skipped — keyword: "${task.data?.keyword}" status: ${task.status_code} message: ${task.status_message}`);
+      continue;
+    }
 
     const keyword   = task.data?.keyword || "";
     const items     = task.result?.[0]?.items || [];
