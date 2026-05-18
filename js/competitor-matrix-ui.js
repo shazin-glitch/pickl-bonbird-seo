@@ -11,7 +11,7 @@
   // ── Config ──────────────────────────────────────────────────────────────
   const FUNCTION_URL        = "/.netlify/functions/competitor-matrix";
   const BACKGROUND_URL      = "/.netlify/functions/competitor-matrix-background";
-  const REFRESH_POLL_DELAY  = 35000; // ms to wait before polling for fresh cache
+  const REFRESH_POLL_DELAY  = 90000; // ms to wait before polling — ~40s pickl + ~40s bonbird
 
   // Brand colours matching your existing palette
   const BRAND_COLORS = {
@@ -51,7 +51,7 @@
       .cm-title {
         font-size: 1.1rem;
         font-weight: 700;
-        color: var(--text-primary, #f1f5f9);
+        color: var(--text-primary, #1e293b);
         display: flex;
         align-items: center;
         gap: 8px;
@@ -77,7 +77,7 @@
         border-radius: 6px;
         border: 1px solid rgba(255,255,255,0.12);
         background: rgba(255,255,255,0.05);
-        color: var(--text-secondary, #94a3b8);
+        color: var(--text-secondary, #475569);
         font-size: 0.8rem;
         cursor: pointer;
         transition: all 0.15s;
@@ -93,7 +93,7 @@
         border-radius: 6px;
         border: 1px solid rgba(255,255,255,0.12);
         background: rgba(255,255,255,0.05);
-        color: var(--text-secondary, #94a3b8);
+        color: var(--text-secondary, #475569);
         font-size: 0.8rem;
         cursor: pointer;
         display: flex;
@@ -137,7 +137,7 @@
       .cm-table td {
         padding: 10px 14px;
         border-bottom: 1px solid rgba(255,255,255,0.04);
-        color: var(--text-primary, #e2e8f0);
+        color: var(--text-primary, #1e293b);
         vertical-align: middle;
       }
       .cm-table tr:last-child td { border-bottom: none; }
@@ -174,7 +174,7 @@
       }
       .cm-rank-comp {
         background: rgba(255,255,255,0.05);
-        color: var(--text-secondary, #94a3b8);
+        color: var(--text-secondary, #475569);
         border: 1px solid rgba(255,255,255,0.08);
       }
       .cm-rank-none {
@@ -277,7 +277,7 @@
       .cm-summary-card-value {
         font-size: 1.5rem;
         font-weight: 700;
-        color: var(--text-primary, #f1f5f9);
+        color: var(--text-primary, #1e293b);
       }
       .cm-summary-card-sub {
         font-size: 0.72rem;
