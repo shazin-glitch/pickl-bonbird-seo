@@ -427,6 +427,7 @@
                 <option value="pickl">Pickl</option>
                 <option value="bonbird">Bonbird</option>
               </select>
+              <button class="btn btn-outline" onclick="resetBrandCtx()">Reset to Defaults</button>
               <button class="btn btn-primary" onclick="saveBrandCtx()">Save</button>
             </div>
           </div>
@@ -644,17 +645,46 @@ function setGscConnected(yes) {
   const btn = document.getElementById('gsc-connect-btn');
   if (yes) {
     el.className = 'gsc-status connected';
+    el.onclick = handleGscDisconnect;
     txt.textContent = 'GSC: Connected';
-    if (btn) { btn.textContent = '✓ GSC Connected'; btn.disabled = true; }
+    if (btn) {
+      btn.textContent = 'Reconnect GSC';
+      btn.disabled = false;
+      btn.onclick = handleGscReconnect;
+    }
   } else {
     el.className = 'gsc-status disconnected';
+    el.onclick = handleGscConnect;
     txt.textContent = 'GSC: Click to Connect';
+    if (btn) {
+      btn.textContent = 'Connect GSC Account';
+      btn.disabled = false;
+      btn.onclick = handleGscConnect;
+    }
   }
 }
 
 function handleGscConnect() {
-  if (state.gscConnected) return;
   window.location.href = '/api/auth/login';
+}
+
+async function handleGscReconnect() {
+  // Force re-auth regardless of current state
+  window.location.href = '/api/auth/login';
+}
+
+async function handleGscDisconnect() {
+  if (!confirm('Disconnect GSC? You will need to reconnect to load keyword data.')) return;
+  try {
+    const existing = await apiGet('/api/db/get').catch(() => ({}));
+    await apiPost('/api/db/save', { ...existing, gscTokens: null });
+    setGscConnected(false);
+    state.gscRows = { pickl: [], bonbird: [] };
+    gscLoaded = false;
+    showToast('GSC disconnected', '');
+  } catch (e) {
+    showToast('Disconnect failed: ' + e.message, 'error');
+  }
 }
 
 // ═══════════════════════════════════════════════════════════════
@@ -1242,14 +1272,29 @@ const BRAND_CTX_DEFAULTS = {
     locations: "JBR, City Walk, JLT, Motor City, Mirdif, Al Safa, Khalifa City Abu Dhabi, Mamsha Abu Dhabi, World Trade Centre Abu Dhabi, Al Ain, Al Hirah Beach Sharjah, Al Jada Sharjah, Mina Al Arab RAK"
   },
   bonbird: {
-    positioning: "Bonbird is a UAE halal fried chicken restaurant. Crispy, juicy, seasoned properly — no compromise on quality. Family-friendly, proudly halal.",
-    differentiators: "Halal fried chicken — proudly and explicitly\nUAE homegrown brand\nFamily-friendly positioning",
-    tone: "Warm and welcoming — family-first energy\nApproachable — speaks to UAE locals and expats equally\nProud of halal — it's a feature, not a disclaimer",
-    language: "Halal is a feature, mention it naturally\nFamily-friendly language",
-    donot: "Never downplay the halal aspect\nNever use generic fried chicken descriptions",
-    locations: "Multiple UAE locations — check bonbirdchicken.com/locations"
+    positioning: "Bonbird is a Dubai-born, community-focused fried chicken brand. 100% fresh, hormone-free, antibiotic-free chicken — made to order, never frozen. Like our sibling brand Pickl, proudly part of the Yolk Brands UAE family. A community chicken shop where everyone can grab a bite and share a bucket.",
+    differentiators: "Dubai-born homegrown brand — not a franchise or import\n100% fresh, hormone free, antibiotic free chicken — always made to order, never frozen\nSpice system: choose a spice level (Plain Jane / Medium / Hot / XXX) OR a flavour (Garlic Parm / Jamaican Tang / Jalapeño / Lemon Pepper / Chicken Salt)\nFull menu: Bone-In pieces, Tenders, Sandwiches, Wraps (Bon Wrap + Snack-A-Wrap), Rice Bowls\nSignature sides: Chicken Salt Fries, Mac & Three Cheese, Mash Potato, Bon Gravy, Slaw, Dill & Chilli Pickles\nCommunity-first brand — every customer is a Champ",
+    tone: "DIRECT (not rude) — straightforward, clear, unambiguous, to-the-point. Never evasive or sugar-coated.\nBOLD (not flamboyant) — daring, assertive, confident. Never timid, cautious or restrained.\nDYNAMIC (not chaotic) — energetic, spontaneous, lively. Never routine or predictable.\nCONFIDENT (not cocky) — self-assured, decisive, poised. Never hesitant or wavering.\nUNAPOLOGETIC (not aggressive) — unreserved, fearless, candid. Never apologetic or reserved.\nCall customers and team 'Champs' — NEVER use 'Legends' (that is Pickl's word)\nNo exclamation marks in blog posts or meta descriptions\nPlain speak — not sales copy. Short, sharp, impactful.",
+    language: "'Champs' = customers and team members (NEVER 'Legends')\n'All bird. No bull.' = master brand statement\n'Eat Like A Champ' = key consumer statement\n'Serving Golden Chicken Daily' = product statement\n'Always Fresh (never frozen)' = food credibility\n'Good Good Sauce' = proprietary sauce — always capitalise\n'Bon Gravy' = proprietary gravy — always capitalise\n'Chicken Salt' = signature seasoning — always capitalise\n'Bon Wrap' = full-size wrap — always capitalise\n'Snack-A-Wrap' = smaller wrap — always capitalise\n'Made fresh. To order.' = key food credibility line\n'Homegrown. Handmade.' = origin story",
+    donot: "Never use: delicious, tasty, mouth-watering, scrumptious, yummy, finger-licking\nNever call the brand or food 'legendary' — customers decide that\nNever use 'Legends' for customers — that is Pickl's word. Bonbird uses 'Champs'\nNo exclamation marks in blog posts, meta descriptions or long-form copy\nNever sound generic, flamboyant, chaotic, apologetic or aggressive\nNo boardroom speak or marketing buzzwords\nDo not describe chicken as 'southern fried' or 'boneless' — not Bonbird's language",
+    locations: "Motor City Dubai, City Walk Dubai, City Centre Mirdif Dubai, Aljada Sharjah, Khalifa City Abu Dhabi"
   }
 };
+
+// Helper to populate brand context fields from a defaults object
+function populateBrandCtxFields(d) {
+  document.getElementById('bctx-positioning').value = d.positioning || '';
+  document.getElementById('bctx-differentiators').value = d.differentiators || '';
+  document.getElementById('bctx-tone').value = d.tone || '';
+  document.getElementById('bctx-language').value = d.language || d.brandLanguage || '';
+  document.getElementById('bctx-donot').value = d.donot || d.doNot || '';
+  // Locations — handle both string and object with areas array
+  if (d.locations && typeof d.locations === 'object' && d.locations.areas) {
+    document.getElementById('bctx-locations').value = d.locations.areas.join(', ');
+  } else {
+    document.getElementById('bctx-locations').value = d.locations || '';
+  }
+}
 
 async function loadBrandCtx() {
   const brand = document.getElementById('brand-ctx-selector').value;
@@ -1258,23 +1303,44 @@ async function loadBrandCtx() {
   try {
     const data = await apiGet('/api/db/get');
     const stored = data[`brandContext_${brand}`];
-    const ctx = stored || BRAND_CTX_DEFAULTS[brand] || {};
-    document.getElementById('bctx-positioning').value = ctx.positioning || '';
-    document.getElementById('bctx-differentiators').value = (ctx.differentiators || []).join ? ctx.differentiators.join('\n') : ctx.differentiators || '';
-    document.getElementById('bctx-tone').value = (ctx.tone || []).join ? ctx.tone.join('\n') : ctx.tone || '';
-    document.getElementById('bctx-language').value = (ctx.brandLanguage || []).join ? ctx.brandLanguage.join('\n') : ctx.brandLanguage || '';
-    document.getElementById('bctx-donot').value = (ctx.doNot || []).join ? ctx.doNot.join('\n') : ctx.doNot || '';
-    document.getElementById('bctx-locations').value = ctx.locations && ctx.locations.areas ? ctx.locations.areas.join(', ') : ctx.locations || '';
-    status.textContent = stored ? `Loaded saved context for ${brand}` : `Loaded defaults for ${brand}`;
+    if (stored) {
+      // Map stored object fields — handle both old and new field names
+      const d = {
+        positioning: stored.positioning || '',
+        differentiators: Array.isArray(stored.differentiators) ? stored.differentiators.join('\n') : stored.differentiators || '',
+        tone: Array.isArray(stored.tone) ? stored.tone.join('\n') : stored.tone || '',
+        language: Array.isArray(stored.brandLanguage) ? stored.brandLanguage.join('\n') : stored.brandLanguage || stored.language || '',
+        donot: Array.isArray(stored.doNot) ? stored.doNot.join('\n') : stored.doNot || stored.donot || '',
+        locations: stored.locations,
+      };
+      populateBrandCtxFields(d);
+      status.textContent = `Loaded saved context for ${brand}`;
+    } else {
+      populateBrandCtxFields(BRAND_CTX_DEFAULTS[brand] || {});
+      status.textContent = `Loaded defaults for ${brand}`;
+    }
   } catch (e) {
-    const d = BRAND_CTX_DEFAULTS[brand] || {};
-    document.getElementById('bctx-positioning').value = d.positioning || '';
-    document.getElementById('bctx-differentiators').value = d.differentiators || '';
-    document.getElementById('bctx-tone').value = d.tone || '';
-    document.getElementById('bctx-language').value = d.language || '';
-    document.getElementById('bctx-donot').value = d.donot || '';
-    document.getElementById('bctx-locations').value = d.locations || '';
+    populateBrandCtxFields(BRAND_CTX_DEFAULTS[brand] || {});
     status.textContent = 'Using defaults (could not load saved)';
+  }
+}
+
+async function resetBrandCtx() {
+  const brand = document.getElementById('brand-ctx-selector').value;
+  const status = document.getElementById('brand-ctx-status');
+  if (!confirm(`Reset ${brand} brand context to built-in defaults? This will overwrite any saved changes.`)) return;
+  // Clear from Blobs and repopulate with defaults
+  status.textContent = 'Resetting…';
+  try {
+    const existing = await apiGet('/api/db/get').catch(() => ({}));
+    await apiPost('/api/db/save', { ...existing, [`brandContext_${brand}`]: null });
+    populateBrandCtxFields(BRAND_CTX_DEFAULTS[brand] || {});
+    status.textContent = `✓ Reset to defaults for ${brand} — click Save to persist`;
+    status.style.color = 'var(--success)';
+    setTimeout(() => { status.style.color = ''; }, 4000);
+  } catch (e) {
+    status.textContent = 'Reset failed: ' + e.message;
+    status.style.color = 'var(--danger)';
   }
 }
 
