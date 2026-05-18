@@ -48,6 +48,10 @@
   to = "/.netlify/functions/reviews"
   status = 200
 
-# Weekly cron — declared on the background function so it gets 15 min timeout
+# Weekly cron — Monday 4:00am UTC = Monday 8:00am Dubai time (UTC+4)
+# Runs before your 9am Monday review so all data is fresh
 [functions."scheduler-background"]
-  schedule = "0 6 * * 1"
+  schedule = "0 4 * * 1"
+
+[functions."competitor-matrix-background"]
+  schedule = "0 4 * * 1"

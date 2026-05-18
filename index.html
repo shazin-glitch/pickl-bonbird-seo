@@ -317,68 +317,9 @@
         </div>
       </div>
 
-      <!-- COMPETITOR MATRIX TABLE (Phase 2 — static) -->
+      <!-- COMPETITOR MATRIX TABLE (Phase 2 — live via DataForSEO) -->
       <div id="panel-comp" style="display:none">
-        <div class="phase2-banner">
-          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>
-          Phase 2 — DataForSEO API integration coming next week. Data below is static for preview.
-        </div>
-        <div class="table-wrap">
-          <table class="data-table">
-            <thead>
-              <tr>
-                <th>Target Keyword</th>
-                <th>Search Volume</th>
-                <th>Pickl Rank</th>
-                <th>Salt Rank</th>
-                <th>High Joint Rank</th>
-                <th>Movement</th>
-              </tr>
-            </thead>
-            <tbody>
-              <tr>
-                <td style="font-weight:500">smash burger dubai</td>
-                <td>12,000</td>
-                <td><span class="rank-badge rank-good">#2</span></td>
-                <td><span class="rank-badge rank-good">#1</span></td>
-                <td><span class="rank-badge rank-mid">#6</span></td>
-                <td class="trend-up" style="font-size:12px;font-weight:600">▲ Overtook High Joint</td>
-              </tr>
-              <tr>
-                <td style="font-weight:500">best burgers near me</td>
-                <td>8,500</td>
-                <td><span class="rank-badge rank-mid">#5</span></td>
-                <td><span class="rank-badge rank-good">#2</span></td>
-                <td><span class="rank-badge rank-good">#3</span></td>
-                <td style="color:var(--text-muted);font-size:12px">→ Unchanged</td>
-              </tr>
-              <tr>
-                <td style="font-weight:500">halal fried chicken uae</td>
-                <td>6,200</td>
-                <td><span style="color:var(--text-muted);font-size:12px">—</span></td>
-                <td><span style="color:var(--text-muted);font-size:12px">—</span></td>
-                <td><span class="rank-badge rank-mid">#4</span></td>
-                <td style="color:var(--text-muted);font-size:12px">→ Unchanged</td>
-              </tr>
-              <tr>
-                <td style="font-weight:500">burger delivery dubai marina</td>
-                <td>3,800</td>
-                <td><span class="rank-badge rank-good">#1</span></td>
-                <td><span class="rank-badge rank-mid">#7</span></td>
-                <td><span style="color:var(--text-muted);font-size:12px">—</span></td>
-                <td class="trend-up" style="font-size:12px;font-weight:600">▲ New #1</td>
-              </tr>
-              <tr>
-                <td style="font-weight:500">al baik alternative dubai</td>
-                <td>2,900</td>
-                <td><span style="color:var(--text-muted);font-size:12px">—</span></td>
-                <td><span style="color:var(--text-muted);font-size:12px">—</span></td>
-                <td><span class="rank-badge rank-bad">#18</span></td>
-                <td class="trend-down" style="font-size:12px;font-weight:600">▼ Dropped 3</td>
-              </tr>
-            </tbody>
-          </table>
-        </div>
+        <div id="competitor-matrix-live"></div>
       </div>
     </div>
 
@@ -810,6 +751,13 @@ function switchAnalyticsView(pill) {
   if (state.activeAnalyticsView === 'gsc') {
     if (state.gscConnected) {
       if (!gscLoaded) { loadGscIfNeeded(); } else { renderGscTable(); }
+    }
+  }
+
+  if (state.activeAnalyticsView === 'comp') {
+    // Trigger competitor matrix load if the UI script is loaded
+    if (window.competitorMatrix && typeof window.competitorMatrix.init === 'function') {
+      window.competitorMatrix.init();
     }
   }
 }
@@ -1438,5 +1386,6 @@ document.addEventListener('keydown', e => {
   }
 });
 </script>
+<script src="/js/competitor-matrix-ui.js"></script>
 </body>
 </html>
