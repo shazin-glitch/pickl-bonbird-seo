@@ -132,12 +132,14 @@ async function fetchSerpRankings(brand, keywords) {
     clearTimeout(timeout);
 
     if (!postRes.ok) {
-      throw new Error(`DataForSEO API error ${postRes.status}: ${await postRes.text()}`);
+      console.warn(`[competitor-matrix-background] HTTP ${postRes.status} on keyword "${kw}" — skipping`);
+      continue;
     }
 
     const data = await postRes.json();
     if (data.status_code !== 20000) {
-      throw new Error(`DataForSEO status ${data.status_code}: ${data.status_message}`);
+      console.warn(`[competitor-matrix-background] API status ${data.status_code} on keyword "${kw}": ${data.status_message} — skipping`);
+      continue;
     }
 
     for (const task of data.tasks || []) {
@@ -248,11 +250,11 @@ exports.handler = async () => {
   const results = {};
   const errors  = {};
 
-  for (const brand of ["pickl", "bonbird"]) {
+  // Process both brands in parallel — halves total runtime from ~18min to ~9min
+  async function processBrand(brand) {
     try {
       console.log(`[competitor-matrix-background] Fetching ${brand}...`);
 
-      // Load previous snapshot for movement detection
       let previousRows = [];
       try {
         const prev = await store.get(`${CACHE_KEY_PREFIX}${brand}`, { type: "json" });
@@ -261,10 +263,10 @@ exports.handler = async () => {
         // no previous data — first run
       }
 
-      const config    = BRAND_CONFIG[brand];
-      const keywords  = await loadKeywords(store, brand);
-      const rawRows   = await fetchSerpRankings(brand, keywords);
-      const rows    = detectMovement(rawRows, previousRows);
+      const config   = BRAND_CONFIG[brand];
+      const keywords = await loadKeywords(store, brand);
+      const rawRows  = await fetchSerpRankings(brand, keywords);
+      const rows     = detectMovement(rawRows, previousRows);
 
       const payload = {
         brand,
@@ -284,6 +286,8 @@ exports.handler = async () => {
       errors[brand] = err.message;
     }
   }
+
+  await Promise.all(["pickl", "bonbird"].map(processBrand));
 
   console.log("[competitor-matrix-background] Complete.", { results, errors });
 
