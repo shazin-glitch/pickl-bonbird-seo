@@ -153,18 +153,55 @@ Return EXACTLY this structure:
   };
 }
 
-// ── Save to approvals queue ───────────────────────────────────────────────────
-async function queueApprovalItem(store, item) {
-  const id  = `intl_${item.brand}_${item.market}_${item.language}_${item.type}_${Date.now()}`;
-  const key = `approvals:item:${id}`;
-  await store.set(key, JSON.stringify({
-    id,
-    ...item,
-    status:    'pending',
-    source:    'international_seo',
-    createdAt: new Date().toISOString(),
-  }));
-  return id;
+// ── Save to approvals queue via the approvals API ─────────────────────────────
+// Must use the API so items get added to approvals:index and appear in dashboard
+async function queueApprovalItem(item) {
+  const siteUrl = process.env.URL || 'https://yolkseo.netlify.app';
+  const res = await fetch(`${siteUrl}/.netlify/functions/approvals`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      action: 'create',
+      actor:  'claude',
+      type:    item.type,
+      brand:   item.brand,
+      title:   item.title,
+      reason:  item.notes || `International SEO — ${item.marketLabel} ${item.language?.toUpperCase()}`,
+      payload: {
+        // Core content
+        title:           item.title,
+        body:            item.content || '',
+        content:         item.content || '',
+        metaTitle:       item.meta?.metaTitle || item.title,
+        metaDescription: item.meta?.metaDescription || '',
+        slug:            item.meta?.slug || '',
+        targetKeyword:   item.meta?.focusKeyword || '',
+        focusKeyword:    item.meta?.focusKeyword || '',
+        // International metadata
+        market:          item.market,
+        marketLabel:     item.marketLabel,
+        language:        item.language,
+        targetUrl:       item.targetUrl,
+        wpBase:          item.wpBase,
+        wpUser:          item.wpUser,
+        wpPass:          item.wpPass,
+        wpParent:        item.wpParent,
+        // Suggestion fields
+        suggestionTitle:  item.suggestionTitle,
+        suggestionDetail: item.suggestionDetail,
+        suggestedCopy:    item.suggestedCopy,
+        url:             item.targetUrl,
+      },
+    }),
+  });
+
+  if (!res.ok) {
+    const err = await res.text();
+    throw new Error(`approvals API error ${res.status}: ${err}`);
+  }
+
+  const data = await res.json();
+  return data.items?.[0]?.id || data.item?.id || 'queued';
 }
 
 // ── Check if market+language was recently processed ───────────────────────────
@@ -204,7 +241,7 @@ async function processMarketLanguage(store, marketKey, market, language, force =
     const blog = await generateBlogDraft(market, brandCtx, language);
     if (blog.title && blog.content) {
       const wp = getWpCredentials(market);
-      const id = await queueApprovalItem(store, {
+      const id = await queueApprovalItem({
         type:        'blog_draft',
         brand:       market.brand,
         market:      market.marketKey,
@@ -238,7 +275,7 @@ async function processMarketLanguage(store, marketKey, market, language, force =
     const meta = await generateMetaUpdate(market, brandCtx, language);
     if (meta.metaTitle && meta.metaDescription) {
       const wp = getWpCredentials(market);
-      const id = await queueApprovalItem(store, {
+      const id = await queueApprovalItem({
         type:        'meta_update',
         brand:       market.brand,
         market:      market.marketKey,
@@ -270,7 +307,7 @@ async function processMarketLanguage(store, marketKey, market, language, force =
     const onpage = await generateOnPageSuggestion(market, brandCtx, language);
     if (onpage.suggestionTitle && onpage.suggestedCopy) {
       const wp = getWpCredentials(market);
-      const id = await queueApprovalItem(store, {
+      const id = await queueApprovalItem({
         type:        'onpage_suggestion',
         brand:       market.brand,
         market:      market.marketKey,

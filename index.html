@@ -1530,9 +1530,9 @@ let intlState = {
 // Load approvals count per market from the approvals store
 async function loadIntlDashboard() {
   if (intlState.loaded) { renderIntlDashboard(); return; }
-  document.getElementById('intl-loading').style.display = 'block';
-  document.getElementById('intl-market-grid').innerHTML =
-    '<div style="text-align:center;padding:40px;color:var(--text-muted);grid-column:1/-1" id="intl-loading">Loading market status…</div>';
+  const grid = document.getElementById('intl-market-grid');
+  if (grid) grid.innerHTML =
+    '<div style="text-align:center;padding:40px;color:var(--text-muted);grid-column:1/-1">Loading market status…</div>';
 
   try {
     // Pull approval items to count per market
@@ -1644,13 +1644,15 @@ async function runIntlMarket(marketKey, force = false) {
 
     if (data.summary) {
       logBody.innerHTML += `✅ Done — ${data.summary.queued} items queued, ${data.summary.skipped} skipped, ${data.summary.errors} errors<br>`;
+      if (data.summary.queued > 0) {
+        logBody.innerHTML += `<a href="#" onclick="switchView('dashboard');return false;" style="color:var(--primary)">→ View in approvals queue</a><br>`;
+      }
     } else {
       logBody.innerHTML += `⚠️ Completed with response: ${JSON.stringify(data).slice(0, 200)}<br>`;
     }
 
-    // Refresh dashboard counts
+    // Reset loaded flag so next dashboard view refreshes counts
     intlState.loaded = false;
-    loadIntlDashboard();
   } catch (e) {
     logBody.innerHTML += `❌ Error: ${esc(e.message)}<br>`;
   }
@@ -1675,9 +1677,11 @@ async function runIntlSeo() {
     const data = await res.json().catch(() => ({}));
     if (data.summary) {
       logBody.innerHTML += `✅ Complete — ${data.summary.queued} items queued to approvals<br>`;
+      if (data.summary.queued > 0) {
+        logBody.innerHTML += `<a href="#" onclick="switchView('dashboard');return false;" style="color:var(--primary)">→ View in approvals queue</a><br>`;
+      }
     }
     intlState.loaded = false;
-    loadIntlDashboard();
   } catch (e) {
     logBody.innerHTML += `❌ ${esc(e.message)}<br>`;
   }
