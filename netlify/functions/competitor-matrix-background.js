@@ -114,7 +114,7 @@ async function fetchSerpRankings(brand, keywords) {
           language_code: config.language_code,
           device:        "desktop",
           os:            "windows",
-          depth:         30,
+          depth:         100, // top 100 results — captures rankings up to position 100
         }]),
       }
     );
@@ -176,7 +176,22 @@ async function fetchSerpRankings(brand, keywords) {
   return rows;
 }
 
-// ─── Movement detection vs previous snapshot ──────────────────────────────────
+// ─── Load keywords — blob config first, hardcoded fallback ───────────────────
+async function loadKeywords(store, brand) {
+  try {
+    const stored = await store.get(`keywordConfig:${brand}`, { type: "json" });
+    if (stored?.keywords?.length) {
+      console.log(`[competitor-matrix-background] Using blob keywords for ${brand} (${stored.keywords.length})`);
+      return stored.keywords;
+    }
+  } catch {
+    // not saved yet
+  }
+  console.log(`[competitor-matrix-background] Using default keywords for ${brand}`);
+  return BRAND_CONFIG[brand].targetKeywords;
+}
+
+
 function detectMovement(currentRows, previousRows) {
   if (!previousRows || !previousRows.length) return currentRows;
 
@@ -234,8 +249,9 @@ exports.handler = async () => {
         // no previous data — first run
       }
 
-      const config  = BRAND_CONFIG[brand];
-      const rawRows = await fetchSerpRankings(brand, config.targetKeywords);
+      const config    = BRAND_CONFIG[brand];
+      const keywords  = await loadKeywords(store, brand);
+      const rawRows   = await fetchSerpRankings(brand, keywords);
       const rows    = detectMovement(rawRows, previousRows);
 
       const payload = {
