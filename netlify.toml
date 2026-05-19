@@ -54,6 +54,11 @@
   status = 200
 
 [[redirects]]
+  from = "/api/competitor-config"
+  to = "/.netlify/functions/competitor-config"
+  status = 200
+
+[[redirects]]
   from = "/api/keyword-config"
   to = "/.netlify/functions/keyword-config"
   status = 200

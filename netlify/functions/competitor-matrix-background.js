@@ -11,89 +11,103 @@
 
 const { getStore } = require("@netlify/blobs");
 
-const CACHE_KEY_PREFIX = "competitorMatrix:";
+const CACHE_KEY_PREFIX      = "competitorMatrix:";
+const COMPETITOR_KEY_PREFIX = "competitorConfig:";
+const KEYWORD_KEY_PREFIX    = "keywordConfig:";
 
-const BRAND_CONFIG = {
-  pickl: {
-    siteUrl: "https://eatpickl.com/",
-    competitors: [
-      { name: "Salt",        domain: "saltuae.com"    },
-      { name: "High Joint",  domain: "highjoint.co"   },
-      { name: "Shake Shack", domain: "shakeshack.com" },
-      { name: "Five Guys",   domain: "fiveguys.ae"    },
-    ],
-    targetKeywords: [
-      // Product
-      "hot dog", "french fries", "cheese burger", "hot dog sandwich", "chicken tender",
-      "chicken sando", "chocolate shake", "hot dog dubai", "spicy fries", "strawberry shake",
-      "chocolate milk shake", "plant based burger", "beef hot dog", "double cheese burger",
-      "messy fries", "fries dubai", "spicy french fries", "parmesan fries", "vanilla shake",
-      "crispy chicken tender", "cheese slice burger", "buffalo chicken sando",
-      "american cheese burger", "hot dog in dubai", "caramel shake", "crispy chicken sando",
-      "plant based burger dubai", "bbq cheese burger", "cheese melt burger",
-      "messy fries near me", "ice cream sando", "bacon cheese burger", "melt burger dubai",
-      // Long tail
-      "smash burger dubai", "smash burger abu dhabi", "best burger in dubai",
-      "best burger in abu dhabi", "best burger in sharjah", "best burger abu dhabi",
-      "best burger in uae", "best burger in the world", "best burgers near me dubai",
-      "best fries in dubai", "best chicken burger in dubai", "best fast food dubai",
-      "burger restaurant near me", "burger places near me", "burger shop near me",
-      "burger delivery dubai marina", "burger restaurant city walk dubai", "burgers jbr dubai",
-      "loaded fries near me", "hot dog near me", "best hot dog in dubai",
-      "chicken sandwich dubai", "plant based burger restaurants near me",
-      // Franchise
-      "franchise business", "franchise in uae", "franchise dubai", "franchise in dubai",
-      "franchise business in dubai", "franchise opportunities dubai", "franchise business in uae",
-      "restaurant franchise", "restaurant franchise opportunities", "restaurant franchise in dubai",
-      "how to franchise a restaurant", "fast food franchise in dubai", "fast food franchise",
-    ],
-    location_code: 21191,
-    language_code: "en",
-  },
-
-  bonbird: {
-    siteUrl: "https://bonbirdchicken.com/",
-    competitors: [
-      { name: "Salt",        domain: "saltuae.com"    },
-      { name: "High Joint",  domain: "highjoint.co"   },
-      { name: "Shake Shack", domain: "shakeshack.com" },
-      { name: "Five Guys",   domain: "fiveguys.ae"    },
-    ],
-    targetKeywords: [
-      // Product
-      "crispy chicken", "broasted chicken", "fried chicken", "chicken strips", "chicken tenders",
-      "chicken fingers", "chicken tender", "tender chicken", "strips chicken", "chicken strip",
-      "chicken finger", "chicken wrap", "chicken tortilla wrap", "crispy chicken wrap",
-      "buffalo chicken wrap", "tortilla wraps", "rice bowl", "chicken rice bowl",
-      "chicken burger", "cheese burger", "crispy chicken burger", "breaded chicken burger",
-      "fried chicken burger", "crunchy chicken burger", "crispy chicken menu",
-      "crispy chicken dubai menu",
-      // Long tail
-      "best chicken abu dhabi", "best fried chicken in dubai", "best burger in dubai",
-      "burger near me", "best burger in abu dhabi", "best burger dubai",
-      "burger restaurant near me", "burger places near me", "best burger in sharjah",
-      "burger shop near me", "best burger near me", "burger restaurant dubai",
-      "best chicken burger dubai", "crispy chicken abu dhabi", "crispy chicken near me",
-      "broasted chicken near me", "fried chicken near me", "crispy chicken dubai",
-      "crispy chicken mussafah", "best chicken near me", "fried chicken dubai",
-      "crispy chicken uae", "broasted chicken sharjah", "fried chicken abu dhabi",
-      "best burger restaurants in dubai", "fried chicken delivery dubai",
-      "fried chicken delivery dubai", "korean chicken burger dubai",
-      "chicken rice bowl dubai",
-      // Franchise
-      "franchise business", "franchise in uae", "franchise dubai", "franchise in dubai",
-      "franchise business in dubai", "franchise opportunities dubai", "franchise business in uae",
-      "restaurant franchise", "restaurant franchise in dubai", "fast food franchise in dubai",
-      "fast food franchise", "fried chicken franchise",
-    ],
-    location_code: 21191,
-    language_code: "en",
-  },
+const DEFAULT_COMPETITORS = {
+  pickl: [
+    { name: "Salt",        domain: "saltuae.com"    },
+    { name: "High Joint",  domain: "highjoint.co"   },
+    { name: "Shake Shack", domain: "shakeshack.com" },
+    { name: "Five Guys",   domain: "fiveguys.ae"    },
+  ],
+  bonbird: [
+    { name: "Raising Cane's",     domain: "raisingcanes.com"      },
+    { name: "Jailbird",           domain: "jailbirddubai.com"     },
+    { name: "Dave's Hot Chicken", domain: "daveshotchicken.com"   },
+    { name: "Toit",               domain: "toitchicken.com"       },
+    { name: "Nash Hot Chicken",   domain: "nashhotchicken.com"    },
+    { name: "Peppers",            domain: "peppersuae.com"        },
+    { name: "Jollibee",           domain: "jollibee.com.ph"       },
+    { name: "KFC",                domain: "kfc.com"               },
+    { name: "Popeyes",            domain: "popeyes.com"           },
+  ],
 };
 
+const DEFAULT_KEYWORDS = {
+  pickl: [
+    "hot dog", "french fries", "cheese burger", "hot dog sandwich", "chicken tender",
+    "chicken sando", "chocolate shake", "hot dog dubai", "spicy fries", "strawberry shake",
+    "chocolate milk shake", "plant based burger", "beef hot dog", "double cheese burger",
+    "messy fries", "fries dubai", "spicy french fries", "parmesan fries", "vanilla shake",
+    "crispy chicken tender", "cheese slice burger", "buffalo chicken sando",
+    "american cheese burger", "hot dog in dubai", "caramel shake", "crispy chicken sando",
+    "plant based burger dubai", "bbq cheese burger", "cheese melt burger",
+    "messy fries near me", "ice cream sando", "bacon cheese burger", "melt burger dubai",
+    "smash burger dubai", "smash burger abu dhabi", "best burger in dubai",
+    "best burger in abu dhabi", "best burger in sharjah", "best burger abu dhabi",
+    "best burger in uae", "best burgers near me dubai", "best fries in dubai",
+    "best chicken burger in dubai", "best fast food dubai", "burger restaurant near me",
+    "burger places near me", "burger shop near me", "burger delivery dubai marina",
+    "burger restaurant city walk dubai", "burgers jbr dubai", "loaded fries near me",
+    "hot dog near me", "best hot dog in dubai", "chicken sandwich dubai",
+    "franchise business", "franchise in uae", "franchise dubai", "franchise in dubai",
+    "franchise business in dubai", "franchise opportunities dubai", "franchise business in uae",
+    "restaurant franchise", "restaurant franchise opportunities", "restaurant franchise in dubai",
+    "how to franchise a restaurant", "fast food franchise in dubai", "fast food franchise",
+  ],
+  bonbird: [
+    "crispy chicken", "broasted chicken", "fried chicken", "chicken strips", "chicken tenders",
+    "chicken fingers", "chicken tender", "tender chicken", "strips chicken", "chicken strip",
+    "chicken finger", "chicken wrap", "chicken tortilla wrap", "crispy chicken wrap",
+    "buffalo chicken wrap", "tortilla wraps", "rice bowl", "chicken rice bowl",
+    "chicken burger", "crispy chicken burger", "breaded chicken burger",
+    "fried chicken burger", "crunchy chicken burger", "crispy chicken menu",
+    "crispy chicken dubai menu", "best chicken abu dhabi", "best fried chicken in dubai",
+    "best burger in dubai", "burger near me", "best burger in abu dhabi",
+    "burger restaurant near me", "best chicken burger dubai", "crispy chicken abu dhabi",
+    "crispy chicken near me", "broasted chicken near me", "fried chicken near me",
+    "crispy chicken dubai", "best chicken near me", "fried chicken dubai",
+    "crispy chicken uae", "broasted chicken sharjah", "fried chicken abu dhabi",
+    "fried chicken delivery dubai", "korean chicken burger dubai", "chicken rice bowl dubai",
+    "franchise business", "franchise in uae", "franchise dubai", "franchise in dubai",
+    "franchise business in dubai", "franchise opportunities dubai",
+    "restaurant franchise in dubai", "fast food franchise in dubai", "fried chicken franchise",
+  ],
+};
+
+const BRAND_SITE = {
+  pickl:   "https://eatpickl.com/",
+  bonbird: "https://bonbirdchicken.com/",
+};
+
+// Load competitors and keywords from Blobs, fall back to defaults
+async function loadBrandConfig(store, brand) {
+  let competitors = DEFAULT_COMPETITORS[brand];
+  let keywords    = DEFAULT_KEYWORDS[brand];
+
+  try {
+    const storedComp = await store.get(`${COMPETITOR_KEY_PREFIX}${brand}`, { type: "json" });
+    if (storedComp?.competitors?.length) competitors = storedComp.competitors;
+  } catch { /* use default */ }
+
+  try {
+    const storedKw = await store.get(`${KEYWORD_KEY_PREFIX}${brand}`, { type: "json" });
+    if (storedKw?.keywords?.length) keywords = storedKw.keywords;
+  } catch { /* use default */ }
+
+  return {
+    siteUrl:       BRAND_SITE[brand],
+    competitors,
+    targetKeywords: keywords,
+    location_code:  21191,
+    language_code:  "en",
+  };
+}
+
 // ─── DataForSEO fetch — one keyword per request (plan limitation) ─────────────
-async function fetchSerpRankings(brand, keywords) {
-  const config   = BRAND_CONFIG[brand];
+async function fetchSerpRankings(brand, config) {
   const login    = process.env.DATAFORSEO_LOGIN;
   const password = process.env.DATAFORSEO_PASSWORD;
   if (!login || !password) throw new Error("DataForSEO credentials missing");
@@ -102,7 +116,7 @@ async function fetchSerpRankings(brand, keywords) {
 
   const rows = [];
 
-  for (const kw of keywords) {
+  for (const kw of config.targetKeywords) {
     const controller = new AbortController();
     const timeout    = setTimeout(() => controller.abort(), 20000); // 20s max per keyword
 
@@ -119,7 +133,7 @@ async function fetchSerpRankings(brand, keywords) {
             language_code: config.language_code,
             device:        "desktop",
             os:            "windows",
-            depth:         50, // top 50 results — enough to catch rankings, won't slow down
+            depth:         100, // top 100 results — same cost as 50, catches page 6-10 rankings
           }]),
           signal: controller.signal,
         }
@@ -191,20 +205,6 @@ async function fetchSerpRankings(brand, keywords) {
 }
 
 // ─── Load keywords — blob config first, hardcoded fallback ───────────────────
-async function loadKeywords(store, brand) {
-  try {
-    const stored = await store.get(`keywordConfig:${brand}`, { type: "json" });
-    if (stored?.keywords?.length) {
-      console.log(`[competitor-matrix-background] Using blob keywords for ${brand} (${stored.keywords.length})`);
-      return stored.keywords;
-    }
-  } catch {
-    // not saved yet
-  }
-  console.log(`[competitor-matrix-background] Using default keywords for ${brand}`);
-  return BRAND_CONFIG[brand].targetKeywords;
-}
-
 
 function detectMovement(currentRows, previousRows) {
   if (!previousRows || !previousRows.length) return currentRows;
@@ -263,10 +263,9 @@ exports.handler = async () => {
         // no previous data — first run
       }
 
-      const config   = BRAND_CONFIG[brand];
-      const keywords = await loadKeywords(store, brand);
-      const rawRows  = await fetchSerpRankings(brand, keywords);
-      const rows     = detectMovement(rawRows, previousRows);
+      const config  = await loadBrandConfig(store, brand);
+      const rawRows = await fetchSerpRankings(brand, config);
+      const rows    = detectMovement(rawRows, previousRows);
 
       const payload = {
         brand,

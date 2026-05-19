@@ -314,7 +314,7 @@ const INTERNATIONAL_MARKETS = {
       en: [
         'fried chicken karachi', 'best fried chicken pakistan', 'crispy chicken lahore',
         'chicken restaurant karachi', 'fried chicken delivery pakistan',
-        'halal fried chicken karachi', 'chicken tenders pakistan', 'best chicken pakistan',
+        'fresh fried chicken karachi', 'chicken tenders pakistan', 'best chicken pakistan',
         'crispy chicken burger pakistan', 'bonbird pakistan', 'best burger karachi',
         'chicken wrap pakistan', 'fried chicken lahore', 'crispy chicken islamabad',
       ],
@@ -350,13 +350,14 @@ const INTERNATIONAL_MARKETS = {
       en: [
         'fried chicken doha', 'best fried chicken qatar', 'crispy chicken doha',
         'chicken restaurant doha', 'fried chicken delivery doha',
-        'halal fried chicken qatar', 'chicken tenders doha', 'best chicken qatar',
+        'fresh fried chicken qatar', 'chicken tenders doha', 'best chicken qatar',
         'crispy chicken burger doha', 'bonbird qatar', 'chicken wrap doha',
         'bone in chicken doha',
       ],
       ar: [
         'دجاج مقلي الدوحة', 'أفضل دجاج في قطر', 'دجاج مقرمش الدوحة',
-        'مطعم دجاج الدوحة', 'توصيل دجاج الدوحة', 'دجاج حلال قطر',
+        'مطعم دجاج الدوحة', 'توصيل دجاج الدوحة', 'دجاج طازج قطر',
+        'أفضل مطعم دجاج قطر', 'دجاج مقرمش طازج الدوحة',
       ],
     },
     culturalNotes: [

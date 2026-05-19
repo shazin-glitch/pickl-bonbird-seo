@@ -9,11 +9,12 @@
   "use strict";
 
   // ── Config ──────────────────────────────────────────────────────────────
-  const FUNCTION_URL        = "/.netlify/functions/competitor-matrix";
-  const BACKGROUND_URL      = "/.netlify/functions/competitor-matrix-background";
-  const KEYWORD_CONFIG_URL  = "/.netlify/functions/keyword-config";
-  const POLL_INTERVAL_MS    = 30000;  // check every 30s after refresh
-  const POLL_MAX_ATTEMPTS   = 20;     // up to 10 minutes total
+  const FUNCTION_URL          = "/.netlify/functions/competitor-matrix";
+  const BACKGROUND_URL        = "/.netlify/functions/competitor-matrix-background";
+  const KEYWORD_CONFIG_URL    = "/.netlify/functions/keyword-config";
+  const COMPETITOR_CONFIG_URL = "/.netlify/functions/competitor-config";
+  const POLL_INTERVAL_MS    = 30000;
+  const POLL_MAX_ATTEMPTS   = 20;
 
   // Brand colours matching your existing palette
   const BRAND_COLORS = {
@@ -30,11 +31,12 @@
 
   // ── State ────────────────────────────────────────────────────────────────
   let currentBrandFilter = "all";
-  let matrixData   = null; // { pickl: {...}, bonbird: {...} }
-  let keywordData  = null; // { pickl: { keywords: [] }, bonbird: { keywords: [] } }
-  let isLoading    = false;
-  let currentView  = "matrix"; // "matrix" | "keywords"
-  let pollTimer    = null;
+  let matrixData      = null; // { pickl: {...}, bonbird: {...} }
+  let keywordData     = null; // { pickl: { keywords: [] }, bonbird: { keywords: [] } }
+  let competitorData  = null; // { pickl: { competitors: [] }, bonbird: { competitors: [] } }
+  let isLoading       = false;
+  let currentView     = "matrix"; // "matrix" | "keywords" | "competitors"
+  let pollTimer       = null;
 
   // ── Inject CSS ───────────────────────────────────────────────────────────
   function injectStyles() {
@@ -489,6 +491,7 @@
           <div class="cm-view-toggle">
             <button class="cm-view-btn ${currentView === "matrix" ? "active" : ""}" data-view="matrix">Rankings</button>
             <button class="cm-view-btn ${currentView === "keywords" ? "active" : ""}" data-view="keywords">Manage Keywords</button>
+            <button class="cm-view-btn ${currentView === "competitors" ? "active" : ""}" data-view="competitors">Manage Competitors</button>
           </div>
           ${currentView === "matrix" ? `
           <button class="cm-filter-btn ${currentBrandFilter === "all" ? "active" : ""}" data-filter="all">All Brands</button>
@@ -604,6 +607,7 @@
           <div class="cm-view-toggle">
             <button class="cm-view-btn" data-view="matrix">Rankings</button>
             <button class="cm-view-btn active" data-view="keywords">Manage Keywords</button>
+            <button class="cm-view-btn" data-view="competitors">Manage Competitors</button>
           </div>
         </div>
       </div>
@@ -655,7 +659,7 @@
     container.querySelectorAll(".cm-view-btn").forEach((btn) => {
       btn.addEventListener("click", () => {
         currentView = btn.dataset.view;
-        currentView === "keywords" ? renderKeywords(container) : render(container);
+        if (currentView === "keywords") renderKeywords(container); else if (currentView === "competitors") renderCompetitors(container); else render(container);
       });
     });
 
@@ -670,7 +674,7 @@
     container.querySelectorAll(".cm-view-btn").forEach((btn) => {
       btn.addEventListener("click", () => {
         currentView = btn.dataset.view;
-        currentView === "keywords" ? renderKeywords(container) : render(container);
+        if (currentView === "keywords") renderKeywords(container); else if (currentView === "competitors") renderCompetitors(container); else render(container);
       });
     });
 
@@ -771,6 +775,181 @@
     });
   }
 
+  // ── Competitors view ─────────────────────────────────────────────────────
+  function renderCompetitors(container) {
+    injectStyles();
+
+    const brands = ["pickl", "bonbird"];
+
+    let html = `
+      <div class="cm-header">
+        <div class="cm-title">
+          Competitor Matrix
+          <span class="cm-badge">Live SERP</span>
+        </div>
+        <div class="cm-controls">
+          <div class="cm-view-toggle">
+            <button class="cm-view-btn" data-view="matrix">Rankings</button>
+            <button class="cm-view-btn" data-view="keywords">Manage Keywords</button>
+            <button class="cm-view-btn active" data-view="competitors">Manage Competitors</button>
+          </div>
+        </div>
+      </div>
+      <div style="padding:20px 0">
+        <p style="font-size:13px;color:#64748b;margin-bottom:20px">
+          Add or remove tracked competitors per brand. Changes apply on the next weekly refresh or manual Refresh Now.
+        </p>`;
+
+    for (const brand of brands) {
+      const competitors = competitorData?.[brand]?.competitors || [];
+      const color       = BRAND_COLORS[brand].primary;
+      const label       = BRAND_COLORS[brand].label;
+
+      html += `
+        <div class="cm-kw-section" data-brand="${brand}" style="margin-bottom:24px">
+          <div class="cm-kw-section-title">
+            <span style="width:10px;height:10px;border-radius:50%;background:${color};display:inline-block"></span>
+            ${label} Competitors
+            <span class="cm-kw-count" id="cm-comp-count-${brand}">${competitors.length}</span>
+          </div>
+          <div class="cm-comp-grid" id="cm-comp-grid-${brand}">
+            ${competitors.map(c => `
+              <span class="cm-kw-tag" data-comp="${c.name.replace(/"/g, '&quot;')}" data-domain="${c.domain}" data-brand="${brand}" style="display:inline-flex;align-items:center;gap:6px">
+                <span>${c.name}</span>
+                <span style="font-size:10px;color:#94a3b8">${c.domain}</span>
+                <button class="cm-kw-tag-delete cm-comp-delete" data-comp="${c.name.replace(/"/g, '&quot;')}" data-brand="${brand}" title="Remove competitor">×</button>
+              </span>`).join("")}
+          </div>
+          <div class="cm-kw-add-row" style="margin-top:12px;gap:8px;flex-wrap:wrap">
+            <input class="cm-kw-add-input" id="cm-comp-name-${brand}" type="text" placeholder="Competitor name e.g. Jailbird" style="flex:1;min-width:140px" />
+            <input class="cm-kw-add-input" id="cm-comp-domain-${brand}" type="text" placeholder="Domain e.g. jailbirddubai.com" style="flex:1;min-width:180px" />
+            <button class="cm-kw-add-btn" id="cm-comp-add-${brand}" data-brand="${brand}">Add</button>
+          </div>
+          <div id="cm-comp-savebar-${brand}" style="display:none" class="cm-kw-save-bar">
+            <span>⚠ Unsaved changes — click Save to update competitor tracking</span>
+            <button class="cm-kw-save-btn" id="cm-comp-save-${brand}" data-brand="${brand}">Save Changes</button>
+          </div>
+        </div>`;
+    }
+
+    html += `</div>`;
+    container.innerHTML = html;
+    bindCompetitorEvents(container);
+  }
+
+  function bindCompetitorEvents(container) {
+    // View toggle
+    container.querySelectorAll(".cm-view-btn").forEach((btn) => {
+      btn.addEventListener("click", () => {
+        currentView = btn.dataset.view;
+        if (currentView === "keywords") renderKeywords(container);
+        else if (currentView === "competitors") renderCompetitors(container);
+        else render(container);
+      });
+    });
+
+    const localComps = {
+      pickl:   [...(competitorData?.pickl?.competitors   || [])],
+      bonbird: [...(competitorData?.bonbird?.competitors || [])],
+    };
+
+    function markUnsaved(brand) {
+      const bar = container.querySelector(`#cm-comp-savebar-${brand}`);
+      if (bar) bar.style.display = "flex";
+    }
+
+    function updateGrid(brand) {
+      const grid  = container.querySelector(`#cm-comp-grid-${brand}`);
+      const count = container.querySelector(`#cm-comp-count-${brand}`);
+      if (!grid) return;
+      grid.innerHTML = localComps[brand].map(c => `
+        <span class="cm-kw-tag" style="display:inline-flex;align-items:center;gap:6px">
+          <span>${c.name}</span>
+          <span style="font-size:10px;color:#94a3b8">${c.domain}</span>
+          <button class="cm-kw-tag-delete cm-comp-delete" data-comp="${c.name.replace(/"/g, '&quot;')}" data-brand="${brand}" title="Remove competitor">×</button>
+        </span>`).join("");
+      if (count) count.textContent = localComps[brand].length;
+      grid.querySelectorAll(".cm-comp-delete").forEach(btn => {
+        btn.addEventListener("click", () => handleDelete(btn.dataset.brand, btn.dataset.comp));
+      });
+    }
+
+    function handleDelete(brand, name) {
+      showDeleteModal(name, () => {
+        localComps[brand] = localComps[brand].filter(c => c.name !== name);
+        updateGrid(brand);
+        markUnsaved(brand);
+      });
+    }
+
+    // Initial delete bindings
+    container.querySelectorAll(".cm-comp-delete").forEach(btn => {
+      btn.addEventListener("click", () => handleDelete(btn.dataset.brand, btn.dataset.comp));
+    });
+
+    ["pickl", "bonbird"].forEach(brand => {
+      const nameInput   = container.querySelector(`#cm-comp-name-${brand}`);
+      const domainInput = container.querySelector(`#cm-comp-domain-${brand}`);
+      const addBtn      = container.querySelector(`#cm-comp-add-${brand}`);
+      const saveBtn     = container.querySelector(`#cm-comp-save-${brand}`);
+
+      if (addBtn) {
+        const doAdd = () => {
+          const name   = (nameInput?.value || "").trim();
+          const domain = (domainInput?.value || "").trim().toLowerCase()
+            .replace(/^https?:\/\//, "").replace(/^www\./, "").replace(/\/$/, "");
+          if (!name || !domain) {
+            if (!name && nameInput)   { nameInput.style.borderColor   = "#ef4444"; setTimeout(() => (nameInput.style.borderColor   = ""), 1500); }
+            if (!domain && domainInput) { domainInput.style.borderColor = "#ef4444"; setTimeout(() => (domainInput.style.borderColor = ""), 1500); }
+            return;
+          }
+          if (localComps[brand].some(c => c.domain === domain)) {
+            domainInput.style.borderColor = "#ef4444";
+            setTimeout(() => (domainInput.style.borderColor = ""), 1500);
+            return;
+          }
+          localComps[brand].push({ name, domain });
+          if (nameInput)   nameInput.value   = "";
+          if (domainInput) domainInput.value = "";
+          updateGrid(brand);
+          markUnsaved(brand);
+        };
+        addBtn.addEventListener("click", doAdd);
+        domainInput?.addEventListener("keydown", e => { if (e.key === "Enter") doAdd(); });
+      }
+
+      if (saveBtn) {
+        saveBtn.addEventListener("click", async () => {
+          saveBtn.disabled = true;
+          saveBtn.textContent = "Saving…";
+          try {
+            const res = await fetch(COMPETITOR_CONFIG_URL, {
+              method: "POST",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify({ brand, competitors: localComps[brand] }),
+            });
+            if (!res.ok) throw new Error("Save failed");
+            if (!competitorData) competitorData = {};
+            competitorData[brand] = { competitors: localComps[brand] };
+            const bar = container.querySelector(`#cm-comp-savebar-${brand}`);
+            if (bar) {
+              bar.style.background = "#f0fdf4";
+              bar.style.borderColor = "#86efac";
+              bar.querySelector("span").style.color = "#166534";
+              bar.querySelector("span").textContent = "✓ Saved! Changes apply on next Refresh Now.";
+              saveBtn.style.background = "#22c55e";
+              saveBtn.textContent = "Saved ✓";
+            }
+          } catch {
+            saveBtn.disabled = false;
+            saveBtn.textContent = "Save Changes";
+            alert("Failed to save. Please try again.");
+          }
+        });
+      }
+    });
+  }
+
   function showDeleteModal(keyword, onConfirm) {
     const overlay = document.createElement("div");
     overlay.className = "cm-modal-overlay";
@@ -804,7 +983,16 @@
       const res = await fetch(`${KEYWORD_CONFIG_URL}?brand=all`);
       if (res.ok) keywordData = await res.json();
     } catch {
-      // non-fatal — keyword management just shows defaults
+      // non-fatal
+    }
+  }
+
+  async function loadCompetitorConfig() {
+    try {
+      const res = await fetch(`${COMPETITOR_CONFIG_URL}?brand=all`);
+      if (res.ok) competitorData = await res.json();
+    } catch {
+      // non-fatal — competitor management shows defaults
     }
   }
 
@@ -875,6 +1063,7 @@
         const [matrixRes] = await Promise.all([
           fetch(`${FUNCTION_URL}?brand=all`),
           loadKeywordConfig(),
+          loadCompetitorConfig(),
         ]);
 
         if (!matrixRes.ok) {
@@ -894,7 +1083,7 @@
       }
 
       isLoading = false;
-      currentView === "keywords" ? renderKeywords(container) : render(container);
+      if (currentView === "keywords") renderKeywords(container); else if (currentView === "competitors") renderCompetitors(container); else render(container);
     }
   }
 

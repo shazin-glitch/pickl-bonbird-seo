@@ -1041,8 +1041,9 @@ function buildPreview(item) {
     </details>`;
   if (item.type === 'meta_update') return `
     <div><strong>Page:</strong> ${esc(p.url || p.postId || '—')}</div>
-    <div style="margin-top:6px"><strong>New Title:</strong> ${esc(p.title || '—')}</div>
-    <div style="margin-top:6px"><strong>New Description:</strong> ${esc(p.description || '—')}</div>`;
+    <div style="margin-top:6px"><strong>New Title:</strong> ${esc(p.metaTitle || p.title || '—')}</div>
+    <div style="margin-top:6px"><strong>New Description:</strong> ${esc(p.metaDescription || p.description || '—')}</div>
+    ${p.focusKeyword ? `<div style="margin-top:6px"><strong>Focus Keyword:</strong> ${esc(p.focusKeyword)}</div>` : ''}`;
   if (item.type === 'onpage_suggestion') return `
     <div><strong>Page:</strong> ${esc(p.url || '—')}</div>
     ${p.keyword ? `<div style="margin-top:6px"><strong>Keyword:</strong> "${esc(p.keyword)}" (ranking pos ${p.currentPosition || '?'})</div>` : ''}
