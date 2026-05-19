@@ -103,21 +103,33 @@ async function fetchSerpRankings(brand, keywords) {
   const rows = [];
 
   for (const kw of keywords) {
-    const postRes = await fetch(
-      "https://api.dataforseo.com/v3/serp/google/organic/live/advanced",
-      {
-        method:  "POST",
-        headers: { Authorization: authHeader, "Content-Type": "application/json" },
-        body: JSON.stringify([{
-          keyword:       kw,
-          location_code: config.location_code,
-          language_code: config.language_code,
-          device:        "desktop",
-          os:            "windows",
-          depth:         100, // top 100 results — captures rankings up to position 100
-        }]),
-      }
-    );
+    const controller = new AbortController();
+    const timeout    = setTimeout(() => controller.abort(), 20000); // 20s max per keyword
+
+    let postRes;
+    try {
+      postRes = await fetch(
+        "https://api.dataforseo.com/v3/serp/google/organic/live/advanced",
+        {
+          method:  "POST",
+          headers: { Authorization: authHeader, "Content-Type": "application/json" },
+          body: JSON.stringify([{
+            keyword:       kw,
+            location_code: config.location_code,
+            language_code: config.language_code,
+            device:        "desktop",
+            os:            "windows",
+            depth:         50, // top 50 results — enough to catch rankings, won't slow down
+          }]),
+          signal: controller.signal,
+        }
+      );
+    } catch (fetchErr) {
+      clearTimeout(timeout);
+      console.warn(`[competitor-matrix-background] Timeout/error on keyword "${kw}" — skipping`);
+      continue;
+    }
+    clearTimeout(timeout);
 
     if (!postRes.ok) {
       throw new Error(`DataForSEO API error ${postRes.status}: ${await postRes.text()}`);
