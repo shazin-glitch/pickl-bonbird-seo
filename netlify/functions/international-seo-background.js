@@ -154,9 +154,18 @@ Return EXACTLY this structure:
 }
 
 // ── Save to approvals queue via the approvals API ─────────────────────────────
-// Must use the API so items get added to approvals:index and appear in dashboard
 async function queueApprovalItem(item) {
   const siteUrl = process.env.URL || 'https://yolkseo.netlify.app';
+
+  // Build location tag: flag + country name
+  const MARKET_FLAGS = {
+    bahrain: '🇧🇭', ksa: '🇸🇦', qatar: '🇶🇦', egypt: '🇪🇬',
+    jordan: '🇯🇴', oman: '🇴🇲', pakistan: '🇵🇰',
+  };
+  const flag        = MARKET_FLAGS[item.market] || '🌍';
+  const locationTag = `${flag} ${item.marketLabel}`;
+  const languageTag = (item.language || 'en').toUpperCase();
+
   const res = await fetch(`${siteUrl}/.netlify/functions/approvals`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
@@ -166,7 +175,7 @@ async function queueApprovalItem(item) {
       type:    item.type,
       brand:   item.brand,
       title:   item.title,
-      reason:  item.notes || `International SEO — ${item.marketLabel} ${item.language?.toUpperCase()}`,
+      reason:  item.notes || `International SEO — ${item.marketLabel} ${languageTag}`,
       payload: {
         // Core content
         title:           item.title,
@@ -174,6 +183,8 @@ async function queueApprovalItem(item) {
         content:         item.content || '',
         metaTitle:       item.meta?.metaTitle || item.title,
         metaDescription: item.meta?.metaDescription || '',
+        // meta_update renders p.description — map both so dashboard shows it
+        description:     item.meta?.metaDescription || '',
         slug:            item.meta?.slug || '',
         targetKeyword:   item.meta?.focusKeyword || '',
         focusKeyword:    item.meta?.focusKeyword || '',
@@ -181,7 +192,10 @@ async function queueApprovalItem(item) {
         market:          item.market,
         marketLabel:     item.marketLabel,
         language:        item.language,
+        locationTag,
+        languageTag,
         targetUrl:       item.targetUrl,
+        url:             item.targetUrl,
         wpBase:          item.wpBase,
         wpUser:          item.wpUser,
         wpPass:          item.wpPass,
@@ -190,7 +204,6 @@ async function queueApprovalItem(item) {
         suggestionTitle:  item.suggestionTitle,
         suggestionDetail: item.suggestionDetail,
         suggestedCopy:    item.suggestedCopy,
-        url:             item.targetUrl,
       },
     }),
   });
@@ -236,34 +249,47 @@ async function processMarketLanguage(store, marketKey, market, language, force =
   const queued   = [];
   const errors   = [];
 
-  // 1. Blog draft
+  // 1. Blog draft — with keyword deduplication
   try {
     const blog = await generateBlogDraft(market, brandCtx, language);
     if (blog.title && blog.content) {
-      const wp = getWpCredentials(market);
-      const id = await queueApprovalItem({
-        type:        'blog_draft',
-        brand:       market.brand,
-        market:      market.marketKey,
-        marketLabel: market.label,
-        language,
-        title:       blog.title,
-        content:     blog.content,
-        meta: {
-          metaTitle:       blog.title,
-          metaDescription: blog.metaDescription,
-          slug:            blog.slug,
-          focusKeyword:    blog.focusKeyword,
-        },
-        targetUrl:   buildPostUrl(market, 'blog_draft', blog.slug || 'post', language),
-        wpBase:      wp.base,
-        wpUser:      wp.user,
-        wpPass:      wp.pass,
-        wpParent:    market.wpMarketParent,
-        notes: `International SEO — ${market.label} ${language.toUpperCase()} blog post. Target keyword: ${blog.focusKeyword}`,
-      });
-      queued.push({ type: 'blog_draft', id });
-      console.log(`${tag} — blog draft queued: ${id}`);
+      // Check for duplicate keyword already pending in queue
+      const siteUrl = process.env.URL || 'https://yolkseo.netlify.app';
+      const existing = await fetch(`${siteUrl}/.netlify/functions/approvals?status=pending&brand=${market.brand}&type=blog_draft&limit=200`)
+        .then(r => r.json()).catch(() => ({ items: [] }));
+      const isDuplicate = (existing.items || []).some(i =>
+        i.payload?.targetKeyword === blog.focusKeyword &&
+        i.payload?.market === market.marketKey &&
+        i.payload?.language === language
+      );
+      if (isDuplicate) {
+        console.log(`${tag} — blog draft skipped (duplicate keyword: "${blog.focusKeyword}")`);
+      } else {
+        const wp = getWpCredentials(market);
+        const id = await queueApprovalItem({
+          type:        'blog_draft',
+          brand:       market.brand,
+          market:      market.marketKey,
+          marketLabel: market.label,
+          language,
+          title:       blog.title,
+          content:     blog.content,
+          meta: {
+            metaTitle:       blog.title,
+            metaDescription: blog.metaDescription,
+            slug:            blog.slug,
+            focusKeyword:    blog.focusKeyword,
+          },
+          targetUrl:   buildPostUrl(market, 'blog_draft', blog.slug || 'post', language),
+          wpBase:      wp.base,
+          wpUser:      wp.user,
+          wpPass:      wp.pass,
+          wpParent:    market.wpMarketParent,
+          notes: `International SEO — ${market.label} ${language.toUpperCase()} blog post. Target keyword: ${blog.focusKeyword}`,
+        });
+        queued.push({ type: 'blog_draft', id });
+        console.log(`${tag} — blog draft queued: ${id}`);
+      } // end dedup check
     }
   } catch (e) {
     console.error(`${tag} — blog draft failed:`, e.message);

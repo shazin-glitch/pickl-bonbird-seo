@@ -267,6 +267,26 @@
         <div class="pill" data-qfilter="page_update" onclick="filterQueue(this)">Page Updates</div>
       </div>
 
+      <!-- Brand filter -->
+      <div class="pill-nav" id="brand-pills" style="margin-top:8px">
+        <div class="pill active" data-bfilter="all" onclick="filterBrand(this)">All Brands</div>
+        <div class="pill" data-bfilter="pickl" onclick="filterBrand(this)" style="border-color:#DF0070;color:#DF0070" class="pill">Pickl</div>
+        <div class="pill" data-bfilter="bonbird" onclick="filterBrand(this)" style="border-color:#C5161A;color:#C5161A">Bonbird</div>
+      </div>
+
+      <!-- Market filter -->
+      <div class="pill-nav" id="market-pills" style="margin-top:8px;margin-bottom:4px">
+        <div class="pill active" data-mfilter="all" onclick="filterMarket(this)">All Markets</div>
+        <div class="pill" data-mfilter="🇦🇪 UAE" onclick="filterMarket(this)">🇦🇪 UAE</div>
+        <div class="pill" data-mfilter="🇧🇭 Bahrain" onclick="filterMarket(this)">🇧🇭 Bahrain</div>
+        <div class="pill" data-mfilter="🇸🇦 Saudi Arabia" onclick="filterMarket(this)">🇸🇦 Saudi Arabia</div>
+        <div class="pill" data-mfilter="🇯🇴 Jordan" onclick="filterMarket(this)">🇯🇴 Jordan</div>
+        <div class="pill" data-mfilter="🇶🇦 Qatar" onclick="filterMarket(this)">🇶🇦 Qatar</div>
+        <div class="pill" data-mfilter="🇪🇬 Egypt" onclick="filterMarket(this)">🇪🇬 Egypt</div>
+        <div class="pill" data-mfilter="🇴🇲 Oman" onclick="filterMarket(this)">🇴🇲 Oman</div>
+        <div class="pill" data-mfilter="🇵🇰 Pakistan" onclick="filterMarket(this)">🇵🇰 Pakistan</div>
+      </div>
+
       <div class="queue-list" id="queue-list">
         <div class="empty-state">
           <div class="empty-state-icon">⏳</div>
@@ -591,6 +611,8 @@ const state = {
   },
   queue: [],      // approval items from /api/approvals
   activeQFilter: 'all',
+  activeBFilter: 'all',
+  activeMFilter: 'all',
   activeAnalyticsBrand: 'all',
   activeAnalyticsView: 'gsc',
   currentTool: null,
@@ -900,12 +922,20 @@ function filterQueue(pill) {
 function renderQueue() {
   const list = document.getElementById('queue-list');
   let items = state.queue;
-  if (state.activeQFilter !== 'all') items = items.filter(i => i.type === state.activeQFilter);
 
-  // Update pill counts
+  // Apply all three filters
+  if (state.activeQFilter !== 'all') items = items.filter(i => i.type === state.activeQFilter);
+  if (state.activeBFilter !== 'all') items = items.filter(i => i.brand === state.activeBFilter);
+  if (state.activeMFilter !== 'all') items = items.filter(i => (i.locationTag || '🇦🇪 UAE') === state.activeMFilter);
+
+  // Update type pill counts (based on brand+market filtered set first)
+  let baseItems = state.queue;
+  if (state.activeBFilter !== 'all') baseItems = baseItems.filter(i => i.brand === state.activeBFilter);
+  if (state.activeMFilter !== 'all') baseItems = baseItems.filter(i => (i.locationTag || '🇦🇪 UAE') === state.activeMFilter);
+
   document.querySelectorAll('#queue-pills .pill').forEach(p => {
     const f = p.dataset.qfilter;
-    const count = f === 'all' ? state.queue.length : state.queue.filter(i => i.type === f).length;
+    const count = f === 'all' ? baseItems.length : baseItems.filter(i => i.type === f).length;
     const label = p.textContent.replace(/ \(\d+\)/, '');
     p.textContent = count > 0 ? `${label} (${count})` : label;
   });
@@ -914,7 +944,7 @@ function renderQueue() {
     list.innerHTML = `<div class="empty-state">
       <div class="empty-state-icon">✅</div>
       <h3>Queue is clear</h3>
-      <p>${state.activeQFilter === 'all' ? 'No pending actions. Run an audit to generate new suggestions.' : 'No items in this category.'}</p>
+      <p>${state.activeQFilter === 'all' && state.activeBFilter === 'all' && state.activeMFilter === 'all' ? 'No pending actions. Run an audit to generate new suggestions.' : 'No items match the selected filters.'}</p>
     </div>`;
     return;
   }
@@ -922,20 +952,59 @@ function renderQueue() {
   list.innerHTML = items.map(item => buildActionCard(item)).join('');
 }
 
+function filterBrand(pill) {
+  document.querySelectorAll('#brand-pills .pill').forEach(p => {
+    p.classList.remove('active');
+    p.style.background = '';
+  });
+  pill.classList.add('active');
+  const brand = pill.dataset.bfilter;
+  if (brand === 'pickl') pill.style.background = '#DF0070';
+  else if (brand === 'bonbird') pill.style.background = '#C5161A';
+  state.activeBFilter = brand;
+  renderQueue();
+}
+
+function filterMarket(pill) {
+  document.querySelectorAll('#market-pills .pill').forEach(p => p.classList.remove('active'));
+  pill.classList.add('active');
+  state.activeMFilter = pill.dataset.mfilter;
+  renderQueue();
+}
+
+// Pre-filter dashboard by market — called from International SEO "View Queue"
+function filterDashboardByMarket(locationTag) {
+  switchView('dashboard');
+  // Small delay to let the view render first
+  setTimeout(() => {
+    const pill = document.querySelector(`[data-mfilter="${locationTag}"]`);
+    if (pill) filterMarket(pill);
+  }, 100);
+}
+
 function buildActionCard(item) {
-  const brandColor = item.brand === 'pickl' ? 'var(--pickl)' : 'var(--bonbird)';
-  const tagClass = TYPE_TAGS[item.type] || 'tag-blue';
-  const typeLabel = TYPE_LABELS[item.type] || item.type;
-  const brandLabel = BRAND_LABELS[item.brand] || item.brand;
+  const brandColor  = item.brand === 'pickl' ? '#DF0070' : '#C5161A';
+  const tagClass    = TYPE_TAGS[item.type] || 'tag-blue';
+  const typeLabel   = TYPE_LABELS[item.type] || item.type;
+  const brandLabel  = BRAND_LABELS[item.brand] || item.brand;
+  const locationTag = item.locationTag || (item.payload?.locationTag) || null;
+  const languageTag = item.languageTag || (item.payload?.languageTag) || null;
 
   const preview = buildPreview(item);
 
-  return `<div class="card action-card" id="card-${esc(item.id)}">
+  const tagHtml = `
+    <div style="display:flex;gap:6px;align-items:center;flex-shrink:0;margin-left:auto;padding-left:12px">
+      ${locationTag ? `<span style="font-size:11px;font-weight:600;padding:2px 8px;border-radius:99px;background:rgba(0,0,0,0.06);color:#475569;white-space:nowrap">${esc(locationTag)}</span>` : ''}
+      ${languageTag ? `<span style="font-size:11px;font-weight:600;padding:2px 8px;border-radius:99px;background:rgba(0,0,0,0.06);color:#475569">${esc(languageTag)}</span>` : ''}
+      <span class="tag ${tagClass}">${esc(typeLabel)}</span>
+    </div>`;
+
+  return `<div class="card action-card" id="card-${esc(item.id)}" style="border-left:4px solid ${brandColor}">
     <div class="card-header">
-      <div class="card-title">
-        <div class="dot" style="background:${brandColor}"></div>
-        ${esc(brandLabel)}: ${esc(item.title || typeLabel)}
-        <span class="tag ${tagClass}">${esc(typeLabel)}</span>
+      <div class="card-title" style="display:flex;align-items:center;width:100%;gap:8px">
+        <div class="dot" style="background:${brandColor};flex-shrink:0"></div>
+        <span style="flex:1;min-width:0">${esc(brandLabel)}: ${esc(item.title || typeLabel)}</span>
+        ${tagHtml}
       </div>
     </div>
     <div class="card-body">${preview}</div>
@@ -1617,7 +1686,7 @@ function renderIntlDashboard() {
           onmouseover="this.style.background='rgba(255,255,255,0.15)'" onmouseout="this.style.background='transparent'">
           ⟳ Force
         </button>
-        <button onclick="switchView('dashboard')"
+        <button onclick="filterDashboardByMarket('${flag} ${m.label}')"
           style="flex:1;padding:8px 0;border-radius:8px;border:none;background:rgba(255,255,255,0.2);color:#fff;font-size:12px;font-weight:600;cursor:pointer;transition:all 0.15s"
           onmouseover="this.style.background='rgba(255,255,255,0.35)'" onmouseout="this.style.background='rgba(255,255,255,0.2)'">
           View Queue

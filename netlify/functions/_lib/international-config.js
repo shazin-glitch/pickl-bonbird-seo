@@ -408,8 +408,9 @@ function buildPostUrl(market, type, slug, language = 'en') {
       : `${baseSlug}/journal`;
     return `${brand}/${journalBase}/${slug}/`;
   }
-  // page_update or page_creation — sits under market slug
-  return `${brand}/${baseSlug}/${slug}/`;
+  // page_update / meta_update / onpage_suggestion — the market page itself
+  // slug param is ignored to avoid double-slug (e.g. /oman/oman/)
+  return `${brand}/${baseSlug}/`;
 }
 
 // Build Claude prompt context for a market

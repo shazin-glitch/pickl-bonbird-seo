@@ -69,6 +69,9 @@ async function createApproval(input) {
     rejectionFeedback: input.rejectionFeedback || null,
     history: [{ at: now, actor: input.actor || 'claude', action: 'queued', note: input.reason || '' }],
     pushResult: null,
+    // Location + language tags — always present for filtering
+    locationTag: input.locationTag || input.payload?.locationTag || '🇦🇪 UAE',
+    languageTag: input.languageTag || input.payload?.languageTag || 'EN',
   };
   await s.setJSON(KEY_ITEM(id), item);
   const idx = await getIndex();

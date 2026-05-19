@@ -79,6 +79,9 @@ async function createItem(input) {
     rejectionFeedback: input.rejectionFeedback || null,
     history: [{ at: now, actor: input.actor || 'claude', action: 'queued', note: input.reason || '' }],
     pushResult: null,
+    // Location + language tags for filtering
+    locationTag: input.payload?.locationTag || input.locationTag || '🇦🇪 UAE',
+    languageTag: input.payload?.languageTag || input.languageTag || 'EN',
   };
   await saveItem(item);
   const idx = await getIndex();
