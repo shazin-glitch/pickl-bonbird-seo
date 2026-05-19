@@ -824,10 +824,9 @@
 
       try { await fetch(BACKGROUND_URL, { method: "GET" }); } catch { /* 202 is fine */ }
 
-      // Remember fetchedAt before refresh so we know when new data arrives
-      const prevFetchedAt = matrixData?.pickl?.fetchedAt || matrixData?.bonbird?.fetchedAt || null;
+      // Record exact trigger time — both brands must have fetchedAt AFTER this
+      const triggerTime = Date.now();
 
-      let attempts = 0;
       pollTimer = setInterval(async () => {
         attempts++;
         const statusEl = document.getElementById("cm-poll-status");
@@ -837,24 +836,30 @@
           const res = await fetch(`${FUNCTION_URL}?brand=all`);
           if (!res.ok) return;
           const data = await res.json();
-          const newFetchedAt = data?.pickl?.fetchedAt || data?.bonbird?.fetchedAt;
 
-          // Only accept if both brands have data and it's newer than before
-          const bothLoaded = data?.pickl?.rows?.length && data?.bonbird?.rows?.length;
-          const isNewer    = !prevFetchedAt || newFetchedAt !== prevFetchedAt;
+          const picklFresh   = data?.pickl?.rows?.length   && new Date(data.pickl.fetchedAt).getTime()   > triggerTime;
+          const bonbirdFresh = data?.bonbird?.rows?.length && new Date(data.bonbird.fetchedAt).getTime() > triggerTime;
 
-          if (bothLoaded && isNewer) {
+          if (picklFresh && bonbirdFresh) {
             clearInterval(pollTimer); pollTimer = null;
             matrixData = data;
             isLoading = false;
             currentView = "matrix";
             render(container);
-          } else if (attempts >= POLL_MAX_ATTEMPTS) {
-            clearInterval(pollTimer); pollTimer = null;
-            // Show whatever we have
-            if (data?.pickl?.rows || data?.bonbird?.rows) matrixData = data;
-            isLoading = false;
-            render(container);
+          } else {
+            // Show progress so user knows it's working
+            if (statusEl) {
+              const done = [picklFresh && "Pickl ✓", bonbirdFresh && "Bonbird ✓"].filter(Boolean);
+              statusEl.textContent = done.length
+                ? `${done.join(", ")} done — waiting for ${done.length === 1 ? (picklFresh ? "Bonbird" : "Pickl") : ""}… (${attempts * 30}s)`
+                : `Fetching… (${attempts * 30}s)`;
+            }
+            if (attempts >= POLL_MAX_ATTEMPTS) {
+              clearInterval(pollTimer); pollTimer = null;
+              if (data?.pickl?.rows || data?.bonbird?.rows) matrixData = data;
+              isLoading = false;
+              render(container);
+            }
           }
         } catch { /* keep polling */ }
       }, POLL_INTERVAL_MS);
