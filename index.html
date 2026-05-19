@@ -190,6 +190,9 @@
     <div class="nav-item" data-target="analytics">
       <span>Analytics &amp; ROI</span>
     </div>
+    <div class="nav-item" data-target="international">
+      <span>International SEO</span>
+    </div>
     <div class="nav-item" data-target="studio">
       <span>AI Content Studio</span>
     </div>
@@ -323,7 +326,54 @@
       </div>
     </div>
 
-    <!-- ═══ VIEW 3: AI CONTENT STUDIO ═══ -->
+    <!-- ═══ VIEW 3: INTERNATIONAL SEO ═══ -->
+    <div class="page-view" id="view-international">
+      <div class="view-header">
+        <div>
+          <div class="section-title">International SEO</div>
+          <div class="section-desc">Localised content pipelines for Pickl and Bonbird international markets.</div>
+        </div>
+        <button class="btn btn-primary" onclick="runIntlSeo()" id="intl-run-btn">▶ Run Now</button>
+      </div>
+
+      <!-- Brand + Market filter pills -->
+      <div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:20px;align-items:center" id="intl-pills">
+        <span style="font-size:12px;color:var(--text-muted);margin-right:4px">Brand:</span>
+        <div class="pill active" data-intl-brand="all" onclick="switchIntlView(this,'brand')">All Brands</div>
+        <div class="pill" data-intl-brand="pickl" onclick="switchIntlView(this,'brand')">Pickl</div>
+        <div class="pill" data-intl-brand="bonbird" onclick="switchIntlView(this,'brand')">Bonbird</div>
+        <span style="font-size:12px;color:var(--text-muted);margin:0 4px 0 12px">Market:</span>
+        <div class="pill active" data-intl-market="all" onclick="switchIntlView(this,'market')">All Markets</div>
+        <!-- Pickl markets -->
+        <div class="pill pickl-market" data-intl-market="pickl_bahrain" onclick="switchIntlView(this,'market')">🇧🇭 Bahrain</div>
+        <div class="pill pickl-market" data-intl-market="pickl_ksa" onclick="switchIntlView(this,'market')">🇸🇦 Saudi Arabia</div>
+        <div class="pill pickl-market" data-intl-market="pickl_jordan" onclick="switchIntlView(this,'market')">🇯🇴 Jordan</div>
+        <div class="pill pickl-market" data-intl-market="pickl_qatar" onclick="switchIntlView(this,'market')">🇶🇦 Qatar</div>
+        <div class="pill pickl-market" data-intl-market="pickl_egypt" onclick="switchIntlView(this,'market')">🇪🇬 Egypt</div>
+        <div class="pill pickl-market" data-intl-market="pickl_oman" onclick="switchIntlView(this,'market')">🇴🇲 Oman <span style="font-size:10px;background:#f59e0b;color:#000;padding:1px 5px;border-radius:4px;margin-left:4px">NEW</span></div>
+        <!-- Bonbird markets -->
+        <div class="pill bonbird-market" data-intl-market="bonbird_oman" onclick="switchIntlView(this,'market')">🇴🇲 Oman</div>
+        <div class="pill bonbird-market" data-intl-market="bonbird_pakistan" onclick="switchIntlView(this,'market')">🇵🇰 Pakistan</div>
+        <div class="pill bonbird-market" data-intl-market="bonbird_qatar" onclick="switchIntlView(this,'market')">🇶🇦 Qatar</div>
+      </div>
+
+      <!-- Market cards grid -->
+      <div id="intl-market-grid" style="display:grid;grid-template-columns:repeat(auto-fill,minmax(340px,1fr));gap:16px">
+        <div style="text-align:center;padding:40px;color:var(--text-muted);grid-column:1/-1" id="intl-loading">
+          Loading market status…
+        </div>
+      </div>
+
+      <!-- Run log -->
+      <div id="intl-run-log" style="margin-top:20px;display:none">
+        <div class="card">
+          <h3 style="font-size:14px;font-weight:600;margin-bottom:12px">Run Log</h3>
+          <div id="intl-run-log-content" style="font-size:12px;font-family:monospace;color:var(--text-muted);line-height:1.8"></div>
+        </div>
+      </div>
+    </div>
+
+    <!-- ═══ VIEW 4: AI CONTENT STUDIO ═══ -->
     <div class="page-view" id="view-studio">
       <div class="section-header" style="margin-bottom:24px">
         <div>
@@ -371,7 +421,7 @@
       </div>
     </div>
 
-    <!-- ═══ VIEW 4: SETTINGS & LOGS ═══ -->
+    <!-- ═══ VIEW 5: SETTINGS & LOGS ═══ -->
     <div class="page-view" id="view-settings">
       <div class="section-header">
         <div>
@@ -605,10 +655,11 @@ const TYPE_TAGS = {
 // NAVIGATION
 // ═══════════════════════════════════════════════════════════════
 const VIEW_TITLES = {
-  dashboard: 'Dashboard & Approvals',
-  analytics: 'Analytics & ROI',
-  studio: 'AI Content Studio',
-  settings: 'Settings & Logs',
+  dashboard:     'Dashboard & Approvals',
+  analytics:     'Analytics & ROI',
+  international: 'International SEO',
+  studio:        'AI Content Studio',
+  settings:      'Settings & Logs',
 };
 
 document.getElementById('nav-menu').addEventListener('click', e => {
@@ -621,8 +672,9 @@ function switchView(target) {
   document.querySelectorAll('.nav-item').forEach(n => n.classList.toggle('active', n.dataset.target === target));
   document.querySelectorAll('.page-view').forEach(v => v.classList.toggle('active', v.id === 'view-' + target));
   document.getElementById('top-title').textContent = VIEW_TITLES[target] || target;
-  if (target === 'analytics') loadGscIfNeeded();
-  if (target === 'settings') { renderAuditLog(); loadBrandCtx(); }
+  if (target === 'analytics')     loadGscIfNeeded();
+  if (target === 'settings')      { renderAuditLog(); loadBrandCtx(); }
+  if (target === 'international') loadIntlDashboard();
 }
 
 // ═══════════════════════════════════════════════════════════════
@@ -1451,6 +1503,188 @@ document.addEventListener('keydown', e => {
     closeKwModal();
   }
 });
+
+// ═══════════════════════════════════════════════════════════════
+// INTERNATIONAL SEO DASHBOARD
+// ═══════════════════════════════════════════════════════════════
+
+const INTL_MARKETS = {
+  pickl_bahrain: { brand:'pickl', label:'Bahrain',       flag:'🇧🇭', languages:['en','ar'] },
+  pickl_ksa:     { brand:'pickl', label:'Saudi Arabia',  flag:'🇸🇦', languages:['en','ar'] },
+  pickl_jordan:  { brand:'pickl', label:'Jordan',        flag:'🇯🇴', languages:['en','ar'] },
+  pickl_qatar:   { brand:'pickl', label:'Qatar',         flag:'🇶🇦', languages:['en','ar'] },
+  pickl_egypt:   { brand:'pickl', label:'Egypt',         flag:'🇪🇬', languages:['en','ar'] },
+  pickl_oman:    { brand:'pickl', label:'Oman',          flag:'🇴🇲', languages:['en'], isNew:true },
+  bonbird_oman:  { brand:'bonbird', label:'Oman',        flag:'🇴🇲', languages:['en'] },
+  bonbird_pakistan:{ brand:'bonbird', label:'Pakistan',  flag:'🇵🇰', languages:['en'] },
+  bonbird_qatar: { brand:'bonbird', label:'Qatar',       flag:'🇶🇦', languages:['en','ar'] },
+};
+
+let intlState = {
+  activeBrand:  'all',
+  activeMarket: 'all',
+  runStatus:    {}, // marketKey -> { lastRun, itemsQueued }
+  loaded:       false,
+};
+
+// Load approvals count per market from the approvals store
+async function loadIntlDashboard() {
+  if (intlState.loaded) { renderIntlDashboard(); return; }
+  document.getElementById('intl-loading').style.display = 'block';
+  document.getElementById('intl-market-grid').innerHTML =
+    '<div style="text-align:center;padding:40px;color:var(--text-muted);grid-column:1/-1" id="intl-loading">Loading market status…</div>';
+
+  try {
+    // Pull approval items to count per market
+    const data = await apiGet('/api/approvals?status=pending').catch(() => ({ items: [] }));
+    const items = data.items || [];
+
+    // Count queued items per market
+    const marketCounts = {};
+    for (const item of items) {
+      if (item.source === 'international_seo' && item.market) {
+        const key = `${item.brand}_${item.market}`;
+        marketCounts[key] = (marketCounts[key] || 0) + 1;
+      }
+    }
+
+    intlState.runStatus   = marketCounts;
+    intlState.loaded      = true;
+    renderIntlDashboard();
+  } catch (e) {
+    document.getElementById('intl-market-grid').innerHTML =
+      `<div style="color:var(--danger);grid-column:1/-1;padding:20px">Failed to load: ${esc(e.message)}</div>`;
+  }
+}
+
+function renderIntlDashboard() {
+  const grid = document.getElementById('intl-market-grid');
+  const { activeBrand, activeMarket } = intlState;
+
+  const entries = Object.entries(INTL_MARKETS).filter(([key, m]) => {
+    if (activeBrand !== 'all' && m.brand !== activeBrand) return false;
+    if (activeMarket !== 'all' && key !== activeMarket) return false;
+    return true;
+  });
+
+  if (!entries.length) {
+    grid.innerHTML = '<div style="text-align:center;padding:40px;color:var(--text-muted);grid-column:1/-1">No markets match the selected filters.</div>';
+    return;
+  }
+
+  grid.innerHTML = entries.map(([key, m]) => {
+    const count    = intlState.runStatus[key] || 0;
+    const brandCol = m.brand === 'pickl' ? '#f59e0b' : '#ef4444';
+    const brandLbl = m.brand === 'pickl' ? 'Pickl' : 'Bonbird';
+    const langs    = m.languages.map(l => l === 'ar' ? '🌐 Arabic' : '🌐 English').join(' + ');
+
+    return `<div class="card" style="position:relative">
+      ${m.isNew ? `<div style="position:absolute;top:12px;right:12px;background:#f59e0b;color:#000;font-size:10px;font-weight:700;padding:2px 8px;border-radius:4px">NEW</div>` : ''}
+      <div style="display:flex;align-items:center;gap:10px;margin-bottom:12px">
+        <span style="font-size:28px">${m.flag}</span>
+        <div>
+          <div style="font-weight:700;font-size:15px">${m.label}</div>
+          <div style="font-size:11px;color:${brandCol};font-weight:600">${brandLbl}</div>
+        </div>
+      </div>
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px">
+        <div style="font-size:12px;color:var(--text-muted)">${langs}</div>
+        <div style="font-size:12px;font-weight:600;color:${count > 0 ? 'var(--primary)' : 'var(--text-muted)'}">
+          ${count > 0 ? `${count} items queued` : 'No items queued'}
+        </div>
+      </div>
+      <div style="display:flex;gap:8px">
+        <button class="btn btn-outline" style="flex:1;font-size:12px" onclick="runIntlMarket('${key}')">▶ Run</button>
+        <button class="btn btn-outline" style="flex:1;font-size:12px" onclick="runIntlMarket('${key}', true)">⟳ Force</button>
+        <button class="btn btn-outline" style="flex:1;font-size:12px" onclick="switchView('dashboard')">View Queue</button>
+      </div>
+    </div>`;
+  }).join('');
+}
+
+function switchIntlView(pill, type) {
+  // Update active pill in the group
+  document.querySelectorAll(`[data-intl-${type}]`).forEach(p => p.classList.remove('active'));
+  pill.classList.add('active');
+
+  if (type === 'brand') {
+    intlState.activeBrand = pill.dataset.intlBrand;
+    // Show/hide market pills based on brand
+    const brand = intlState.activeBrand;
+    document.querySelectorAll('.pickl-market').forEach(p => {
+      p.style.display = (brand === 'all' || brand === 'pickl') ? '' : 'none';
+    });
+    document.querySelectorAll('.bonbird-market').forEach(p => {
+      p.style.display = (brand === 'all' || brand === 'bonbird') ? '' : 'none';
+    });
+    // Reset market filter to all
+    intlState.activeMarket = 'all';
+    document.querySelectorAll('[data-intl-market]').forEach(p => p.classList.remove('active'));
+    document.querySelector('[data-intl-market="all"]').classList.add('active');
+  } else {
+    intlState.activeMarket = pill.dataset.intlMarket;
+  }
+
+  renderIntlDashboard();
+}
+
+async function runIntlMarket(marketKey, force = false) {
+  const m = INTL_MARKETS[marketKey];
+  if (!m) return;
+
+  const log     = document.getElementById('intl-run-log');
+  const logBody = document.getElementById('intl-run-log-content');
+  log.style.display = 'block';
+  logBody.innerHTML = `⏳ Triggering ${m.flag} ${m.label} (${m.brand}) — ${force ? 'forced' : 'smart'} run…<br>`;
+
+  try {
+    const url = `/api/international-seo?market=${marketKey}${force ? '&force=true' : ''}`;
+    const res = await fetch(url);
+    const data = await res.json().catch(() => ({}));
+
+    if (data.summary) {
+      logBody.innerHTML += `✅ Done — ${data.summary.queued} items queued, ${data.summary.skipped} skipped, ${data.summary.errors} errors<br>`;
+    } else {
+      logBody.innerHTML += `⚠️ Completed with response: ${JSON.stringify(data).slice(0, 200)}<br>`;
+    }
+
+    // Refresh dashboard counts
+    intlState.loaded = false;
+    loadIntlDashboard();
+  } catch (e) {
+    logBody.innerHTML += `❌ Error: ${esc(e.message)}<br>`;
+  }
+}
+
+async function runIntlSeo() {
+  const btn = document.getElementById('intl-run-btn');
+  btn.textContent = '⏳ Running…';
+  btn.disabled = true;
+
+  const { activeBrand, activeMarket } = intlState;
+  const marketParam = activeMarket !== 'all' ? activeMarket : (activeBrand !== 'all' ? activeBrand : 'all');
+
+  const log     = document.getElementById('intl-run-log');
+  const logBody = document.getElementById('intl-run-log-content');
+  log.style.display = 'block';
+  logBody.innerHTML = `⏳ Running international SEO — market: ${marketParam}…<br>
+<span style="color:var(--text-muted)">This runs as a background function. Results will appear in your approvals queue.</span><br>`;
+
+  try {
+    const res  = await fetch(`/api/international-seo?market=${marketParam}`);
+    const data = await res.json().catch(() => ({}));
+    if (data.summary) {
+      logBody.innerHTML += `✅ Complete — ${data.summary.queued} items queued to approvals<br>`;
+    }
+    intlState.loaded = false;
+    loadIntlDashboard();
+  } catch (e) {
+    logBody.innerHTML += `❌ ${esc(e.message)}<br>`;
+  }
+
+  btn.textContent = '▶ Run Now';
+  btn.disabled = false;
+}
 </script>
 <script src="/js/competitor-matrix-ui.js"></script>
 </body>

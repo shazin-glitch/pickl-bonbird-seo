@@ -49,6 +49,11 @@
   status = 200
 
 [[redirects]]
+  from = "/api/international-seo"
+  to = "/.netlify/functions/international-seo-background"
+  status = 200
+
+[[redirects]]
   from = "/api/keyword-config"
   to = "/.netlify/functions/keyword-config"
   status = 200
@@ -64,4 +69,7 @@
   schedule = "0 4 * * 1"
 
 [functions."competitor-matrix-background"]
+  schedule = "0 4 * * 1"
+
+[functions."international-seo-background"]
   schedule = "0 4 * * 1"
