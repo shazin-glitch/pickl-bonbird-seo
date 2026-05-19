@@ -282,7 +282,7 @@ const INTERNATIONAL_MARKETS = {
       en: [
         'fried chicken muscat', 'best fried chicken oman', 'crispy chicken muscat',
         'chicken restaurant muscat', 'fried chicken delivery muscat',
-        'halal fried chicken oman', 'chicken tenders muscat', 'best chicken oman',
+        'fresh fried chicken oman', 'chicken tenders muscat', 'best chicken oman',
         'chicken burger muscat', 'bonbird oman',
       ],
     },

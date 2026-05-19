@@ -78,7 +78,7 @@ const BRAND_CONFIG = {
       "crispy chicken mussafah", "best chicken near me", "fried chicken dubai",
       "crispy chicken uae", "broasted chicken sharjah", "fried chicken abu dhabi",
       "best burger restaurants in dubai", "fried chicken delivery dubai",
-      "halal fried chicken restaurant dubai", "korean chicken burger dubai",
+      "fried chicken delivery dubai", "korean chicken burger dubai",
       "chicken rice bowl dubai",
       // Franchise
       "franchise business", "franchise in uae", "franchise dubai", "franchise in dubai",

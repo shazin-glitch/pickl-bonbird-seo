@@ -270,8 +270,8 @@
       <!-- Brand filter -->
       <div class="pill-nav" id="brand-pills" style="margin-top:8px">
         <div class="pill active" data-bfilter="all" onclick="filterBrand(this)">All Brands</div>
-        <div class="pill" data-bfilter="pickl" onclick="filterBrand(this)" style="border-color:#DF0070;color:#DF0070" class="pill">Pickl</div>
-        <div class="pill" data-bfilter="bonbird" onclick="filterBrand(this)" style="border-color:#C5161A;color:#C5161A">Bonbird</div>
+        <div class="pill" data-bfilter="pickl" onclick="filterBrand(this)" style="border:1.5px solid #DF0070;color:#DF0070;background:transparent">Pickl</div>
+        <div class="pill" data-bfilter="bonbird" onclick="filterBrand(this)" style="border:1.5px solid #C5161A;color:#C5161A;background:transparent">Bonbird</div>
       </div>
 
       <!-- Market filter -->
@@ -926,12 +926,12 @@ function renderQueue() {
   // Apply all three filters
   if (state.activeQFilter !== 'all') items = items.filter(i => i.type === state.activeQFilter);
   if (state.activeBFilter !== 'all') items = items.filter(i => i.brand === state.activeBFilter);
-  if (state.activeMFilter !== 'all') items = items.filter(i => (i.locationTag || '🇦🇪 UAE') === state.activeMFilter);
+  if (state.activeMFilter !== 'all') items = items.filter(i => i.locationTag === state.activeMFilter);
 
   // Update type pill counts (based on brand+market filtered set first)
   let baseItems = state.queue;
   if (state.activeBFilter !== 'all') baseItems = baseItems.filter(i => i.brand === state.activeBFilter);
-  if (state.activeMFilter !== 'all') baseItems = baseItems.filter(i => (i.locationTag || '🇦🇪 UAE') === state.activeMFilter);
+  if (state.activeMFilter !== 'all') baseItems = baseItems.filter(i => i.locationTag === state.activeMFilter);
 
   document.querySelectorAll('#queue-pills .pill').forEach(p => {
     const f = p.dataset.qfilter;
@@ -955,12 +955,16 @@ function renderQueue() {
 function filterBrand(pill) {
   document.querySelectorAll('#brand-pills .pill').forEach(p => {
     p.classList.remove('active');
-    p.style.background = '';
+    const b = p.dataset.bfilter;
+    if (b === 'pickl') { p.style.background = 'transparent'; p.style.color = '#DF0070'; p.style.border = '1.5px solid #DF0070'; }
+    else if (b === 'bonbird') { p.style.background = 'transparent'; p.style.color = '#C5161A'; p.style.border = '1.5px solid #C5161A'; }
+    else { p.style.background = ''; p.style.color = ''; p.style.border = ''; }
   });
   pill.classList.add('active');
   const brand = pill.dataset.bfilter;
-  if (brand === 'pickl') pill.style.background = '#DF0070';
-  else if (brand === 'bonbird') pill.style.background = '#C5161A';
+  if (brand === 'pickl') { pill.style.background = '#DF0070'; pill.style.color = '#fff'; pill.style.border = '1.5px solid #DF0070'; }
+  else if (brand === 'bonbird') { pill.style.background = '#C5161A'; pill.style.color = '#fff'; pill.style.border = '1.5px solid #C5161A'; }
+  else { pill.style.background = ''; pill.style.color = ''; pill.style.border = ''; }
   state.activeBFilter = brand;
   renderQueue();
 }
@@ -1403,7 +1407,7 @@ const BRAND_CTX_DEFAULTS = {
     differentiators: "Dubai-born homegrown brand — not a franchise or import\n100% fresh, hormone free, antibiotic free chicken — always made to order, never frozen\nSpice system: choose a spice level (Plain Jane / Medium / Hot / XXX) OR a flavour (Garlic Parm / Jamaican Tang / Jalapeño / Lemon Pepper / Chicken Salt)\nFull menu: Bone-In pieces, Tenders, Sandwiches, Wraps (Bon Wrap + Snack-A-Wrap), Rice Bowls\nSignature sides: Chicken Salt Fries, Mac & Three Cheese, Mash Potato, Bon Gravy, Slaw, Dill & Chilli Pickles\nCommunity-first brand — every customer is a Champ",
     tone: "DIRECT (not rude) — straightforward, clear, unambiguous, to-the-point. Never evasive or sugar-coated.\nBOLD (not flamboyant) — daring, assertive, confident. Never timid, cautious or restrained.\nDYNAMIC (not chaotic) — energetic, spontaneous, lively. Never routine or predictable.\nCONFIDENT (not cocky) — self-assured, decisive, poised. Never hesitant or wavering.\nUNAPOLOGETIC (not aggressive) — unreserved, fearless, candid. Never apologetic or reserved.\nCall customers and team 'Champs' — NEVER use 'Legends' (that is Pickl's word)\nNo exclamation marks in blog posts or meta descriptions\nPlain speak — not sales copy. Short, sharp, impactful.",
     language: "'Champs' = customers and team members (NEVER 'Legends')\n'All bird. No bull.' = master brand statement\n'Eat Like A Champ' = key consumer statement\n'Serving Golden Chicken Daily' = product statement\n'Always Fresh (never frozen)' = food credibility\n'Good Good Sauce' = proprietary sauce — always capitalise\n'Bon Gravy' = proprietary gravy — always capitalise\n'Chicken Salt' = signature seasoning — always capitalise\n'Bon Wrap' = full-size wrap — always capitalise\n'Snack-A-Wrap' = smaller wrap — always capitalise\n'Made fresh. To order.' = key food credibility line\n'Homegrown. Handmade.' = origin story",
-    donot: "Never use: delicious, tasty, mouth-watering, scrumptious, yummy, finger-licking\nNever call the brand or food 'legendary' — customers decide that\nNever use 'Legends' for customers — that is Pickl's word. Bonbird uses 'Champs'\nNo exclamation marks in blog posts, meta descriptions or long-form copy\nNever sound generic, flamboyant, chaotic, apologetic or aggressive\nNo boardroom speak or marketing buzzwords\nDo not describe chicken as 'southern fried' or 'boneless' — not Bonbird's language",
+    donot: "Never use: delicious, tasty, mouth-watering, scrumptious, yummy, finger-licking\nNever call the brand or food 'legendary' — customers decide that\nNever use 'Legends' for customers — that is Pickl's word. Bonbird uses 'Champs'\nNo exclamation marks in blog posts, meta descriptions or long-form copy\nNever sound generic, flamboyant, chaotic, apologetic or aggressive\nNo boardroom speak or marketing buzzwords\nDo not describe chicken as 'southern fried' or 'boneless' — not Bonbird's language\nDo NOT target 'halal fried chicken' as a keyword — halal is assumed in UAE/GCC markets and is not a differentiator. Focus on quality, freshness and flavour instead.",
     locations: "Motor City Dubai, City Walk Dubai, City Centre Mirdif Dubai, Aljada Sharjah, Khalifa City Abu Dhabi"
   }
 };
@@ -1686,7 +1690,7 @@ function renderIntlDashboard() {
           onmouseover="this.style.background='rgba(255,255,255,0.15)'" onmouseout="this.style.background='transparent'">
           ⟳ Force
         </button>
-        <button onclick="filterDashboardByMarket('${flag} ${m.label}')"
+        <button onclick="filterDashboardByMarket('${m.flag} ${m.label}')"
           style="flex:1;padding:8px 0;border-radius:8px;border:none;background:rgba(255,255,255,0.2);color:#fff;font-size:12px;font-weight:600;cursor:pointer;transition:all 0.15s"
           onmouseover="this.style.background='rgba(255,255,255,0.35)'" onmouseout="this.style.background='rgba(255,255,255,0.2)'">
           View Queue
