@@ -11,7 +11,9 @@
   // ── Config ──────────────────────────────────────────────────────────────
   const FUNCTION_URL        = "/.netlify/functions/competitor-matrix";
   const BACKGROUND_URL      = "/.netlify/functions/competitor-matrix-background";
-  const REFRESH_POLL_DELAY  = 90000; // ms to wait before polling — ~40s pickl + ~40s bonbird
+  const KEYWORD_CONFIG_URL  = "/.netlify/functions/keyword-config";
+  const POLL_INTERVAL_MS    = 30000;  // check every 30s after refresh
+  const POLL_MAX_ATTEMPTS   = 20;     // up to 10 minutes total
 
   // Brand colours matching your existing palette
   const BRAND_COLORS = {
@@ -28,8 +30,11 @@
 
   // ── State ────────────────────────────────────────────────────────────────
   let currentBrandFilter = "all";
-  let matrixData = null; // { pickl: {...}, bonbird: {...} }
-  let isLoading = false;
+  let matrixData   = null; // { pickl: {...}, bonbird: {...} }
+  let keywordData  = null; // { pickl: { keywords: [] }, bonbird: { keywords: [] } }
+  let isLoading    = false;
+  let currentView  = "matrix"; // "matrix" | "keywords"
+  let pollTimer    = null;
 
   // ── Inject CSS ───────────────────────────────────────────────────────────
   function injectStyles() {
@@ -284,6 +289,105 @@
         color: var(--text-muted, #64748b);
         margin-top: 2px;
       }
+
+      /* ── View toggle ── */
+      .cm-view-toggle { display: flex; gap: 6px; }
+      .cm-view-btn {
+        padding: 5px 12px; border-radius: 6px; font-size: 0.78rem; font-weight: 500;
+        border: 1px solid rgba(0,0,0,0.15); background: transparent;
+        color: var(--text-secondary, #475569); cursor: pointer; transition: all 0.15s;
+      }
+      .cm-view-btn.active {
+        background: #1e293b; color: #fff; border-color: #1e293b;
+      }
+
+      /* ── Keyword management ── */
+      .cm-kw-section { margin-bottom: 24px; }
+      .cm-kw-section-title {
+        font-size: 0.8rem; font-weight: 700; text-transform: uppercase;
+        letter-spacing: 0.05em; color: var(--text-muted, #64748b);
+        margin-bottom: 10px; display: flex; align-items: center; gap: 8px;
+      }
+      .cm-kw-count {
+        background: rgba(0,0,0,0.07); border-radius: 10px;
+        padding: 1px 7px; font-size: 0.72rem; font-weight: 600;
+      }
+      .cm-kw-grid {
+        display: flex; flex-wrap: wrap; gap: 6px;
+      }
+      .cm-kw-tag {
+        display: inline-flex; align-items: center; gap: 5px;
+        background: rgba(0,0,0,0.05); border: 1px solid rgba(0,0,0,0.1);
+        border-radius: 20px; padding: 4px 10px 4px 12px;
+        font-size: 0.78rem; color: var(--text-primary, #1e293b);
+      }
+      .cm-kw-tag-delete {
+        background: none; border: none; cursor: pointer; padding: 0;
+        color: #94a3b8; font-size: 1rem; line-height: 1;
+        display: flex; align-items: center; transition: color 0.15s;
+      }
+      .cm-kw-tag-delete:hover { color: #ef4444; }
+      .cm-kw-add-row {
+        display: flex; gap: 8px; margin-top: 14px;
+      }
+      .cm-kw-add-input {
+        flex: 1; padding: 7px 12px; border-radius: 7px; font-size: 0.82rem;
+        border: 1px solid rgba(0,0,0,0.15); outline: none;
+        color: var(--text-primary, #1e293b); background: #fff;
+      }
+      .cm-kw-add-input:focus { border-color: #3b82f6; box-shadow: 0 0 0 3px rgba(59,130,246,0.1); }
+      .cm-kw-add-btn {
+        padding: 7px 16px; border-radius: 7px; font-size: 0.82rem; font-weight: 600;
+        background: #1e293b; color: #fff; border: none; cursor: pointer; transition: background 0.15s;
+      }
+      .cm-kw-add-btn:hover { background: #0f172a; }
+      .cm-kw-add-btn:disabled { opacity: 0.5; cursor: not-allowed; }
+      .cm-kw-save-bar {
+        margin-top: 16px; padding: 12px 16px; background: #fffbeb;
+        border: 1px solid #fcd34d; border-radius: 8px;
+        display: flex; align-items: center; justify-content: space-between; gap: 12px;
+        font-size: 0.82rem; color: #92400e;
+      }
+      .cm-kw-save-btn {
+        padding: 6px 16px; border-radius: 6px; font-size: 0.82rem; font-weight: 600;
+        background: #f59e0b; color: #fff; border: none; cursor: pointer;
+      }
+      .cm-kw-save-btn:disabled { opacity: 0.5; cursor: not-allowed; }
+
+      /* ── Confirmation modal ── */
+      .cm-modal-overlay {
+        position: fixed; inset: 0; background: rgba(0,0,0,0.45);
+        display: flex; align-items: center; justify-content: center;
+        z-index: 9999; animation: cm-fade-in 0.15s ease;
+      }
+      @keyframes cm-fade-in { from { opacity: 0; } to { opacity: 1; } }
+      .cm-modal {
+        background: #fff; border-radius: 12px; padding: 24px 28px;
+        max-width: 400px; width: 90%; box-shadow: 0 20px 60px rgba(0,0,0,0.2);
+        animation: cm-slide-up 0.15s ease;
+      }
+      @keyframes cm-slide-up { from { transform: translateY(8px); opacity: 0; } to { transform: translateY(0); opacity: 1; } }
+      .cm-modal-title { font-size: 1rem; font-weight: 700; color: #1e293b; margin-bottom: 8px; }
+      .cm-modal-body { font-size: 0.85rem; color: #475569; margin-bottom: 20px; line-height: 1.5; }
+      .cm-modal-keyword {
+        display: inline-block; background: #f1f5f9; border-radius: 5px;
+        padding: 2px 8px; font-weight: 600; color: #1e293b; font-size: 0.82rem;
+      }
+      .cm-modal-actions { display: flex; gap: 10px; justify-content: flex-end; }
+      .cm-modal-cancel {
+        padding: 8px 16px; border-radius: 7px; font-size: 0.82rem; font-weight: 500;
+        border: 1px solid rgba(0,0,0,0.15); background: #fff; color: #475569; cursor: pointer;
+      }
+      .cm-modal-confirm {
+        padding: 8px 16px; border-radius: 7px; font-size: 0.82rem; font-weight: 600;
+        border: none; background: #ef4444; color: #fff; cursor: pointer;
+      }
+      .cm-modal-confirm:hover { background: #dc2626; }
+
+      /* ── Polling status ── */
+      .cm-poll-status {
+        font-size: 0.75rem; color: #3b82f6; margin-top: 4px; text-align: center;
+      }
     `;
     document.head.appendChild(style);
   }
@@ -382,6 +486,11 @@
           <span class="cm-badge">Live SERP</span>
         </div>
         <div class="cm-controls">
+          <div class="cm-view-toggle">
+            <button class="cm-view-btn ${currentView === "matrix" ? "active" : ""}" data-view="matrix">Rankings</button>
+            <button class="cm-view-btn ${currentView === "keywords" ? "active" : ""}" data-view="keywords">Manage Keywords</button>
+          </div>
+          ${currentView === "matrix" ? `
           <button class="cm-filter-btn ${currentBrandFilter === "all" ? "active" : ""}" data-filter="all">All Brands</button>
           <button class="cm-filter-btn ${currentBrandFilter === "pickl" ? "active" : ""}" data-filter="pickl">Pickl</button>
           <button class="cm-filter-btn ${currentBrandFilter === "bonbird" ? "active" : ""}" data-filter="bonbird">Bonbird</button>
@@ -391,7 +500,7 @@
               <path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15"/>
             </svg>
             ${isLoading ? "Fetching…" : "Refresh Now"}
-          </button>
+          </button>` : ""}
         </div>
       </div>`;
 
@@ -470,18 +579,83 @@
     html += `<div class="cm-legend">
       <span class="cm-legend-item"><span class="cm-legend-dot" style="background:#10b981"></span>#1–3</span>
       <span class="cm-legend-item"><span class="cm-legend-dot" style="background:#d97706"></span>#4–10</span>
-      <span class="cm-legend-item"><span class="cm-legend-dot" style="background:#64748b"></span>#11–30</span>
-      <span class="cm-legend-item"><span class="cm-legend-dot" style="background:#f87171"></span>#21+</span>
+      <span class="cm-legend-item"><span class="cm-legend-dot" style="background:#64748b"></span>#11–100</span>
+      <span class="cm-legend-item"><span class="cm-legend-dot" style="background:#f87171"></span>#100+</span>
       <span style="margin-left:auto">UAE · English · Desktop · Source: DataForSEO</span>
     </div>`;
 
     container.innerHTML = html;
+    bindMatrixEvents(container);
+  }
 
-    // Bind events
+  function renderKeywords(container) {
+    injectStyles();
+
+    const brands = ["pickl", "bonbird"];
+    const pendingChanges = {}; // track unsaved changes per brand
+
+    let html = `
+      <div class="cm-header">
+        <div class="cm-title">
+          Competitor Matrix
+          <span class="cm-badge">Live SERP</span>
+        </div>
+        <div class="cm-controls">
+          <div class="cm-view-toggle">
+            <button class="cm-view-btn" data-view="matrix">Rankings</button>
+            <button class="cm-view-btn active" data-view="keywords">Manage Keywords</button>
+          </div>
+        </div>
+      </div>
+      <div style="padding: 20px 0">`;
+
+    for (const brand of brands) {
+      const keywords = keywordData?.[brand]?.keywords || [];
+      const color    = BRAND_COLORS[brand].primary;
+      const label    = BRAND_COLORS[brand].label;
+
+      html += `
+        <div class="cm-kw-section" data-brand="${brand}">
+          <div class="cm-kw-section-title">
+            <span style="width:10px;height:10px;border-radius:50%;background:${color};display:inline-block"></span>
+            ${label}
+            <span class="cm-kw-count" id="cm-kw-count-${brand}">${keywords.length}</span>
+          </div>
+          <div class="cm-kw-grid" id="cm-kw-grid-${brand}">
+            ${keywords.map((kw) => `
+              <span class="cm-kw-tag" data-kw="${kw.replace(/"/g, '&quot;')}" data-brand="${brand}">
+                ${kw}
+                <button class="cm-kw-tag-delete" data-kw="${kw.replace(/"/g, '&quot;')}" data-brand="${brand}" title="Remove keyword">×</button>
+              </span>`).join("")}
+          </div>
+          <div class="cm-kw-add-row">
+            <input class="cm-kw-add-input" id="cm-kw-input-${brand}" type="text" placeholder="Add keyword e.g. crispy chicken abu dhabi" />
+            <button class="cm-kw-add-btn" id="cm-kw-add-${brand}" data-brand="${brand}">Add</button>
+          </div>
+          <div id="cm-kw-savebar-${brand}" style="display:none" class="cm-kw-save-bar">
+            <span>⚠ Unsaved changes — click Save to update keyword tracking</span>
+            <button class="cm-kw-save-btn" id="cm-kw-save-${brand}" data-brand="${brand}">Save Changes</button>
+          </div>
+        </div>`;
+    }
+
+    html += `</div>`;
+    container.innerHTML = html;
+    bindKeywordEvents(container);
+  }
+
+  function bindMatrixEvents(container) {
     container.querySelectorAll(".cm-filter-btn").forEach((btn) => {
       btn.addEventListener("click", () => {
         currentBrandFilter = btn.dataset.filter;
         render(container);
+      });
+    });
+
+    container.querySelectorAll(".cm-view-btn").forEach((btn) => {
+      btn.addEventListener("click", () => {
+        currentView = btn.dataset.view;
+        currentView === "keywords" ? renderKeywords(container) : render(container);
       });
     });
 
@@ -491,58 +665,234 @@
     }
   }
 
+  function bindKeywordEvents(container) {
+    // View toggle
+    container.querySelectorAll(".cm-view-btn").forEach((btn) => {
+      btn.addEventListener("click", () => {
+        currentView = btn.dataset.view;
+        currentView === "keywords" ? renderKeywords(container) : render(container);
+      });
+    });
+
+    // Per-brand keyword state (local copy for editing)
+    const localKeywords = {
+      pickl:   [...(keywordData?.pickl?.keywords   || [])],
+      bonbird: [...(keywordData?.bonbird?.keywords || [])],
+    };
+
+    function markUnsaved(brand) {
+      const bar = container.querySelector(`#cm-kw-savebar-${brand}`);
+      if (bar) bar.style.display = "flex";
+    }
+
+    function updateGrid(brand) {
+      const grid = container.querySelector(`#cm-kw-grid-${brand}`);
+      const count = container.querySelector(`#cm-kw-count-${brand}`);
+      if (!grid) return;
+      grid.innerHTML = localKeywords[brand].map((kw) => `
+        <span class="cm-kw-tag" data-kw="${kw.replace(/"/g, '&quot;')}" data-brand="${brand}">
+          ${kw}
+          <button class="cm-kw-tag-delete" data-kw="${kw.replace(/"/g, '&quot;')}" data-brand="${brand}" title="Remove keyword">×</button>
+        </span>`).join("");
+      if (count) count.textContent = localKeywords[brand].length;
+      // Re-bind delete buttons
+      grid.querySelectorAll(".cm-kw-tag-delete").forEach((btn) => {
+        btn.addEventListener("click", () => handleDelete(btn.dataset.brand, btn.dataset.kw));
+      });
+    }
+
+    function handleDelete(brand, kw) {
+      showDeleteModal(kw, () => {
+        localKeywords[brand] = localKeywords[brand].filter((k) => k !== kw);
+        updateGrid(brand);
+        markUnsaved(brand);
+      });
+    }
+
+    // Delete buttons
+    container.querySelectorAll(".cm-kw-tag-delete").forEach((btn) => {
+      btn.addEventListener("click", () => handleDelete(btn.dataset.brand, btn.dataset.kw));
+    });
+
+    // Add buttons
+    ["pickl", "bonbird"].forEach((brand) => {
+      const input  = container.querySelector(`#cm-kw-input-${brand}`);
+      const addBtn = container.querySelector(`#cm-kw-add-${brand}`);
+      const saveBtn = container.querySelector(`#cm-kw-save-${brand}`);
+
+      if (addBtn && input) {
+        const doAdd = () => {
+          const val = input.value.trim().toLowerCase();
+          if (!val) return;
+          if (localKeywords[brand].includes(val)) {
+            input.style.borderColor = "#ef4444";
+            setTimeout(() => (input.style.borderColor = ""), 1500);
+            return;
+          }
+          localKeywords[brand].push(val);
+          input.value = "";
+          updateGrid(brand);
+          markUnsaved(brand);
+        };
+        addBtn.addEventListener("click", doAdd);
+        input.addEventListener("keydown", (e) => { if (e.key === "Enter") doAdd(); });
+      }
+
+      if (saveBtn) {
+        saveBtn.addEventListener("click", async () => {
+          saveBtn.disabled = true;
+          saveBtn.textContent = "Saving…";
+          try {
+            const res = await fetch(KEYWORD_CONFIG_URL, {
+              method: "POST",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify({ brand, keywords: localKeywords[brand] }),
+            });
+            if (!res.ok) throw new Error("Save failed");
+            // Update local keywordData
+            if (!keywordData) keywordData = {};
+            keywordData[brand] = { keywords: localKeywords[brand] };
+            const bar = container.querySelector(`#cm-kw-savebar-${brand}`);
+            if (bar) {
+              bar.style.background = "#f0fdf4";
+              bar.style.borderColor = "#86efac";
+              bar.querySelector("span").style.color = "#166534";
+              bar.querySelector("span").textContent = "✓ Saved! Refresh rankings to apply.";
+              saveBtn.style.background = "#22c55e";
+              saveBtn.textContent = "Saved ✓";
+            }
+          } catch {
+            saveBtn.disabled = false;
+            saveBtn.textContent = "Save Changes";
+            alert("Failed to save. Please try again.");
+          }
+        });
+      }
+    });
+  }
+
+  function showDeleteModal(keyword, onConfirm) {
+    const overlay = document.createElement("div");
+    overlay.className = "cm-modal-overlay";
+    overlay.innerHTML = `
+      <div class="cm-modal">
+        <div class="cm-modal-title">Remove keyword?</div>
+        <div class="cm-modal-body">
+          You're about to stop tracking <span class="cm-modal-keyword">${keyword}</span>.<br><br>
+          This will remove it from the next refresh. Historical data already fetched won't be affected.
+        </div>
+        <div class="cm-modal-actions">
+          <button class="cm-modal-cancel">Cancel</button>
+          <button class="cm-modal-confirm">Yes, remove it</button>
+        </div>
+      </div>`;
+
+    document.body.appendChild(overlay);
+
+    overlay.querySelector(".cm-modal-cancel").addEventListener("click", () => overlay.remove());
+    overlay.querySelector(".cm-modal-confirm").addEventListener("click", () => {
+      overlay.remove();
+      onConfirm();
+    });
+    overlay.addEventListener("click", (e) => { if (e.target === overlay) overlay.remove(); });
+  }
+
+
   // ── Data loading ─────────────────────────────────────────────────────────
+  async function loadKeywordConfig() {
+    try {
+      const res = await fetch(`${KEYWORD_CONFIG_URL}?brand=all`);
+      if (res.ok) keywordData = await res.json();
+    } catch {
+      // non-fatal — keyword management just shows defaults
+    }
+  }
+
   async function loadData(container, forceRefresh = false) {
     if (isLoading) return;
     isLoading = true;
 
+    if (pollTimer) { clearInterval(pollTimer); pollTimer = null; }
+
     if (forceRefresh) {
-      // Fire the background function (returns 202 immediately — runs async on Netlify)
       container.innerHTML = `
         <div class="cm-loading">
           <div class="cm-loading-spinner"></div>
           <div>Refresh triggered — fetching live rankings from DataForSEO…</div>
-          <div style="margin-top:6px;font-size:0.72rem;color:#475569">This runs in the background and takes ~30 seconds. Checking for results…</div>
+          <div class="cm-poll-status" id="cm-poll-status">Starting background job…</div>
         </div>`;
 
-      try {
-        await fetch(BACKGROUND_URL, { method: "GET" });
-      } catch {
-        // 202 or network hiccup — either way the background job is running
-      }
+      try { await fetch(BACKGROUND_URL, { method: "GET" }); } catch { /* 202 is fine */ }
 
-      // Poll for fresh cache after the background function has had time to finish
-      await new Promise((resolve) => setTimeout(resolve, REFRESH_POLL_DELAY));
+      // Remember fetchedAt before refresh so we know when new data arrives
+      const prevFetchedAt = matrixData?.pickl?.fetchedAt || matrixData?.bonbird?.fetchedAt || null;
+
+      let attempts = 0;
+      pollTimer = setInterval(async () => {
+        attempts++;
+        const statusEl = document.getElementById("cm-poll-status");
+        if (statusEl) statusEl.textContent = `Checking for results… (${attempts * 30}s)`;
+
+        try {
+          const res = await fetch(`${FUNCTION_URL}?brand=all`);
+          if (!res.ok) return;
+          const data = await res.json();
+          const newFetchedAt = data?.pickl?.fetchedAt || data?.bonbird?.fetchedAt;
+
+          // Only accept if both brands have data and it's newer than before
+          const bothLoaded = data?.pickl?.rows?.length && data?.bonbird?.rows?.length;
+          const isNewer    = !prevFetchedAt || newFetchedAt !== prevFetchedAt;
+
+          if (bothLoaded && isNewer) {
+            clearInterval(pollTimer); pollTimer = null;
+            matrixData = data;
+            isLoading = false;
+            currentView = "matrix";
+            render(container);
+          } else if (attempts >= POLL_MAX_ATTEMPTS) {
+            clearInterval(pollTimer); pollTimer = null;
+            // Show whatever we have
+            if (data?.pickl?.rows || data?.bonbird?.rows) matrixData = data;
+            isLoading = false;
+            render(container);
+          }
+        } catch { /* keep polling */ }
+      }, POLL_INTERVAL_MS);
+
     } else {
       container.innerHTML = `
         <div class="cm-loading">
           <div class="cm-loading-spinner"></div>
           <div>Loading competitor matrix…</div>
         </div>`;
-    }
 
-    try {
-      const res = await fetch(`${FUNCTION_URL}?brand=all`);
-      if (!res.ok) {
-        const err = await res.json().catch(() => ({ error: res.statusText }));
-        throw new Error(err.error || `HTTP ${res.status}`);
+      try {
+        const [matrixRes] = await Promise.all([
+          fetch(`${FUNCTION_URL}?brand=all`),
+          loadKeywordConfig(),
+        ]);
+
+        if (!matrixRes.ok) {
+          const err = await matrixRes.json().catch(() => ({ error: matrixRes.statusText }));
+          throw new Error(err.error || `HTTP ${matrixRes.status}`);
+        }
+        matrixData = await matrixRes.json();
+      } catch (err) {
+        console.error("[competitor-matrix-ui] Load error:", err);
+        container.innerHTML = `
+          <div class="cm-error">
+            <strong>Failed to load competitor rankings:</strong> ${err.message}<br>
+            <span style="font-size:0.75rem;opacity:0.7">Check your DataForSEO credentials in Netlify environment variables.</span>
+          </div>`;
+        isLoading = false;
+        return;
       }
 
-      matrixData = await res.json();
-    } catch (err) {
-      console.error("[competitor-matrix-ui] Load error:", err);
-      container.innerHTML = `
-        <div class="cm-error">
-          <strong>Failed to load competitor rankings:</strong> ${err.message}<br>
-          <span style="font-size:0.75rem;opacity:0.7">Check your DataForSEO credentials in Netlify environment variables.</span>
-        </div>`;
       isLoading = false;
-      return;
+      currentView === "keywords" ? renderKeywords(container) : render(container);
     }
-
-    isLoading = false;
-    render(container);
   }
+
 
   // ── Init: find and replace the static section ────────────────────────────
   function init() {
