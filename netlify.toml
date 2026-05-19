@@ -48,6 +48,16 @@
   to = "/.netlify/functions/reviews"
   status = 200
 
+[[redirects]]
+  from = "/api/keyword-config"
+  to = "/.netlify/functions/keyword-config"
+  status = 200
+
+[[redirects]]
+  from = "/api/competitor-matrix"
+  to = "/.netlify/functions/competitor-matrix"
+  status = 200
+
 # Weekly cron — Monday 4:00am UTC = Monday 8:00am Dubai time (UTC+4)
 # Runs before your 9am Monday review so all data is fresh
 [functions."scheduler-background"]
