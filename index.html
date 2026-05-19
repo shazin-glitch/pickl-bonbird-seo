@@ -328,29 +328,35 @@
 
     <!-- ═══ VIEW 3: INTERNATIONAL SEO ═══ -->
     <div class="page-view" id="view-international">
-      <div class="view-header">
+
+      <!-- Header row: title left, Run Now right -->
+      <div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:24px">
         <div>
           <div class="section-title">International SEO</div>
-          <div class="section-desc">Localised content pipelines for Pickl and Bonbird international markets.</div>
+          <div class="section-desc" style="margin-top:4px">Localised content pipelines for Pickl and Bonbird international markets.</div>
         </div>
-        <button class="btn btn-primary" onclick="runIntlSeo()" id="intl-run-btn">▶ Run Now</button>
+        <button class="btn btn-primary" onclick="runIntlSeo()" id="intl-run-btn" style="flex-shrink:0;margin-left:24px">▶ Run Now</button>
       </div>
 
-      <!-- Brand + Market filter pills -->
-      <div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:20px;align-items:center" id="intl-pills">
-        <span style="font-size:12px;color:var(--text-muted);margin-right:4px">Brand:</span>
-        <div class="pill active" data-intl-brand="all" onclick="switchIntlView(this,'brand')">All Brands</div>
+      <!-- Filter row 1: Brand -->
+      <div style="display:flex;gap:8px;align-items:center;margin-bottom:10px">
+        <span style="font-size:12px;font-weight:600;color:var(--text-muted);width:52px;flex-shrink:0">Brand</span>
+        <div class="pill active" data-intl-brand="all" onclick="switchIntlView(this,'brand')">All</div>
         <div class="pill" data-intl-brand="pickl" onclick="switchIntlView(this,'brand')">Pickl</div>
         <div class="pill" data-intl-brand="bonbird" onclick="switchIntlView(this,'brand')">Bonbird</div>
-        <span style="font-size:12px;color:var(--text-muted);margin:0 4px 0 12px">Market:</span>
-        <div class="pill active" data-intl-market="all" onclick="switchIntlView(this,'market')">All Markets</div>
+      </div>
+
+      <!-- Filter row 2: Market -->
+      <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin-bottom:28px">
+        <span style="font-size:12px;font-weight:600;color:var(--text-muted);width:52px;flex-shrink:0">Market</span>
+        <div class="pill active" data-intl-market="all" onclick="switchIntlView(this,'market')">All</div>
         <!-- Pickl markets -->
         <div class="pill pickl-market" data-intl-market="pickl_bahrain" onclick="switchIntlView(this,'market')">🇧🇭 Bahrain</div>
         <div class="pill pickl-market" data-intl-market="pickl_ksa" onclick="switchIntlView(this,'market')">🇸🇦 Saudi Arabia</div>
         <div class="pill pickl-market" data-intl-market="pickl_jordan" onclick="switchIntlView(this,'market')">🇯🇴 Jordan</div>
         <div class="pill pickl-market" data-intl-market="pickl_qatar" onclick="switchIntlView(this,'market')">🇶🇦 Qatar</div>
         <div class="pill pickl-market" data-intl-market="pickl_egypt" onclick="switchIntlView(this,'market')">🇪🇬 Egypt</div>
-        <div class="pill pickl-market" data-intl-market="pickl_oman" onclick="switchIntlView(this,'market')">🇴🇲 Oman <span style="font-size:10px;background:#f59e0b;color:#000;padding:1px 5px;border-radius:4px;margin-left:4px">NEW</span></div>
+        <div class="pill pickl-market" data-intl-market="pickl_oman" onclick="switchIntlView(this,'market')">🇴🇲 Oman <span style="font-size:10px;background:#f59e0b;color:#000;padding:1px 6px;border-radius:4px;margin-left:4px;font-weight:700">NEW</span></div>
         <!-- Bonbird markets -->
         <div class="pill bonbird-market" data-intl-market="bonbird_oman" onclick="switchIntlView(this,'market')">🇴🇲 Oman</div>
         <div class="pill bonbird-market" data-intl-market="bonbird_pakistan" onclick="switchIntlView(this,'market')">🇵🇰 Pakistan</div>
@@ -365,7 +371,7 @@
       </div>
 
       <!-- Run log -->
-      <div id="intl-run-log" style="margin-top:20px;display:none">
+      <div id="intl-run-log" style="margin-top:24px;display:none">
         <div class="card">
           <h3 style="font-size:14px;font-weight:600;margin-bottom:12px">Run Log</h3>
           <div id="intl-run-log-content" style="font-size:12px;font-family:monospace;color:var(--text-muted);line-height:1.8"></div>
@@ -1574,29 +1580,48 @@ function renderIntlDashboard() {
 
   grid.innerHTML = entries.map(([key, m]) => {
     const count    = intlState.runStatus[key] || 0;
-    const brandCol = m.brand === 'pickl' ? '#f59e0b' : '#ef4444';
+    const bgCol    = m.brand === 'pickl' ? '#DF0070' : '#C5161A';
     const brandLbl = m.brand === 'pickl' ? 'Pickl' : 'Bonbird';
-    const langs    = m.languages.map(l => l === 'ar' ? '🌐 Arabic' : '🌐 English').join(' + ');
+    const langs    = m.languages.map(l => l === 'ar' ? 'Arabic' : 'English').join(' + ');
+    const queuedTxt = count > 0 ? `${count} item${count > 1 ? 's' : ''} queued` : 'No items queued';
 
-    return `<div class="card" style="position:relative">
-      ${m.isNew ? `<div style="position:absolute;top:12px;right:12px;background:#f59e0b;color:#000;font-size:10px;font-weight:700;padding:2px 8px;border-radius:4px">NEW</div>` : ''}
-      <div style="display:flex;align-items:center;gap:10px;margin-bottom:12px">
-        <span style="font-size:28px">${m.flag}</span>
-        <div>
-          <div style="font-weight:700;font-size:15px">${m.label}</div>
-          <div style="font-size:11px;color:${brandCol};font-weight:600">${brandLbl}</div>
+    return `<div style="background:${bgCol};border-radius:12px;overflow:hidden;position:relative;display:flex;flex-direction:column">
+      ${m.isNew ? `<div style="position:absolute;top:14px;right:14px;background:#fff;color:${bgCol};font-size:10px;font-weight:800;padding:2px 8px;border-radius:4px;letter-spacing:0.05em">NEW</div>` : ''}
+
+      <!-- Card top: flag + name + brand + languages -->
+      <div style="padding:20px 20px 16px">
+        <div style="display:flex;align-items:center;gap:12px;margin-bottom:14px">
+          <span style="font-size:32px;line-height:1">${m.flag}</span>
+          <div>
+            <div style="font-weight:700;font-size:17px;color:#fff">${m.label}</div>
+            <div style="font-size:11px;color:rgba(255,255,255,0.75);font-weight:500;margin-top:1px">${brandLbl}</div>
+          </div>
+        </div>
+        <div style="display:flex;justify-content:space-between;align-items:center">
+          <div style="font-size:12px;color:rgba(255,255,255,0.8)">${langs}</div>
+          <div style="font-size:12px;font-weight:600;color:${count > 0 ? '#fff' : 'rgba(255,255,255,0.5)'}">
+            ${count > 0 ? `✓ ${queuedTxt}` : queuedTxt}
+          </div>
         </div>
       </div>
-      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px">
-        <div style="font-size:12px;color:var(--text-muted)">${langs}</div>
-        <div style="font-size:12px;font-weight:600;color:${count > 0 ? 'var(--primary)' : 'var(--text-muted)'}">
-          ${count > 0 ? `${count} items queued` : 'No items queued'}
-        </div>
-      </div>
-      <div style="display:flex;gap:8px">
-        <button class="btn btn-outline" style="flex:1;font-size:12px" onclick="runIntlMarket('${key}')">▶ Run</button>
-        <button class="btn btn-outline" style="flex:1;font-size:12px" onclick="runIntlMarket('${key}', true)">⟳ Force</button>
-        <button class="btn btn-outline" style="flex:1;font-size:12px" onclick="switchView('dashboard')">View Queue</button>
+
+      <!-- Card bottom: action buttons -->
+      <div style="padding:12px 16px 16px;display:flex;gap:8px;margin-top:auto">
+        <button onclick="runIntlMarket('${key}')"
+          style="flex:1;padding:8px 0;border-radius:8px;border:1.5px solid rgba(255,255,255,0.5);background:transparent;color:#fff;font-size:12px;font-weight:600;cursor:pointer;transition:all 0.15s"
+          onmouseover="this.style.background='rgba(255,255,255,0.15)'" onmouseout="this.style.background='transparent'">
+          ▶ Run
+        </button>
+        <button onclick="runIntlMarket('${key}', true)"
+          style="flex:1;padding:8px 0;border-radius:8px;border:1.5px solid rgba(255,255,255,0.5);background:transparent;color:#fff;font-size:12px;font-weight:600;cursor:pointer;transition:all 0.15s"
+          onmouseover="this.style.background='rgba(255,255,255,0.15)'" onmouseout="this.style.background='transparent'">
+          ⟳ Force
+        </button>
+        <button onclick="switchView('dashboard')"
+          style="flex:1;padding:8px 0;border-radius:8px;border:none;background:rgba(255,255,255,0.2);color:#fff;font-size:12px;font-weight:600;cursor:pointer;transition:all 0.15s"
+          onmouseover="this.style.background='rgba(255,255,255,0.35)'" onmouseout="this.style.background='rgba(255,255,255,0.2)'">
+          View Queue
+        </button>
       </div>
     </div>`;
   }).join('');
@@ -1638,7 +1663,7 @@ async function runIntlMarket(marketKey, force = false) {
   logBody.innerHTML = `⏳ Triggering ${m.flag} ${m.label} (${m.brand}) — ${force ? 'forced' : 'smart'} run…<br>`;
 
   try {
-    const url = `/api/international-seo?market=${marketKey}${force ? '&force=true' : ''}`;
+    const url = `/.netlify/functions/international-seo-background?market=${marketKey}${force ? '&force=true' : ''}`;
     const res = await fetch(url);
     const data = await res.json().catch(() => ({}));
 
@@ -1673,7 +1698,7 @@ async function runIntlSeo() {
 <span style="color:var(--text-muted)">This runs as a background function. Results will appear in your approvals queue.</span><br>`;
 
   try {
-    const res  = await fetch(`/api/international-seo?market=${marketParam}`);
+    const res  = await fetch(`/.netlify/functions/international-seo-background?market=${marketParam}`);
     const data = await res.json().catch(() => ({}));
     if (data.summary) {
       logBody.innerHTML += `✅ Complete — ${data.summary.queued} items queued to approvals<br>`;
