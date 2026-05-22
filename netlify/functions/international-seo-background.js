@@ -113,6 +113,7 @@ Return EXACTLY this structure:
   }
 
   return result;
+}
 
 // ── Generate meta update for the market landing page ─────────────────────────
 async function generateMetaUpdate(market, brandCtx, language) {
