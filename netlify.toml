@@ -34,6 +34,11 @@
   status = 200
 
 [[redirects]]
+  from = "/api/seed-keywords"
+  to = "/.netlify/functions/seed-keywords"
+  status = 200
+
+[[redirects]]
   from = "/api/gsc-data"
   to = "/.netlify/functions/gsc-data"
   status = 200

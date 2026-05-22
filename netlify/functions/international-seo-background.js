@@ -13,7 +13,7 @@
 
 const { getStore } = require('@netlify/blobs');
 const { INTERNATIONAL_MARKETS, getMarketsForBrand, buildMarketPrompt, getWpCredentials, buildPostUrl } = require('./_lib/international-config');
-const { getBrandContext, buildBrandPrompt } = require('./_lib/brand');
+const { getBrandContext, buildBrandPrompt, runBrandVoiceCheck } = require('./_lib/brand');
 
 const ANTHROPIC_API = 'https://api.anthropic.com/v1/messages';
 const MODEL         = 'claude-sonnet-4-20250514';
@@ -55,39 +55,64 @@ async function generateBlogDraft(market, brandCtx, language) {
   const isArabic  = language === 'ar';
   const marketCtx = buildMarketPrompt(market, buildBrandPrompt(brandCtx), language);
 
-  const userPrompt = `Write a blog post for ${market.brand === 'pickl' ? 'Pickl' : 'Bonbird'} ${market.label}.
+  const userPrompt = `Write a blog post for ${market.brand === 'pickl' ? 'Pickl' : 'Bonbird'} in ${market.label}.
 
-${market.isNew ? `This is a NEW OPENING post — Pickl just opened in ${market.label} in May 2026. Lead with the excitement of the new opening.` : `Target keyword: "${primaryKw}"`}
+This is NOT generic SEO content. Every sentence must sound unmistakably like the brand — specific, sharp, on-brand.
 
-Language: ${isArabic ? 'Arabic (local dialect)' : 'English'}
+${market.isNew ? `ANGLE: NEW OPENING — ${market.brand === 'pickl' ? 'Pickl' : 'Bonbird'} just opened in ${market.label} in May 2026. Lead with the energy of a new opening. Make locals feel like they need to go NOW.` : `TARGET KEYWORD: "${primaryKw}"`}
+
+Language: ${isArabic ? 'Arabic (local dialect — NOT Modern Standard Arabic)' : 'English'}
+
+CONTENT REQUIREMENTS:
+- 450-600 words — tight and specific, zero filler
+- Opening line: make someone stop scrolling — not "Are you looking for..."
+- 3 sections (use H2 or flowing paragraphs): each must reference a real menu item by name, a real location in ${market.label}, or a specific brand truth
+- 3 questions locals actually search — answer them the way the brand talks, not a textbook
+- End: a CTA that sounds like the brand — not "visit us today for a great experience"
+- Reference: ${market.locations.length > 0 ? market.locations.join(', ') : `our ${market.label} location`}
+
+BRAND VOICE SELF-CHECK — run before returning:
+□ Could any sentence appear on a competitor's website? If yes — rewrite it
+□ Is at least one specific menu item named by its actual name?
+□ Does the opening make someone curious or hungry?
+□ Does the CTA sound like the brand?
 
 Return EXACTLY this structure:
 
 ### TITLE
-[SEO title, 50-60 chars]
+[50-60 chars — sounds like the brand, not generic]
 
 ### META_DESCRIPTION
-[Meta description, 120-155 chars, include keyword naturally]
+[120-155 chars — specific detail that makes people click]
 
 ### SLUG
-[URL slug, lowercase, hyphens only]
+[lowercase-hyphens-only]
 
 ### CONTENT
-[Full blog post, 400-600 words. Use brand tone strictly. Reference specific locations if known. Include target keyword naturally 3-5 times. No generic filler. No markdown headers inside the content — write in flowing paragraphs.]
+[Full post — paragraphs or minimal H2s. Brand voice throughout. Every sentence earns its place.]
 
 ### FOCUS_KEYWORD
-[The single primary keyword this post targets]`;
+[Single primary keyword]`;
 
   const raw = await callClaude(marketCtx, userPrompt);
-
-  return {
-    title:          parseSection(raw, 'TITLE'),
+  const result = {
+    title:           parseSection(raw, 'TITLE'),
     metaDescription: parseSection(raw, 'META_DESCRIPTION'),
-    slug:           parseSection(raw, 'SLUG'),
-    content:        parseSection(raw, 'CONTENT'),
-    focusKeyword:   parseSection(raw, 'FOCUS_KEYWORD'),
+    slug:            parseSection(raw, 'SLUG'),
+    content:         parseSection(raw, 'CONTENT'),
+    focusKeyword:    parseSection(raw, 'FOCUS_KEYWORD'),
   };
-}
+
+  // Brand voice quality check
+  if (result.content) {
+    const voiceCheck = await runBrandVoiceCheck(result.content, brandCtx, callClaude).catch(() => ({ score: 6, verdict: 'PASS', issues: [] }));
+    result.voiceScore  = voiceCheck.score;
+    result.voiceIssues = voiceCheck.issues;
+    result.voiceTopFix = voiceCheck.topFix;
+    console.log(`[intl-blog] ${market.label}/${language} — voice score: ${voiceCheck.score}/10 (${voiceCheck.verdict})`);
+  }
+
+  return result;
 
 // ── Generate meta update for the market landing page ─────────────────────────
 async function generateMetaUpdate(market, brandCtx, language) {
@@ -279,6 +304,9 @@ async function processMarketLanguage(store, marketKey, market, language, force =
             metaDescription: blog.metaDescription,
             slug:            blog.slug,
             focusKeyword:    blog.focusKeyword,
+            voiceScore:      blog.voiceScore,
+            voiceIssues:     blog.voiceIssues,
+            voiceTopFix:     blog.voiceTopFix,
           },
           targetUrl:   buildPostUrl(market, 'blog_draft', blog.slug || 'post', language),
           wpBase:      wp.base,

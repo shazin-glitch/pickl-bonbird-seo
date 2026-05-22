@@ -199,6 +199,9 @@
     <div class="nav-item" data-target="settings">
       <span>Settings &amp; Logs</span>
     </div>
+    <div class="nav-item" data-target="howto">
+      <span>How It Works</span>
+    </div>
   </nav>
 
   <div class="sidebar-footer">
@@ -571,6 +574,108 @@
     </div>
 
   </div><!-- /views-wrapper -->
+
+    <!-- ═══ HOW IT WORKS VIEW ═══ -->
+    <div class="page-view" id="view-howto" style="max-width:900px">
+
+      <div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:28px">
+        <div>
+          <div class="section-title">How It Works</div>
+          <div class="section-desc">What the system does, when it runs, and what each item in your queue means.</div>
+        </div>
+        <div id="howto-status" style="font-size:12px;color:var(--text-muted);text-align:right;line-height:1.6"></div>
+      </div>
+
+      <!-- Scheduler status -->
+      <div class="card" style="margin-bottom:20px;border-left:4px solid var(--primary)">
+        <h3 style="font-size:15px;font-weight:700;margin-bottom:16px">⚙️ Scheduler Status</h3>
+        <div id="scheduler-status-detail" style="font-size:13px;color:var(--text-muted)">Loading…</div>
+      </div>
+
+      <!-- Keyword tiers -->
+      <div class="card" style="margin-bottom:20px">
+        <h3 style="font-size:15px;font-weight:700;margin-bottom:16px">🎯 Keyword Tiers — How Keywords Are Targeted</h3>
+        <p style="font-size:13px;color:var(--text-muted);margin-bottom:16px">Every keyword in your queue is classified by how close it is to ranking. The tier tells you the expected effort and timeline.</p>
+        <div style="display:grid;gap:12px">
+          ${[
+            { emoji:'⚡', label:'Quick Win', color:'#059669', pos:'Position 11–20', desc:'You already rank. One strong content update pushes you to page 1. Fastest ROI — expect results in days to weeks.' },
+            { emoji:'📈', label:'Short Term', color:'#d97706', pos:'Position 21–35', desc:'You\'re ranking weakly. A focused new post or page rewrite builds relevance. Expect results in 4–8 weeks.' },
+            { emoji:'🎯', label:'Long Term', color:'#6366f1', pos:'Position 36–100', desc:'Barely visible. New content from scratch builds authority over time. Expect results in 2–4 months.' },
+            { emoji:'🚨', label:'Priority Gap', color:'#dc2626', pos:'Seed list — not in GSC', desc:'Competitors rank here, you don\'t appear at all. Manually curated keywords you want to own. Highest strategic value.' },
+          ].map(t => `
+            <div style="display:flex;gap:14px;align-items:flex-start;padding:12px;background:${t.color}08;border-radius:8px;border-left:3px solid ${t.color}">
+              <span style="font-size:20px">${t.emoji}</span>
+              <div>
+                <div style="display:flex;gap:8px;align-items:center;margin-bottom:4px">
+                  <span style="font-weight:700;font-size:13px;color:${t.color}">${t.label}</span>
+                  <span style="font-size:11px;color:var(--text-muted);background:var(--surface);padding:1px 8px;border-radius:99px;border:1px solid var(--border)">${t.pos}</span>
+                </div>
+                <div style="font-size:13px;color:var(--text)">${t.desc}</div>
+              </div>
+            </div>`).join('')}
+        </div>
+      </div>
+
+      <!-- Approval types -->
+      <div class="card" style="margin-bottom:20px">
+        <h3 style="font-size:15px;font-weight:700;margin-bottom:16px">📋 Approval Types — What Each Item Means</h3>
+        <div style="display:grid;gap:10px">
+          ${[
+            { tag:'META UPDATE',       col:'#059669', desc:'Rewrites the SEO title and meta description for an existing page. Low risk, high CTR impact. Always approve these.' },
+            { tag:'PAGE UPDATE',       col:'#3b82f6', desc:'Rewrites the full content of an existing page to push a ranking keyword into the top 10. Review content before approving.' },
+            { tag:'BLOG DRAFT',        col:'#8b5cf6', desc:'A brand new blog post targeting a content gap keyword. Check the voice score badge — aim for 7+ before publishing.' },
+            { tag:'NEW PAGE',          col:'#f59e0b', desc:'A new landing page for a location or service keyword. Requires dev to set up the WordPress page parent correctly.' },
+            { tag:'ON-PAGE EDIT',      col:'#06b6d4', desc:'A specific structural improvement to an existing page — adding a table, fixing a heading, adding internal links.' },
+            { tag:'REVIEW REPLY',      col:'#ec4899', desc:'A suggested response to a Google review. Drafted in brand voice. Always personalise before publishing.' },
+          ].map(t => `
+            <div style="display:flex;gap:12px;align-items:flex-start;padding:10px 12px;border-radius:8px;border:1px solid var(--border)">
+              <span style="font-size:11px;font-weight:700;padding:2px 8px;border-radius:4px;background:${t.col}18;color:${t.col};white-space:nowrap;margin-top:1px">${t.tag}</span>
+              <span style="font-size:13px;color:var(--text)">${t.desc}</span>
+            </div>`).join('')}
+        </div>
+      </div>
+
+      <!-- Voice scoring -->
+      <div class="card" style="margin-bottom:20px">
+        <h3 style="font-size:15px;font-weight:700;margin-bottom:16px">✦ Brand Voice Scoring</h3>
+        <p style="font-size:13px;color:var(--text-muted);margin-bottom:14px">Every blog draft and page update is scored 1–10 for brand voice accuracy before it reaches your queue. A second Claude pass checks for generic phrases, banned words, AI tells like em dashes, and whether the content could only have been written for Pickl or Bonbird.</p>
+        <div style="display:grid;gap:8px">
+          ${[
+            { score:'9–10', col:'#059669', label:'On Brand',      desc:'Sharp, specific, unmistakably the brand. Approve with confidence.' },
+            { score:'7–8',  col:'#059669', label:'On Brand',      desc:'Mostly strong. Minor generic moments. Fine to approve.' },
+            { score:'5–6',  col:'#d97706', label:'Review Voice',  desc:'Some brand voice but generic in places. Use Rewrite with AI or edit manually.' },
+            { score:'1–4',  col:'#dc2626', label:'Off Brand',     desc:'Does not sound like the brand. Rewrite before publishing.' },
+            { score:'< 5',  col:'#dc2626', label:'Auto-rejected', desc:'Content scored below 5 is never queued. You\'ll see an error in the scheduler logs.' },
+          ].map(t => `
+            <div style="display:flex;gap:10px;align-items:center;padding:8px 12px;border-radius:6px;background:${t.col}08">
+              <span style="font-size:12px;font-weight:700;color:${t.col};width:36px;flex-shrink:0">${t.score}</span>
+              <span style="font-size:11px;font-weight:700;padding:1px 7px;border-radius:99px;background:${t.col}18;color:${t.col};white-space:nowrap">${t.label}</span>
+              <span style="font-size:13px;color:var(--text)">${t.desc}</span>
+            </div>`).join('')}
+        </div>
+      </div>
+
+      <!-- Seed keywords panel -->
+      <div class="card">
+        <div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:16px">
+          <div>
+            <h3 style="font-size:15px;font-weight:700">🚨 Priority Gap Keywords (Seed List)</h3>
+            <p style="font-size:13px;color:var(--text-muted);margin-top:4px">Keywords you want to rank for that don't appear in GSC. The scheduler targets these alongside GSC data every Monday.</p>
+          </div>
+          <select id="seed-brand-selector" class="form-input" style="width:130px;font-family:var(--font-sans)" onchange="loadSeedKeywords()">
+            <option value="pickl">Pickl</option>
+            <option value="bonbird">Bonbird</option>
+          </select>
+        </div>
+        <div id="seed-keywords-list" style="margin-bottom:12px">Loading…</div>
+        <div style="display:flex;gap:8px">
+          <input id="seed-kw-input" type="text" class="form-input" placeholder="Add keyword e.g. best burger in dubai" style="flex:1;font-family:var(--font-sans)" onkeydown="if(event.key==='Enter')addSeedKeyword()">
+          <button class="btn btn-primary" onclick="addSeedKeyword()">Add</button>
+        </div>
+        <div id="seed-kw-status" style="font-size:12px;color:var(--text-muted);margin-top:8px"></div>
+      </div>
+
+    </div><!-- /view-howto -->
 </div><!-- /main-content -->
 
 <!-- ═══ AI STUDIO MODAL ═══ -->
@@ -734,6 +839,7 @@ const VIEW_TITLES = {
   international: 'International SEO',
   studio:        'AI Content Studio',
   settings:      'Settings & Logs',
+  howto:         'How It Works',
 };
 
 document.getElementById('nav-menu').addEventListener('click', e => {
@@ -749,6 +855,7 @@ function switchView(target) {
   if (target === 'analytics')     loadGscIfNeeded();
   if (target === 'settings')      { renderAuditLog(); loadBrandCtx(); loadSlackWebhook(); if (state.userRole === 'admin') { document.getElementById('users-panel').style.display = ''; loadUsersPanel(); } }
   if (target === 'international') loadIntlDashboard();
+  if (target === 'howto')         loadHowItWorks();
 }
 
 // ═══════════════════════════════════════════════════════════════
@@ -1032,6 +1139,25 @@ function filterDashboardByMarket(locationTag) {
   }, 100);
 }
 
+// Keyword tier badge
+function buildTierBadge(payload) {
+  const tier  = payload?.keywordTier;
+  const color = payload?.tierColor;
+  const emoji = payload?.tierEmoji;
+  if (!tier) return '';
+  return `<span title="Keyword tier: ${tier}" style="font-size:11px;font-weight:700;padding:2px 8px;border-radius:99px;background:${color}18;color:${color};border:1px solid ${color}40">${emoji} ${tier}</span>`;
+}
+
+// Voice score badge — shows brand voice quality on approval cards
+function buildVoiceScoreBadge(score) {
+  if (score === null || score === undefined) return '';
+  const s   = parseInt(score, 10);
+  const col = s >= 8 ? '#059669' : s >= 6 ? '#d97706' : '#dc2626';
+  const lbl = s >= 8 ? 'On Brand' : s >= 6 ? 'Review Voice' : 'Off Brand';
+  const tip = s >= 8 ? 'Brand voice score: strong' : s >= 6 ? `Brand voice score: ${s}/10 — review before approving` : `Brand voice score: ${s}/10 — content may sound generic`;
+  return `<span title="${tip}" style="font-size:11px;font-weight:700;padding:2px 8px;border-radius:99px;background:${col}18;color:${col};border:1px solid ${col}40;cursor:help">✦ ${s}/10 ${lbl}</span>`;
+}
+
 function buildActionCard(item) {
   const brandColor  = item.brand === 'pickl' ? '#DF0070' : '#C5161A';
   const tagClass    = TYPE_TAGS[item.type] || 'tag-blue';
@@ -1046,6 +1172,8 @@ function buildActionCard(item) {
     <div style="display:flex;gap:6px;align-items:center;flex-shrink:0;margin-left:auto;padding-left:12px">
       ${locationTag ? `<span style="font-size:11px;font-weight:600;padding:2px 8px;border-radius:99px;background:rgba(0,0,0,0.06);color:#475569;white-space:nowrap">${esc(locationTag)}</span>` : ''}
       ${languageTag ? `<span style="font-size:11px;font-weight:600;padding:2px 8px;border-radius:99px;background:rgba(0,0,0,0.06);color:#475569">${esc(languageTag)}</span>` : ''}
+      ${buildTierBadge(item.payload)}
+      ${buildVoiceScoreBadge(item.payload?.voiceScore ?? item.payload?.meta?.voiceScore)}
       <span class="tag ${tagClass}">${esc(typeLabel)}</span>
     </div>`;
 
@@ -1082,6 +1210,7 @@ function buildPreview(item) {
     <div style="margin-top:6px"><strong>Meta:</strong> ${esc(p.metaDescription || '—')}</div>
     <div style="margin-top:6px"><strong>Target Keyword:</strong> ${esc(p.targetKeyword || '—')} ${p.slug ? `<span style="color:var(--text-muted);font-size:11px">· /${esc(p.slug)}</span>` : ''}</div>
     ${p.excerpt ? `<div style="margin-top:6px"><strong>Excerpt:</strong> ${esc(p.excerpt)}</div>` : ''}
+    ${p.voiceTopFix ? `<div style="margin-top:8px;padding:8px 12px;background:#fef3c7;border-left:3px solid #f59e0b;border-radius:0 6px 6px 0;font-size:12px;color:#92400e"><strong>⚠ Voice note:</strong> ${esc(p.voiceTopFix)}</div>` : ''}
     <details style="margin-top:10px"><summary style="cursor:pointer;font-size:12px;color:var(--text-muted);user-select:none">Preview full content ${p.body ? '(~' + Math.round(p.body.replace(/<[^>]+>/g,'').length/5) + ' words)' : ''}</summary>
     <div style="margin-top:8px;padding:12px;background:#f8fafc;border-radius:6px;font-size:12px;color:#475569;max-height:300px;overflow-y:auto;line-height:1.7;white-space:pre-wrap">${esc((p.body||'').slice(0,2000))}${(p.body||'').length>2000?'\n\n[... click Edit Draft to see full content]':''}</div>
     </details>`;
@@ -2031,6 +2160,143 @@ async function saveSlackWebhook() {
 document.addEventListener('keydown', e => {
   if (e.key === 'Escape') { closeTool(); closeKwModal(); }
 });
+
+// ═══════════════════════════════════════════════════════════════
+// HOW IT WORKS
+// ═══════════════════════════════════════════════════════════════
+
+async function loadHowItWorks() {
+  // Load scheduler last run status
+  try {
+    const data = await apiGet('/api/db/get');
+    const lastRun = data?.schedulerLastRun || data?.['scheduler:lastrun'];
+    const el      = document.getElementById('scheduler-status-detail');
+    const statusEl = document.getElementById('howto-status');
+
+    if (lastRun) {
+      const ran     = new Date(lastRun.startedAt || lastRun.finishedAt);
+      const nextRun = new Date(ran);
+      // Next Monday 4am UTC
+      nextRun.setDate(nextRun.getDate() + ((1 + 7 - nextRun.getDay()) % 7 || 7));
+      nextRun.setUTCHours(4, 0, 0, 0);
+
+      if (statusEl) {
+        statusEl.innerHTML = `Last run: ${ran.toLocaleDateString('en-GB', { weekday:'short', day:'numeric', month:'short' })} at ${ran.toLocaleTimeString('en-GB', { hour:'2-digit', minute:'2-digit' })}<br>Next run: Monday 8:00am Dubai time`;
+      }
+
+      if (el) {
+        const brands = lastRun.brands || {};
+        const rows = Object.entries(brands).map(([brand, data]) => {
+          const jobs = Object.entries(data.jobs || {})
+            .map(([job, r]) => `${job.replace(/_/g,' ')}: ${r.queued || 0} queued${r.error ? ` ⚠ ${r.error}` : ''}`)
+            .join(' · ');
+          return `<div style="padding:8px 0;border-bottom:1px solid var(--border)"><strong style="text-transform:capitalize">${brand}</strong> — ${data.gscRows || 0} GSC keywords · ${jobs}</div>`;
+        }).join('');
+        el.innerHTML = rows || '<div style="color:var(--text-muted)">No run data available yet.</div>';
+        el.innerHTML += `<div style="margin-top:12px;font-size:12px;color:var(--text-muted)">Runs every Monday 4:00am UTC (8:00am Dubai time) automatically. Trigger manually from Dashboard → Run Audit Now.</div>`;
+      }
+    } else {
+      if (el) el.innerHTML = '<div style="color:var(--text-muted)">No scheduler run recorded yet. The system runs automatically every Monday 8am Dubai time.</div>';
+      if (statusEl) statusEl.textContent = 'Next run: Monday 8:00am Dubai time';
+    }
+  } catch (e) {
+    const el = document.getElementById('scheduler-status-detail');
+    if (el) el.innerHTML = `<span style="color:var(--danger)">${esc(e.message)}</span>`;
+  }
+
+  // Load seed keywords
+  loadSeedKeywords();
+}
+
+// ── Seed keyword management ───────────────────────────────────────────────────
+
+let seedKeywordCache = {};
+
+async function loadSeedKeywords() {
+  const brand = document.getElementById('seed-brand-selector')?.value || 'pickl';
+  const list  = document.getElementById('seed-keywords-list');
+  if (!list) return;
+  list.textContent = 'Loading…';
+
+  try {
+    const res  = await fetch(`/api/seed-keywords?brand=${brand}`, { credentials: 'include' });
+    const data = await res.json();
+    const kws  = data[brand]?.keywords || [];
+    seedKeywordCache[brand] = kws;
+
+    if (!kws.length) {
+      list.innerHTML = '<div style="color:var(--text-muted);font-size:13px">No keywords yet. Add some below.</div>';
+      return;
+    }
+
+    const brandCol = brand === 'pickl' ? '#DF0070' : '#C5161A';
+    list.innerHTML = `
+      <div style="display:flex;flex-wrap:wrap;gap:8px">
+        ${kws.map(kw => `
+          <span style="display:inline-flex;align-items:center;gap:6px;padding:4px 10px;background:${brandCol}10;border:1px solid ${brandCol}30;border-radius:99px;font-size:12px;font-weight:500;color:var(--text)">
+            ${esc(kw)}
+            <button onclick="removeSeedKeyword('${esc(kw)}')" style="background:none;border:none;cursor:pointer;color:${brandCol};font-size:14px;line-height:1;padding:0;margin:0" title="Remove">×</button>
+          </span>`).join('')}
+      </div>
+      <div style="margin-top:10px;font-size:12px;color:var(--text-muted)">${kws.length} keywords · Scheduler targets these every Monday alongside GSC data</div>`;
+  } catch (e) {
+    list.innerHTML = `<span style="color:var(--danger);font-size:13px">${esc(e.message)}</span>`;
+  }
+}
+
+async function addSeedKeyword() {
+  const brand  = document.getElementById('seed-brand-selector')?.value || 'pickl';
+  const input  = document.getElementById('seed-kw-input');
+  const status = document.getElementById('seed-kw-status');
+  const kw     = input?.value?.trim().toLowerCase();
+  if (!kw) return;
+
+  const existing = seedKeywordCache[brand] || [];
+  if (existing.includes(kw)) {
+    status.textContent = 'Already in the list';
+    status.style.color = 'var(--danger)';
+    return;
+  }
+
+  status.textContent = 'Saving…';
+  try {
+    const updated = [...existing, kw];
+    await fetch('/api/seed-keywords', {
+      method:      'POST',
+      credentials: 'include',
+      headers:     { 'Content-Type': 'application/json' },
+      body:        JSON.stringify({ brand, keywords: updated }),
+    });
+    if (input) input.value = '';
+    status.textContent = `✓ "${kw}" added`;
+    status.style.color = 'var(--success)';
+    setTimeout(() => { status.textContent = ''; }, 2000);
+    loadSeedKeywords();
+  } catch (e) {
+    status.textContent = 'Failed: ' + e.message;
+    status.style.color = 'var(--danger)';
+  }
+}
+
+async function removeSeedKeyword(kw) {
+  const brand  = document.getElementById('seed-brand-selector')?.value || 'pickl';
+  const status = document.getElementById('seed-kw-status');
+  try {
+    await fetch('/api/seed-keywords', {
+      method:      'DELETE',
+      credentials: 'include',
+      headers:     { 'Content-Type': 'application/json' },
+      body:        JSON.stringify({ brand, keyword: kw }),
+    });
+    status.textContent = `✓ "${kw}" removed`;
+    status.style.color = 'var(--success)';
+    setTimeout(() => { status.textContent = ''; }, 2000);
+    loadSeedKeywords();
+  } catch (e) {
+    status.textContent = 'Failed: ' + e.message;
+    status.style.color = 'var(--danger)';
+  }
+}
 </script>
 <script src="/js/competitor-matrix-ui.js"></script>
 </body>

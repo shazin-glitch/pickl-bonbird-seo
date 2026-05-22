@@ -15,7 +15,19 @@ const {
   getSetting, setSetting, fetchGscDirect,
   ok, bad, preflight, parseBody,
 } = require('./_lib/store');
-const { getBrandContext, buildBrandPrompt } = require('./_lib/brand');
+const { getBrandContext, buildBrandPrompt, runBrandVoiceCheck } = require('./_lib/brand');
+
+// ── Keyword tier classification ────────────────────────────────────────────────
+// Quick Win:    pos 11-20  — already ranking, one update = page 1. Fastest ROI.
+// Short Term:   pos 21-35  — ranking weakly, new focused post. 4-8 weeks.
+// Long Term:    pos 36-100 — barely visible, new content from scratch. 3-6 months.
+// Priority Gap: competitor ranks top 20, we have zero impressions (fed from matrix)
+
+function getKeywordTier(position) {
+  if (position >= 11 && position <= 20) return { tier: 'Quick Win',  color: '#059669', emoji: '⚡' };
+  if (position >= 21 && position <= 35) return { tier: 'Short Term', color: '#d97706', emoji: '📈' };
+  return { tier: 'Long Term', color: '#6366f1', emoji: '🎯' };
+}
 
 // Keywords already queued this week — don't re-queue the same ones
 async function getQueuedKeywords(brand) {
@@ -116,8 +128,29 @@ async function fetchGscRows(siteUrl) {
   }
 }
 
-// ════════════════════════════════════════════════════════════════
-// JOB 1: QUICK WINS
+// ── Load seed keywords — curated non-branded terms not in GSC ─────────────────
+async function loadSeedKeywords(brand) {
+  try {
+    const siteUrl = process.env.URL || 'https://yolkseo.netlify.app';
+    const res  = await fetch(`${siteUrl}/.netlify/functions/seed-keywords?brand=${brand}`);
+    const data = await res.json();
+    return data[brand]?.keywords || [];
+  } catch {
+    return [];
+  }
+}
+
+// Convert seed keywords into GSC-like row objects for content gap processing
+function seedKeywordsToRows(keywords) {
+  return keywords.map(kw => ({
+    keyword:     kw,
+    position:    50,    // treat as Long Term tier
+    impressions: 100,   // assume high value — manually curated
+    clicks:      0,
+    ctr:         0,
+    source:      'seed', // flag so we know it came from seed list not GSC
+  }));
+}
 // Keywords ranking 11-20. Claude writes the ACTUAL updated page
 // content (full HTML) for the existing page, not just a suggestion.
 // Queued as page_update → pushes via wordpress.js update_content.
@@ -136,39 +169,49 @@ async function runQuickWins(brand, rows, dryRun, forceRun, brandCtx, brandPrompt
 
   let queued = 0;
   for (const r of candidates) {
-    const prompt = `You are a senior SEO content writer for ${cfg.name}, a UAE restaurant brand known for ${cfg.cuisine}. Tone: ${cfg.tone}.
+    const systemPrompt = brandPrompt || buildBrandPrompt(brandCtx);
+    const userPrompt = `The page targeting "${r.keyword}" ranks position ${r.position}. Rewrite it to push into the top 10.
 
-The page targeting keyword "${r.keyword}" currently ranks position ${r.position} on Google. We need to push it into the top 10.
+TASK: Write complete, ready-to-publish page content. Every word must sound like ${brandCtx.name || cfg.name} — not a generic SEO agency.
 
-Write COMPLETE, READY-TO-PUBLISH page content that:
-- Opens with an engaging H1 that leads with "${r.keyword}" naturally
-- Includes 3-4 H2 sections targeting semantic variants of "${r.keyword}"
-- Has a FAQ section (4 questions people actually search) 
-- Includes an internal link to at least one other ${cfg.site} page (use placeholder href like /menu or /locations)
-- Leaves image placeholders as HTML comments: <!-- IMAGE: [description of ideal image] -->
-- Is 600-900 words total
-- Ends with a clear CTA to order, visit, or find a location
-- Naturally includes Dubai/UAE location context throughout
+CONTENT REQUIREMENTS:
+- H1 leads naturally with "${r.keyword}" — make it a line someone would actually say, not an SEO title
+- 3 H2 sections: each must reference a specific menu item, location, or brand truth by name
+- FAQ section: 4 questions people actually search — answer them the way ${brandCtx.name || cfg.name} would talk, not how a textbook would
+- Internal link to one other page (use /menu, /locations, /order as placeholder href)
+- Image placeholder: <!-- IMAGE: [very specific food photo description] -->
+- 600-900 words total
+- CTA at end: make it sound like the brand, not like a billboard
 
-Return ONLY a JSON object, no prose:
+VOICE CHECK — before returning, verify:
+□ Could any sentence appear on a competitor's website? If yes — rewrite it
+□ Is at least one specific menu item named (not "our burgers" but the actual name)?
+□ Does the opening line make someone hungry or curious?
+
+Return ONLY valid JSON:
 {
   "keyword": "${r.keyword}",
   "currentPosition": ${r.position},
-  "url": "most likely URL path e.g. /menu or /locations",
-  "title": "SEO title (55-60 chars)",
-  "description": "Meta description (150-160 chars)",
+  "url": "page URL path e.g. /menu",
+  "title": "SEO title 55-60 chars — brand voice, not generic",
+  "description": "Meta description 150-160 chars — specific, not generic",
   "targetKeyword": "${r.keyword}",
   "pageTitle": "H1 for the page",
-  "body": "<HTML: 1 intro p, 3 h2 sections each with 2-3 p tags, 1 FAQ section with 3 questions, 1 CTA p — keep under 500 words total — image placeholders as HTML comments>",
-  "changeRationale": "1 sentence: why this will improve ranking"
+  "body": "Full HTML content — h2 sections, FAQ, CTA. Image placeholders as HTML comments.",
+  "changeRationale": "One sentence: what specifically makes this version better for ranking"
 }`;
 
-    const { text } = await callClaude(prompt, { max_tokens: 1800 });
+    const { text } = await callClaude(userPrompt, { max_tokens: 1800, system: systemPrompt });
     const parsed = extractJson(text);
     if (!parsed || !parsed.body) continue;
 
+    // Brand voice check
+    const voiceCheck = await runBrandVoiceCheck(parsed.body, brandCtx, (p, o) => callClaude(p, o)).catch(() => ({ score: 6, verdict: 'PASS' }));
+    console.log(`[quick_wins] ${r.keyword} — voice score: ${voiceCheck.score}/10 (${voiceCheck.verdict})`);
+
     if (dryRun) { queued++; continue; }
 
+    const tier = getKeywordTier(r.position);
     await createApproval({
       type: 'page_update',
       brand,
@@ -182,8 +225,14 @@ Return ONLY a JSON object, no prose:
         targetKeyword: parsed.targetKeyword || r.keyword,
         pageTitle:     parsed.pageTitle,
         body:          parsed.body,
-        // These map to wordpress.js update_content
         wpAction:      'update_content',
+        voiceScore:    voiceCheck.score,
+        voiceIssues:   voiceCheck.issues,
+        keywordTier:   tier.tier,
+        tierColor:     tier.color,
+        tierEmoji:     tier.emoji,
+        currentPos:    r.position,
+        impressions:   r.impressions,
       },
     });
     queued++;
@@ -209,35 +258,40 @@ async function runMetaRewrites(brand, rows, dryRun, forceRun, brandCtx, brandPro
     .slice(0, forceRun ? 6 : 4);
   if (!candidates.length) return { queued: 0, candidates: 0, skipped: 'all candidates already queued' };
 
-  const menuItems = brandCtx && brandCtx.menu ? [
+  const systemPrompt = brandPrompt || buildBrandPrompt(brandCtx);
+  const brandName    = brandCtx?.name || cfg.name;
+  const menuItems    = brandCtx?.menu ? [
     ...(brandCtx.menu.cheeseburgers || []).slice(0, 3),
-    ...(brandCtx.menu.chickenSandos || []).slice(0, 2),
-    ...(brandCtx.menu.friesAndSides || []).slice(0, 2),
-  ].join(' | ') : 'smash burgers, chicken sandos, fries';
+    ...(brandCtx.menu.chickenSandos || brandCtx.menu.sandwiches || []).slice(0, 2),
+    ...(brandCtx.menu.friesAndSides || brandCtx.menu.sides || []).slice(0, 2),
+  ].join(' | ') : '';
 
-  const prompt = `${brandPrompt || ''}
+  const userPrompt = `These ${brandName} pages rank well but CTR is poor — the meta is bland. Rewrite each one.
 
-You are rewriting SEO meta titles and descriptions for ${brandCtx ? brandCtx.name : cfg.name}.
+TASK: Make the meta title and description so specific and on-brand that someone scrolling past stops.
 
-TASK: These pages rank well but CTR is below expected — the meta is underselling. Rewrite each one.
-
-STRICT RULES:
-- Title: 52-58 characters exactly
-- Description: 150-158 characters exactly  
-- Only mention REAL menu items from the brand context above — do NOT invent items
-- Real items you can reference: ${menuItems}
-- UAE-local language, keyword-led, ends with a soft CTA
-- Sound like the brand — use the tone rules above
+RULES — non-negotiable:
+- Title: 52-58 characters exactly — count them
+- Description: 150-158 characters exactly — count them
+- Only reference REAL menu items: ${menuItems || 'use items from brand context'}
+- No generic phrases: "great food", "delicious", "best in Dubai", "quality ingredients"
+- Each title must make ${brandName} sound like ${brandName} — not a generic restaurant
+- Lead with the keyword, end with a reason to click
 
 PAGES TO REWRITE:
-${candidates.map((r, i) => `${i+1}. Keyword: "${r.keyword}" | Pos: ${r.position} | CTR: ${r.ctr}% | ${r.impressions} impressions/90d`).join('\n')}
+${candidates.map((r, i) => `${i+1}. Keyword: "${r.keyword}" | Position: ${r.position} | CTR: ${r.ctr}% | ${r.impressions} impressions`).join('\n')}
 
-Return ONLY a JSON array, no prose, no fences:
-[{"keyword":"...","url":"URL path e.g. /menu or /location","title":"52-58 chars","description":"150-158 chars","targetKeyword":"...","rationale":"one sentence"}]`;
+VOICE CHECK before returning:
+□ Does each title sound like it could only be ${brandName}?
+□ Is there at least one specific detail (menu item, location, brand term)?
+□ Would you click this if you saw it on Google?
+
+Return ONLY a JSON array, no prose:
+[{"keyword":"...","url":"/page-path","title":"52-58 chars","description":"150-158 chars","targetKeyword":"...","rationale":"one sentence why this will improve CTR"}]`;
 
   if (dryRun) return { queued: 0, candidates: candidates.length, preview: candidates.map(r => r.keyword) };
 
-  const { text } = await callClaude(prompt, { max_tokens: 2000 });
+  const { text } = await callClaude(userPrompt, { max_tokens: 2000, system: systemPrompt });
   const parsed = extractJson(text);
   if (!Array.isArray(parsed)) return { queued: 0, candidates: candidates.length, error: 'Claude did not return JSON array' };
 
@@ -264,51 +318,79 @@ Return ONLY a JSON array, no prose, no fences:
 
 // ════════════════════════════════════════════════════════════════
 // JOB 3: CONTENT GAPS — BLOG POSTS
-// Keywords ranking 30+ where no page exists. Writes full blog post.
+// Short Term: pos 21-35 — ranking weakly, new focused post needed
+// Long Term:  pos 36-100 — barely visible, build from scratch
 // Queued as blog_draft → pushes via wordpress.js create_draft.
 // ════════════════════════════════════════════════════════════════
 async function runContentGaps(brand, rows, dryRun, forceRun, brandCtx, brandPrompt) {
   const cfg = BRANDS[brand];
   const alreadyQueued = await getQueuedKeywords(brand);
-  const candidates = rows
-    .filter(r => r.position > 8 && r.impressions >= 20)
+
+  // Merge GSC rows with seed keywords (seed = keywords we want to rank for but don't yet)
+  const seedKws   = await loadSeedKeywords(brand);
+  const seedRows  = seedKeywordsToRows(seedKws).filter(
+    r => forceRun || !alreadyQueued.has(r.keyword.toLowerCase().trim())
+  );
+
+  // Short Term: pos 21-35, min 30 impressions — closer to ranking, faster win
+  const shortTerm = rows
+    .filter(r => r.position >= 21 && r.position <= 35 && r.impressions >= 30)
     .filter(r => forceRun || !alreadyQueued.has(r.keyword.toLowerCase().trim()))
     .sort((a, b) => b.impressions - a.impressions)
-    .slice(0, forceRun ? 5 : 3);
+    .slice(0, forceRun ? 3 : 2);
+
+  // Long Term: pos 36-100, min 20 impressions — lower position but high search volume
+  const longTermGsc = rows
+    .filter(r => r.position > 35 && r.impressions >= 20)
+    .filter(r => forceRun || !alreadyQueued.has(r.keyword.toLowerCase().trim()))
+    .sort((a, b) => b.impressions - a.impressions)
+    .slice(0, forceRun ? 2 : 1);
+
+  // Seed keywords — Priority Gap (manually curated, not in GSC)
+  const priorityGap = seedRows.slice(0, forceRun ? 3 : 1);
+
+  const candidates = [...shortTerm, ...longTermGsc, ...priorityGap];
   if (!candidates.length) return { queued: 0, candidates: 0, skipped: 'no content gap candidates found' };
 
-  const siteName = brandCtx ? brandCtx.name : cfg.name;
-  const siteDomain = brandCtx ? brandCtx.website : cfg.domain;
+  const siteName   = brandCtx?.name || cfg.name;
+  const siteDomain = brandCtx?.website || cfg.domain;
+  const systemPrompt = brandPrompt || buildBrandPrompt(brandCtx);
 
-  const prompt = `${brandPrompt || ''}
+  const userPrompt = `Write a blog post for ${siteName}. This is NOT generic SEO content — it must sound unmistakably like ${siteName}.
 
-You are writing an SEO blog post for ${siteName}.
+TARGET KEYWORD: Pick the best one from this list (highest intent + volume):
+${candidates.map((r, i) => `${i+1}. "${r.keyword}" — ${r.impressions} impressions, ranking pos ${r.position}`).join('\n')}
 
-TARGET: Write a focused, on-brand blog post for the keyword with the highest commercial intent from this list.
+WHAT MAKES THIS POST WIN:
+- 450-600 words — tight and specific, not padded with filler
+- H1 leads with the keyword but sounds like something a human would say, not an SEO robot
+- 3 H2 sections: each must mention a specific menu item, real location, or brand truth by name — no vague references
+- 3 FAQ questions people actually type into Google about this in Dubai/UAE — answer them like ${siteName} talks, not like a Wikipedia article
+- One internal link (use /menu or /locations as href)
+- One image placeholder: <!-- IMAGE: [very specific description of what the ideal photo shows] -->
+- End with a CTA that sounds like ${siteName} would say it — not "visit us today for a great experience"
 
-KEYWORDS (pick the best one):
-${candidates.map((r, i) => `${i+1}. "${r.keyword}" — ${r.impressions} impressions, ranking ~pos ${r.position}`).join('\n')}
+BRAND VOICE SELF-CHECK — run this before returning:
+□ Does the opening line make someone hungry or curious? If not — rewrite it.
+□ Is at least one specific menu item named (actual name, not "our burgers")?
+□ Could any sentence appear on a competitor's website? If yes — rewrite that sentence.
+□ Does the CTA sound like the brand or like a template? If template — rewrite it.
 
-CONTENT REQUIREMENTS:
-- 400-600 words — punchy and specific, not padded
-- H1 leads naturally with the target keyword
-- 3 H2 sections: each with actual useful content about ${siteName} (reference real menu items by name)
-- 3 FAQ questions people actually search about this topic in UAE/Dubai
-- One internal link to a ${siteDomain} page (e.g. /menu or /locations) 
-- One image placeholder: <!-- IMAGE: [very specific description of ideal food photo] -->
-- UAE/Dubai local context throughout — mention specific areas, local culture naturally
-- End with a CTA that sounds like ${siteName} — not generic, not salesy
-
-CRITICAL — TONE: Sound exactly like the brand described above. Use the brand language naturally. Mention specific menu items by their actual names. Do not write generic food content.
-
-CRITICAL — FORMAT: Return ONLY valid JSON, no markdown, no fences, nothing else:
-{"title":"...","metaDescription":"exactly 150-160 chars","targetKeyword":"...","slug":"lowercase-hyphens-no-spaces","excerpt":"1-2 sentences","body":"<h2>...</h2><p>...</p> full HTML content","rationale":"one sentence: why this keyword, why this angle"}`;
+Return ONLY valid JSON, no markdown, no fences:
+{
+  "title": "Blog post title — 50-60 chars, sounds like ${siteName} not generic SEO",
+  "metaDescription": "150-160 chars — specific detail that makes people click, not generic",
+  "targetKeyword": "the keyword you chose",
+  "slug": "lowercase-hyphens-no-spaces",
+  "excerpt": "1-2 sentence teaser that sounds like ${siteName}",
+  "body": "Full HTML — h2 sections, FAQ, CTA. Every sentence earns its place.",
+  "rationale": "One sentence: what specific angle makes this post win this keyword"
+}`;
 
   if (dryRun) return { queued: 0, candidates: candidates.length, preview: candidates.map(r => r.keyword) };
 
-  const { text } = await callClaude(prompt, { max_tokens: 3000 });
+  const { text } = await callClaude(userPrompt, { max_tokens: 3000, system: systemPrompt });
 
-  // Log what Claude returned for debugging
   console.log('[content_gaps] Claude response length:', text && text.length);
   console.log('[content_gaps] Claude response preview:', text && text.slice(0, 200));
 
@@ -318,6 +400,22 @@ CRITICAL — FORMAT: Return ONLY valid JSON, no markdown, no fences, nothing els
     return { queued: 0, candidates: candidates.length, error: 'Claude response could not be parsed — check function logs' };
   }
 
+  // Brand voice quality gate — score content before queuing
+  const voiceCheck = await runBrandVoiceCheck(parsed.body, brandCtx, (p, o) => callClaude(p, o)).catch(() => ({ score: 6, verdict: 'PASS', issues: [] }));
+  console.log(`[content_gaps] "${parsed.targetKeyword}" — voice score: ${voiceCheck.score}/10 (${voiceCheck.verdict})`);
+
+  if (voiceCheck.score < 5) {
+    console.warn(`[content_gaps] Score ${voiceCheck.score}/10 — too low to queue. Issues: ${voiceCheck.issues.join(', ')}`);
+    return { queued: 0, candidates: candidates.length, error: `Brand voice score too low (${voiceCheck.score}/10) — content not queued. Issues: ${voiceCheck.issues.join('; ')}` };
+  }
+
+  // Find which tier this keyword belongs to
+  const pickedCandidate = candidates.find(c => c.keyword === parsed.targetKeyword) || candidates[0];
+  const isPriorityGap   = pickedCandidate?.source === 'seed';
+  const tier = isPriorityGap
+    ? { tier: 'Priority Gap', color: '#dc2626', emoji: '🚨' }
+    : getKeywordTier(pickedCandidate?.position || 50);
+
   await createApproval({
     type: 'blog_draft',
     brand,
@@ -325,14 +423,22 @@ CRITICAL — FORMAT: Return ONLY valid JSON, no markdown, no fences, nothing els
     title: `Blog draft: ${parsed.title}`,
     reason: parsed.rationale || `Content gap for "${parsed.targetKeyword}"`,
     payload: {
-      title: parsed.title,
+      title:           parsed.title,
       metaDescription: parsed.metaDescription,
-      description: parsed.metaDescription,
-      targetKeyword: parsed.targetKeyword,
-      slug: parsed.slug,
-      excerpt: parsed.excerpt,
-      body: parsed.body,
-      wpAction: 'create_draft',
+      description:     parsed.metaDescription,
+      targetKeyword:   parsed.targetKeyword,
+      slug:            parsed.slug,
+      excerpt:         parsed.excerpt,
+      body:            parsed.body,
+      wpAction:        'create_draft',
+      voiceScore:      voiceCheck.score,
+      voiceIssues:     voiceCheck.issues,
+      voiceTopFix:     voiceCheck.topFix,
+      keywordTier:     tier.tier,
+      tierColor:       tier.color,
+      tierEmoji:       tier.emoji,
+      currentPos:      pickedCandidate?.position,
+      impressions:     pickedCandidate?.impressions,
     },
   });
   return { queued: 1, candidates: candidates.length };
