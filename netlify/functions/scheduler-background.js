@@ -83,6 +83,26 @@ exports.handler = async (event) => {
   summary.durationMs = summary.finishedAt - summary.startedAt;
   await setSetting('scheduler:lastrun', summary);
   console.log('Scheduler done:', JSON.stringify(summary));
+
+  // Send Slack notification if items were queued
+  if (summary.queued > 0) {
+    try {
+      const siteUrl = process.env.URL || 'https://yolkseo.netlify.app';
+      await fetch(`${siteUrl}/.netlify/functions/slack-notify`, {
+        method:  'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body:    JSON.stringify({
+          type:  'queue_summary',
+          brand: brandsToRun.length === 1 ? brandsToRun[0] : null,
+          count: summary.queued,
+          items: [], // summary level — no per-item detail needed
+        }),
+      });
+    } catch (e) {
+      console.warn('[scheduler] Slack notification failed:', e.message);
+    }
+  }
+
   // Background functions return nothing — client already got 202
 };
 

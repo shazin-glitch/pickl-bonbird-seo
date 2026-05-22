@@ -7,7 +7,7 @@ exports.handler = async (event) => {
 
   try {
     const store = getStore({ name: 'seo-tool', consistency: 'strong', siteID: process.env.NETLIFY_SITE_ID, token: process.env.NETLIFY_AUTH_TOKEN });
-    const [keywords, compRanks, localChecks, techChecks, dirChecks, gscTokens, brandCtxPickl, brandCtxBonbird] = await Promise.all([
+    const [keywords, compRanks, localChecks, techChecks, dirChecks, gscTokens, brandCtxPickl, brandCtxBonbird, slackWebhookUrl] = await Promise.all([
       store.get('keywords', { type: 'json' }).catch(() => []),
       store.get('compRanks', { type: 'json' }).catch(() => []),
       store.get('localChecks', { type: 'json' }).catch(() => ({ 1: {}, 2: {} })),
@@ -16,6 +16,7 @@ exports.handler = async (event) => {
       store.get('gscTokens', { type: 'json' }).catch(() => null),
       store.get('brandContext:pickl', { type: 'json' }).catch(() => null),
       store.get('brandContext:bonbird', { type: 'json' }).catch(() => null),
+      store.get('slackWebhookUrl', { type: 'json' }).catch(() => null),
     ]);
 
     return {
@@ -30,6 +31,7 @@ exports.handler = async (event) => {
         gscTokens: gscTokens || null,
         brandContext_pickl: brandCtxPickl || null,
         brandContext_bonbird: brandCtxBonbird || null,
+        slackWebhookUrl: slackWebhookUrl || null,
       })
     };
   } catch (err) {

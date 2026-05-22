@@ -14,6 +14,26 @@
   status = 200
 
 [[redirects]]
+  from = "/api/auth/user"
+  to = "/.netlify/functions/auth-user"
+  status = 200
+
+[[redirects]]
+  from = "/api/auth/logout"
+  to = "/.netlify/functions/auth-logout"
+  status = 200
+
+[[redirects]]
+  from = "/api/users"
+  to = "/.netlify/functions/user-management"
+  status = 200
+
+[[redirects]]
+  from = "/api/slack-notify"
+  to = "/.netlify/functions/slack-notify"
+  status = 200
+
+[[redirects]]
   from = "/api/gsc-data"
   to = "/.netlify/functions/gsc-data"
   status = 200

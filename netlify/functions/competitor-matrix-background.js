@@ -106,99 +106,160 @@ async function loadBrandConfig(store, brand) {
   };
 }
 
-// ─── DataForSEO fetch — one keyword per request (plan limitation) ─────────────
+// ─── DataForSEO Standard mode — batch task_post → poll task_get ──────────────
+// Standard mode: $0.0006/keyword vs Live $0.002/keyword — 3x cheaper
+// Batches up to 100 keywords per POST, polls until all tasks complete.
+// No per-keyword timeouts — DataForSEO handles queuing server-side.
+
+const DATAFORSEO_POST_URL    = "https://api.dataforseo.com/v3/serp/google/organic/task_post";
+const DATAFORSEO_GET_URL     = "https://api.dataforseo.com/v3/serp/google/organic/task_get/advanced";
+const BATCH_SIZE             = 100;   // max tasks per POST call
+const POLL_INTERVAL_MS       = 5000;  // check task status every 5 seconds
+const POLL_MAX_ATTEMPTS      = 120;   // up to 10 minutes of polling
+const TASK_TAG_PREFIX        = "yolkseo_"; // helps identify our tasks
+
 async function fetchSerpRankings(brand, config) {
   const login    = process.env.DATAFORSEO_LOGIN;
   const password = process.env.DATAFORSEO_PASSWORD;
   if (!login || !password) throw new Error("DataForSEO credentials missing");
 
   const authHeader = "Basic " + Buffer.from(`${login}:${password}`).toString("base64");
+  const keywords   = config.targetKeywords;
+  const ourDomain  = new URL(config.siteUrl).hostname.replace(/^www\./, "");
 
-  const rows = [];
+  console.log(`[competitor-matrix-background] ${brand} — posting ${keywords.length} keywords in Standard mode`);
 
-  for (const kw of config.targetKeywords) {
-    const controller = new AbortController();
-    const timeout    = setTimeout(() => controller.abort(), 20000); // 20s max per keyword
+  // ── Step 1: POST all keywords in batches ──────────────────────────────────
+  const taskIds = [];
 
-    let postRes;
-    try {
-      postRes = await fetch(
-        "https://api.dataforseo.com/v3/serp/google/organic/live/advanced",
-        {
-          method:  "POST",
-          headers: { Authorization: authHeader, "Content-Type": "application/json" },
-          body: JSON.stringify([{
-            keyword:       kw,
-            location_code: config.location_code,
-            language_code: config.language_code,
-            device:        "desktop",
-            os:            "windows",
-            depth:         100, // top 100 results — same cost as 50, catches page 6-10 rankings
-          }]),
-          signal: controller.signal,
-        }
-      );
-    } catch (fetchErr) {
-      clearTimeout(timeout);
-      console.warn(`[competitor-matrix-background] Timeout/error on keyword "${kw}" — skipping`);
-      continue;
-    }
-    clearTimeout(timeout);
+  for (let i = 0; i < keywords.length; i += BATCH_SIZE) {
+    const batch = keywords.slice(i, i + BATCH_SIZE);
 
-    if (!postRes.ok) {
-      console.warn(`[competitor-matrix-background] HTTP ${postRes.status} on keyword "${kw}" — skipping`);
-      continue;
-    }
+    const tasks = batch.map(kw => ({
+      keyword:       kw,
+      location_code: config.location_code,
+      language_code: config.language_code,
+      device:        "desktop",
+      os:            "windows",
+      depth:         100,
+      tag:           `${TASK_TAG_PREFIX}${brand}`,
+    }));
 
-    const data = await postRes.json();
+    const res = await fetch(DATAFORSEO_POST_URL, {
+      method:  "POST",
+      headers: { Authorization: authHeader, "Content-Type": "application/json" },
+      body:    JSON.stringify(tasks),
+    });
+
+    if (!res.ok) throw new Error(`task_post HTTP ${res.status}`);
+
+    const data = await res.json();
     if (data.status_code !== 20000) {
-      console.warn(`[competitor-matrix-background] API status ${data.status_code} on keyword "${kw}": ${data.status_message} — skipping`);
-      continue;
+      throw new Error(`task_post API error ${data.status_code}: ${data.status_message}`);
     }
 
     for (const task of data.tasks || []) {
-      if (task.status_code !== 20000) {
-        console.warn(`[competitor-matrix-background] Task skipped — keyword: "${task.data?.keyword}" status: ${task.status_code} message: ${task.status_message}`);
-        continue;
+      if (task.id) {
+        taskIds.push(task.id);
+      } else {
+        console.warn(`[competitor-matrix-background] ${brand} — task without ID: ${JSON.stringify(task).slice(0, 100)}`);
       }
+    }
 
-      const keyword   = task.data?.keyword || "";
-      const items     = task.result?.[0]?.items || [];
-      const ourDomain = new URL(config.siteUrl).hostname.replace(/^www\./, "");
+    console.log(`[competitor-matrix-background] ${brand} — batch ${Math.floor(i / BATCH_SIZE) + 1} posted, ${taskIds.length} tasks queued so far`);
+  }
 
-      let ourRank = null;
+  console.log(`[competitor-matrix-background] ${brand} — all ${taskIds.length} tasks posted, polling for results…`);
+
+  // ── Step 2: Poll until all tasks complete ─────────────────────────────────
+  const results    = {}; // taskId → result items
+  let   pending    = new Set(taskIds);
+  let   attempts   = 0;
+
+  while (pending.size > 0 && attempts < POLL_MAX_ATTEMPTS) {
+    attempts++;
+    await new Promise(r => setTimeout(r, POLL_INTERVAL_MS));
+
+    // Check pending tasks in batches of 50
+    const toCheck = [...pending].slice(0, 50);
+
+    for (const taskId of toCheck) {
+      try {
+        const res = await fetch(`${DATAFORSEO_GET_URL}/${taskId}`, {
+          headers: { Authorization: authHeader },
+        });
+
+        if (!res.ok) continue;
+
+        const data = await res.json();
+        if (data.status_code !== 20000) continue;
+
+        for (const task of data.tasks || []) {
+          if (task.status_code === 20000 && task.result) {
+            results[taskId] = {
+              keyword: task.data?.keyword || "",
+              items:   task.result?.[0]?.items || [],
+            };
+            pending.delete(taskId);
+          } else if (task.status_code === 40501 || task.status_code === 40601) {
+            // Task failed permanently — skip it
+            console.warn(`[competitor-matrix-background] ${brand} — task ${taskId} failed: ${task.status_message}`);
+            pending.delete(taskId);
+          }
+          // status 20100 = task in queue — keep polling
+        }
+      } catch (e) {
+        console.warn(`[competitor-matrix-background] ${brand} — poll error for ${taskId}: ${e.message}`);
+      }
+    }
+
+    if (attempts % 6 === 0) { // log every 30s
+      console.log(`[competitor-matrix-background] ${brand} — polling… ${pending.size} tasks remaining (attempt ${attempts})`);
+    }
+  }
+
+  if (pending.size > 0) {
+    console.warn(`[competitor-matrix-background] ${brand} — ${pending.size} tasks still pending after max polls, proceeding with partial results`);
+  }
+
+  console.log(`[competitor-matrix-background] ${brand} — got results for ${Object.keys(results).length}/${taskIds.length} tasks`);
+
+  // ── Step 3: Parse results into rows ──────────────────────────────────────
+  const rows = [];
+
+  for (const { keyword, items } of Object.values(results)) {
+    let ourRank = null;
+    for (const item of items) {
+      if (item.type !== "organic") continue;
+      const itemDomain = (item.domain || "").replace(/^www\./, "");
+      if (itemDomain === ourDomain || itemDomain.includes(ourDomain)) {
+        ourRank = item.rank_absolute;
+        break;
+      }
+    }
+
+    const competitorRanks = {};
+    for (const comp of config.competitors) {
+      const compDomain = comp.domain.replace(/^www\./, "");
+      competitorRanks[comp.name] = null;
       for (const item of items) {
         if (item.type !== "organic") continue;
         const itemDomain = (item.domain || "").replace(/^www\./, "");
-        if (itemDomain === ourDomain || itemDomain.includes(ourDomain)) {
-          ourRank = item.rank_absolute;
+        if (itemDomain === compDomain || itemDomain.includes(compDomain)) {
+          competitorRanks[comp.name] = item.rank_absolute;
           break;
         }
       }
-
-      const competitorRanks = {};
-      for (const comp of config.competitors) {
-        const compDomain = comp.domain.replace(/^www\./, "");
-        competitorRanks[comp.name] = null;
-        for (const item of items) {
-          if (item.type !== "organic") continue;
-          const itemDomain = (item.domain || "").replace(/^www\./, "");
-          if (itemDomain === compDomain || itemDomain.includes(compDomain)) {
-            competitorRanks[comp.name] = item.rank_absolute;
-            break;
-          }
-        }
-      }
-
-      rows.push({
-        keyword,
-        brand,
-        ourRank,
-        ourDomain,
-        competitorRanks,
-        fetchedAt: new Date().toISOString(),
-      });
     }
+
+    rows.push({
+      keyword,
+      brand,
+      ourRank,
+      ourDomain,
+      competitorRanks,
+      fetchedAt: new Date().toISOString(),
+    });
   }
 
   return rows;

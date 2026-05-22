@@ -216,9 +216,11 @@
   <div class="top-header">
     <div class="page-title" id="top-title">Dashboard &amp; Approvals</div>
     <div class="header-right">
-      <div class="user-profile">
+      <div class="user-profile" style="display:flex;align-items:center;gap:10px">
+        <span id="user-role-badge" style="font-size:11px;font-weight:600;padding:2px 8px;border-radius:99px;background:rgba(255,255,255,0.1);color:rgba(255,255,255,0.7);text-transform:uppercase;letter-spacing:0.05em"></span>
         <div class="avatar" id="user-avatar">?</div>
         <span id="user-name">Loading…</span>
+        <button onclick="handleLogout()" style="background:transparent;border:1px solid rgba(255,255,255,0.2);color:rgba(255,255,255,0.6);padding:4px 10px;border-radius:6px;font-size:12px;cursor:pointer;margin-left:4px" onmouseover="this.style.background='rgba(255,255,255,0.1)'" onmouseout="this.style.background='transparent'">Sign out</button>
       </div>
     </div>
   </div>
@@ -464,9 +466,17 @@
           <div class="toggle-row">
             <div class="toggle-label">
               <h4>Slack Notifications</h4>
-              <p>Get a weekly digest when new tasks are queued.</p>
+              <p>Get pinged when new items are queued by the scheduler or international SEO.</p>
             </div>
             <div class="toggle-switch" id="slack-toggle" onclick="this.classList.toggle('off')"></div>
+          </div>
+          <div class="form-group" id="slack-webhook-group" style="margin-top:-8px">
+            <label class="form-label">Slack Webhook URL</label>
+            <div style="display:flex;gap:8px">
+              <input type="text" id="slack-webhook-url" class="form-input" placeholder="https://hooks.slack.com/services/..." style="font-family:var(--font-sans);flex:1">
+              <button class="btn btn-outline" onclick="saveSlackWebhook()">Save</button>
+            </div>
+            <div id="slack-webhook-status" style="font-size:12px;color:var(--text-muted);margin-top:4px"></div>
           </div>
 
           <div class="toggle-row">
@@ -543,6 +553,20 @@
             <div style="text-align:center;padding:24px;color:var(--text-muted);font-size:13px">Loading audit log…</div>
           </div>
         </div>
+
+      <!-- Users & Permissions — admin only -->
+        <div class="card" id="users-panel" style="display:none;grid-column:1/-1">
+          <div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:20px">
+            <div>
+              <h3 style="font-size:16px;font-weight:600">Users &amp; Permissions</h3>
+              <p style="font-size:13px;color:var(--text-muted);margin-top:4px">Manage who can access the SEO Command Center and what they can do.</p>
+            </div>
+            <button class="btn btn-primary" onclick="showAddUserModal()">+ Add User</button>
+          </div>
+          <div id="users-list">
+            <div style="text-align:center;padding:24px;color:var(--text-muted);font-size:13px">Loading users…</div>
+          </div>
+        </div>
       </div>
     </div>
 
@@ -604,19 +628,21 @@
 // ═══════════════════════════════════════════════════════════════
 const state = {
   actor: null,
+  userRole:  'viewer',
+  userEmail: '',
   gscConnected: false,
   gscRows: {
-    pickl: [],   // { keyword, clicks, impressions, ctr, position }
+    pickl: [],
     bonbird: []
   },
-  queue: [],      // approval items from /api/approvals
+  queue: [],
   activeQFilter: 'all',
   activeBFilter: 'all',
   activeMFilter: 'all',
   activeAnalyticsBrand: 'all',
   activeAnalyticsView: 'gsc',
   currentTool: null,
-  keywords: [],   // tracked keywords from db
+  keywords: [],
 };
 
 const PICKL_GSC   = 'https://eatpickl.com/';
@@ -646,16 +672,36 @@ const TYPE_TAGS = {
 // INIT
 // ═══════════════════════════════════════════════════════════════
 (async function init() {
-  // Identity
-  let actor = localStorage.getItem('seo_actor');
-  if (!actor) {
-    actor = window.prompt('Who is using the SEO tool? (your name for the audit log)', '') || 'guest';
-    actor = actor.trim().slice(0, 40) || 'guest';
-    localStorage.setItem('seo_actor', actor);
+  // ── Auth check — redirect to login if no valid session ───────────────────
+  let currentUser = null;
+  try {
+    const res = await fetch('/api/auth/user', { credentials: 'include' });
+    const data = await res.json();
+    if (!data.authenticated) {
+      window.location.href = '/login.html';
+      return;
+    }
+    currentUser = data;
+    state.actor    = data.name || data.email;
+    state.userRole = data.role;
+    state.userEmail = data.email;
+  } catch (e) {
+    window.location.href = '/login.html';
+    return;
   }
-  state.actor = actor;
-  document.getElementById('user-name').textContent = actor;
-  document.getElementById('user-avatar').textContent = actor.charAt(0).toUpperCase();
+
+  // Update UI with real user info
+  const avatarEl = document.getElementById('user-avatar');
+  const nameEl   = document.getElementById('user-name');
+  if (currentUser.picture) {
+    avatarEl.innerHTML = `<img src="${currentUser.picture}" style="width:100%;height:100%;border-radius:50%;object-fit:cover">`;
+  } else {
+    avatarEl.textContent = (currentUser.name || currentUser.email).charAt(0).toUpperCase();
+  }
+  nameEl.textContent = currentUser.name || currentUser.email;
+
+  // Apply role-based UI restrictions
+  applyRoleRestrictions(state.userRole);
 
   // Check ?tab= param in URL (from notification deep-links)
   const urlTab = new URLSearchParams(window.location.search).get('tab');
@@ -701,7 +747,7 @@ function switchView(target) {
   document.querySelectorAll('.page-view').forEach(v => v.classList.toggle('active', v.id === 'view-' + target));
   document.getElementById('top-title').textContent = VIEW_TITLES[target] || target;
   if (target === 'analytics')     loadGscIfNeeded();
-  if (target === 'settings')      { renderAuditLog(); loadBrandCtx(); }
+  if (target === 'settings')      { renderAuditLog(); loadBrandCtx(); loadSlackWebhook(); if (state.userRole === 'admin') { document.getElementById('users-panel').style.display = ''; loadUsersPanel(); } }
   if (target === 'international') loadIntlDashboard();
 }
 
@@ -1576,7 +1622,165 @@ function showToast(msg, type) {
   toastTimer = setTimeout(() => t.classList.remove('show'), 3500);
 }
 
-// Keyboard: Escape closes modals
+// ═══════════════════════════════════════════════════════════════
+// AUTH & ROLES
+// ═══════════════════════════════════════════════════════════════
+
+function applyRoleRestrictions(role) {
+  // Set role badge
+  const badge = document.getElementById('user-role-badge');
+  if (badge) {
+    badge.textContent = role;
+    badge.style.background = role === 'admin' ? 'rgba(223,0,112,0.3)' : role === 'manager' ? 'rgba(59,130,246,0.3)' : 'rgba(255,255,255,0.1)';
+  }
+
+  if (role === 'admin' || role === 'manager') return; // full access
+
+  // Viewer — disable all action buttons
+  const disableSelectors = [
+    '.btn-primary',           // Approve, Approve & Publish
+    '.btn-danger-outline',    // Rewrite with AI
+    '[onclick*="approveItem"]',
+    '[onclick*="publishItem"]',
+    '[onclick*="dismissItem"]',
+    '[onclick*="rejectItem"]',
+    '[onclick*="editItem"]',
+    '[onclick*="runIntlSeo"]',
+    '[onclick*="runIntlMarket"]',
+    '#intl-run-btn',
+    '#run-audit-btn',
+    '[onclick*="saveBrandCtx"]',
+    '[onclick*="resetBrandCtx"]',
+  ];
+
+  // Apply after DOM is ready
+  setTimeout(() => {
+    disableSelectors.forEach(sel => {
+      document.querySelectorAll(sel).forEach(el => {
+        el.disabled = true;
+        el.style.opacity = '0.4';
+        el.style.cursor = 'not-allowed';
+        el.title = 'You need Manager or Admin access to perform this action';
+      });
+    });
+
+    // Hide Settings nav item for viewers
+    document.querySelectorAll('[data-target="settings"]').forEach(el => el.style.display = 'none');
+  }, 500);
+}
+
+function handleLogout() {
+  window.location.href = '/api/auth/logout';
+}
+
+// ── Users panel ───────────────────────────────────────────────────────────────
+
+async function loadUsersPanel() {
+  const list = document.getElementById('users-list');
+  if (!list) return;
+  list.innerHTML = '<div style="text-align:center;padding:16px;color:var(--text-muted);font-size:13px">Loading…</div>';
+
+  try {
+    const res  = await fetch('/api/users', { credentials: 'include' });
+    const data = await res.json();
+    const users = data.users || [];
+
+    const ROLE_COLORS = { admin: '#DF0070', manager: '#3b82f6', viewer: '#64748b' };
+
+    list.innerHTML = `
+      <table style="width:100%;border-collapse:collapse;font-size:13px">
+        <thead>
+          <tr style="border-bottom:1px solid var(--border)">
+            <th style="text-align:left;padding:8px 12px;color:var(--text-muted);font-weight:600">User</th>
+            <th style="text-align:left;padding:8px 12px;color:var(--text-muted);font-weight:600">Email</th>
+            <th style="text-align:left;padding:8px 12px;color:var(--text-muted);font-weight:600">Role</th>
+            <th style="text-align:left;padding:8px 12px;color:var(--text-muted);font-weight:600">Last Login</th>
+            <th style="padding:8px 12px"></th>
+          </tr>
+        </thead>
+        <tbody>
+          ${users.map(u => `
+            <tr style="border-bottom:1px solid var(--border)" id="user-row-${btoa(u.email).replace(/=/g,'').replace(/\+/g,'-').replace(/\//g,'_')}">
+              <td style="padding:10px 12px">
+                <div style="font-weight:500">${esc(u.name || u.email.split('@')[0])}</div>
+                ${u.isBootstrap ? '<div style="font-size:11px;color:var(--text-muted)">Bootstrap admin</div>' : ''}
+              </td>
+              <td style="padding:10px 12px;color:var(--text-muted)">${esc(u.email)}</td>
+              <td style="padding:10px 12px">
+                ${u.isBootstrap
+                  ? `<span style="font-size:12px;font-weight:600;color:${ROLE_COLORS.admin}">admin</span>`
+                  : `<select onchange="updateUserRole('${esc(u.email)}', this.value)" style="font-size:12px;padding:3px 6px;border-radius:6px;border:1px solid var(--border);background:var(--surface);color:var(--text);cursor:pointer">
+                      ${['viewer','manager','admin'].map(r => `<option value="${r}" ${u.role === r ? 'selected' : ''}>${r}</option>`).join('')}
+                    </select>`
+                }
+              </td>
+              <td style="padding:10px 12px;color:var(--text-muted)">${u.lastLogin ? new Date(u.lastLogin).toLocaleDateString('en-GB', { day:'numeric', month:'short', year:'numeric' }) : 'Never'}</td>
+              <td style="padding:10px 12px;text-align:right">
+                ${u.isBootstrap ? '' : `<button onclick="removeUser('${esc(u.email)}')" style="font-size:12px;color:#ef4444;background:none;border:none;cursor:pointer;padding:4px 8px;border-radius:4px" onmouseover="this.style.background='rgba(239,68,68,0.1)'" onmouseout="this.style.background='none'">Remove</button>`}
+              </td>
+            </tr>`).join('')}
+        </tbody>
+      </table>`;
+  } catch (e) {
+    list.innerHTML = `<div style="color:var(--danger);padding:16px">${esc(e.message)}</div>`;
+  }
+}
+
+async function updateUserRole(email, role) {
+  try {
+    await fetch('/api/users', {
+      method: 'PUT',
+      credentials: 'include',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ email, role }),
+    });
+    showToast(`${email} updated to ${role}`, '');
+  } catch (e) {
+    showToast('Failed to update role', 'error');
+  }
+}
+
+async function removeUser(email) {
+  if (!confirm(`Remove ${email}? They will lose access immediately.`)) return;
+  try {
+    await fetch(`/api/users?email=${encodeURIComponent(email)}`, {
+      method: 'DELETE',
+      credentials: 'include',
+    });
+    showToast(`${email} removed`, '');
+    loadUsersPanel();
+  } catch (e) {
+    showToast('Failed to remove user', 'error');
+  }
+}
+
+function showAddUserModal() {
+  const email = window.prompt('Enter the email address to invite:');
+  if (!email) return;
+  const role = window.prompt('Enter role (viewer / manager / admin):', 'viewer');
+  if (!role || !['viewer','manager','admin'].includes(role.toLowerCase())) {
+    alert('Invalid role. Must be viewer, manager, or admin.');
+    return;
+  }
+  addUser(email.trim().toLowerCase(), role.toLowerCase());
+}
+
+async function addUser(email, role) {
+  try {
+    const res = await fetch('/api/users', {
+      method: 'POST',
+      credentials: 'include',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ email, role }),
+    });
+    const data = await res.json();
+    if (!res.ok) throw new Error(data.error || 'Failed');
+    showToast(`${email} added as ${role}`, '');
+    loadUsersPanel();
+  } catch (e) {
+    showToast('Failed to add user: ' + e.message, 'error');
+  }
+}
 document.addEventListener('keydown', e => {
   if (e.key === 'Escape') {
     closeTool();
@@ -1788,6 +1992,45 @@ async function runIntlSeo() {
   btn.textContent = '▶ Run Now';
   btn.disabled = false;
 }
+
+// ── Slack webhook settings ─────────────────────────────────────────────────
+async function loadSlackWebhook() {
+  try {
+    const data = await apiGet('/api/db/get');
+    const url  = data?.slackWebhookUrl || '';
+    const input = document.getElementById('slack-webhook-url');
+    if (input) input.value = url;
+  } catch { /* non-fatal */ }
+}
+
+async function saveSlackWebhook() {
+  const input  = document.getElementById('slack-webhook-url');
+  const status = document.getElementById('slack-webhook-status');
+  const url    = (input?.value || '').trim();
+
+  if (url && !url.startsWith('https://hooks.slack.com/')) {
+    status.textContent = '✗ Must be a valid Slack webhook URL';
+    status.style.color = 'var(--danger)';
+    return;
+  }
+
+  status.textContent = 'Saving…';
+  try {
+    const existing = await apiGet('/api/db/get').catch(() => ({}));
+    await apiPost('/api/db/save', { ...existing, slackWebhookUrl: url });
+    status.textContent = url ? '✓ Saved — you\'ll get pinged when items are queued' : '✓ Slack notifications disabled';
+    status.style.color = 'var(--success)';
+    setTimeout(() => { status.textContent = ''; }, 4000);
+  } catch (e) {
+    status.textContent = 'Failed: ' + e.message;
+    status.style.color = 'var(--danger)';
+  }
+}
+
+// ── Keyboard shortcuts ─────────────────────────────────────────────────────
+document.addEventListener('keydown', e => {
+  if (e.key === 'Escape') { closeTool(); closeKwModal(); }
+});
 </script>
 <script src="/js/competitor-matrix-ui.js"></script>
 </body>

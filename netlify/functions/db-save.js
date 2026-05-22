@@ -29,6 +29,7 @@ exports.handler = async (event) => {
     // Brand context — stored under brandContext:<brand> to match brand.js convention
     if (body.brandContext_pickl !== undefined) saves.push(store.setJSON('brandContext:pickl', body.brandContext_pickl));
     if (body.brandContext_bonbird !== undefined) saves.push(store.setJSON('brandContext:bonbird', body.brandContext_bonbird));
+    if (body.slackWebhookUrl !== undefined) saves.push(store.setJSON('slackWebhookUrl', body.slackWebhookUrl));
 
     await Promise.all(saves);
 

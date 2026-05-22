@@ -426,6 +426,25 @@ exports.handler = async (event) => {
 
   console.log('[intl-seo] Complete.', summary);
 
+  // Send Slack notification if items were queued
+  if (summary.queued > 0) {
+    try {
+      const siteUrl = process.env.URL || 'https://yolkseo.netlify.app';
+      await fetch(`${siteUrl}/.netlify/functions/slack-notify`, {
+        method:  'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body:    JSON.stringify({
+          type:  'international_queue',
+          count: summary.queued,
+          items: [],
+          market: { label: marketParam === 'all' ? 'All Markets' : marketParam, flag: '🌍' },
+        }),
+      });
+    } catch (e) {
+      console.warn('[intl-seo] Slack notification failed:', e.message);
+    }
+  }
+
   return {
     statusCode: 200,
     body: JSON.stringify({

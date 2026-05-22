@@ -1,0 +1,140 @@
+// netlify/functions/user-management.js
+// Admin-only user management.
+//
+// GET  /api/users          — list all users
+// POST /api/users          — add user { email, role }
+// PUT  /api/users          — update role { email, role }
+// DELETE /api/users?email= — remove user
+
+const { getStore } = require('@netlify/blobs');
+
+const BOOTSTRAP_ADMINS = [
+  'shazin@yolkbrands.com',
+  'steve@yolkbrands.com',
+];
+
+const VALID_ROLES = ['viewer', 'manager', 'admin'];
+
+async function getCallerRole(event, store) {
+  const cookie = event.headers?.cookie || '';
+  const match  = cookie.match(/yolk_session=([^;]+)/);
+  const token  = match?.[1];
+  if (!token) return null;
+
+  try {
+    const session = await store.get(`userSession:${token}`, { type: 'json' });
+    if (!session || session.expiresAt < Date.now()) return null;
+    if (BOOTSTRAP_ADMINS.includes(session.email)) return 'admin';
+    const rec = await store.get(`userRole:${session.email}`, { type: 'json' });
+    return rec?.role || 'viewer';
+  } catch { return null; }
+}
+
+exports.handler = async (event) => {
+  const headers = {
+    'Content-Type': 'application/json',
+    'Access-Control-Allow-Origin': '*',
+    'Access-Control-Allow-Headers': 'Content-Type, Cookie',
+    'Access-Control-Allow-Methods': 'GET, POST, PUT, DELETE, OPTIONS',
+  };
+
+  if (event.httpMethod === 'OPTIONS') {
+    return { statusCode: 204, headers, body: '' };
+  }
+
+  const store = getStore({
+    name:   'seo-tool',
+    siteID: process.env.NETLIFY_SITE_ID,
+    token:  process.env.NETLIFY_AUTH_TOKEN,
+  });
+
+  // All methods require admin
+  const callerRole = await getCallerRole(event, store);
+  if (callerRole !== 'admin') {
+    return { statusCode: 403, headers, body: JSON.stringify({ error: 'Admin access required' }) };
+  }
+
+  try {
+    // ── GET: list all users ────────────────────────────────────────────────
+    if (event.httpMethod === 'GET') {
+      // Get user index
+      let index = [];
+      try {
+        const idx = await store.get('userIndex', { type: 'json' });
+        index = idx?.emails || [];
+      } catch { /* empty */ }
+
+      // Add bootstrap admins if not in index
+      for (const email of BOOTSTRAP_ADMINS) {
+        if (!index.includes(email)) index.push(email);
+      }
+
+      const users = await Promise.all(index.map(async (email) => {
+        let role = BOOTSTRAP_ADMINS.includes(email) ? 'admin' : 'viewer';
+        let name = '';
+        let lastLogin = null;
+        try {
+          const rec = await store.get(`userRole:${email}`, { type: 'json' });
+          if (rec) { role = rec.role || role; name = rec.name || ''; lastLogin = rec.lastLogin || null; }
+        } catch { /* use defaults */ }
+        return { email, role, name, lastLogin, isBootstrap: BOOTSTRAP_ADMINS.includes(email) };
+      }));
+
+      return { statusCode: 200, headers, body: JSON.stringify({ users }) };
+    }
+
+    // ── POST: add user ─────────────────────────────────────────────────────
+    if (event.httpMethod === 'POST') {
+      const { email, role } = JSON.parse(event.body || '{}');
+      if (!email || !role) return { statusCode: 400, headers, body: JSON.stringify({ error: 'email and role required' }) };
+      if (!VALID_ROLES.includes(role)) return { statusCode: 400, headers, body: JSON.stringify({ error: 'Invalid role' }) };
+
+      const normalised = email.trim().toLowerCase();
+      await store.set(`userRole:${normalised}`, JSON.stringify({ email: normalised, role, addedAt: new Date().toISOString() }));
+
+      // Add to index
+      let index = [];
+      try { const idx = await store.get('userIndex', { type: 'json' }); index = idx?.emails || []; } catch { /* empty */ }
+      if (!index.includes(normalised)) { index.push(normalised); await store.set('userIndex', JSON.stringify({ emails: index })); }
+
+      return { statusCode: 200, headers, body: JSON.stringify({ success: true, email: normalised, role }) };
+    }
+
+    // ── PUT: update role ───────────────────────────────────────────────────
+    if (event.httpMethod === 'PUT') {
+      const { email, role } = JSON.parse(event.body || '{}');
+      if (!email || !role) return { statusCode: 400, headers, body: JSON.stringify({ error: 'email and role required' }) };
+      if (!VALID_ROLES.includes(role)) return { statusCode: 400, headers, body: JSON.stringify({ error: 'Invalid role' }) };
+
+      const normalised = email.trim().toLowerCase();
+      let existing = {};
+      try { existing = await store.get(`userRole:${normalised}`, { type: 'json' }) || {}; } catch { /* new record */ }
+      await store.set(`userRole:${normalised}`, JSON.stringify({ ...existing, email: normalised, role, updatedAt: new Date().toISOString() }));
+
+      return { statusCode: 200, headers, body: JSON.stringify({ success: true, email: normalised, role }) };
+    }
+
+    // ── DELETE: remove user ────────────────────────────────────────────────
+    if (event.httpMethod === 'DELETE') {
+      const email = event.queryStringParameters?.email?.trim().toLowerCase();
+      if (!email) return { statusCode: 400, headers, body: JSON.stringify({ error: 'email required' }) };
+      if (BOOTSTRAP_ADMINS.includes(email)) return { statusCode: 400, headers, body: JSON.stringify({ error: 'Cannot remove bootstrap admin' }) };
+
+      await store.delete(`userRole:${email}`);
+
+      // Remove from index
+      let index = [];
+      try { const idx = await store.get('userIndex', { type: 'json' }); index = idx?.emails || []; } catch { /* empty */ }
+      index = index.filter(e => e !== email);
+      await store.set('userIndex', JSON.stringify({ emails: index }));
+
+      return { statusCode: 200, headers, body: JSON.stringify({ success: true }) };
+    }
+
+    return { statusCode: 405, headers, body: JSON.stringify({ error: 'Method not allowed' }) };
+
+  } catch (err) {
+    console.error('[user-management] Error:', err);
+    return { statusCode: 500, headers, body: JSON.stringify({ error: err.message }) };
+  }
+};
