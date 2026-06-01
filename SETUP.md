@@ -536,4 +536,28 @@ From Google's official AI Optimization Guide (June 2026):
 
 ---
 
-*Last updated: June 2026 — Full roadmap consolidated. Reports tab building now. Brand content feeding Sprint 2.*
+*Last updated: June 2026 — Full roadmap consolidated. Reports tab live. 6-week timeline revised.*
+
+---
+
+## Next Session — Fix List Before Anything Else
+
+### 1. Reports Tab — Data & Currency Fixes
+- **Currency:** Change all $ to AED throughout the Reports tab
+- **Traffic value is misleading** — current formula `clicks × $1.00` flat rate is wrong because:
+  - Branded keywords (Pickl Dubai, Bonbird UAE) have near-zero real CPC — no competitor bids on your brand
+  - Non-branded keywords (smash burger Dubai, best chicken sandwich) have real advertiser value
+  - Fix: filter branded terms out of traffic value calculation, use DataForSEO CPC per keyword for non-branded only, show in AED
+  - Add disclaimer: "Estimated value for non-branded organic traffic based on UAE restaurant keyword CPCs via DataForSEO"
+- **CEO Talking Points** — rename this section to something less blunt. Options to discuss: "Performance Summary", "Key Takeaways", "What To Know", "The Numbers"
+- **Data source labels** — every metric should show its source (GSC 90 days, DataForSEO, PSI) so CEO can ask "where does that come from" and there's an answer
+
+### 2. Week 1 Corrected Priority Order
+**Apply for GBP API access immediately** (Google Cloud Console → enable Business Profile API → start OAuth). Some accounts get instant access, some take days. Start the clock.
+
+| Track | This week | Next week |
+|---|---|---|
+| While waiting for GBP approval | Brand content feeding · Hreflang · Perch labels · Slack rebuild | GBP connected + Google Reviews live |
+| GBP API (apply NOW) | Apply + OAuth setup | Build + deploy |
+
+Google Reviews is NOT Month 2 — it's next week once GBP API is approved. Was Phase 3 in original roadmap but that was written before we knew how fast we could build.
