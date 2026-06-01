@@ -873,6 +873,11 @@
             <label class="form-label">Google Search Console</label>
             <button class="btn btn-outline" style="width:100%;justify-content:center" id="gsc-connect-btn" onclick="handleGscConnect()">Connect GSC Account</button>
           </div>
+          <div class="form-group">
+            <label class="form-label">Google Business Profile</label>
+            <button class="btn btn-outline" style="width:100%;justify-content:center" id="gbp-connect-btn" onclick="connectGbp()">Connect Google Business Profile</button>
+            <div id="gbp-connect-status" style="font-size:12px;color:var(--text-muted);margin-top:4px"></div>
+          </div>
         </div>
 
         <!-- Brand Context -->
@@ -1334,6 +1339,7 @@ const VIEW_TITLES = {
   analytics:     'Analytics & ROI',
   reports:       'SEO Report',
   techseo:       'Technical SEO',
+  localseo:      'Local SEO',
   international: 'International SEO',
   studio:        'AI Content Studio',
   settings:      'Settings & Logs',
@@ -1356,7 +1362,7 @@ function switchView(target) {
   if (target === 'reports')       loadReports();
   if (target === 'techseo')       { loadTechnicalSeo(); loadTechDevKanban(techSeoState.brand); }
   if (target === 'localseo')      loadLocalSeo();
-  if (target === 'settings')      { renderAuditLog(); loadBrandCtx(); loadBrandExamples(); loadSlackWebhook(); if (state.userRole === 'admin') { document.getElementById('users-panel').style.display = ''; loadUsersPanel(); } }
+  if (target === 'settings')      { renderAuditLog(); loadBrandCtx(); loadBrandExamples(); loadSlackWebhook(); checkGbpConnection(); if (state.userRole === 'admin') { document.getElementById('users-panel').style.display = ''; loadUsersPanel(); } }
   if (target === 'international') loadIntlDashboard();
   if (target === 'howto')         loadHowItWorks();
 }
@@ -1398,6 +1404,28 @@ function setGscConnected(yes) {
       btn.onclick = handleGscConnect;
     }
   }
+}
+
+async function checkGbpConnection() {
+  try {
+    const data = await fetch('/api/gbp-data?brand=pickl', { credentials: 'include' }).then(r => r.json());
+    const btn    = document.getElementById('gbp-connect-btn');
+    const status = document.getElementById('gbp-connect-status');
+    if (!btn) return;
+    if (data.notConnected) {
+      btn.textContent = 'Connect Google Business Profile';
+      if (status) status.textContent = '';
+      state.gbpConnected = false;
+    } else {
+      btn.textContent = 'Reconnect Google Business Profile';
+      const locationCount = data.locations?.length || 0;
+      if (status) status.textContent = locationCount
+        ? `✓ Connected — ${locationCount} location${locationCount !== 1 ? 's' : ''} found`
+        : '✓ Connected — click Reconnect if no locations appear';
+      if (status) status.style.color = locationCount ? 'var(--success)' : 'var(--warning, #d97706)';
+      state.gbpConnected = true;
+    }
+  } catch { /* non-critical */ }
 }
 
 function handleGscConnect() {
@@ -3459,7 +3487,13 @@ function renderLocalSeoSummary(locations) {
 
 function renderLocationCards(locations) {
   if (!locations.length) {
-    document.getElementById('localseo-locations').innerHTML = `<div style="color:var(--text-muted);font-size:13px;padding:16px;grid-column:1/-1">No locations found. Make sure your Google Business Profile account is connected.</div>`;
+    document.getElementById('localseo-locations').innerHTML = `
+      <div style="color:var(--text-muted);font-size:13px;padding:16px;grid-column:1/-1;text-align:center">
+        <div style="font-size:24px;margin-bottom:8px">📍</div>
+        <div style="font-weight:600;color:var(--text-main);margin-bottom:6px">No locations returned from Google</div>
+        <div style="font-size:12px;margin-bottom:14px">This can happen if the OAuth connection was made before the Business Profile API was enabled, or the account has no visible locations yet.</div>
+        <button onclick="connectGbp()" class="btn btn-primary" style="padding:8px 20px;font-size:13px">🔄 Reconnect Google Business Profile</button>
+      </div>`;
     return;
   }
   document.getElementById('localseo-locations').innerHTML = locations.map(loc => {
@@ -3494,8 +3528,8 @@ function renderLocationCards(locations) {
 
 function renderReviewQueue(reviews, brand, apiPending) {
   const el = document.getElementById('localseo-review-queue');
-
-  if (apiPending) {
+  // Treat undefined as pending — safety net for stale cached responses
+  if (apiPending !== false) {
     el.innerHTML = `
       <div style="background:#fffbeb;border:1px solid #fde68a;border-radius:10px;padding:20px;display:flex;gap:14px;align-items:flex-start">
         <div style="font-size:24px;flex-shrink:0">⏳</div>

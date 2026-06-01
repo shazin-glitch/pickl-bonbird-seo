@@ -35,7 +35,7 @@ exports.handler = async (event) => {
   }
 
   // Check cache
-  const cacheKey = `gbpCache:${brand}`;
+  const cacheKey = `gbpCache:${brand}:v2`;
   try {
     const cached = await store.get(cacheKey, { type: 'json' });
     if (cached && cached.cachedAt && (Date.now() - cached.cachedAt) < CACHE_TTL_MS) {
