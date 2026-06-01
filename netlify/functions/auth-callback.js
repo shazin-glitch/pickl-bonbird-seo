@@ -33,6 +33,7 @@ exports.handler = async (event) => {
   const clientSecret = process.env.GOOGLE_CLIENT_SECRET;
   const redirectUri  = 'https://yolkseo.netlify.app/api/auth/callback';
   const isLoginFlow  = state === 'login';
+  const isGbpFlow    = state === 'gbp';
 
   const store = getStore({
     name:   'seo-tool',
@@ -132,6 +133,20 @@ exports.handler = async (event) => {
           Location:     '/',
           'Set-Cookie': `yolk_session=${sessionToken}; Path=/; HttpOnly; Secure; SameSite=Lax; Max-Age=${SESSION_TTL_MS / 1000}`,
         },
+        body: '',
+      };
+
+    } else if (isGbpFlow) {
+      // ── GBP FLOW: save tokens to Blobs ────────────────────────────────────
+      await store.set('gbpTokens', JSON.stringify({
+        access_token:  tokens.access_token,
+        refresh_token: tokens.refresh_token || null,
+        expires_at:    Date.now() + (tokens.expires_in || 3600) * 1000,
+      }));
+
+      return {
+        statusCode: 302,
+        headers: { Location: '/?gbp_connected=1' },
         body: '',
       };
 

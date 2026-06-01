@@ -228,6 +228,10 @@
     <div class="nav-item" data-target="techseo">
       <span>⚡ Technical SEO</span>
     </div>
+    <div class="nav-item" data-target="localseo">
+      <span>📍 Local SEO</span>
+      <span class="badge" id="badge-localseo" style="display:none;background:#ef4444">!</span>
+    </div>
     <div class="nav-item" data-target="international">
       <span>🌍 International SEO</span>
     </div>
@@ -637,6 +641,82 @@
     </div><!-- /view-techseo -->
 
     <!-- ═══ VIEW 3: INTERNATIONAL SEO ═══ -->
+    <!-- ═══ VIEW: LOCAL SEO ═══ -->
+    <div class="page-view" id="view-localseo">
+
+      <div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:24px">
+        <div>
+          <div class="page-title">Local SEO</div>
+          <div class="section-desc" style="margin-top:4px">Google Business Profile health, reviews, and local listing management.</div>
+        </div>
+        <div style="display:flex;gap:10px;align-items:center">
+          <div class="pill-nav" id="localseo-brand-pills" style="margin-bottom:0">
+            <div class="pill active" onclick="switchLocalSeoBrand('pickl')">🟡 Pickl</div>
+            <div class="pill" onclick="switchLocalSeoBrand('bonbird')">🔴 Bonbird</div>
+          </div>
+        </div>
+      </div>
+
+      <!-- GBP Connection status -->
+      <div id="localseo-connect-banner" style="display:none;margin-bottom:20px">
+        <div class="card" style="background:linear-gradient(135deg,#1e293b,#0f172a);border-color:#334155;padding:28px;text-align:center">
+          <div style="font-size:36px;margin-bottom:12px">📍</div>
+          <div style="font-size:18px;font-weight:700;color:#f1f5f9;margin-bottom:8px">Connect Google Business Profile</div>
+          <div style="font-size:13px;color:#94a3b8;margin-bottom:20px;max-width:480px;margin-left:auto;margin-right:auto">Monitor location health, star ratings, unanswered reviews, and photo freshness across all Pickl and Bonbird locations — from one place.</div>
+          <button onclick="connectGbp()" class="btn btn-primary" style="padding:10px 28px;font-size:14px">🔗 Connect Google Business Profile</button>
+          <div style="font-size:11px;color:#64748b;margin-top:12px">Uses the same Google account as GSC. One-time setup.</div>
+        </div>
+      </div>
+
+      <!-- Location health grid -->
+      <div id="localseo-content" style="display:none">
+
+        <!-- GBP health summary row -->
+        <div id="localseo-summary" style="display:grid;grid-template-columns:repeat(auto-fit,minmax(160px,1fr));gap:12px;margin-bottom:20px"></div>
+
+        <!-- Locations grid -->
+        <div class="card" style="margin-bottom:20px">
+          <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:16px">
+            <div style="font-weight:600;font-size:14px">📍 Location Health</div>
+            <div id="localseo-last-updated" style="font-size:11px;color:var(--text-muted)"></div>
+          </div>
+          <div id="localseo-locations" style="display:grid;grid-template-columns:repeat(auto-fill,minmax(300px,1fr));gap:12px"></div>
+        </div>
+
+        <!-- Review Queue -->
+        <div class="card" style="margin-bottom:20px">
+          <div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:16px">
+            <div>
+              <div style="font-weight:600;font-size:14px">⭐ Review Queue</div>
+              <div style="font-size:12px;color:var(--text-muted);margin-top:2px">AI-drafted replies in brand voice — approve before publishing</div>
+            </div>
+            <div id="localseo-review-badge" style="display:none;background:#ef4444;color:#fff;font-size:11px;font-weight:700;padding:2px 8px;border-radius:99px"></div>
+          </div>
+          <div id="localseo-review-queue"></div>
+        </div>
+
+        <!-- Local SEO flags for main Reports/SEO -->
+        <div class="card" style="border-left:3px solid #f59e0b">
+          <div style="font-weight:600;font-size:14px;margin-bottom:12px">🚩 Local SEO Flags</div>
+          <div id="localseo-flags" style="font-size:13px;color:var(--text-muted)">Loading…</div>
+        </div>
+
+      </div>
+
+      <!-- Loading state -->
+      <div id="localseo-loading" style="text-align:center;padding:48px;color:var(--text-muted)">
+        <div style="font-size:32px;margin-bottom:12px">📍</div>
+        <div>Loading location data…</div>
+      </div>
+
+      <!-- Error state -->
+      <div id="localseo-error" style="display:none;text-align:center;padding:48px">
+        <div style="font-size:32px;margin-bottom:12px">⚠️</div>
+        <div id="localseo-error-msg" style="color:var(--text-muted);font-size:13px"></div>
+      </div>
+
+    </div><!-- /view-localseo -->
+
     <div class="page-view" id="view-international">
 
       <!-- Header row: title left, Run Now right -->
@@ -646,6 +726,7 @@
           <div class="section-desc" style="margin-top:4px">Localised content pipelines for Pickl and Bonbird international markets.</div>
         </div>
         <button class="btn btn-primary" onclick="runIntlSeo()" id="intl-run-btn" style="flex-shrink:0;margin-left:24px">▶ Run Now</button>
+        <button class="btn btn-outline" onclick="generateHreflang()" id="hreflang-btn" style="flex-shrink:0">🔗 Generate Hreflang</button>
       </div>
 
       <!-- Filter row 1: Brand -->
@@ -1211,8 +1292,17 @@ const TYPE_TAGS = {
   applyRoleRestrictions(state.userRole);
 
   // Check ?tab= param in URL (from notification deep-links)
-  const urlTab = new URLSearchParams(window.location.search).get('tab');
+  const urlParams = new URLSearchParams(window.location.search);
+  const urlTab = urlParams.get('tab');
   if (urlTab) { window.history.replaceState({}, '', '/'); switchView(urlTab); }
+
+  // Handle GBP OAuth redirect
+  if (urlParams.get('gbp_connected') === '1') {
+    window.history.replaceState({}, '', '/');
+    showToast('✅ Google Business Profile connected!', 'success');
+    state.gbpConnected = true;
+    switchView('localseo');
+  }
 
   // Set dashboard metrics to ready state immediately — update when GSC loads
   document.getElementById('metric-pickl-trend').innerHTML = '<span style="color:var(--text-muted)">Open Analytics tab to load</span>';
@@ -1265,6 +1355,7 @@ function switchView(target) {
   if (target === 'analytics')     loadGscIfNeeded();
   if (target === 'reports')       loadReports();
   if (target === 'techseo')       { loadTechnicalSeo(); loadTechDevKanban(techSeoState.brand); }
+  if (target === 'localseo')      loadLocalSeo();
   if (target === 'settings')      { renderAuditLog(); loadBrandCtx(); loadBrandExamples(); loadSlackWebhook(); if (state.userRole === 'admin') { document.getElementById('users-panel').style.display = ''; loadUsersPanel(); } }
   if (target === 'international') loadIntlDashboard();
   if (target === 'howto')         loadHowItWorks();
@@ -3141,6 +3232,7 @@ function renderReports(brand, rows, techData, queue) {
   const scored   = techData?.results?.filter(r => r.mobile?.score != null) || [];
   const avgMobile = scored.length ? Math.round(scored.reduce((s,r) => s + r.mobile.score, 0) / scored.length) : null;
   const anyLcpBad = scored.some(r => r.mobile?.metrics?.lcp?.status === 'poor');
+  const gbpConnected = !!state.gbpConnected;
 
   const readinessChecks = [
     { label: 'HTTPS enforced',         pass: true,                              note: 'Domain uses HTTPS' },
@@ -3148,7 +3240,7 @@ function renderReports(brand, rows, techData, queue) {
     { label: 'robots.txt clean',       pass: tc?.robotsTxt?.status === 'ok' && !tc?.robotsTxt?.blocking, note: tc?.robotsTxt?.blocking ? '⚠️ Disallow: / detected — blocking Google!' : tc?.robotsTxt?.status !== 'ok' ? 'Missing robots.txt' : 'Googlebot not blocked' },
     { label: 'Mobile page speed',      pass: avgMobile !== null && avgMobile >= 70, note: avgMobile ? `${avgMobile}/100 mobile avg${avgMobile < 70 ? ' — below Google threshold' : ''}` : 'Run Technical SEO audit first' },
     { label: 'LCP under 2.5s',         pass: !anyLcpBad && avgMobile !== null, note: anyLcpBad ? 'Pages failing LCP — blocks AI Overview eligibility' : avgMobile ? 'Passing' : 'Run audit to check' },
-    { label: 'Google Business Profile', pass: false,                            note: 'Not yet integrated — critical for local restaurant search' },
+    { label: 'Google Business Profile', pass: gbpConnected, note: gbpConnected ? 'Connected — location data syncing' : 'Not yet integrated — critical for local restaurant search' },
   ];
   const readinessScore = readinessChecks.filter(c => c.pass).length;
 
@@ -3281,6 +3373,234 @@ function renderReports(brand, rows, techData, queue) {
   ].filter(Boolean);
 
   document.getElementById('report-talking-points').innerHTML = talkingPoints.map(p => `<div style="margin-bottom:12px;padding-left:12px;border-left:2px solid #475569">• ${p}</div>`).join('');
+}
+
+
+// ═══════════════════════════════════════════════════════════════
+// LOCAL SEO — Google Business Profile
+// ═══════════════════════════════════════════════════════════════
+
+const localSeoState = { brand: 'pickl' };
+
+function switchLocalSeoBrand(brand) {
+  localSeoState.brand = brand;
+  document.querySelectorAll('#localseo-brand-pills .pill').forEach(p => {
+    p.classList.toggle('active', p.textContent.toLowerCase().includes(brand));
+  });
+  loadLocalSeo();
+}
+
+function connectGbp() {
+  window.location.href = '/api/auth/login?type=gbp';
+}
+
+async function loadLocalSeo() {
+  const brand = localSeoState.brand;
+  document.getElementById('localseo-loading').style.display = '';
+  document.getElementById('localseo-content').style.display = 'none';
+  document.getElementById('localseo-connect-banner').style.display = 'none';
+  document.getElementById('localseo-error').style.display = 'none';
+
+  try {
+    const data = await fetch(`/api/gbp-data?brand=${brand}`, { credentials: 'include' }).then(r => r.json());
+
+    document.getElementById('localseo-loading').style.display = 'none';
+
+    if (data.notConnected) {
+      document.getElementById('localseo-connect-banner').style.display = '';
+      state.gbpConnected = false;
+      return;
+    }
+
+    state.gbpConnected = true;
+    document.getElementById('localseo-content').style.display = '';
+    document.getElementById('localseo-last-updated').textContent = data.cachedAt
+      ? 'Updated ' + new Date(data.cachedAt).toLocaleDateString('en-GB', { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' })
+      : '';
+
+    renderLocalSeoSummary(data.locations || []);
+    renderLocationCards(data.locations || []);
+    renderReviewQueue(data.reviews || [], brand, data.reviewsApiPending);
+    renderLocalSeoFlags(data.locations || [], brand);
+
+    // Update badge
+    const urgent = (data.locations || []).filter(l => l.health === 'red').length;
+    const badge = document.getElementById('badge-localseo');
+    if (urgent > 0) { badge.style.display = ''; badge.textContent = urgent; }
+    else badge.style.display = 'none';
+
+  } catch (e) {
+    document.getElementById('localseo-loading').style.display = 'none';
+    document.getElementById('localseo-error').style.display = '';
+    document.getElementById('localseo-error-msg').textContent = 'Could not load GBP data: ' + e.message;
+  }
+}
+
+function renderLocalSeoSummary(locations) {
+  const total    = locations.length;
+  const avgRating = total ? (locations.reduce((s, l) => s + (l.rating || 0), 0) / total).toFixed(1) : '—';
+  const unanswered = locations.reduce((s, l) => s + (l.unansweredReviews || 0), 0);
+  const redLocs  = locations.filter(l => l.health === 'red').length;
+  const cards = [
+    { icon: '📍', label: 'Locations', value: total, color: '#3b82f6', sub: `${brand === 'pickl' ? 'Pickl' : 'Bonbird'} UAE + intl` },
+    { icon: '⭐', label: 'Avg Rating', value: avgRating, color: avgRating >= 4.5 ? '#059669' : avgRating >= 4.0 ? '#d97706' : '#dc2626', sub: 'across all locations' },
+    { icon: '💬', label: 'Unanswered', value: unanswered, color: unanswered > 0 ? '#ef4444' : '#059669', sub: 'reviews need reply' },
+    { icon: '🚨', label: 'Needs Attention', value: redLocs, color: redLocs > 0 ? '#ef4444' : '#059669', sub: 'locations flagged red' },
+  ];
+  const brand = localSeoState.brand;
+  document.getElementById('localseo-summary').innerHTML = cards.map(c => `
+    <div class="card" style="text-align:center;padding:16px">
+      <div style="font-size:20px;margin-bottom:6px">${c.icon}</div>
+      <div style="font-size:24px;font-weight:800;color:${c.color};line-height:1;margin-bottom:4px">${c.value}</div>
+      <div style="font-size:11px;font-weight:700;color:var(--text-muted);text-transform:uppercase;letter-spacing:0.4px;margin-bottom:2px">${c.label}</div>
+      <div style="font-size:10px;color:var(--text-muted)">${c.sub}</div>
+    </div>`).join('');
+}
+
+function renderLocationCards(locations) {
+  if (!locations.length) {
+    document.getElementById('localseo-locations').innerHTML = `<div style="color:var(--text-muted);font-size:13px;padding:16px;grid-column:1/-1">No locations found. Make sure your Google Business Profile account is connected.</div>`;
+    return;
+  }
+  document.getElementById('localseo-locations').innerHTML = locations.map(loc => {
+    const health = loc.health || 'green';
+    const healthColor = health === 'red' ? '#ef4444' : health === 'amber' ? '#f59e0b' : '#059669';
+    const healthDot = `<span style="width:8px;height:8px;border-radius:50%;background:${healthColor};display:inline-block;margin-right:6px;flex-shrink:0"></span>`;
+    const rating = loc.rating ? `⭐ ${loc.rating.toFixed(1)}` : '⭐ —';
+    const reviews = loc.totalReviews ? `${loc.totalReviews} reviews` : 'No reviews';
+    const unanswered = loc.unansweredReviews ? `<span style="color:#ef4444;font-weight:600">${loc.unansweredReviews} unanswered</span>` : '<span style="color:#059669">All replied</span>';
+    const photos = loc.photoCount != null ? `${loc.photoCount} photos` : '—';
+    const flags = loc.flags || [];
+
+    return `
+      <div style="background:var(--bg-base);border-radius:10px;padding:14px;border:1px solid var(--border)">
+        <div style="display:flex;align-items:flex-start;gap:8px;margin-bottom:10px">
+          <span style="display:inline-flex;align-items:center;margin-top:3px">${healthDot}</span>
+          <div style="flex:1;min-width:0">
+            <div style="font-weight:600;font-size:13px;color:var(--text-main);white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${esc(loc.name || 'Location')}</div>
+            <div style="font-size:11px;color:var(--text-muted);margin-top:2px">${esc(loc.address || '')}</div>
+          </div>
+        </div>
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:6px;margin-bottom:10px">
+          <div style="font-size:12px"><span style="color:var(--text-muted)">Rating:</span> <strong>${rating}</strong></div>
+          <div style="font-size:12px"><span style="color:var(--text-muted)">Reviews:</span> <strong>${reviews}</strong></div>
+          <div style="font-size:12px"><span style="color:var(--text-muted)">Replies:</span> ${unanswered}</div>
+          <div style="font-size:12px"><span style="color:var(--text-muted)">Photos:</span> <strong>${photos}</strong></div>
+        </div>
+        ${flags.length ? `<div style="display:flex;flex-wrap:wrap;gap:4px">${flags.map(f => `<span style="font-size:10px;padding:2px 7px;border-radius:99px;background:#fef2f2;color:#dc2626;font-weight:600">${esc(f)}</span>`).join('')}</div>` : ''}
+      </div>`;
+  }).join('');
+}
+
+function renderReviewQueue(reviews, brand, apiPending) {
+  const el = document.getElementById('localseo-review-queue');
+
+  if (apiPending) {
+    el.innerHTML = `
+      <div style="background:#fffbeb;border:1px solid #fde68a;border-radius:10px;padding:20px;display:flex;gap:14px;align-items:flex-start">
+        <div style="font-size:24px;flex-shrink:0">⏳</div>
+        <div>
+          <div style="font-weight:600;font-size:14px;color:#92400e;margin-bottom:6px">Reviews API Access Pending</div>
+          <div style="font-size:13px;color:#78350f;line-height:1.6">Application submitted. Google typically responds within 7-10 business days. Once approved, this section will show all reviews across every location with AI-drafted replies in ${brand === 'pickl' ? 'Pickl' : 'Bonbird'} brand voice — ready to approve and publish in one click.</div>
+          <div style="margin-top:14px;padding-top:14px;border-top:1px solid #fde68a">
+            <div style="font-size:12px;font-weight:600;color:#92400e;margin-bottom:8px">WHAT YOU'LL SEE WHEN APPROVED:</div>
+            <div style="display:flex;flex-direction:column;gap:8px">
+              ${[
+                { stars: '★★★★★', text: 'Amazing burgers! The Jeff is insane.', loc: 'City Walk', time: '2 hours ago', reply: 'You\'re a legend. The Jeff is one of those things you just have to try again and again — glad it hit. See you next time.' },
+                { stars: '★★★★☆', text: 'Great food but parking was difficult.', loc: 'JBR', time: '1 day ago', reply: 'Thanks for the love — and fair point on parking. JBR can be a mission. The Messy Fries are worth the hunt though.' },
+              ].map(r => `
+                <div style="background:#fff;border:1px solid #fde68a;border-radius:8px;padding:12px;opacity:0.7">
+                  <div style="display:flex;justify-content:space-between;margin-bottom:4px">
+                    <span style="color:#f59e0b;font-size:13px">${r.stars}</span>
+                    <span style="font-size:11px;color:#92400e">${r.loc} · ${r.time}</span>
+                  </div>
+                  <div style="font-size:12px;color:#78350f;margin-bottom:8px">"${r.text}"</div>
+                  <div style="font-size:11px;font-weight:600;color:#92400e;margin-bottom:4px">AI DRAFT REPLY:</div>
+                  <div style="font-size:12px;color:#78350f;font-style:italic;margin-bottom:8px">"${r.reply}"</div>
+                  <div style="display:flex;gap:6px">
+                    <button style="padding:4px 12px;background:#059669;color:#fff;border:none;border-radius:6px;font-size:11px;font-weight:600;cursor:not-allowed;opacity:0.5">✓ Approve & Publish</button>
+                    <button style="padding:4px 10px;background:none;border:1px solid #d1d5db;border-radius:6px;font-size:11px;cursor:not-allowed;opacity:0.5">Edit</button>
+                  </div>
+                </div>`).join('')}
+            </div>
+          </div>
+        </div>
+      </div>`;
+    return;
+  }
+
+  if (!reviews.length) {
+    el.innerHTML = `<div style="text-align:center;padding:32px;color:var(--text-muted);font-size:13px">No unanswered reviews. 🎉</div>`;
+    return;
+  }
+
+  const badge = document.getElementById('localseo-review-badge');
+  badge.style.display = '';
+  badge.textContent = reviews.length + ' pending';
+
+  el.innerHTML = reviews.map(r => `
+    <div style="border:1px solid var(--border);border-radius:10px;padding:14px;margin-bottom:10px">
+      <div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:8px">
+        <div>
+          <span style="color:#f59e0b">${'★'.repeat(r.rating || 5)}${'☆'.repeat(5 - (r.rating || 5))}</span>
+          <span style="font-size:11px;color:var(--text-muted);margin-left:8px">${esc(r.locationName || '')} · ${r.relativeTime || ''}</span>
+        </div>
+        <span style="font-size:11px;background:${(r.voiceScore||0)>=8?'#d1fae5':(r.voiceScore||0)>=5?'#fef3c7':'#fef2f2'};color:${(r.voiceScore||0)>=8?'#059669':(r.voiceScore||0)>=5?'#d97706':'#dc2626'};padding:2px 7px;border-radius:99px;font-weight:600">Voice ${r.voiceScore||'—'}/10</span>
+      </div>
+      <div style="font-size:13px;color:var(--text-main);margin-bottom:10px">"${esc(r.comment || 'Rating only')}"</div>
+      <div style="background:var(--bg-base);border-radius:8px;padding:10px;margin-bottom:10px;font-size:13px;color:var(--text-muted);font-style:italic">"${esc(r.draftReply || '')}"</div>
+      <div style="display:flex;gap:8px">
+        <button onclick="approveReviewReply('${esc(r.id)}','${esc(r.locationId)}')" class="btn btn-primary" style="padding:6px 14px;font-size:12px">✓ Approve & Publish</button>
+        <button onclick="editReviewReply('${esc(r.id)}')" class="btn btn-outline" style="padding:6px 12px;font-size:12px">Edit</button>
+        <button onclick="dismissReview('${esc(r.id)}')" style="padding:6px 10px;background:none;border:1px solid var(--border);border-radius:6px;font-size:12px;cursor:pointer;color:var(--text-muted)">Skip</button>
+      </div>
+    </div>`).join('');
+}
+
+function renderLocalSeoFlags(locations, brand) {
+  const flags = [];
+  const unanswered = locations.reduce((s, l) => s + (l.unansweredReviews || 0), 0);
+  const lowRating = locations.filter(l => l.rating && l.rating < 4.0);
+  const noPhotos = locations.filter(l => (l.photoCount || 0) < 5);
+  const missingHours = locations.filter(l => !l.hasHours);
+
+  if (unanswered > 0) flags.push(`<div style="padding:8px 0;border-bottom:1px solid var(--border);display:flex;gap:10px;align-items:center"><span style="font-size:16px">💬</span><div><strong style="color:#dc2626">${unanswered} unanswered reviews</strong> — affects local ranking and customer trust</div></div>`);
+  if (lowRating.length) flags.push(`<div style="padding:8px 0;border-bottom:1px solid var(--border);display:flex;gap:10px;align-items:center"><span style="font-size:16px">⭐</span><div><strong style="color:#dc2626">${lowRating.map(l => l.name).join(', ')}</strong> — below 4.0 stars, local pack visibility reduced</div></div>`);
+  if (noPhotos.length) flags.push(`<div style="padding:8px 0;border-bottom:1px solid var(--border);display:flex;gap:10px;align-items:center"><span style="font-size:16px">📸</span><div><strong style="color:#d97706">${noPhotos.map(l => l.name).join(', ')}</strong> — fewer than 5 photos, upload more to improve listing appeal</div></div>`);
+  if (missingHours.length) flags.push(`<div style="padding:8px 0;border-bottom:1px solid var(--border);display:flex;gap:10px;align-items:center"><span style="font-size:16px">🕐</span><div><strong style="color:#d97706">${missingHours.map(l => l.name).join(', ')}</strong> — hours not set, customers can't see opening times</div></div>`);
+
+  document.getElementById('localseo-flags').innerHTML = flags.length
+    ? flags.join('')
+    : `<div style="color:#059669;font-weight:500">✅ No critical local SEO issues found</div>`;
+}
+
+async function approveReviewReply(reviewId, locationId) {
+  try {
+    await fetch('/api/gbp-reviews', { method: 'POST', credentials: 'include', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ action: 'publish_reply', reviewId, locationId }) });
+    showToast('Reply published', 'success');
+    loadLocalSeo();
+  } catch { showToast('Failed to publish reply', 'error'); }
+}
+
+function editReviewReply(reviewId) { showToast('Edit mode coming soon', ''); }
+function dismissReview(reviewId) { showToast('Review skipped', ''); loadLocalSeo(); }
+
+// ── Hreflang generator ────────────────────────────────────────────────────────
+async function generateHreflang() {
+  const btn = document.getElementById('hreflang-btn');
+  btn.disabled = true;
+  btn.textContent = '⏳ Generating…';
+  try {
+    const res  = await fetch('/api/hreflang', { method: 'POST', credentials: 'include', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ queue: true }) });
+    const data = await res.json();
+    showToast(`✅ ${data.queued} hreflang items added to Approvals Queue`, 'success');
+    btn.textContent = '✅ Generated';
+    setTimeout(() => { btn.textContent = '🔗 Generate Hreflang'; btn.disabled = false; }, 3000);
+  } catch (e) {
+    showToast('Hreflang generation failed: ' + e.message, 'error');
+    btn.textContent = '🔗 Generate Hreflang';
+    btn.disabled = false;
+  }
 }
 
 // ═══════════════════════════════════════════════════════════════

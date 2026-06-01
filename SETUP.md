@@ -49,6 +49,7 @@ The Nest is Yolk Brands' central marketing operations platform. It started as an
 | 🪺 **The Perch** | First tab. Marketing team kanban — replaces Trello | ✅ Built |
 | 📋 **Approvals Queue** | SEO content items awaiting review/publish | ✅ Built |
 | 📈 **Reports** | CEO-ready SEO report. Traffic value (AED, real CPC), rankings, AI readiness | ✅ Built |
+| 📍 **Local SEO** | GBP location health, review queue (API pending), local flags | ✅ Built |
 | 📊 **Analytics & ROI** | Raw GSC data, competitor matrix | ✅ Built |
 | ⚡ **Technical SEO** | PageSpeed, CWV, international health, developer kanban | ✅ Built |
 | 🌍 **International SEO** | 9-market content pipeline | ✅ Built |
@@ -132,7 +133,10 @@ The Nest is Yolk Brands' central marketing operations platform. It started as an
 
 ## Next Up
 
-### 1. GBP API Access (apply immediately if not done)
+### 1. Activate Reviews once Google approves
+GBP API access application submitted June 2026. Once approved, remove the stub return in gbp-reviews.js and the review queue activates automatically. No other code changes needed.
+
+### 2. GBP API Access (apply immediately if not done)
 Google Cloud Console → enable Business Profile API → start OAuth. Some accounts take days. Start the clock now.
 
 ### 2. Hreflang for 9 International Markets
@@ -291,6 +295,8 @@ Monthly one-page PDF: top ranking gains, content published, competitor movements
 | `perchIndex` | Array of all Perch task IDs |
 | `perchTask:<id>` | Individual Perch marketing task |
 | `slackWebhookUrl` | Slack webhook URL |
+| `gbpTokens` | Google Business Profile OAuth tokens |
+| `gbpCache:<brand>` | GBP location health data — 6hr TTL |
 | `scheduler:lastrun` | Last scheduler run summary |
 | `intlProcessed:<marketKey>:<lang>` | International dedup check |
 
@@ -344,6 +350,9 @@ Batch up to 100 keywords per SERP POST. Poll every 5s, max 10 minutes.
 | `/api/tech-tasks` | tech-tasks.js |
 | `/api/perch` | perch.js |
 | `/api/brand-examples` | brand-examples.js ← Brand voice examples CRUD |
+| `/api/gbp-data` | gbp-data.js ← GBP location health data |
+| `/api/gbp-reviews` | gbp-reviews.js ← Review queue (stub, activates when API approved) |
+| `/api/hreflang` | hreflang.js ← Generate hreflang for 9 markets |
 
 ### International Markets
 
@@ -398,7 +407,13 @@ From Google's official AI Optimization Guide (June 2026):
 - Slack interactive buttons — approve/dismiss SEO items from Slack (`slack-callback.js`, needs Slack App interactivity URL set to `https://yolkseo.netlify.app/api/slack-callback`)
 - Daily Perch due date digest (`perch-notify-background.js`, 5am UTC = 9am Dubai)
 - SETUP.md as session handoff document
+- 📍 Local SEO tab — GBP location health cards, review queue (pending approval state), local SEO flags, GBP connect OAuth flow
+- Hreflang generator — button in International SEO tab, queues all 9 markets as approvals with ready-to-use HTML code
+- GBP OAuth flow (auth-login.js ?type=gbp, callback stores gbpTokens, redirects to /?gbp_connected=1)
+- gbp-data.js — fetches location health from Account Management + Business Information APIs
+- gbp-reviews.js — stub ready to activate when Google API approval lands
+- Reports AI Readiness Score — GBP check goes ✅ when gbpTokens connected
 
 ---
 
-*Last updated: June 2026 — Reports live with real AED CPC. Brand voice examples in Settings. Slack rebuilt with Block Kit + interactive buttons. Perch labels updated. Daily due date digest. CPC enrichment via DataForSEO Keywords Data API.*
+*Last updated: June 2026 — Local SEO tab built (GBP location health + review queue). Hreflang generated for 9 markets. GBP OAuth flow. gbp-data.js + gbp-reviews.js (stub). Reports AI Readiness GBP check live. CPC enrichment, Slack Block Kit, brand voice examples, Perch labels all done.*
