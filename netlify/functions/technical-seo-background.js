@@ -122,16 +122,17 @@ const PRIORITY_PAGES = {
     { url: 'https://eatpickl.com/events',    label: 'Events' },
   ],
   bonbird: [
-    { url: 'https://bonbirdchicken.com',             label: 'Homepage' },
-    { url: 'https://bonbirdchicken.com/menu',         label: 'Menu' },
-    { url: 'https://bonbirdchicken.com/locations',    label: 'Locations' },
-    { url: 'https://bonbirdchicken.com/franchise',    label: 'Franchise' },
-    { url: 'https://bonbirdchicken.com/philosophy',   label: 'Philosophy' },
+    { url: 'https://bonbirdchicken.com',                  label: 'Homepage' },
+    { url: 'https://bonbirdchicken.com/uae-menu/',        label: 'Menu' },
+    { url: 'https://bonbirdchicken.com/locations',        label: 'Locations' },
+    { url: 'https://bonbirdchicken.com/franchise',        label: 'Franchise' },
+    { url: 'https://bonbirdchicken.com/philosophy',       label: 'Philosophy' },
   ],
 };
 const SKIP_SLUGS = ['sample-page','privacy-policy','cookie-policy','terms','thank-you',
   'cart','checkout','my-account','games','pickl-games','burger-generator',
-  'pickl-burger-muncher','pickl-munch','seoul-catcher'];
+  'pickl-burger-muncher','pickl-munch','seoul-catcher',
+  'taco-bird','tacobird','taco-bird-game','menu-test','test-menu','menu-2','menu-old'];
 
 async function getCorePages(brand, domain) {
   // Priority pages always come first — these are always audited

@@ -135,7 +135,7 @@ async function callClaude(prompt, opts) {
     method: 'POST',
     headers: { 'Content-Type': 'application/json', 'x-api-key': key, 'anthropic-version': '2023-06-01' },
     body: JSON.stringify({
-      model: opts.model || 'claude-sonnet-4-20250514',
+      model: opts.model || 'claude-sonnet-4-6',
       max_tokens: opts.max_tokens || 2000,
       system: opts.system,
       messages: [{ role: 'user', content: prompt }],

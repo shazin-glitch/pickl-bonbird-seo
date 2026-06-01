@@ -97,7 +97,8 @@ The Nest is Yolk Brands' central marketing operations platform. It started as an
 - PageSpeed Insights (mobile + desktop) on core WP pages
 - **Priority pages always audited:**
   - Pickl: Homepage, About, Menu, Locations, Franchise, Events
-  - Bonbird: Homepage, Menu, Locations, Franchise, Philosophy
+  - Bonbird: Homepage, uae-menu/ (correct URL), Locations, Franchise, Philosophy
+- **Skip list:** taco-bird, menu-test, test-menu, menu-2, menu-old + existing game slugs — never audited
 - International pages: HTTP health check + mobile PSI on all 9 markets
 - Developer kanban: issues auto-created from audit, To Do → In Progress → Done
 - Weekly cron: Monday 4am UTC alongside content pipeline
@@ -128,8 +129,10 @@ The Nest is Yolk Brands' central marketing operations platform. It started as an
 - Bootstrap admins: shazin@yolkbrands.com, steve@yolkbrands.com (always Admin)
 - Roles: Viewer (read-only) · Manager (approve/action) · Admin (everything + user management) · Developer (Technical SEO tab only — dev kanban only)
 - User profile: role + brand + department — assigned at invite time OR updated after via Settings → Users
-- Add User: proper modal form (email, role, brand, department all at once) — replaced old window.prompt
+- Add User: modal form with checkboxes for brand access (pick any combination) — replaced old window.prompt
 - Last Login column in Users table (relative time: Just now / 2h ago / Yesterday / X days ago)
+- Brand access stored as array: user can have Pickl + Bonbird without All Brands
+- User table shows brands as pills with ✏️ edit button opening checkbox modal
 
 ---
 
@@ -254,7 +257,7 @@ Monthly one-page PDF: top ranking gains, content published, competitor movements
 
 | Variable | Purpose |
 |---|---|
-| `ANTHROPIC_API_KEY` | Claude API |
+| `ANTHROPIC_API_KEY` | Claude API — model: claude-sonnet-4-6 (upgraded from claude-sonnet-4-20250514) |
 | `GOOGLE_CLIENT_ID` | OAuth |
 | `GOOGLE_CLIENT_SECRET` | OAuth |
 | `GOOGLE_REDIRECT_URI` | OAuth callback URL |
@@ -279,7 +282,7 @@ Monthly one-page PDF: top ranking gains, content published, competitor movements
 | `approvals:<id>` | Individual approval payload |
 | `userSession:<token>` | Session (email, name, picture) |
 | `userRole:<email>` | Role: viewer/manager/admin/developer · lastLogin timestamp |
-| `userProfile:<email>` | Brand + department assignment |
+| `userProfile:<email>` | brands[] array + department assignment (backward compat: old single brand string auto-converted) |
 | `userIndex` | Array of all user emails |
 | `gscTokens` | GSC OAuth tokens |
 | `gscCache:<siteUrl>` | GSC keyword data + `cpc_usd` / `cpc_aed` per row after Monday enrichment — 24hr TTL |
@@ -415,6 +418,11 @@ From Google's official AI Optimization Guide (June 2026):
 - Performance Summary updated to reflect actual build state
 - GBP data fix: Account Management API used for listing locations (was using wrong API)
 - Removed duplicate updateUserRole function
+- Multi-brand checkboxes: users can be assigned to any combination of brands
+- brands[] array stored in userProfile, backward compat with old single brand string
+- Bonbird menu URL fixed: /uae-menu/ (was /menu/)
+- Taco Bird game page + test menu pages added to Technical SEO skip list
+- Claude model upgraded: claude-sonnet-4-20250514 → claude-sonnet-4-6
 - 📍 Local SEO tab — GBP location health cards, review queue (pending approval state), local SEO flags, GBP connect OAuth flow
 - Hreflang generator — button in International SEO tab, queues all 9 markets as approvals with ready-to-use HTML code
 - GBP OAuth flow (auth-login.js ?type=gbp, callback stores gbpTokens, redirects to /?gbp_connected=1)
@@ -424,4 +432,4 @@ From Google's official AI Optimization Guide (June 2026):
 
 ---
 
-*Last updated: June 2026 — Developer role added. Add User modal. Last Login column. Performance Summary updated. GBP data API fix. Local SEO tab, hreflang, GBP OAuth, CPC enrichment, Slack Block Kit, brand voice examples, Perch labels — all done.*
+*Last updated: June 2026 — Multi-brand checkboxes. Bonbird menu URL fixed. Taco Bird excluded from audits. Claude model → sonnet-4-6. Developer role. Add User modal. Last Login. GBP data fix. Local SEO, hreflang, CPC enrichment, Slack Block Kit, brand voice examples — all done.*

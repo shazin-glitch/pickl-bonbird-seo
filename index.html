@@ -2436,10 +2436,10 @@ async function loadUsersPanel() {
     const data = await res.json();
     const users = data.users || [];
     const ROLE_COLORS = { admin: '#DF0070', manager: '#3b82f6', viewer: '#64748b', developer: '#059669' };
-    const ALL_BRANDS  = ['pickl','bonbird','southpour','shadowburg','shadowbird'];
-    const ALL_DEPTS   = ['seo','social','design','content'];
-    const brandLabel  = b => b ? b.charAt(0).toUpperCase()+b.slice(1) : '-- none --';
-    const deptLabel   = d => d ? d.charAt(0).toUpperCase()+d.slice(1) : '-- none --';
+    const ALL_BRANDS  = ['all','pickl','bonbird','southpour','shadowburg','shadowbird'];
+    const ALL_DEPTS   = ['all','seo','social','design','content'];
+    const brandLabel  = b => b === 'all' ? 'All Brands' : b ? b.charAt(0).toUpperCase()+b.slice(1) : '-- none --';
+    const deptLabel   = d => d === 'all' ? 'All Departments' : d ? d.charAt(0).toUpperCase()+d.slice(1) : '-- none --';
     const timeAgo     = iso => {
       if (!iso) return 'Never';
       const diff = Date.now() - new Date(iso).getTime();
@@ -2479,15 +2479,17 @@ async function loadUsersPanel() {
                 }
               </td>
               <td style="padding:10px 12px">
-                <select onchange="updateUserField('${esc(u.email)}','brand',this.value)" style="font-size:12px;padding:3px 6px;border-radius:6px;border:1px solid var(--border);background:var(--bg-surface);color:var(--text);cursor:pointer">
-                  <option value="">-- none --</option>
-                  ${ALL_BRANDS.map(b => `<option value="${b}" ${u.brand===b?'selected':''}>${b.charAt(0).toUpperCase()+b.slice(1)}</option>`).join('')}
-                </select>
+                <div style="display:flex;flex-wrap:wrap;gap:4px;align-items:center">
+                  ${(u.brands && u.brands.length ? u.brands : []).map(b =>
+                    `<span style="font-size:11px;padding:2px 8px;border-radius:99px;background:var(--bg-base);border:1px solid var(--border);font-weight:500">${brandLabel(b)}</span>`
+                  ).join('') || `<span style="font-size:12px;color:var(--text-muted)">—</span>`}
+                  ${u.isBootstrap ? '' : `<button onclick="showEditBrandsModal('${esc(u.email)}', ${JSON.stringify(u.brands || [])})" style="font-size:11px;color:var(--primary);background:none;border:none;cursor:pointer;padding:2px 4px" title="Edit brands">✏️</button>`}
+                </div>
               </td>
               <td style="padding:10px 12px">
                 <select onchange="updateUserField('${esc(u.email)}','department',this.value)" style="font-size:12px;padding:3px 6px;border-radius:6px;border:1px solid var(--border);background:var(--bg-surface);color:var(--text);cursor:pointer">
                   <option value="">-- none --</option>
-                  ${ALL_DEPTS.map(d => `<option value="${d}" ${u.department===d?'selected':''}>${d.charAt(0).toUpperCase()+d.slice(1)}</option>`).join('')}
+                  ${ALL_DEPTS.map(d => `<option value="${d}" ${u.department===d?'selected':''}>${deptLabel(d)}</option>`).join('')}
                 </select>
               </td>
               <td style="padding:10px 12px;font-size:12px;color:var(--text-muted)">${timeAgo(u.lastLogin)}</td>
@@ -2510,6 +2512,50 @@ async function updateUserField(email, field, value) {
 }
 
 async function updateUserRole(email, role) { return updateUserField(email, 'role', role); }
+
+function showEditBrandsModal(email, currentBrands) {
+  const existing = document.getElementById('edit-brands-modal');
+  if (existing) existing.remove();
+  const modal = document.createElement('div');
+  modal.id = 'edit-brands-modal';
+  modal.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,0.5);z-index:1000;display:flex;align-items:center;justify-content:center;padding:20px';
+  const BRAND_OPTS = [
+    { v:'all', l:'All Brands' },
+    { v:'pickl', l:'Pickl' },
+    { v:'bonbird', l:'Bonbird' },
+    { v:'southpour', l:'Southpour' },
+    { v:'shadowburg', l:'Shadowburg' },
+    { v:'shadowbird', l:'Shadowbird' },
+  ];
+  modal.innerHTML = `
+    <div style="background:var(--bg-surface);border-radius:12px;padding:24px;width:100%;max-width:360px;box-shadow:0 20px 60px rgba(0,0,0,0.3)">
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:16px">
+        <div style="font-size:15px;font-weight:700">Brand Access — ${email.split('@')[0]}</div>
+        <button onclick="document.getElementById('edit-brands-modal').remove()" style="background:none;border:none;font-size:20px;color:var(--text-muted);cursor:pointer">✕</button>
+      </div>
+      <div style="display:flex;flex-direction:column;gap:10px;margin-bottom:20px">
+        ${BRAND_OPTS.map(b => `
+          <label style="display:flex;align-items:center;gap:8px;font-size:13px;cursor:pointer;padding:8px;border-radius:6px;background:var(--bg-base)">
+            <input type="checkbox" class="edit-brand-cb" value="${b.v}" ${currentBrands.includes(b.v) ? 'checked' : ''} style="width:15px;height:15px;cursor:pointer">
+            ${b.l}
+          </label>`).join('')}
+      </div>
+      <div style="display:flex;gap:8px;justify-content:flex-end">
+        <button onclick="document.getElementById('edit-brands-modal').remove()" class="btn btn-outline">Cancel</button>
+        <button onclick="saveEditBrands('${email}')" class="btn btn-primary">Save</button>
+      </div>
+    </div>`;
+  document.body.appendChild(modal);
+  modal.addEventListener('click', e => { if (e.target === modal) modal.remove(); });
+}
+
+async function saveEditBrands(email) {
+  const brands = [...document.querySelectorAll('.edit-brand-cb:checked')].map(cb => cb.value);
+  await fetch('/api/users', { method: 'PUT', credentials: 'include', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ email, brands }) });
+  document.getElementById('edit-brands-modal')?.remove();
+  showToast('Brand access updated', 'success');
+  loadUsersPanel();
+}
 
 async function removeUser(email) {
   if (!confirm(`Remove ${email}? They will lose access immediately.`)) return;
@@ -2550,21 +2596,27 @@ function showAddUserModal() {
           </select>
         </div>
         <div class="form-group">
-          <label class="form-label">Brand</label>
-          <select id="new-user-brand" class="form-input" style="font-family:var(--font-sans)">
-            <option value="">-- none --</option>
-            <option value="pickl">Pickl</option>
-            <option value="bonbird">Bonbird</option>
-            <option value="southpour">Southpour</option>
-            <option value="shadowburg">Shadowburg</option>
-            <option value="shadowbird">Shadowbird</option>
-          </select>
+          <label class="form-label">Brand Access</label>
+          <div style="display:flex;flex-wrap:wrap;gap:8px;padding:10px;background:var(--bg-base);border-radius:8px;border:1px solid var(--border)">
+            ${[
+              { v:'all', l:'All Brands' },
+              { v:'pickl', l:'Pickl' },
+              { v:'bonbird', l:'Bonbird' },
+              { v:'southpour', l:'Southpour' },
+              { v:'shadowburg', l:'Shadowburg' },
+              { v:'shadowbird', l:'Shadowbird' },
+            ].map(b => `
+              <label style="display:flex;align-items:center;gap:5px;font-size:13px;cursor:pointer;user-select:none">
+                <input type="checkbox" class="new-user-brand-cb" value="${b.v}" style="cursor:pointer"> ${b.l}
+              </label>`).join('')}
+          </div>
         </div>
       </div>
       <div class="form-group">
         <label class="form-label">Department</label>
         <select id="new-user-dept" class="form-input" style="font-family:var(--font-sans)">
           <option value="">-- none --</option>
+          <option value="all">All Departments</option>
           <option value="seo">SEO</option>
           <option value="social">Social</option>
           <option value="design">Design</option>
@@ -2585,26 +2637,27 @@ function showAddUserModal() {
 }
 
 async function submitAddUser() {
-  const email = document.getElementById('new-user-email')?.value?.trim().toLowerCase();
-  const role  = document.getElementById('new-user-role')?.value;
-  const brand = document.getElementById('new-user-brand')?.value;
-  const dept  = document.getElementById('new-user-dept')?.value;
+  const email  = document.getElementById('new-user-email')?.value?.trim().toLowerCase();
+  const role   = document.getElementById('new-user-role')?.value;
+  const dept   = document.getElementById('new-user-dept')?.value;
+  const brands = [...document.querySelectorAll('.new-user-brand-cb:checked')].map(cb => cb.value);
   if (!email || !email.includes('@')) { showToast('Enter a valid email address', 'error'); return; }
-  await addUser(email, role, brand, dept);
+  await addUser(email, role, brands, dept);
   document.getElementById('add-user-modal')?.remove();
 }
 
-async function addUser(email, role, brand, department) {
+async function addUser(email, role, brands, department) {
   try {
     const res = await fetch('/api/users', {
       method: 'POST',
       credentials: 'include',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ email, role, brand: brand || null, department: department || null }),
+      body: JSON.stringify({ email, role, brands: brands || [], department: department || null }),
     });
     const data = await res.json();
     if (!res.ok) throw new Error(data.error || 'Failed');
-    showToast(`${email} added as ${role}`, 'success');
+    const brandLabel = brands?.length ? brands.join(', ') : 'no brand';
+    showToast(`${email} added as ${role} (${brandLabel})`, 'success');
     loadUsersPanel();
   } catch (e) {
     showToast('Failed to add user: ' + e.message, 'error');

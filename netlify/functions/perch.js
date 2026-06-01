@@ -49,21 +49,34 @@ function getVisibleBrands(brand) {
   return BRAND_SIBLINGS[brand] || (brand ? [brand] : []);
 }
 
+function getUserBrands(user) {
+  // Support new brands array and old single brand string
+  if (Array.isArray(user.brands) && user.brands.length) return user.brands;
+  if (user.brand) return [user.brand];
+  return [];
+}
+
 function canSeeTask(task, user) {
   if (user.role === 'admin') return true;
 
-  const visibleBrands = getVisibleBrands(user.brand);
+  const userBrands   = getUserBrands(user);
+  const allBrands    = userBrands.includes('all');
+  const allDepts     = user.department === 'all';
+
+  // Build visible brand list (including dark kitchen siblings)
+  const visibleBrands = allBrands
+    ? null
+    : [...new Set(userBrands.flatMap(b => getVisibleBrands(b)))];
 
   if (user.role === 'manager') {
+    if (allBrands) return true;
     return visibleBrands.includes(task.brand) || task.brand === 'all';
   }
 
-  // Standard: own brand (+ dark kitchen sibling) + own department
-  const brandOk = visibleBrands.includes(task.brand) || task.brand === 'all';
-  const deptOk  = task.department === user.department;
+  const brandOk = allBrands || (visibleBrands && (visibleBrands.includes(task.brand) || task.brand === 'all'));
+  const deptOk  = allDepts  || task.department === user.department;
   if (brandOk && deptOk) return true;
 
-  // Direct access — assigned, created, or added as collaborator
   return task.assignee === user.email
     || task.createdBy === user.email
     || (task.collaborators || []).includes(user.email);
@@ -103,14 +116,15 @@ async function getCurrentUser(event) {
       } catch { /* viewer */ }
     }
 
-    let brand = null, department = null;
+    let brand = null, department = null, brands = null;
     try {
       const profile = await store.get(`userProfile:${email}`, { type: 'json' });
+      brands     = profile?.brands     || (profile?.brand ? [profile.brand] : null);
       brand      = profile?.brand      || null;
       department = profile?.department || null;
     } catch { /* null */ }
 
-    return { email, name: session.name, role, brand, department };
+    return { email, name: session.name, role, brand, brands, department };
   } catch (e) {
     console.error('[perch] Auth error:', e.message);
     return null;
