@@ -267,3 +267,85 @@ async function fetchGscDirect(siteUrl) {
 }
 
 module.exports = Object.assign(module.exports, { fetchGscDirect });
+
+// ── fetchGscWithPages ─────────────────────────────────────────────────────────
+// Same as fetchGscDirect but uses dimensions: ['query', 'page'] so every row
+// includes the actual URL Google is serving for that keyword.
+// Used by runMetaRewrites so it works with real page URLs instead of having
+// Claude guess them (which caused empty-page meta updates).
+// Cached separately under gscPageCache:<siteUrl> with same 24hr TTL.
+async function fetchGscWithPages(siteUrl) {
+  const s = store();
+  const CACHE_TTL = 24 * 60 * 60 * 1000;
+  const cacheKey  = 'gscPageCache:' + siteUrl;
+
+  try {
+    const cached = await s.get(cacheKey, { type: 'json' });
+    if (cached && cached.rows && cached.cachedAt && (Date.now() - cached.cachedAt) < CACHE_TTL) {
+      console.log('GSC page cache hit for', siteUrl, '—', cached.rows.length, 'rows');
+      return cached.rows;
+    }
+  } catch (_) {}
+
+  // Cache miss — fetch live (token refresh identical to fetchGscDirect)
+  const gscTokens = await s.get('gscTokens', { type: 'json' }).catch(() => null);
+  if (!gscTokens || !gscTokens.access_token) {
+    throw new Error('GSC not connected');
+  }
+
+  let token = gscTokens.access_token;
+  if (gscTokens.refresh_token && gscTokens.expires_at && Date.now() > gscTokens.expires_at - 60000) {
+    const refreshRes = await fetch('https://oauth2.googleapis.com/token', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+      body: new URLSearchParams({
+        client_id:     process.env.GOOGLE_CLIENT_ID,
+        client_secret: process.env.GOOGLE_CLIENT_SECRET,
+        refresh_token: gscTokens.refresh_token,
+        grant_type:    'refresh_token',
+      }),
+    });
+    const rd = await refreshRes.json();
+    if (rd.access_token) {
+      token = rd.access_token;
+      await s.setJSON('gscTokens', { ...gscTokens, access_token: token, expires_at: Date.now() + (rd.expires_in || 3600) * 1000 });
+    }
+  }
+
+  const endDate   = new Date();
+  const startDate = new Date();
+  startDate.setDate(startDate.getDate() - 90);
+  const fmt = d => d.toISOString().split('T')[0];
+
+  const gscRes = await fetch(
+    `https://searchconsole.googleapis.com/webmasters/v3/sites/${encodeURIComponent(siteUrl)}/searchAnalytics/query`,
+    {
+      method:  'POST',
+      headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
+      body:    JSON.stringify({
+        startDate:  fmt(startDate),
+        endDate:    fmt(endDate),
+        dimensions: ['query', 'page'],   // ← gives us real page URLs
+        rowLimit:   1000,
+        dataState:  'final',
+      }),
+    }
+  );
+
+  const gscData = await gscRes.json();
+  if (gscData.error) throw new Error(gscData.error.message || 'GSC API error');
+
+  const rows = (gscData.rows || []).map(row => ({
+    keyword:     row.keys[0],
+    page:        row.keys[1],   // actual URL Google is ranking for this keyword
+    clicks:      row.clicks,
+    impressions: row.impressions,
+    ctr:         Math.round(row.ctr * 1000) / 10,
+    position:    Math.round(row.position * 10) / 10,
+  }));
+
+  await s.setJSON(cacheKey, { rows, cachedAt: Date.now() }).catch(() => null);
+  return rows;
+}
+
+module.exports = Object.assign(module.exports, { fetchGscWithPages });

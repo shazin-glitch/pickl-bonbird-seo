@@ -12,7 +12,7 @@
 
 const {
   createApproval, listApprovals, callClaude, extractJson,
-  getSetting, setSetting, fetchGscDirect,
+  getSetting, setSetting, fetchGscDirect, fetchGscWithPages,
   ok, bad, preflight, parseBody,
 } = require('./_lib/store');
 const { getBrandContext, buildBrandPrompt, runBrandVoiceCheck } = require('./_lib/brand');
@@ -244,19 +244,60 @@ Return ONLY valid JSON:
 // JOB 2: META REWRITES
 // High impressions, low CTR. Rewrites title + description only.
 // Queued as meta_update → pushes via wordpress.js update_meta.
+//
+// FIX: Uses fetchGscWithPages so every candidate has a REAL page URL
+// from GSC instead of asking Claude to guess it. Also validates the
+// page has content in WordPress before queuing, which stops meta
+// updates being generated for empty or non-existent pages.
 // ════════════════════════════════════════════════════════════════
-async function runMetaRewrites(brand, rows, dryRun, forceRun, brandCtx, brandPrompt) {
+async function runMetaRewrites(brand, _rows, dryRun, forceRun, brandCtx, brandPrompt) {
   const cfg = BRANDS[brand];
-  const expected = pos => Math.max(0.5, 30 / pos);
+
+  // Fetch keyword+page rows — real URLs from GSC
+  let rowsWithPages = [];
+  try {
+    rowsWithPages = await fetchGscWithPages(cfg.gsc);
+  } catch (e) {
+    console.warn('[meta_rewrites] fetchGscWithPages failed:', e.message);
+    return { queued: 0, candidates: 0, skipped: 'GSC page fetch failed: ' + e.message };
+  }
+
+  // Group by page URL — pick best keyword per page (highest impressions)
+  const pageMap = {};
+  for (const r of rowsWithPages) {
+    if (!r.page) continue;
+    const pageUrl = r.page.split('?')[0].split('#')[0];
+    if (!pageMap[pageUrl] || r.impressions > pageMap[pageUrl].impressions) {
+      pageMap[pageUrl] = { ...r, page: pageUrl };
+    }
+  }
+
+  const expected     = pos => Math.max(0.5, 30 / pos);
   const alreadyQueued = await getQueuedKeywords(brand);
-  const candidates = rows
+
+  const candidates = Object.values(pageMap)
     .filter(r => r.position <= 20 && r.impressions >= 100)
     .map(r => ({ ...r, ctrGap: expected(r.position) - r.ctr }))
     .filter(r => r.ctrGap > 1.5)
     .filter(r => forceRun || !alreadyQueued.has(r.keyword.toLowerCase().trim()))
     .sort((a, b) => b.ctrGap - a.ctrGap)
     .slice(0, forceRun ? 6 : 4);
-  if (!candidates.length) return { queued: 0, candidates: 0, skipped: 'all candidates already queued' };
+
+  if (!candidates.length) return { queued: 0, candidates: 0, skipped: 'no low-CTR candidates found' };
+  if (dryRun) return { queued: 0, candidates: candidates.length, preview: candidates.map(r => r.keyword + ' → ' + r.page) };
+
+  // Validate each page has actual content in WordPress before queuing
+  const validCandidates = [];
+  for (const r of candidates) {
+    const hasContent = await wpPageHasContent(brand, r.page);
+    if (hasContent) {
+      validCandidates.push(r);
+    } else {
+      console.log(`[meta_rewrites] Skipping ${r.page} — empty or not in WP`);
+    }
+  }
+
+  if (!validCandidates.length) return { queued: 0, candidates: candidates.length, skipped: 'all candidates failed WP content check' };
 
   const systemPrompt = brandPrompt || buildBrandPrompt(brandCtx);
   const brandName    = brandCtx?.name || cfg.name;
@@ -277,9 +318,10 @@ RULES — non-negotiable:
 - No generic phrases: "great food", "delicious", "best in Dubai", "quality ingredients"
 - Each title must make ${brandName} sound like ${brandName} — not a generic restaurant
 - Lead with the keyword, end with a reason to click
+- Do NOT invent or change the URL — use the exact URL provided for each page
 
 PAGES TO REWRITE:
-${candidates.map((r, i) => `${i+1}. Keyword: "${r.keyword}" | Position: ${r.position} | CTR: ${r.ctr}% | ${r.impressions} impressions`).join('\n')}
+${validCandidates.map((r, i) => `${i+1}. URL: "${r.page}" | Keyword: "${r.keyword}" | Position: ${r.position} | CTR: ${r.ctr}% | ${r.impressions} impressions`).join('\n')}
 
 VOICE CHECK before returning:
 □ Does each title sound like it could only be ${brandName}?
@@ -287,33 +329,82 @@ VOICE CHECK before returning:
 □ Would you click this if you saw it on Google?
 
 Return ONLY a JSON array, no prose:
-[{"keyword":"...","url":"/page-path","title":"52-58 chars","description":"150-158 chars","targetKeyword":"...","rationale":"one sentence why this will improve CTR"}]`;
-
-  if (dryRun) return { queued: 0, candidates: candidates.length, preview: candidates.map(r => r.keyword) };
+[{"keyword":"...","url":"exact URL from input above — do not change","title":"52-58 chars","description":"150-158 chars","targetKeyword":"...","rationale":"one sentence why this will improve CTR"}]`;
 
   const { text } = await callClaude(userPrompt, { max_tokens: 2000, system: systemPrompt });
   const parsed = extractJson(text);
-  if (!Array.isArray(parsed)) return { queued: 0, candidates: candidates.length, error: 'Claude did not return JSON array' };
+  if (!Array.isArray(parsed)) return { queued: 0, candidates: validCandidates.length, error: 'Claude did not return JSON array' };
 
   let queued = 0;
   for (const p of parsed) {
+    // Use matched real URL, fallback to Claude's URL only if it matches a known candidate
+    const matched  = validCandidates.find(r => r.page === p.url || r.keyword === p.keyword);
+    const finalUrl = matched ? matched.page : null;
+    if (!finalUrl) { console.warn('[meta_rewrites] Claude returned unknown URL, skipping:', p.url); continue; }
+
     await createApproval({
-      type: 'meta_update',
+      type:  'meta_update',
       brand,
       actor: 'claude (scheduler)',
-      title: `Meta rewrite: ${p.url || p.keyword}`,
+      title: `Meta rewrite: ${finalUrl}`,
       reason: p.rationale || 'Low CTR vs expected for current ranking position',
       payload: {
-        url: p.url ? `${cfg.domain}${p.url.startsWith('/') ? '' : '/'}${p.url}` : '',
-        title: p.title,
-        description: p.description,
+        url:           finalUrl,
+        title:         p.title,
+        description:   p.description,
         targetKeyword: p.targetKeyword || p.keyword,
-        wpAction: 'update_meta',
+        currentPos:    matched?.position,
+        impressions:   matched?.impressions,
+        ctrGap:        matched?.ctrGap?.toFixed(1),
+        wpAction:      'update_meta',
       },
     });
     queued++;
   }
-  return { queued, candidates: candidates.length };
+  return { queued, candidates: validCandidates.length };
+}
+
+// ── WordPress content validation ──────────────────────────────────────────────
+// Returns true only if the page exists in WP and has ≥100 words of content.
+// Prevents meta updates being queued for empty or non-existent pages.
+async function wpPageHasContent(brand, pageUrl) {
+  try {
+    const wpBase = brand === 'pickl' ? process.env.WP_PICKL_BASE : process.env.WP_BONBIRD_BASE;
+    const wpUser = brand === 'pickl' ? process.env.WP_PICKL_USER : process.env.WP_BONBIRD_USER;
+    const wpPass = brand === 'pickl' ? process.env.WP_PICKL_APP_PASS : process.env.WP_BONBIRD_APP_PASS;
+
+    if (!wpBase) return true; // Can't validate without WP config — allow through
+
+    // Homepage always has content
+    const path = pageUrl.replace(/^https?:\/\/[^\/]+/, '').replace(/^\/|\/$/g, '');
+    if (!path) return true;
+
+    const slug    = path.split('/').filter(Boolean).pop() || '';
+    if (!slug) return true;
+
+    const auth    = Buffer.from(`${wpUser}:${wpPass}`).toString('base64');
+    const headers = { Authorization: `Basic ${auth}` };
+
+    for (const type of ['pages', 'posts']) {
+      try {
+        const res  = await fetch(`${wpBase}/wp-json/wp/v2/${type}?slug=${encodeURIComponent(slug)}&_fields=id,content,status`, { headers });
+        const data = await res.json();
+        if (Array.isArray(data) && data.length > 0 && data[0].status === 'publish') {
+          const text      = (data[0].content?.rendered || '').replace(/<[^>]+>/g, ' ');
+          const wordCount = text.split(/\s+/).filter(Boolean).length;
+          if (wordCount >= 100) { console.log(`[wpCheck] ${pageUrl} → ${wordCount} words ✓`); return true; }
+          console.log(`[wpCheck] ${pageUrl} → only ${wordCount} words — skipping`);
+          return false;
+        }
+      } catch (_) {}
+    }
+
+    console.log(`[wpCheck] ${pageUrl} → not found in WP, skipping`);
+    return false;
+  } catch (e) {
+    console.warn('[wpCheck] Error for', pageUrl, ':', e.message);
+    return true; // On unexpected error, allow through
+  }
 }
 
 // ════════════════════════════════════════════════════════════════

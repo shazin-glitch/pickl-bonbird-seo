@@ -190,6 +190,9 @@
     <div class="nav-item" data-target="analytics">
       <span>Analytics &amp; ROI</span>
     </div>
+    <div class="nav-item" data-target="techseo">
+      <span>⚡ Technical SEO</span>
+    </div>
     <div class="nav-item" data-target="international">
       <span>International SEO</span>
     </div>
@@ -220,10 +223,10 @@
     <div class="page-title" id="top-title">Dashboard &amp; Approvals</div>
     <div class="header-right">
       <div class="user-profile" style="display:flex;align-items:center;gap:10px">
-        <span id="user-role-badge" style="font-size:11px;font-weight:600;padding:2px 8px;border-radius:99px;background:rgba(255,255,255,0.1);color:rgba(255,255,255,0.7);text-transform:uppercase;letter-spacing:0.05em"></span>
+        <span id="user-role-badge" style="font-size:11px;font-weight:600;padding:2px 8px;border-radius:99px;background:rgba(0,0,0,0.06);color:#6b7280;text-transform:uppercase;letter-spacing:0.05em"></span>
         <div class="avatar" id="user-avatar">?</div>
-        <span id="user-name">Loading…</span>
-        <button onclick="handleLogout()" style="background:transparent;border:1px solid rgba(255,255,255,0.2);color:rgba(255,255,255,0.6);padding:4px 10px;border-radius:6px;font-size:12px;cursor:pointer;margin-left:4px" onmouseover="this.style.background='rgba(255,255,255,0.1)'" onmouseout="this.style.background='transparent'">Sign out</button>
+        <span id="user-name" style="font-size:14px;font-weight:500;color:var(--text-muted)">Loading…</span>
+        <button onclick="handleLogout()" style="background:transparent;border:1px solid var(--border);color:var(--text-muted);padding:4px 12px;border-radius:6px;font-size:12px;cursor:pointer;margin-left:4px;font-family:var(--font-sans)" onmouseover="this.style.background='#fef2f2';this.style.color='#dc2626';this.style.borderColor='#fecaca'" onmouseout="this.style.background='transparent';this.style.color='var(--text-muted)';this.style.borderColor='var(--border)'">Sign out</button>
       </div>
     </div>
   </div>
@@ -353,6 +356,93 @@
         <div id="competitor-matrix-live"></div>
       </div>
     </div>
+
+    <!-- ═══ VIEW: TECHNICAL SEO ═══ -->
+    <div class="page-view" id="view-techseo">
+
+      <div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:20px">
+        <div>
+          <div class="page-title">Technical SEO</div>
+          <div class="section-desc" style="margin-top:4px">Core Web Vitals, page speed scores, and site health — both brands.</div>
+        </div>
+      </div>
+
+      <!-- Brand switcher + Run button -->
+      <div style="display:flex;align-items:center;gap:16px;margin-bottom:20px;flex-wrap:wrap">
+        <div class="pill-nav" id="techseo-brand-pills" style="margin-bottom:0">
+          <div class="pill active" onclick="switchTechSeoBrand('pickl')">🟡 Pickl</div>
+          <div class="pill" onclick="switchTechSeoBrand('bonbird')">🔴 Bonbird</div>
+        </div>
+        <button class="btn-primary" onclick="runTechSeoAudit()" id="techseo-run-btn" style="padding:8px 18px;font-size:13px">🔍 Run Audit</button>
+        <span id="techseo-last-run" style="color:var(--text-muted);font-size:13px"></span>
+      </div>
+
+      <!-- Running state -->
+      <div id="techseo-loading" style="display:none">
+        <div class="card" style="text-align:center;padding:40px 24px">
+          <div style="font-size:32px;margin-bottom:12px">⚡</div>
+          <div style="font-weight:600;margin-bottom:8px">Audit running…</div>
+          <div style="color:var(--text-muted);font-size:13px;margin-bottom:16px">Checking page speed, Core Web Vitals, sitemap, and robots.txt.<br>This takes 1–2 minutes. Results appear below as each page is checked.</div>
+          <div id="techseo-progress-list" style="text-align:left;max-width:480px;margin:0 auto;font-size:13px"></div>
+        </div>
+      </div>
+
+      <!-- No data state -->
+      <div id="techseo-empty">
+        <div class="card" style="text-align:center;padding:48px 24px">
+          <div style="font-size:48px;margin-bottom:12px">🏎️</div>
+          <div style="font-weight:600;font-size:16px;margin-bottom:8px">No audit data yet</div>
+          <div style="color:var(--text-muted);font-size:14px;max-width:420px;margin:0 auto">Click <strong>Run Audit</strong> to check Core Web Vitals, performance scores, sitemap health, and more for both brands. Takes about 1–2 minutes.</div>
+        </div>
+      </div>
+
+      <!-- Results -->
+      <div id="techseo-results" style="display:none">
+
+        <!-- Overview score cards -->
+        <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(180px,1fr));gap:12px;margin-bottom:20px">
+          <div class="card" id="techseo-card-mobile" style="text-align:center;padding:20px 12px">
+            <div style="font-size:12px;color:var(--text-muted);font-weight:600;margin-bottom:12px;text-transform:uppercase;letter-spacing:0.5px">Mobile Speed</div>
+            <div id="techseo-gauge-mobile" style="display:flex;justify-content:center;margin-bottom:8px"></div>
+            <div id="techseo-mobile-label" style="font-size:12px;color:var(--text-muted)"></div>
+          </div>
+          <div class="card" id="techseo-card-desktop" style="text-align:center;padding:20px 12px">
+            <div style="font-size:12px;color:var(--text-muted);font-weight:600;margin-bottom:12px;text-transform:uppercase;letter-spacing:0.5px">Desktop Speed</div>
+            <div id="techseo-gauge-desktop" style="display:flex;justify-content:center;margin-bottom:8px"></div>
+            <div id="techseo-desktop-label" style="font-size:12px;color:var(--text-muted)"></div>
+          </div>
+          <div class="card" id="techseo-card-cwv" style="text-align:center;padding:20px 12px">
+            <div style="font-size:12px;color:var(--text-muted);font-weight:600;margin-bottom:12px;text-transform:uppercase;letter-spacing:0.5px">Core Web Vitals</div>
+            <div id="techseo-cwv-overall" style="font-size:28px;margin-bottom:8px"></div>
+            <div id="techseo-cwv-label" style="font-size:12px;color:var(--text-muted)"></div>
+          </div>
+          <div class="card" id="techseo-card-tech" style="text-align:center;padding:20px 12px">
+            <div style="font-size:12px;color:var(--text-muted);font-weight:600;margin-bottom:12px;text-transform:uppercase;letter-spacing:0.5px">Site Health</div>
+            <div id="techseo-tech-overall" style="font-size:28px;margin-bottom:8px"></div>
+            <div id="techseo-tech-label" style="font-size:13px;color:var(--text-muted)"></div>
+          </div>
+        </div>
+
+        <!-- Core Web Vitals per page -->
+        <div class="card" style="margin-bottom:16px">
+          <div style="font-weight:600;font-size:14px;margin-bottom:16px">📊 Page Performance</div>
+          <div id="techseo-pages-table" style="overflow-x:auto"></div>
+        </div>
+
+        <!-- Top opportunities -->
+        <div class="card" style="margin-bottom:16px">
+          <div style="font-weight:600;font-size:14px;margin-bottom:16px">🔧 Top Opportunities</div>
+          <div id="techseo-opportunities"></div>
+        </div>
+
+        <!-- Site checks: sitemap, robots -->
+        <div class="card">
+          <div style="font-weight:600;font-size:14px;margin-bottom:16px">🏗️ Technical Checks</div>
+          <div id="techseo-site-checks"></div>
+        </div>
+
+      </div><!-- /techseo-results -->
+    </div><!-- /view-techseo -->
 
     <!-- ═══ VIEW 3: INTERNATIONAL SEO ═══ -->
     <div class="page-view" id="view-international">
@@ -923,6 +1013,7 @@ const TYPE_TAGS = {
 const VIEW_TITLES = {
   dashboard:     'Dashboard & Approvals',
   analytics:     'Analytics & ROI',
+  techseo:       'Technical SEO',
   international: 'International SEO',
   studio:        'AI Content Studio',
   settings:      'Settings & Logs',
@@ -940,6 +1031,7 @@ function switchView(target) {
   document.querySelectorAll('.page-view').forEach(v => v.classList.toggle('active', v.id === 'view-' + target));
   document.getElementById('top-title').textContent = VIEW_TITLES[target] || target;
   if (target === 'analytics')     loadGscIfNeeded();
+  if (target === 'techseo')       loadTechnicalSeo();
   if (target === 'settings')      { renderAuditLog(); loadBrandCtx(); loadSlackWebhook(); if (state.userRole === 'admin') { document.getElementById('users-panel').style.display = ''; loadUsersPanel(); } }
   if (target === 'international') loadIntlDashboard();
   if (target === 'howto')         loadHowItWorks();
@@ -2060,6 +2152,331 @@ let intlState = {
   runStatus:    {}, // marketKey -> { lastRun, itemsQueued }
   loaded:       false,
 };
+
+// ═══════════════════════════════════════════════════════════════
+// TECHNICAL SEO
+// ═══════════════════════════════════════════════════════════════
+
+const techSeoState = { brand: 'pickl', pollTimer: null };
+
+function switchTechSeoBrand(brand) {
+  techSeoState.brand = brand;
+  document.querySelectorAll('#techseo-brand-pills .pill').forEach(p => {
+    p.classList.toggle('active', p.textContent.toLowerCase().includes(brand));
+  });
+  loadTechnicalSeo();
+}
+
+async function loadTechnicalSeo() {
+  const brand = techSeoState.brand;
+  try {
+    const data = await apiGet('/api/technical-seo?brand=' + brand);
+    renderTechSeoResults(data);
+  } catch {
+    showTechSeoEmpty();
+  }
+}
+
+async function runTechSeoAudit() {
+  const brand = techSeoState.brand;
+  const btn   = document.getElementById('techseo-run-btn');
+  btn.disabled    = true;
+  btn.textContent = '⏳ Starting…';
+
+  try {
+    await apiPost('/api/technical-seo', { action: 'run_audit', brand });
+  } catch (e) {
+    console.warn('[techseo] Trigger error:', e.message);
+  }
+
+  btn.textContent = '🔄 Running…';
+  showTechSeoLoading();
+  startTechSeoPoll(brand);
+}
+
+function startTechSeoPoll(brand) {
+  if (techSeoState.pollTimer) clearInterval(techSeoState.pollTimer);
+  techSeoState.pollTimer = setInterval(async () => {
+    try {
+      const data = await apiGet('/api/technical-seo?brand=' + brand);
+      // Show partial results while running
+      if (data.results?.length) renderTechSeoResults(data);
+      if (data.status === 'complete' || data.status === 'error') {
+        clearInterval(techSeoState.pollTimer);
+        techSeoState.pollTimer = null;
+        const btn = document.getElementById('techseo-run-btn');
+        btn.disabled    = false;
+        btn.textContent = '🔍 Run Audit';
+        renderTechSeoResults(data);
+      }
+    } catch (e) {
+      console.warn('[techseo] Poll error:', e.message);
+    }
+  }, 4000);
+}
+
+function showTechSeoLoading() {
+  document.getElementById('techseo-empty').style.display   = 'none';
+  document.getElementById('techseo-results').style.display = 'none';
+  document.getElementById('techseo-loading').style.display = '';
+}
+
+function showTechSeoEmpty() {
+  document.getElementById('techseo-loading').style.display = 'none';
+  document.getElementById('techseo-results').style.display = 'none';
+  document.getElementById('techseo-empty').style.display   = '';
+}
+
+function renderTechSeoResults(data) {
+  if (data.status === 'no_data') { showTechSeoEmpty(); return; }
+
+  document.getElementById('techseo-loading').style.display = data.status === 'running' ? '' : 'none';
+  document.getElementById('techseo-empty').style.display   = 'none';
+  document.getElementById('techseo-results').style.display = data.results?.length ? '' : 'none';
+
+  // Last run timestamp
+  const ts = data.completedAt || data.startedAt;
+  if (ts) {
+    const ago = timeSince(ts);
+    document.getElementById('techseo-last-run').textContent =
+      data.status === 'running' ? '⏳ Running now…' : `Last audit: ${ago} ago`;
+  }
+
+  if (!data.results?.length) return;
+
+  // Progress list while running
+  if (data.status === 'running') {
+    const prog = document.getElementById('techseo-progress-list');
+    if (prog) prog.innerHTML = data.results.map(r =>
+      `<div style="padding:4px 0;border-bottom:1px solid var(--border)">
+        ${r.error ? '❌' : r.mobile?.score >= 70 ? '✅' : '⚠️'} <strong>${r.label}</strong>
+        ${r.mobile ? ` — Mobile: ${scoreChip(r.mobile.score)} Desktop: ${scoreChip(r.desktop?.score)}` : ''}
+        ${r.error ? `<span style="color:#dc2626;font-size:12px"> Error: ${r.error}</span>` : ''}
+      </div>`
+    ).join('');
+  }
+
+  // ── Overview cards ────────────────────────────────────────────
+  const scored = data.results.filter(r => r.mobile?.score != null);
+  if (scored.length) {
+    const avgMobile  = Math.round(scored.reduce((s, r) => s + r.mobile.score, 0) / scored.length);
+    const avgDesktop = Math.round(scored.reduce((s, r) => s + (r.desktop?.score || 0), 0) / scored.length);
+
+    document.getElementById('techseo-gauge-mobile').innerHTML  = buildScoreGauge(avgMobile);
+    document.getElementById('techseo-gauge-desktop').innerHTML = buildScoreGauge(avgDesktop);
+    document.getElementById('techseo-mobile-label').textContent  = scoreLabel(avgMobile) + ' avg mobile';
+    document.getElementById('techseo-desktop-label').textContent = scoreLabel(avgDesktop) + ' avg desktop';
+  }
+
+  // CWV overview
+  const cwvStatuses = (data.results || []).flatMap(r => [
+    r.mobile?.metrics?.lcp?.status,
+    r.mobile?.metrics?.cls?.status,
+    r.mobile?.metrics?.tbt?.status,
+  ]).filter(s => s && s !== 'unknown');
+  const cwvOverall = cwvStatuses.every(s => s === 'good') ? 'good'
+    : cwvStatuses.some(s => s === 'poor') ? 'poor' : 'needs-improvement';
+  document.getElementById('techseo-cwv-overall').textContent = { good: '✅', 'needs-improvement': '⚠️', poor: '❌' }[cwvOverall] || '—';
+  document.getElementById('techseo-cwv-label').textContent   = { good: 'All passing', 'needs-improvement': 'Some issues', poor: 'Failing' }[cwvOverall] || '';
+
+  // Site health card
+  const tc = data.technicalChecks;
+  if (tc) {
+    const techIssues = [
+      tc.sitemap?.status !== 'ok'    ? '⚠️ Sitemap missing' : null,
+      tc.robotsTxt?.status !== 'ok'  ? '⚠️ robots.txt missing' : null,
+      tc.robotsTxt?.blocking         ? '🔴 robots.txt blocking Google' : null,
+    ].filter(Boolean);
+    document.getElementById('techseo-tech-overall').textContent = techIssues.length ? '⚠️' : '✅';
+    document.getElementById('techseo-tech-label').innerHTML     = techIssues.length
+      ? techIssues.join('<br>')
+      : 'Sitemap & robots.txt OK';
+  } else {
+    document.getElementById('techseo-tech-overall').textContent = data.status === 'running' ? '⏳' : '—';
+    document.getElementById('techseo-tech-label').textContent   = data.status === 'running' ? 'Checking…' : '';
+  }
+
+  // ── Pages table ───────────────────────────────────────────────
+  const pagesEl = document.getElementById('techseo-pages-table');
+  if (pagesEl && scored.length) {
+    pagesEl.innerHTML = `
+      <table style="width:100%;border-collapse:collapse;font-size:13px">
+        <thead>
+          <tr style="border-bottom:1px solid var(--border);color:var(--text-muted)">
+            <th style="text-align:left;padding:8px 12px;font-weight:600">Page</th>
+            <th style="text-align:center;padding:8px 12px;font-weight:600">📱 Mobile</th>
+            <th style="text-align:center;padding:8px 12px;font-weight:600">🖥 Desktop</th>
+            <th style="text-align:center;padding:8px 12px;font-weight:600">LCP</th>
+            <th style="text-align:center;padding:8px 12px;font-weight:600">CLS</th>
+            <th style="text-align:center;padding:8px 12px;font-weight:600">TBT</th>
+            <th style="text-align:center;padding:8px 12px;font-weight:600">Field Data</th>
+          </tr>
+        </thead>
+        <tbody>
+          ${scored.map(r => `
+            <tr style="border-bottom:1px solid var(--border)">
+              <td style="padding:10px 12px;font-weight:500">
+                ${r.label}<br>
+                <a href="${r.url}" target="_blank" style="font-size:11px;color:var(--text-muted)">${r.url.replace('https://', '')}</a>
+              </td>
+              <td style="text-align:center;padding:10px 12px">${scoreChip(r.mobile.score)}</td>
+              <td style="text-align:center;padding:10px 12px">${scoreChip(r.desktop?.score)}</td>
+              <td style="text-align:center;padding:10px 12px">${cwvCell(r.mobile.metrics?.lcp)}</td>
+              <td style="text-align:center;padding:10px 12px">${cwvCell(r.mobile.metrics?.cls)}</td>
+              <td style="text-align:center;padding:10px 12px">${cwvCell(r.mobile.metrics?.tbt)}</td>
+              <td style="text-align:center;padding:10px 12px">${fieldDataBadge(r.mobile.fieldData)}</td>
+            </tr>
+          `).join('')}
+        </tbody>
+      </table>`;
+  }
+
+  // ── Opportunities ─────────────────────────────────────────────
+  const oppEl = document.getElementById('techseo-opportunities');
+  if (oppEl) {
+    const allOpps = scored.flatMap(r =>
+      (r.mobile?.opportunities || []).map(o => ({ ...o, page: r.label }))
+    );
+    // Deduplicate by id
+    const seen = new Set();
+    const unique = allOpps.filter(o => { if (seen.has(o.id)) return false; seen.add(o.id); return true; });
+
+    if (unique.length) {
+      oppEl.innerHTML = unique.map(o => `
+        <div style="padding:12px 0;border-bottom:1px solid var(--border);display:flex;align-items:flex-start;gap:12px">
+          <div style="flex:1">
+            <div style="font-weight:600;font-size:13px;margin-bottom:2px">
+              ${scoreIndicator(o.score)} ${o.title}
+              <span style="font-size:11px;color:var(--text-muted);font-weight:400;margin-left:6px">${o.page}</span>
+            </div>
+            <div style="font-size:12px;color:var(--text-muted)">${o.description || ''}</div>
+            ${o.displayValue ? `<div style="font-size:12px;color:#d97706;margin-top:2px">Potential saving: ${o.displayValue}</div>` : ''}
+          </div>
+        </div>`).join('');
+    } else {
+      oppEl.innerHTML = '<div style="color:var(--text-muted);font-size:13px;padding:8px 0">No major opportunities found — pages are well optimised.</div>';
+    }
+  }
+
+  // ── Technical checks panel ────────────────────────────────────
+  const tcEl = document.getElementById('techseo-site-checks');
+  if (tcEl && tc) {
+    tcEl.innerHTML = `
+      <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(260px,1fr));gap:12px">
+        ${techCheckRow('Sitemap.xml', tc.sitemap)}
+        ${techCheckRow('robots.txt', tc.robotsTxt)}
+        ${techCheckRow('HTTPS', tc.https)}
+      </div>
+      ${tc.robotsTxt?.snippet ? `
+        <details style="margin-top:12px">
+          <summary style="font-size:12px;color:var(--text-muted);cursor:pointer">robots.txt contents</summary>
+          <pre style="font-size:11px;background:var(--sidebar-bg);padding:12px;border-radius:6px;overflow-x:auto;margin-top:8px;white-space:pre-wrap">${tc.robotsTxt.snippet}</pre>
+        </details>` : ''}`;
+  } else if (tcEl) {
+    tcEl.innerHTML = data.status === 'running'
+      ? '<div style="color:var(--text-muted);font-size:13px">Checking…</div>'
+      : '<div style="color:var(--text-muted);font-size:13px">No data yet.</div>';
+  }
+}
+
+// ── Rendering helpers ─────────────────────────────────────────────────────────
+
+function buildScoreGauge(score) {
+  if (score == null) return '<div style="color:var(--text-muted);font-size:12px">—</div>';
+  const color = score >= 90 ? '#059669' : score >= 50 ? '#d97706' : '#dc2626';
+  const r  = 16;
+  const c  = 2 * Math.PI * r;
+  const dash = ((score / 100) * c).toFixed(1);
+  return `
+    <div style="position:relative;width:80px;height:80px;display:inline-block">
+      <svg viewBox="0 0 36 36" width="80" height="80" style="transform:rotate(-90deg)">
+        <circle cx="18" cy="18" r="${r}" fill="none" stroke="#1f2937" stroke-width="3.5"/>
+        <circle cx="18" cy="18" r="${r}" fill="none" stroke="${color}" stroke-width="3.5"
+          stroke-dasharray="${dash},${c.toFixed(1)}" stroke-linecap="round"/>
+      </svg>
+      <div style="position:absolute;top:50%;left:50%;transform:translate(-50%,-50%);text-align:center;line-height:1.1">
+        <div style="font-size:18px;font-weight:700;color:${color}">${score}</div>
+        <div style="font-size:9px;color:var(--text-muted)">/100</div>
+      </div>
+    </div>`;
+}
+
+function scoreChip(score) {
+  if (score == null) return '<span style="color:var(--text-muted)">—</span>';
+  const color = score >= 90 ? '#059669' : score >= 50 ? '#d97706' : '#dc2626';
+  const bg    = score >= 90 ? '#ecfdf5' : score >= 50 ? '#fffbeb' : '#fef2f2';
+  return `<span style="background:${bg};color:${color};padding:3px 8px;border-radius:12px;font-weight:700;font-size:13px">${score}</span>`;
+}
+
+function scoreLabel(score) {
+  if (score == null) return '—';
+  if (score >= 90) return '✅ Good';
+  if (score >= 50) return '⚠️ Needs work';
+  return '❌ Poor';
+}
+
+function cwvCell(metric) {
+  if (!metric || !metric.display) return '<span style="color:var(--text-muted)">—</span>';
+  const statusMap = {
+    good:               { color: '#059669', icon: '✓' },
+    'needs-improvement':{ color: '#d97706', icon: '⚠' },
+    poor:               { color: '#dc2626', icon: '✗' },
+    unknown:            { color: '#6b7280', icon: '?' },
+  };
+  const s = statusMap[metric.status] || statusMap.unknown;
+  return `<span style="color:${s.color};font-weight:600">${s.icon}</span> <span style="font-size:12px">${metric.display}</span>`;
+}
+
+function fieldDataBadge(fd) {
+  if (!fd || !fd.overall) return '<span style="color:var(--text-muted);font-size:12px">No field data</span>';
+  const map = {
+    FAST:    { color: '#059669', label: '✓ Fast' },
+    AVERAGE: { color: '#d97706', label: '⚠ Avg' },
+    SLOW:    { color: '#dc2626', label: '✗ Slow' },
+  };
+  const s = map[fd.overall] || { color: '#6b7280', label: fd.overall };
+  return `<span style="color:${s.color};font-size:12px;font-weight:600">${s.label}</span>`;
+}
+
+function scoreIndicator(score) {
+  if (score <= 30)  return '🔴';
+  if (score <= 60)  return '🟡';
+  return '🟢';
+}
+
+function techCheckRow(label, check) {
+  if (!check) return '';
+  let icon, text, textColor;
+  if (check.status === 'ok' && !check.blocking) {
+    icon = '✅'; text = label + ' found'; textColor = '#059669';
+  } else if (check.blocking) {
+    icon = '🔴'; text = label + ' blocking Googlebot!'; textColor = '#dc2626';
+  } else {
+    icon = '⚠️'; text = label + ' ' + (check.status === 'missing' ? 'not found' : check.status); textColor = '#d97706';
+  }
+  const extras = [
+    check.hasSitemap === false ? 'Sitemap URL missing from robots.txt' : null,
+  ].filter(Boolean);
+  return `
+    <div style="background:var(--sidebar-bg);border-radius:8px;padding:14px 16px">
+      <div style="display:flex;align-items:center;gap:8px;margin-bottom:${extras.length ? '6px' : '0'}">
+        <span>${icon}</span>
+        <span style="font-weight:600;font-size:13px;color:${textColor}">${text}</span>
+      </div>
+      ${extras.map(e => `<div style="font-size:12px;color:var(--text-muted)">${e}</div>`).join('')}
+    </div>`;
+}
+
+function timeSince(ts) {
+  const diff = Date.now() - ts;
+  const mins = Math.floor(diff / 60000);
+  const hrs  = Math.floor(diff / 3600000);
+  const days = Math.floor(diff / 86400000);
+  if (mins < 1)  return 'just now';
+  if (mins < 60) return mins + 'm';
+  if (hrs < 24)  return hrs + 'h';
+  return days + 'd';
+}
 
 // Load approvals count per market from the approvals store
 async function loadIntlDashboard() {
