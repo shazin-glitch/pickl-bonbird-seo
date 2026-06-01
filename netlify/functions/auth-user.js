@@ -53,6 +53,15 @@ exports.handler = async (event) => {
       }
     }
 
+    // Get brand + department from userProfile
+    let brand = null;
+    let department = null;
+    try {
+      const profile = await store.get(`userProfile:${session.email}`, { type: 'json' });
+      brand      = profile?.brand      || null;
+      department = profile?.department || null;
+    } catch { /* use null defaults */ }
+
     return {
       statusCode: 200,
       headers,
@@ -62,6 +71,8 @@ exports.handler = async (event) => {
         name:    session.name,
         picture: session.picture,
         role,
+        brand,
+        department,
       }),
     };
   } catch (err) {

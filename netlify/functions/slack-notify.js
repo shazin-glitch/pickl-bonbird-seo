@@ -79,12 +79,12 @@ function buildQueueSummary(brandLabel, items, count) {
     .join('\n');
 
   return [
-    `*🚀 Yolk SEO — ${count} new action${count !== 1 ? 's' : ''} queued*`,
+    `*🪺 The Nest — ${count} new action${count !== 1 ? 's' : ''} queued*`,
     `Brand: ${brandLabel}`,
     '',
     breakdown,
     '',
-    `<https://yolkseo.netlify.app|Review in SEO Command Center →>`,
+    `<https://yolkseo.netlify.app|Review in The Nest →>`,
   ].join('\n');
 }
 
@@ -96,7 +96,7 @@ function buildIntlSummary(flag, label, language, items, count) {
     ...items.slice(0, 5).map(i => `• ${formatType(i.type)}: ${i.title || ''}`),
     count > 5 ? `• ...and ${count - 5} more` : '',
     '',
-    `<https://yolkseo.netlify.app|Review in SEO Command Center →>`,
+    `<https://yolkseo.netlify.app|Review in The Nest →>`,
   ].filter(l => l !== undefined).join('\n');
 }
 

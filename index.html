@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>SEO Command Center</title>
+<title>The Nest — Yolk Brands</title>
 <style>
   :root {
     --bg-base: #f9fafb;
@@ -54,6 +54,19 @@
   .views-wrapper { flex: 1; overflow-y: auto; }
   .page-view { display: none; padding: 32px; max-width: 1200px; margin: 0 auto; width: 100%; }
   .page-view.active { display: block; }
+  /* ── The Perch Kanban ── */
+  .perch-board { display: grid; grid-template-columns: repeat(4, 1fr); gap: 16px; overflow-x: auto; padding-bottom: 8px; }
+  .perch-col { background: var(--surface); border-radius: 10px; padding: 14px; min-height: 200px; }
+  .perch-col-header { font-weight: 600; font-size: 13px; margin-bottom: 12px; display: flex; justify-content: space-between; align-items: center; }
+  .perch-card { background: var(--card-bg); border: 1px solid var(--border); border-radius: 8px; padding: 12px; margin-bottom: 8px; cursor: pointer; transition: border-color 0.15s, transform 0.1s; }
+  .perch-card:hover { border-color: var(--primary); transform: translateY(-1px); }
+  .perch-card-title { font-weight: 600; font-size: 13px; margin-bottom: 8px; line-height: 1.3; }
+  .perch-card-meta { display: flex; flex-wrap: wrap; gap: 4px; margin-bottom: 6px; }
+  .perch-pill { font-size: 10px; font-weight: 600; padding: 2px 7px; border-radius: 99px; }
+  .perch-card-footer { display: flex; justify-content: space-between; align-items: center; margin-top: 8px; }
+  .perch-assignee { font-size: 11px; color: var(--text-muted); }
+  .perch-due { font-size: 11px; }
+  @media (max-width: 900px) { .perch-board { grid-template-columns: repeat(2, 1fr); } }
 
   /* ── Common UI ── */
   .section-header { display: flex; justify-content: space-between; align-items: flex-end; margin-bottom: 16px; }
@@ -176,34 +189,35 @@
 ════════════════════════════════════════ -->
 <div class="sidebar">
   <div class="sidebar-header">
-    <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="color:#60a5fa;flex-shrink:0">
-      <polygon points="12 2 2 7 12 12 22 7 12 2"/><polyline points="2 17 12 22 22 17"/><polyline points="2 12 12 17 22 12"/>
-    </svg>
-    SEO Command
+    <span style="font-size:22px">🪺</span>
+    The Nest
   </div>
 
   <nav class="nav-menu" id="nav-menu">
-    <div class="nav-item active" data-target="dashboard">
-      <span>Dashboard &amp; Approvals</span>
+    <div class="nav-item active" data-target="perch">
+      <span>🪺 The Perch</span>
+    </div>
+    <div class="nav-item" data-target="dashboard">
+      <span>📋 Approvals Queue</span>
       <span class="badge" id="badge-approvals" style="display:none">0</span>
     </div>
     <div class="nav-item" data-target="analytics">
-      <span>Analytics &amp; ROI</span>
+      <span>📊 Analytics & ROI</span>
     </div>
     <div class="nav-item" data-target="techseo">
       <span>⚡ Technical SEO</span>
     </div>
     <div class="nav-item" data-target="international">
-      <span>International SEO</span>
+      <span>🌍 International SEO</span>
     </div>
     <div class="nav-item" data-target="studio">
-      <span>AI Content Studio</span>
+      <span>🎨 AI Content Studio</span>
     </div>
     <div class="nav-item" data-target="settings">
-      <span>Settings &amp; Logs</span>
+      <span>⚙️ Settings & Logs</span>
     </div>
     <div class="nav-item" data-target="howto">
-      <span>How It Works</span>
+      <span>❓ How It Works</span>
     </div>
   </nav>
 
@@ -220,7 +234,7 @@
 ════════════════════════════════════════ -->
 <div class="main-content">
   <div class="top-header">
-    <div class="page-title" id="top-title">Dashboard &amp; Approvals</div>
+    <div class="page-title" id="top-title">The Perch</div>
     <div class="header-right">
       <div class="user-profile" style="display:flex;align-items:center;gap:10px">
         <span id="user-role-badge" style="font-size:11px;font-weight:600;padding:2px 8px;border-radius:99px;background:rgba(0,0,0,0.06);color:#6b7280;text-transform:uppercase;letter-spacing:0.05em"></span>
@@ -233,8 +247,58 @@
 
   <div class="views-wrapper">
 
+    <!-- ═══ VIEW: THE PERCH ═══ -->
+    <div class="page-view active" id="view-perch">
+      <div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:20px;flex-wrap:wrap;gap:12px">
+        <div>
+          <div class="page-title">The Perch</div>
+          <div class="section-desc" style="margin-top:4px">Your team's workspace. Tasks across all departments, filtered to what matters to you.</div>
+        </div>
+        <button class="btn-primary" onclick="openAddTaskModal()" style="padding:8px 18px;font-size:13px">+ New Task</button>
+      </div>
+
+      <!-- Filters -->
+      <div style="display:flex;gap:8px;margin-bottom:20px;flex-wrap:wrap;align-items:center">
+        <select id="perch-filter-brand" onchange="renderPerchBoard()" style="font-size:13px;padding:6px 10px;border-radius:8px;border:1px solid var(--border);background:var(--surface);color:var(--text);cursor:pointer">
+          <option value="">All Brands</option>
+          <option value="pickl">🟡 Pickl</option>
+          <option value="bonbird">🔴 Bonbird</option>
+          <option value="southpour">🟢 Southpour</option>
+          <option value="shadowburg">🟣 Shadowburg</option>
+          <option value="shadowbird">🔵 Shadowbird</option>
+        </select>
+        <select id="perch-filter-dept" onchange="renderPerchBoard()" style="font-size:13px;padding:6px 10px;border-radius:8px;border:1px solid var(--border);background:var(--surface);color:var(--text);cursor:pointer">
+          <option value="">All Departments</option>
+          <option value="seo">SEO</option>
+          <option value="social">Social</option>
+          <option value="design">Design</option>
+          <option value="content">Content</option>
+        </select>
+        <select id="perch-filter-priority" onchange="renderPerchBoard()" style="font-size:13px;padding:6px 10px;border-radius:8px;border:1px solid var(--border);background:var(--surface);color:var(--text);cursor:pointer">
+          <option value="">All Priorities</option>
+          <option value="high">🔴 High</option>
+          <option value="medium">🟡 Medium</option>
+          <option value="low">🟢 Low</option>
+        </select>
+        <span id="perch-task-count" style="font-size:12px;color:var(--text-muted);margin-left:4px"></span>
+      </div>
+
+      <!-- Loading -->
+      <div id="perch-loading" style="text-align:center;padding:40px;color:var(--text-muted)">Loading tasks…</div>
+
+      <!-- Kanban board -->
+      <div id="perch-board" class="perch-board" style="display:none"></div>
+
+      <!-- Empty state -->
+      <div id="perch-empty" style="display:none;text-align:center;padding:48px 24px">
+        <div style="font-size:48px;margin-bottom:12px">🪺</div>
+        <div style="font-weight:600;font-size:16px;margin-bottom:8px">The Perch is empty</div>
+        <div style="color:var(--text-muted);font-size:14px;max-width:380px;margin:0 auto">Create your first task to get started. Tasks are shared with your team based on brand and department.</div>
+      </div>
+    </div><!-- /view-perch -->
+
     <!-- ═══ VIEW 1: DASHBOARD & APPROVALS ═══ -->
-    <div class="page-view active" id="view-dashboard">
+    <div class="page-view" id="view-dashboard">
 
       <div class="metrics-grid">
         <div class="metric-card">
@@ -436,9 +500,31 @@
         </div>
 
         <!-- Site checks: sitemap, robots -->
-        <div class="card">
+        <div class="card" style="margin-bottom:16px">
           <div style="font-weight:600;font-size:14px;margin-bottom:16px">🏗️ Technical Checks</div>
           <div id="techseo-site-checks"></div>
+        </div>
+
+        <!-- International pages health -->
+        <div class="card" style="margin-bottom:16px">
+          <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:16px">
+            <div style="font-weight:600;font-size:14px">🌍 International Pages</div>
+            <span id="techseo-intl-summary" style="font-size:12px;color:var(--text-muted)"></span>
+          </div>
+          <div id="techseo-intl-table" style="overflow-x:auto"></div>
+        </div>
+
+        <!-- Developer kanban -->
+        <div class="card">
+          <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:16px">
+            <div>
+              <div style="font-weight:600;font-size:14px">🔧 Developer Tasks</div>
+              <div style="font-size:12px;color:var(--text-muted);margin-top:2px">Auto-generated from audit. Update status as fixes are made.</div>
+            </div>
+            <button onclick="clearDoneTechTasks()" style="font-size:12px;padding:5px 12px;border-radius:6px;border:1px solid var(--border);background:transparent;color:var(--text-muted);cursor:pointer">Clear Done</button>
+          </div>
+          <div id="techseo-dev-kanban" style="display:grid;grid-template-columns:repeat(3,1fr);gap:12px"></div>
+          <div id="techseo-dev-empty" style="display:none;text-align:center;padding:24px;color:var(--text-muted);font-size:13px">✅ No open developer tasks — all clear.</div>
         </div>
 
       </div><!-- /techseo-results -->
@@ -655,7 +741,7 @@
           <div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:20px">
             <div>
               <h3 style="font-size:16px;font-weight:600">Users &amp; Permissions</h3>
-              <p style="font-size:13px;color:var(--text-muted);margin-top:4px">Manage who can access the SEO Command Center and what they can do.</p>
+              <p style="font-size:13px;color:var(--text-muted);margin-top:4px">Manage access, roles, brand assignments and departments for The Nest.</p>
             </div>
             <button class="btn btn-primary" onclick="showAddUserModal()">+ Add User</button>
           </div>
@@ -910,8 +996,10 @@
 // ═══════════════════════════════════════════════════════════════
 const state = {
   actor: null,
-  userRole:  'viewer',
-  userEmail: '',
+  userRole:       'viewer',
+  userEmail:      '',
+  userBrand:      null,
+  userDepartment: null,
   gscConnected: false,
   gscRows: {
     pickl: [],
@@ -965,8 +1053,10 @@ const TYPE_TAGS = {
     }
     currentUser = data;
     state.actor    = data.name || data.email;
-    state.userRole = data.role;
-    state.userEmail = data.email;
+    state.userRole       = data.role;
+    state.userEmail      = data.email;
+    state.userBrand      = data.brand      || null;
+    state.userDepartment = data.department || null;
   } catch (e) {
     window.location.href = '/login.html';
     return;
@@ -998,6 +1088,9 @@ const TYPE_TAGS = {
   // Load db data (keywords etc.)
   loadDbData();
 
+  // Load The Perch (first tab)
+  loadPerch();
+
   // Load approval queue
   await loadQueue();
   // Poll badge every 60s
@@ -1011,7 +1104,8 @@ const TYPE_TAGS = {
 // NAVIGATION
 // ═══════════════════════════════════════════════════════════════
 const VIEW_TITLES = {
-  dashboard:     'Dashboard & Approvals',
+  perch:         'The Perch',
+  dashboard:     'Approvals Queue',
   analytics:     'Analytics & ROI',
   techseo:       'Technical SEO',
   international: 'International SEO',
@@ -1030,8 +1124,9 @@ function switchView(target) {
   document.querySelectorAll('.nav-item').forEach(n => n.classList.toggle('active', n.dataset.target === target));
   document.querySelectorAll('.page-view').forEach(v => v.classList.toggle('active', v.id === 'view-' + target));
   document.getElementById('top-title').textContent = VIEW_TITLES[target] || target;
+  if (target === 'perch')         loadPerch();
   if (target === 'analytics')     loadGscIfNeeded();
-  if (target === 'techseo')       loadTechnicalSeo();
+  if (target === 'techseo')       { loadTechnicalSeo(); loadTechDevKanban(techSeoState.brand); }
   if (target === 'settings')      { renderAuditLog(); loadBrandCtx(); loadSlackWebhook(); if (state.userRole === 'admin') { document.getElementById('users-panel').style.display = ''; loadUsersPanel(); } }
   if (target === 'international') loadIntlDashboard();
   if (target === 'howto')         loadHowItWorks();
@@ -2020,42 +2115,54 @@ async function loadUsersPanel() {
   const list = document.getElementById('users-list');
   if (!list) return;
   list.innerHTML = '<div style="text-align:center;padding:16px;color:var(--text-muted);font-size:13px">Loading…</div>';
-
   try {
     const res  = await fetch('/api/users', { credentials: 'include' });
     const data = await res.json();
     const users = data.users || [];
-
     const ROLE_COLORS = { admin: '#DF0070', manager: '#3b82f6', viewer: '#64748b' };
-
+    const ALL_BRANDS  = ['pickl','bonbird','southpour','shadowburg','shadowbird'];
+    const ALL_DEPTS   = ['seo','social','design','content'];
+    const brandLabel  = b => b ? b.charAt(0).toUpperCase()+b.slice(1) : '-- none --';
+    const deptLabel   = d => d ? d.charAt(0).toUpperCase()+d.slice(1) : '-- none --';
     list.innerHTML = `
       <table style="width:100%;border-collapse:collapse;font-size:13px">
         <thead>
           <tr style="border-bottom:1px solid var(--border)">
             <th style="text-align:left;padding:8px 12px;color:var(--text-muted);font-weight:600">User</th>
-            <th style="text-align:left;padding:8px 12px;color:var(--text-muted);font-weight:600">Email</th>
             <th style="text-align:left;padding:8px 12px;color:var(--text-muted);font-weight:600">Role</th>
-            <th style="text-align:left;padding:8px 12px;color:var(--text-muted);font-weight:600">Last Login</th>
+            <th style="text-align:left;padding:8px 12px;color:var(--text-muted);font-weight:600">Brand</th>
+            <th style="text-align:left;padding:8px 12px;color:var(--text-muted);font-weight:600">Department</th>
             <th style="padding:8px 12px"></th>
           </tr>
         </thead>
         <tbody>
           ${users.map(u => `
-            <tr style="border-bottom:1px solid var(--border)" id="user-row-${btoa(u.email).replace(/=/g,'').replace(/\+/g,'-').replace(/\//g,'_')}">
+            <tr style="border-bottom:1px solid var(--border)">
               <td style="padding:10px 12px">
                 <div style="font-weight:500">${esc(u.name || u.email.split('@')[0])}</div>
-                ${u.isBootstrap ? '<div style="font-size:11px;color:var(--text-muted)">Bootstrap admin</div>' : ''}
+                <div style="font-size:11px;color:var(--text-muted)">${esc(u.email)}</div>
+                ${u.isBootstrap ? '<div style="font-size:10px;color:var(--text-muted)">Bootstrap admin</div>' : ''}
               </td>
-              <td style="padding:10px 12px;color:var(--text-muted)">${esc(u.email)}</td>
               <td style="padding:10px 12px">
                 ${u.isBootstrap
                   ? `<span style="font-size:12px;font-weight:600;color:${ROLE_COLORS.admin}">admin</span>`
-                  : `<select onchange="updateUserRole('${esc(u.email)}', this.value)" style="font-size:12px;padding:3px 6px;border-radius:6px;border:1px solid var(--border);background:var(--surface);color:var(--text);cursor:pointer">
-                      ${['viewer','manager','admin'].map(r => `<option value="${r}" ${u.role === r ? 'selected' : ''}>${r}</option>`).join('')}
+                  : `<select onchange="updateUserField('${esc(u.email)}','role',this.value)" style="font-size:12px;padding:3px 6px;border-radius:6px;border:1px solid var(--border);background:var(--surface);color:var(--text);cursor:pointer">
+                      ${['viewer','manager','admin'].map(r => `<option value="${r}" ${u.role===r?'selected':''}>${r}</option>`).join('')}
                     </select>`
                 }
               </td>
-              <td style="padding:10px 12px;color:var(--text-muted)">${u.lastLogin ? new Date(u.lastLogin).toLocaleDateString('en-GB', { day:'numeric', month:'short', year:'numeric' }) : 'Never'}</td>
+              <td style="padding:10px 12px">
+                <select onchange="updateUserField('${esc(u.email)}','brand',this.value)" style="font-size:12px;padding:3px 6px;border-radius:6px;border:1px solid var(--border);background:var(--surface);color:var(--text);cursor:pointer">
+                  <option value="">-- none --</option>
+                  ${ALL_BRANDS.map(b => `<option value="${b}" ${u.brand===b?'selected':''}>${b.charAt(0).toUpperCase()+b.slice(1)}</option>`).join('')}
+                </select>
+              </td>
+              <td style="padding:10px 12px">
+                <select onchange="updateUserField('${esc(u.email)}','department',this.value)" style="font-size:12px;padding:3px 6px;border-radius:6px;border:1px solid var(--border);background:var(--surface);color:var(--text);cursor:pointer">
+                  <option value="">-- none --</option>
+                  ${ALL_DEPTS.map(d => `<option value="${d}" ${u.department===d?'selected':''}>${d.charAt(0).toUpperCase()+d.slice(1)}</option>`).join('')}
+                </select>
+              </td>
               <td style="padding:10px 12px;text-align:right">
                 ${u.isBootstrap ? '' : `<button onclick="removeUser('${esc(u.email)}')" style="font-size:12px;color:#ef4444;background:none;border:none;cursor:pointer;padding:4px 8px;border-radius:4px" onmouseover="this.style.background='rgba(239,68,68,0.1)'" onmouseout="this.style.background='none'">Remove</button>`}
               </td>
@@ -2066,6 +2173,16 @@ async function loadUsersPanel() {
     list.innerHTML = `<div style="color:var(--danger);padding:16px">${esc(e.message)}</div>`;
   }
 }
+
+async function updateUserField(email, field, value) {
+  try {
+    await fetch('/api/users', { method: 'PUT', credentials: 'include', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ email, [field]: value }) });
+    showToast(email.split('@')[0] + ' updated', '');
+  } catch (e) { showToast('Failed to update', 'error'); }
+}
+
+async function updateUserRole(email, role) { return updateUserField(email, 'role', role); }
+
 
 async function updateUserRole(email, role) {
   try {
@@ -2127,6 +2244,8 @@ document.addEventListener('keydown', e => {
     closeTool();
     closeKwModal();
     closeContentPreview();
+    closeTaskModal();
+    closeAddModal();
   }
 });
 
@@ -2154,6 +2273,337 @@ let intlState = {
 };
 
 // ═══════════════════════════════════════════════════════════════
+// THE PERCH — Marketing Team Kanban
+// ═══════════════════════════════════════════════════════════════
+
+const BRAND_CONFIG = {
+  pickl:      { label: 'Pickl',      color: '#f59e0b', bg: '#fffbeb' },
+  bonbird:    { label: 'Bonbird',    color: '#ef4444', bg: '#fef2f2' },
+  southpour:  { label: 'Southpour',  color: '#059669', bg: '#ecfdf5' },
+  shadowburg: { label: 'Shadowburg', color: '#8b5cf6', bg: '#f5f3ff' },
+  shadowbird: { label: 'Shadowbird', color: '#6366f1', bg: '#eef2ff' },
+  all:        { label: 'All Brands', color: '#6b7280', bg: '#f3f4f6' },
+};
+
+const DEPT_CONFIG = {
+  seo:     { label: 'SEO',     color: '#0ea5e9', bg: '#e0f2fe' },
+  social:  { label: 'Social',  color: '#d97706', bg: '#fef3c7' },
+  design:  { label: 'Design',  color: '#ec4899', bg: '#fce7f3' },
+  content: { label: 'Content', color: '#059669', bg: '#d1fae5' },
+};
+
+const PRIORITY_CONFIG = {
+  high:   { label: 'High',   color: '#dc2626', dot: '🔴' },
+  medium: { label: 'Medium', color: '#d97706', dot: '🟡' },
+  low:    { label: 'Low',    color: '#059669', dot: '🟢' },
+};
+
+const COLUMNS = [
+  { id: 'todo',       label: 'To Do',      color: '#6b7280' },
+  { id: 'inprogress', label: 'In Progress', color: '#3b82f6' },
+  { id: 'inreview',   label: 'In Review',   color: '#d97706' },
+  { id: 'done',       label: 'Done',        color: '#059669' },
+];
+
+let perchTasks    = [];
+let perchFiltered = [];
+
+async function loadPerch() {
+  document.getElementById('perch-loading').style.display = '';
+  document.getElementById('perch-board').style.display   = 'none';
+  document.getElementById('perch-empty').style.display   = 'none';
+  try {
+    const data = await fetch('/api/perch', { credentials: 'include' }).then(r => r.json());
+    perchTasks = data.tasks || [];
+    renderPerchBoard();
+  } catch (e) {
+    document.getElementById('perch-loading').innerHTML = `<div style="color:var(--danger)">Failed to load tasks: ${esc(e.message)}</div>`;
+  }
+}
+
+function renderPerchBoard() {
+  const brandF = document.getElementById('perch-filter-brand')?.value    || '';
+  const deptF  = document.getElementById('perch-filter-dept')?.value     || '';
+  const priF   = document.getElementById('perch-filter-priority')?.value || '';
+
+  perchFiltered = perchTasks.filter(t =>
+    (!brandF || t.brand === brandF || t.brand === 'all') &&
+    (!deptF  || t.department === deptF) &&
+    (!priF   || t.priority === priF)
+  );
+
+  const countEl = document.getElementById('perch-task-count');
+  if (countEl) countEl.textContent = perchFiltered.length + ' task' + (perchFiltered.length !== 1 ? 's' : '');
+
+  document.getElementById('perch-loading').style.display = 'none';
+
+  if (!perchFiltered.length && !perchTasks.length) {
+    document.getElementById('perch-empty').style.display  = '';
+    document.getElementById('perch-board').style.display  = 'none';
+    return;
+  }
+
+  document.getElementById('perch-empty').style.display = 'none';
+  document.getElementById('perch-board').style.display  = '';
+
+  const board = document.getElementById('perch-board');
+  board.innerHTML = COLUMNS.map(col => {
+    const colTasks = perchFiltered.filter(t => t.status === col.id);
+    return `
+      <div class="perch-col">
+        <div class="perch-col-header">
+          <span style="color:${col.color}">${col.label}</span>
+          <span style="background:var(--border);color:var(--text-muted);padding:2px 8px;border-radius:99px;font-size:11px">${colTasks.length}</span>
+        </div>
+        ${colTasks.map(t => buildTaskCard(t)).join('')}
+      </div>`;
+  }).join('');
+}
+
+function buildTaskCard(t) {
+  const bc  = BRAND_CONFIG[t.brand]  || BRAND_CONFIG.all;
+  const dc  = DEPT_CONFIG[t.department] || { label: t.department, color: '#6b7280', bg: '#f3f4f6' };
+  const pc  = PRIORITY_CONFIG[t.priority] || PRIORITY_CONFIG.medium;
+  const now = Date.now();
+  const due = t.dueDate ? new Date(t.dueDate) : null;
+  const overdue = due && due < now && t.status !== 'done';
+  const dueStr  = due ? due.toLocaleDateString('en-GB', { day:'numeric', month:'short' }) : '';
+
+  return `
+    <div class="perch-card" onclick="openTaskModal('${esc(t.id)}')">
+      <div class="perch-card-title">${esc(t.title)}</div>
+      <div class="perch-card-meta">
+        <span class="perch-pill" style="background:${bc.bg};color:${bc.color}">${bc.label}</span>
+        <span class="perch-pill" style="background:${dc.bg};color:${dc.color}">${dc.label}</span>
+      </div>
+      <div class="perch-card-footer">
+        <span class="perch-assignee">${esc((t.assignee || '').split('@')[0])}</span>
+        <div style="display:flex;align-items:center;gap:6px">
+          ${dueStr ? `<span class="perch-due" style="color:${overdue ? '#dc2626' : 'var(--text-muted)'}">${overdue ? '⚠️ ' : ''}${dueStr}</span>` : ''}
+          <span title="${pc.label} priority">${pc.dot}</span>
+        </div>
+      </div>
+    </div>`;
+}
+
+function openTaskModal(id) {
+  const task = perchTasks.find(t => t.id === id);
+  if (!task) return;
+
+  const bc = BRAND_CONFIG[task.brand]  || BRAND_CONFIG.all;
+  const dc = DEPT_CONFIG[task.department] || { label: task.department || '', color: '#6b7280', bg: '#f3f4f6' };
+
+  const modal = document.createElement('div');
+  modal.id = 'perch-task-modal';
+  modal.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,0.6);z-index:1000;display:flex;align-items:center;justify-content:center;padding:20px';
+  modal.innerHTML = `
+    <div style="background:var(--card-bg);border-radius:12px;padding:28px;width:100%;max-width:560px;max-height:80vh;overflow-y:auto;border:1px solid var(--border)">
+      <div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:20px">
+        <div style="flex:1">
+          <div style="font-weight:700;font-size:17px;margin-bottom:8px">${esc(task.title)}</div>
+          <div style="display:flex;gap:6px;flex-wrap:wrap">
+            <span class="perch-pill" style="background:${bc.bg};color:${bc.color}">${bc.label}</span>
+            <span class="perch-pill" style="background:${dc.bg};color:${dc.color}">${dc.label}</span>
+            <span class="perch-pill" style="background:var(--surface);color:var(--text-muted)">${PRIORITY_CONFIG[task.priority]?.dot} ${task.priority}</span>
+          </div>
+        </div>
+        <button onclick="closeTaskModal()" style="background:none;border:none;color:var(--text-muted);font-size:20px;cursor:pointer;padding:0 4px">✕</button>
+      </div>
+
+      ${task.description ? `<div style="font-size:14px;color:var(--text-muted);margin-bottom:20px;white-space:pre-wrap">${esc(task.description)}</div>` : ''}
+
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:20px;font-size:13px">
+        <div><span style="color:var(--text-muted)">Assignee:</span> ${esc((task.assignee||'').split('@')[0])}</div>
+        <div><span style="color:var(--text-muted)">Due:</span> ${task.dueDate ? new Date(task.dueDate).toLocaleDateString('en-GB',{day:'numeric',month:'short',year:'numeric'}) : '—'}</div>
+        <div><span style="color:var(--text-muted)">Created by:</span> ${esc((task.createdBy||'').split('@')[0])}</div>
+        <div><span style="color:var(--text-muted)">Created:</span> ${task.createdAt ? new Date(task.createdAt).toLocaleDateString('en-GB',{day:'numeric',month:'short'}) : '—'}</div>
+      </div>
+
+      <!-- Status buttons -->
+      <div style="margin-bottom:20px">
+        <div style="font-size:12px;color:var(--text-muted);font-weight:600;margin-bottom:8px;text-transform:uppercase;letter-spacing:0.5px">Move to</div>
+        <div style="display:flex;gap:8px;flex-wrap:wrap">
+          ${COLUMNS.filter(c => c.id !== task.status).map(c =>
+            `<button onclick="moveTask('${task.id}','${c.id}')" style="font-size:12px;padding:6px 14px;border-radius:8px;border:1px solid var(--border);background:var(--surface);color:var(--text);cursor:pointer" onmouseover="this.style.borderColor='${c.color}'" onmouseout="this.style.borderColor='var(--border)'">${c.label}</button>`
+          ).join('')}
+        </div>
+      </div>
+
+      <!-- Comment -->
+      <div style="margin-bottom:20px">
+        <div style="font-size:12px;color:var(--text-muted);font-weight:600;margin-bottom:8px;text-transform:uppercase;letter-spacing:0.5px">Add Comment</div>
+        <div style="display:flex;gap:8px">
+          <input id="perch-comment-input" type="text" placeholder="Write a comment…" style="flex:1;padding:8px 12px;border-radius:8px;border:1px solid var(--border);background:var(--surface);color:var(--text);font-size:13px">
+          <button onclick="addComment('${task.id}')" style="padding:8px 16px;background:var(--primary);color:#fff;border:none;border-radius:8px;cursor:pointer;font-size:13px">Post</button>
+        </div>
+      </div>
+
+      <!-- Comments -->
+      ${(task.comments||[]).length ? `
+        <div>
+          <div style="font-size:12px;color:var(--text-muted);font-weight:600;margin-bottom:8px;text-transform:uppercase;letter-spacing:0.5px">Comments</div>
+          ${task.comments.map(c => `
+            <div style="padding:10px;background:var(--surface);border-radius:8px;margin-bottom:6px">
+              <div style="font-size:11px;color:var(--text-muted);margin-bottom:4px">${esc((c.author||'').split('@')[0])} · ${new Date(c.timestamp).toLocaleDateString('en-GB',{day:'numeric',month:'short'})}</div>
+              <div style="font-size:13px">${esc(c.text)}</div>
+            </div>`).join('')}
+        </div>` : ''}
+
+      <!-- Delete -->
+      <div style="margin-top:20px;padding-top:16px;border-top:1px solid var(--border);text-align:right">
+        <button onclick="deleteTask('${task.id}')" style="font-size:12px;color:#ef4444;background:none;border:1px solid rgba(239,68,68,0.3);padding:6px 14px;border-radius:8px;cursor:pointer">Delete Task</button>
+      </div>
+    </div>`;
+
+  document.body.appendChild(modal);
+  modal.addEventListener('click', e => { if (e.target === modal) closeTaskModal(); });
+}
+
+function closeTaskModal() {
+  const modal = document.getElementById('perch-task-modal');
+  if (modal) modal.remove();
+}
+
+async function moveTask(id, newStatus) {
+  try {
+    await fetch(`/api/perch?id=${id}`, { method: 'PATCH', credentials: 'include', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ status: newStatus }) });
+    const task = perchTasks.find(t => t.id === id);
+    if (task) task.status = newStatus;
+    closeTaskModal();
+    renderPerchBoard();
+    showToast('Task moved to ' + COLUMNS.find(c => c.id === newStatus)?.label, '');
+  } catch (e) { showToast('Failed to update task', 'error'); }
+}
+
+async function addComment(id) {
+  const input = document.getElementById('perch-comment-input');
+  const text  = input?.value?.trim();
+  if (!text) return;
+  try {
+    const res  = await fetch(`/api/perch?id=${id}`, { method: 'PATCH', credentials: 'include', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ comment: text }) });
+    const data = await res.json();
+    const idx  = perchTasks.findIndex(t => t.id === id);
+    if (idx >= 0) perchTasks[idx] = data.task;
+    closeTaskModal();
+    openTaskModal(id);
+    showToast('Comment added', '');
+  } catch (e) { showToast('Failed to add comment', 'error'); }
+}
+
+async function deleteTask(id) {
+  if (!confirm('Delete this task? This cannot be undone.')) return;
+  try {
+    await fetch(`/api/perch?id=${id}`, { method: 'DELETE', credentials: 'include' });
+    perchTasks = perchTasks.filter(t => t.id !== id);
+    closeTaskModal();
+    renderPerchBoard();
+    showToast('Task deleted', '');
+  } catch (e) { showToast('Failed to delete task', 'error'); }
+}
+
+function openAddTaskModal() {
+  const modal = document.createElement('div');
+  modal.id = 'perch-add-modal';
+  modal.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,0.6);z-index:1000;display:flex;align-items:center;justify-content:center;padding:20px';
+  modal.innerHTML = `
+    <div style="background:var(--card-bg);border-radius:12px;padding:28px;width:100%;max-width:480px;border:1px solid var(--border)">
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:20px">
+        <div style="font-weight:700;font-size:17px">New Task</div>
+        <button onclick="closeAddModal()" style="background:none;border:none;color:var(--text-muted);font-size:20px;cursor:pointer">✕</button>
+      </div>
+
+      <div style="display:flex;flex-direction:column;gap:14px">
+        <div>
+          <label style="font-size:12px;font-weight:600;color:var(--text-muted);display:block;margin-bottom:4px">TITLE *</label>
+          <input id="new-task-title" type="text" placeholder="What needs to be done?" style="width:100%;padding:9px 12px;border-radius:8px;border:1px solid var(--border);background:var(--surface);color:var(--text);font-size:13px">
+        </div>
+        <div>
+          <label style="font-size:12px;font-weight:600;color:var(--text-muted);display:block;margin-bottom:4px">DESCRIPTION</label>
+          <textarea id="new-task-desc" placeholder="Optional details…" rows="3" style="width:100%;padding:9px 12px;border-radius:8px;border:1px solid var(--border);background:var(--surface);color:var(--text);font-size:13px;resize:vertical"></textarea>
+        </div>
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px">
+          <div>
+            <label style="font-size:12px;font-weight:600;color:var(--text-muted);display:block;margin-bottom:4px">BRAND</label>
+            <select id="new-task-brand" style="width:100%;padding:8px 10px;border-radius:8px;border:1px solid var(--border);background:var(--surface);color:var(--text);font-size:13px">
+              <option value="all">All Brands</option>
+              <option value="pickl">Pickl</option>
+              <option value="bonbird">Bonbird</option>
+              <option value="southpour">Southpour</option>
+              <option value="shadowburg">Shadowburg</option>
+              <option value="shadowbird">Shadowbird</option>
+            </select>
+          </div>
+          <div>
+            <label style="font-size:12px;font-weight:600;color:var(--text-muted);display:block;margin-bottom:4px">DEPARTMENT</label>
+            <select id="new-task-dept" style="width:100%;padding:8px 10px;border-radius:8px;border:1px solid var(--border);background:var(--surface);color:var(--text);font-size:13px">
+              <option value="seo">SEO</option>
+              <option value="social">Social</option>
+              <option value="design">Design</option>
+              <option value="content">Content</option>
+            </select>
+          </div>
+          <div>
+            <label style="font-size:12px;font-weight:600;color:var(--text-muted);display:block;margin-bottom:4px">PRIORITY</label>
+            <select id="new-task-priority" style="width:100%;padding:8px 10px;border-radius:8px;border:1px solid var(--border);background:var(--surface);color:var(--text);font-size:13px">
+              <option value="medium">Medium</option>
+              <option value="high">High</option>
+              <option value="low">Low</option>
+            </select>
+          </div>
+          <div>
+            <label style="font-size:12px;font-weight:600;color:var(--text-muted);display:block;margin-bottom:4px">DUE DATE</label>
+            <input id="new-task-due" type="date" style="width:100%;padding:8px 10px;border-radius:8px;border:1px solid var(--border);background:var(--surface);color:var(--text);font-size:13px">
+          </div>
+        </div>
+        <div>
+          <label style="font-size:12px;font-weight:600;color:var(--text-muted);display:block;margin-bottom:4px">ASSIGNEE EMAIL</label>
+          <input id="new-task-assignee" type="email" placeholder="${state.userEmail}" style="width:100%;padding:9px 12px;border-radius:8px;border:1px solid var(--border);background:var(--surface);color:var(--text);font-size:13px">
+        </div>
+      </div>
+
+      <div style="display:flex;gap:10px;justify-content:flex-end;margin-top:20px">
+        <button onclick="closeAddModal()" style="padding:9px 20px;border-radius:8px;border:1px solid var(--border);background:transparent;color:var(--text);font-size:13px;cursor:pointer">Cancel</button>
+        <button onclick="submitNewTask()" class="btn-primary" style="padding:9px 20px;font-size:13px">Create Task</button>
+      </div>
+    </div>`;
+
+  document.body.appendChild(modal);
+  modal.addEventListener('click', e => { if (e.target === modal) closeAddModal(); });
+  document.getElementById('new-task-title')?.focus();
+  // Pre-fill user's brand + dept
+  if (state.userBrand)      document.getElementById('new-task-brand').value = state.userBrand;
+  if (state.userDepartment) document.getElementById('new-task-dept').value  = state.userDepartment;
+}
+
+function closeAddModal() {
+  const modal = document.getElementById('perch-add-modal');
+  if (modal) modal.remove();
+}
+
+async function submitNewTask() {
+  const title    = document.getElementById('new-task-title')?.value?.trim();
+  const desc     = document.getElementById('new-task-desc')?.value?.trim();
+  const brand    = document.getElementById('new-task-brand')?.value;
+  const dept     = document.getElementById('new-task-dept')?.value;
+  const priority = document.getElementById('new-task-priority')?.value;
+  const dueDate  = document.getElementById('new-task-due')?.value;
+  const assignee = document.getElementById('new-task-assignee')?.value?.trim() || state.userEmail;
+
+  if (!title) { showToast('Title is required', 'error'); return; }
+
+  try {
+    const res  = await fetch('/api/perch', { method: 'POST', credentials: 'include', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ title, description: desc, brand, department: dept, priority, dueDate: dueDate || null, assignee }) });
+    const data = await res.json();
+    if (!res.ok) throw new Error(data.error || 'Failed');
+    perchTasks.unshift(data.task);
+    closeAddModal();
+    renderPerchBoard();
+    showToast('Task created', '');
+  } catch (e) { showToast('Failed: ' + e.message, 'error'); }
+}
+
+// ═══════════════════════════════════════════════════════════════
 // TECHNICAL SEO
 // ═══════════════════════════════════════════════════════════════
 
@@ -2165,6 +2615,7 @@ function switchTechSeoBrand(brand) {
     p.classList.toggle('active', p.textContent.toLowerCase().includes(brand));
   });
   loadTechnicalSeo();
+  loadTechDevKanban(brand);
 }
 
 async function loadTechnicalSeo() {
@@ -2377,6 +2828,161 @@ function renderTechSeoResults(data) {
       ? '<div style="color:var(--text-muted);font-size:13px">Checking…</div>'
       : '<div style="color:var(--text-muted);font-size:13px">No data yet.</div>';
   }
+
+  // ── International pages health ────────────────────────────────
+  const intlEl      = document.getElementById('techseo-intl-table');
+  const intlSummary = document.getElementById('techseo-intl-summary');
+  const intlResults = data.intlResults || [];
+
+  if (intlEl) {
+    if (!intlResults.length) {
+      intlEl.innerHTML = `<div style="color:var(--text-muted);font-size:13px">${data.status === 'running' ? 'Health checking international pages…' : 'No data yet.'}</div>`;
+    } else {
+      const failing = intlResults.filter(r => r.health?.status !== 'ok' || r.health?.responseTimeMs > 3000 || r.error).length;
+      if (intlSummary) intlSummary.textContent = failing ? `⚠️ ${failing} issue${failing !== 1 ? 's' : ''}` : `✅ All ${intlResults.length} healthy`;
+
+      intlEl.innerHTML = `
+        <table style="width:100%;border-collapse:collapse;font-size:13px">
+          <thead>
+            <tr style="border-bottom:1px solid var(--border);color:var(--text-muted)">
+              <th style="text-align:left;padding:8px 12px;font-weight:600">Market</th>
+              <th style="text-align:left;padding:8px 12px;font-weight:600">URL</th>
+              <th style="text-align:center;padding:8px 12px;font-weight:600">Status</th>
+              <th style="text-align:center;padding:8px 12px;font-weight:600">Response</th>
+              <th style="text-align:center;padding:8px 12px;font-weight:600">Mobile Score</th>
+            </tr>
+          </thead>
+          <tbody>
+            ${intlResults.map(r => {
+              const ok       = !r.error && r.health?.status === 'ok' && r.health?.responseTimeMs <= 3000;
+              const slow     = !r.error && r.health?.status === 'ok' && r.health?.responseTimeMs > 3000;
+              const statusIcon = r.error ? '❌' : slow ? '⚠️' : ok ? '✅' : '❌';
+              const rtColor    = r.health?.responseTimeMs > 3000 ? '#dc2626' : r.health?.responseTimeMs > 1500 ? '#d97706' : '#059669';
+              return `
+                <tr style="border-bottom:1px solid var(--border)">
+                  <td style="padding:10px 12px;font-weight:500">${esc(r.label)}</td>
+                  <td style="padding:10px 12px;font-size:12px;color:var(--text-muted)">
+                    <a href="${esc(r.url)}" target="_blank" style="color:var(--text-muted)">${r.url.replace('https://', '')}</a>
+                  </td>
+                  <td style="text-align:center;padding:10px 12px">${statusIcon} ${r.health?.httpStatus || (r.error ? 'Error' : '—')}</td>
+                  <td style="text-align:center;padding:10px 12px;color:${rtColor};font-weight:600">
+                    ${r.health?.responseTimeMs ? r.health.responseTimeMs + 'ms' : '—'}
+                  </td>
+                  <td style="text-align:center;padding:10px 12px">
+                    ${r.mobile ? scoreChip(r.mobile.score) : (r.escalated ? '<span style="color:var(--text-muted);font-size:12px">Running…</span>' : '<span style="color:var(--text-muted);font-size:12px">—</span>')}
+                    ${r.escalated ? '<div style="font-size:10px;color:#d97706;margin-top:2px">escalated</div>' : ''}
+                  </td>
+                </tr>`;
+            }).join('')}
+          </tbody>
+        </table>`;
+    }
+  }
+
+  // ── Developer kanban ──────────────────────────────────────────
+  loadTechDevKanban(techSeoState.brand);
+}
+
+// ── Developer kanban ──────────────────────────────────────────────────────────
+
+let techTasksCache = {};
+
+async function loadTechDevKanban(brand) {
+  try {
+    const data  = await fetch(`/api/tech-tasks?brand=${brand}`, { credentials: 'include' }).then(r => r.json());
+    techTasksCache[brand] = data.tasks || [];
+    renderTechDevKanban(brand);
+  } catch (e) {
+    console.warn('[tech-tasks] Failed to load:', e.message);
+  }
+}
+
+function renderTechDevKanban(brand) {
+  const kanbanEl = document.getElementById('techseo-dev-kanban');
+  const emptyEl  = document.getElementById('techseo-dev-empty');
+  if (!kanbanEl) return;
+
+  const tasks = techTasksCache[brand] || [];
+  if (!tasks.length) {
+    kanbanEl.style.display = 'none';
+    if (emptyEl) emptyEl.style.display = '';
+    return;
+  }
+
+  kanbanEl.style.display = '';
+  if (emptyEl) emptyEl.style.display = 'none';
+
+  const DEV_COLS = [
+    { id: 'todo',       label: 'To Do',      color: '#6b7280' },
+    { id: 'inprogress', label: 'In Progress', color: '#3b82f6' },
+    { id: 'done',       label: 'Done',        color: '#059669' },
+  ];
+
+  kanbanEl.innerHTML = DEV_COLS.map(col => {
+    const colTasks = tasks.filter(t => t.status === col.id);
+    return `
+      <div style="background:var(--surface);border-radius:10px;padding:14px">
+        <div style="font-weight:600;font-size:13px;color:${col.color};margin-bottom:12px;display:flex;justify-content:space-between;align-items:center">
+          ${col.label}
+          <span style="background:var(--border);color:var(--text-muted);padding:2px 7px;border-radius:99px;font-size:11px">${colTasks.length}</span>
+        </div>
+        ${colTasks.length ? colTasks.map(t => buildTechTaskCard(t, col.id)).join('') : `<div style="font-size:12px;color:var(--text-muted);padding:8px 0">No tasks</div>`}
+      </div>`;
+  }).join('');
+}
+
+function buildTechTaskCard(task, currentStatus) {
+  const sevColor = task.severity === 'critical' ? '#dc2626' : '#d97706';
+  const DEV_COLS = [
+    { id: 'todo',       label: 'To Do' },
+    { id: 'inprogress', label: 'In Progress' },
+    { id: 'done',       label: 'Done' },
+  ];
+  const nextCols = DEV_COLS.filter(c => c.id !== currentStatus);
+
+  return `
+    <div style="background:var(--card-bg);border:1px solid var(--border);border-left:3px solid ${sevColor};border-radius:8px;padding:10px;margin-bottom:8px">
+      <div style="font-weight:600;font-size:12px;margin-bottom:4px;line-height:1.3">${esc(task.title)}</div>
+      ${task.url ? `<div style="font-size:11px;color:var(--text-muted);margin-bottom:6px">${task.url.replace('https://', '')}</div>` : ''}
+      ${task.mobileScore != null ? `<div style="font-size:11px;margin-bottom:6px">Mobile: ${scoreChip(task.mobileScore)}</div>` : ''}
+      <div style="display:flex;gap:6px;flex-wrap:wrap">
+        ${nextCols.map(c =>
+          `<button onclick="moveTechTask('${esc(task.id)}','${c.id}','${esc(techSeoState.brand)}')"
+            style="font-size:11px;padding:3px 8px;border-radius:6px;border:1px solid var(--border);background:var(--surface);color:var(--text);cursor:pointer">
+            → ${c.label}
+          </button>`
+        ).join('')}
+      </div>
+    </div>`;
+}
+
+async function moveTechTask(id, newStatus, brand) {
+  try {
+    await fetch(`/api/tech-tasks?id=${id}`, {
+      method: 'PATCH',
+      credentials: 'include',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ status: newStatus }),
+    });
+    const tasks = techTasksCache[brand] || [];
+    const task  = tasks.find(t => t.id === id);
+    if (task) task.status = newStatus;
+    renderTechDevKanban(brand);
+    showToast('Task updated', '');
+  } catch (e) { showToast('Failed to update task', 'error'); }
+}
+
+async function clearDoneTechTasks() {
+  const brand = techSeoState.brand;
+  const tasks = (techTasksCache[brand] || []).filter(t => t.status === 'done');
+  if (!tasks.length) { showToast('No done tasks to clear', ''); return; }
+  if (!confirm(`Clear ${tasks.length} done task${tasks.length !== 1 ? 's' : ''}?`)) return;
+  for (const t of tasks) {
+    try { await fetch(`/api/tech-tasks?id=${t.id}`, { method: 'DELETE', credentials: 'include' }); } catch { /* skip */ }
+  }
+  techTasksCache[brand] = (techTasksCache[brand] || []).filter(t => t.status !== 'done');
+  renderTechDevKanban(brand);
+  showToast('Done tasks cleared', '');
 }
 
 // ── Rendering helpers ─────────────────────────────────────────────────────────

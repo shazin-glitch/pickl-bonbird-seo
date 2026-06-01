@@ -13,7 +13,9 @@ const BOOTSTRAP_ADMINS = [
   'steve@yolkbrands.com',
 ];
 
-const VALID_ROLES = ['viewer', 'manager', 'admin'];
+const VALID_ROLES       = ['viewer', 'manager', 'admin'];
+const VALID_BRANDS      = ['pickl', 'bonbird', 'southpour', 'shadowburg', 'shadowbird', 'all'];
+const VALID_DEPARTMENTS = ['seo', 'social', 'design', 'content'];
 
 async function getCallerRole(event, store) {
   const cookie = event.headers?.cookie || '';
@@ -71,13 +73,17 @@ exports.handler = async (event) => {
 
       const users = await Promise.all(index.map(async (email) => {
         let role = BOOTSTRAP_ADMINS.includes(email) ? 'admin' : 'viewer';
-        let name = '';
-        let lastLogin = null;
+        let name = '', lastLogin = null, brand = null, department = null;
         try {
           const rec = await store.get(`userRole:${email}`, { type: 'json' });
           if (rec) { role = rec.role || role; name = rec.name || ''; lastLogin = rec.lastLogin || null; }
         } catch { /* use defaults */ }
-        return { email, role, name, lastLogin, isBootstrap: BOOTSTRAP_ADMINS.includes(email) };
+        try {
+          const profile = await store.get(`userProfile:${email}`, { type: 'json' });
+          brand      = profile?.brand      || null;
+          department = profile?.department || null;
+        } catch { /* use null */ }
+        return { email, role, name, lastLogin, brand, department, isBootstrap: BOOTSTRAP_ADMINS.includes(email) };
       }));
 
       return { statusCode: 200, headers, body: JSON.stringify({ users }) };
@@ -100,18 +106,37 @@ exports.handler = async (event) => {
       return { statusCode: 200, headers, body: JSON.stringify({ success: true, email: normalised, role }) };
     }
 
-    // ── PUT: update role ───────────────────────────────────────────────────
+    // ── PUT: update role / brand / department ──────────────────────────────
     if (event.httpMethod === 'PUT') {
-      const { email, role } = JSON.parse(event.body || '{}');
-      if (!email || !role) return { statusCode: 400, headers, body: JSON.stringify({ error: 'email and role required' }) };
-      if (!VALID_ROLES.includes(role)) return { statusCode: 400, headers, body: JSON.stringify({ error: 'Invalid role' }) };
+      const { email, role, brand, department } = JSON.parse(event.body || '{}');
+      if (!email) return { statusCode: 400, headers, body: JSON.stringify({ error: 'email required' }) };
 
       const normalised = email.trim().toLowerCase();
-      let existing = {};
-      try { existing = await store.get(`userRole:${normalised}`, { type: 'json' }) || {}; } catch { /* new record */ }
-      await store.set(`userRole:${normalised}`, JSON.stringify({ ...existing, email: normalised, role, updatedAt: new Date().toISOString() }));
 
-      return { statusCode: 200, headers, body: JSON.stringify({ success: true, email: normalised, role }) };
+      // Update role if provided
+      if (role) {
+        if (!VALID_ROLES.includes(role)) return { statusCode: 400, headers, body: JSON.stringify({ error: 'Invalid role' }) };
+        let existing = {};
+        try { existing = await store.get(`userRole:${normalised}`, { type: 'json' }) || {}; } catch { /* new record */ }
+        await store.set(`userRole:${normalised}`, JSON.stringify({ ...existing, email: normalised, role, updatedAt: new Date().toISOString() }));
+      }
+
+      // Update brand + department if provided
+      if (brand !== undefined || department !== undefined) {
+        if (brand && !VALID_BRANDS.includes(brand)) return { statusCode: 400, headers, body: JSON.stringify({ error: 'Invalid brand' }) };
+        if (department && !VALID_DEPARTMENTS.includes(department)) return { statusCode: 400, headers, body: JSON.stringify({ error: 'Invalid department' }) };
+        let existing = {};
+        try { existing = await store.get(`userProfile:${normalised}`, { type: 'json' }) || {}; } catch { /* new */ }
+        await store.set(`userProfile:${normalised}`, JSON.stringify({
+          ...existing,
+          email: normalised,
+          brand:      brand      ?? existing.brand,
+          department: department ?? existing.department,
+          updatedAt:  new Date().toISOString(),
+        }));
+      }
+
+      return { statusCode: 200, headers, body: JSON.stringify({ success: true, email: normalised }) };
     }
 
     // ── DELETE: remove user ────────────────────────────────────────────────

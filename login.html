@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Yolk SEO Command Center</title>
+  <title>The Nest — Yolk Brands</title>
   <style>
     *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
 
@@ -35,22 +35,30 @@
     }
 
     .logo-icon {
-      width: 36px;
-      height: 36px;
+      width: 40px;
+      height: 40px;
       background: linear-gradient(135deg, #DF0070, #C5161A);
-      border-radius: 8px;
+      border-radius: 10px;
       display: flex;
       align-items: center;
       justify-content: center;
+      font-size: 22px;
     }
 
-    .logo-icon svg { width: 20px; height: 20px; fill: #fff; }
-
     .logo-text {
-      font-size: 18px;
+      font-size: 22px;
       font-weight: 700;
       color: #f1f5f9;
-      letter-spacing: -0.02em;
+      letter-spacing: -0.03em;
+    }
+
+    .logo-sub {
+      font-size: 11px;
+      color: #64748b;
+      font-weight: 500;
+      letter-spacing: 0.08em;
+      text-transform: uppercase;
+      margin-top: 2px;
     }
 
     h1 {
@@ -112,14 +120,15 @@
 
 <div class="login-card">
   <div class="logo">
-    <div class="logo-icon">
-      <svg viewBox="0 0 24 24"><path d="M12 2L2 7l10 5 10-5-10-5zM2 17l10 5 10-5M2 12l10 5 10-5"/></svg>
+    <div class="logo-icon">🪺</div>
+    <div>
+      <div class="logo-text">The Nest</div>
+      <div class="logo-sub">Yolk Brands</div>
     </div>
-    <span class="logo-text">SEO Command</span>
   </div>
 
   <h1>Welcome back</h1>
-  <p class="subtitle">Sign in with your Yolk Brands Google account to access the SEO Command Center.</p>
+  <p class="subtitle">Sign in with your Yolk Brands Google account to access The Nest.</p>
 
   <div class="error-banner" id="error-banner"></div>
 
@@ -134,21 +143,18 @@
     Sign in with Google
   </a>
 
-  <div class="footer">Only authorised Yolk Brands accounts can access this tool.</div>
+  <div class="footer">Only authorised Yolk Brands accounts can access The Nest.</div>
 </div>
 
 <script>
-  // Show error if redirected with error param
   const params = new URLSearchParams(window.location.search);
   const err = params.get('error');
   if (err) {
     const banner = document.getElementById('error-banner');
     banner.style.display = 'block';
-    if (err === 'access_denied') {
-      banner.textContent = 'Access denied. Contact an admin to request access.';
-    } else {
-      banner.textContent = 'Sign-in failed: ' + err.replace(/_/g, ' ');
-    }
+    banner.textContent = err === 'access_denied'
+      ? 'Access denied. Contact an admin to request access.'
+      : 'Sign-in failed: ' + err.replace(/_/g, ' ');
   }
 </script>
 

@@ -1,112 +1,192 @@
 // netlify/functions/technical-seo-background.js
-// Technical SEO audit — runs on demand (triggered by technical-seo.js).
-// Checks each brand's key pages via Google PageSpeed Insights (free, no auth).
-// Also checks sitemap.xml and robots.txt health.
-// Saves results to Blobs under technicalSeo:<brand> — incrementally updated so
-// the frontend can poll and show results as they come in.
-// Critical issues are auto-queued as onpage_suggestion approval items.
+// Technical SEO audit — runs on demand + weekly Monday cron.
+//
+// SCOPE:
+//   Full PSI (mobile + desktop): WP-sourced core pages (~8 per brand)
+//   HTTP health check: all international market pages (fast, ~30 seconds)
+//   PSI escalation: any international page with response >3s or non-200 gets full PSI
+//
+// RESULTS: stored in Blobs technicalSeo:<brand> — updated after each page so
+//          frontend can poll and show partial results while running.
+//
+// ISSUES: stored in Blobs techTask:<id> + techTaskIndex:<brand>
+//         NEVER written to the main Approvals Queue.
 
-const { getSetting, setSetting, createApproval } = require('./_lib/store');
-
-// Pages to audit per brand
-const BRAND_PAGES = {
-  pickl: [
-    { url: 'https://eatpickl.com',           label: 'Homepage' },
-    { url: 'https://eatpickl.com/menu',       label: 'Menu' },
-    { url: 'https://eatpickl.com/locations',  label: 'Locations' },
-    { url: 'https://eatpickl.com/journal',    label: 'Journal' },
-  ],
-  bonbird: [
-    { url: 'https://bonbirdchicken.com',          label: 'Homepage' },
-    { url: 'https://bonbirdchicken.com/menu',      label: 'Menu' },
-    { url: 'https://bonbirdchicken.com/locations', label: 'Locations' },
-  ],
-};
+const { getSetting, setSetting, newId, logAudit } = require('./_lib/store');
+const { INTERNATIONAL_MARKETS } = require('./_lib/international-config');
 
 const BRAND_DOMAINS = {
   pickl:   'https://eatpickl.com',
   bonbird: 'https://bonbirdchicken.com',
 };
 
+const BRAND_WP = {
+  pickl:   { base: 'WP_PICKL_BASE',   user: 'WP_PICKL_USER',   pass: 'WP_PICKL_APP_PASS' },
+  bonbird: { base: 'WP_BONBIRD_BASE', user: 'WP_BONBIRD_USER', pass: 'WP_BONBIRD_APP_PASS' },
+};
+
 exports.handler = async (event) => {
   let brand;
   try { brand = JSON.parse(event.body || '{}').brand; } catch { brand = null; }
-  if (!brand || !BRAND_PAGES[brand]) return;
+  if (!brand || !BRAND_DOMAINS[brand]) return;
 
-  // Read the running state we wrote in technical-seo.js
-  const audit = await getSetting(`technicalSeo:${brand}`).catch(() => ({
+  const domain = BRAND_DOMAINS[brand];
+
+  const audit = {
+    brand,
     status:    'running',
     startedAt: Date.now(),
-    brand,
     results:   [],
-  }));
+    intlResults: [],
+    technicalChecks: null,
+    summary: null,
+  };
+  await setSetting(`technicalSeo:${brand}`, audit);
 
-  const pages   = BRAND_PAGES[brand];
-  const results = [];
+  // ── PART 1: Full PSI on core pages from WordPress ────────────────────────
+  const corePages = await getCorePages(brand, domain);
+  console.log(`[tech-seo] ${brand}: ${corePages.length} core pages to audit`);
 
-  for (const page of pages) {
-    console.log(`[tech-seo] Auditing ${page.url} (mobile + desktop)...`);
+  for (const page of corePages) {
+    console.log(`[tech-seo] PSI: ${page.url}`);
     try {
-      // Run mobile and desktop checks in parallel — both PSI calls at once
       const [mobile, desktop] = await Promise.all([
         runPageSpeed(page.url, 'mobile'),
         runPageSpeed(page.url, 'desktop'),
       ]);
-
-      const result = {
-        url:        page.url,
-        label:      page.label,
-        mobile,
-        desktop,
-        checkedAt:  Date.now(),
-      };
-      results.push(result);
-
-      // Save after each page so frontend can show partial results
-      await setSetting(`technicalSeo:${brand}`, {
-        ...audit,
-        results,
-        status: 'running',
-      }).catch(() => {});
-
-      // Queue critical issues as approval items
-      await queueCriticalIssues(brand, page, mobile, desktop);
-
+      audit.results.push({ url: page.url, label: page.label, mobile, desktop, checkedAt: Date.now() });
+      await setSetting(`technicalSeo:${brand}`, { ...audit });
+      await createIssuesFromPsi(brand, page, mobile, desktop);
     } catch (e) {
-      console.error(`[tech-seo] PSI error for ${page.url}:`, e.message);
-      results.push({ url: page.url, label: page.label, error: e.message, checkedAt: Date.now() });
+      console.error(`[tech-seo] PSI error ${page.url}:`, e.message);
+      audit.results.push({ url: page.url, label: page.label, error: e.message, checkedAt: Date.now() });
+      await setSetting(`technicalSeo:${brand}`, { ...audit });
     }
   }
 
-  // Site-level technical checks (sitemap, robots, HTTPS)
-  const domain         = BRAND_DOMAINS[brand];
-  const technicalChecks = await runSiteChecks(domain);
+  // ── PART 2: Health check on international pages ──────────────────────────
+  const intlPages = getInternationalPages(brand, domain);
+  console.log(`[tech-seo] ${brand}: ${intlPages.length} international pages to health-check`);
 
-  // Final save — status complete
-  const finalAudit = {
-    brand,
-    status:       'complete',
-    startedAt:    audit.startedAt,
-    completedAt:  Date.now(),
-    results,
-    technicalChecks,
-    summary:      buildSummary(results, technicalChecks),
-  };
+  for (const page of intlPages) {
+    try {
+      const health = await runHealthCheck(page.url);
+      const result = { url: page.url, label: page.label, market: page.market, health, checkedAt: Date.now() };
 
-  await setSetting(`technicalSeo:${brand}`, finalAudit);
-  console.log(`[tech-seo] Audit complete for ${brand}. ${results.length} pages checked.`);
+      // Escalate to full PSI if health check fails
+      if (health.status !== 'ok' || health.responseTimeMs > 3000) {
+        console.log(`[tech-seo] Escalating ${page.url} to PSI (${health.status}, ${health.responseTimeMs}ms)`);
+        try {
+          const [mobile, desktop] = await Promise.all([
+            runPageSpeed(page.url, 'mobile'),
+            runPageSpeed(page.url, 'desktop'),
+          ]);
+          result.mobile  = mobile;
+          result.desktop = desktop;
+          result.escalated = true;
+          await createIssuesFromPsi(brand, page, mobile, desktop);
+        } catch (psiErr) {
+          result.psiError = psiErr.message;
+        }
+      }
+
+      audit.intlResults.push(result);
+      await setSetting(`technicalSeo:${brand}`, { ...audit });
+    } catch (e) {
+      console.error(`[tech-seo] Health check error ${page.url}:`, e.message);
+      audit.intlResults.push({ url: page.url, label: page.label, market: page.market, error: e.message, checkedAt: Date.now() });
+    }
+  }
+
+  // ── PART 3: Site-level checks ────────────────────────────────────────────
+  audit.technicalChecks = await runSiteChecks(domain);
+
+  // ── Final save ───────────────────────────────────────────────────────────
+  audit.status      = 'complete';
+  audit.completedAt = Date.now();
+  audit.summary     = buildSummary(audit.results, audit.intlResults, audit.technicalChecks);
+  await setSetting(`technicalSeo:${brand}`, audit);
+  console.log(`[tech-seo] Audit complete for ${brand}. Core: ${audit.results.length}, Intl: ${audit.intlResults.length}`);
 };
+
+// ── Get core pages from WordPress ─────────────────────────────────────────────
+
+async function getCorePages(brand, domain) {
+  const pages = [{ url: domain, label: 'Homepage' }]; // Homepage always first
+  const envKeys = BRAND_WP[brand];
+  const wpBase  = process.env[envKeys.base];
+  const wpUser  = process.env[envKeys.user];
+  const wpPass  = process.env[envKeys.pass];
+
+  if (wpBase && wpUser && wpPass) {
+    try {
+      const auth = Buffer.from(`${wpUser}:${wpPass}`).toString('base64');
+      const res  = await fetch(
+        `${wpBase}/wp-json/wp/v2/pages?status=publish&per_page=100&_fields=id,slug,link,title,parent&orderby=menu_order&order=asc`,
+        { headers: { Authorization: `Basic ${auth}` }, signal: AbortSignal.timeout(15000) }
+      );
+      const wpPages = await res.json();
+
+      if (Array.isArray(wpPages)) {
+        // Get impressions from GSC page cache for prioritisation
+        const gscSiteUrl = brand === 'pickl' ? 'https://eatpickl.com/' : 'sc-domain:bonbirdchicken.com';
+        const gscCache   = await getSetting('gscPageCache:' + gscSiteUrl).catch(() => null);
+        const impMap     = {};
+        for (const row of (gscCache?.rows || [])) {
+          const path = (row.page || '').replace(/^https?:\/\/[^/]+/, '');
+          impMap[path] = (impMap[path] || 0) + row.impressions;
+        }
+
+        // Filter out WP internal pages + sort by impressions desc
+        const SKIP_SLUGS = ['sample-page', 'privacy-policy', 'cookie-policy', 'terms', 'thank-you', 'cart', 'checkout', 'my-account'];
+        const mapped = wpPages
+          .filter(p => !SKIP_SLUGS.includes(p.slug))
+          .map(p => {
+            const url  = p.link || `${domain}/${p.slug}/`;
+            const path = url.replace(/^https?:\/\/[^/]+/, '');
+            return { url, label: p.title?.rendered || p.slug, slug: p.slug, impressions: impMap[path] || 0 };
+          })
+          .sort((a, b) => b.impressions - a.impressions)
+          .slice(0, 8); // Top 8 by impressions + homepage = 9 total
+
+        pages.push(...mapped);
+      }
+    } catch (e) {
+      console.warn('[tech-seo] WP pages fetch failed:', e.message);
+      // Fallback to sensible defaults
+      pages.push(
+        { url: `${domain}/menu`,      label: 'Menu' },
+        { url: `${domain}/locations`, label: 'Locations' },
+        { url: `${domain}/franchise`, label: 'Franchise' },
+      );
+    }
+  }
+
+  // Deduplicate by URL
+  const seen = new Set();
+  return pages.filter(p => { if (seen.has(p.url)) return false; seen.add(p.url); return true; });
+}
+
+// ── Get international pages from config ───────────────────────────────────────
+
+function getInternationalPages(brand, domain) {
+  return Object.values(INTERNATIONAL_MARKETS)
+    .filter(m => m.brand === brand)
+    .map(m => ({
+      url:    `${domain}/${m.marketSlug || m.marketKey}/`,
+      label:  `${m.flag} ${m.label}`,
+      market: m.marketKey,
+    }));
+}
 
 // ── PageSpeed Insights ────────────────────────────────────────────────────────
 
 async function runPageSpeed(url, strategy) {
-  const apiUrl = `https://www.googleapis.com/pagespeedonline/v5/runPagespeed?url=${encodeURIComponent(url)}&strategy=${strategy}`;
-  
+  const key    = process.env.GOOGLE_PAGESPEED_KEY ? `&key=${process.env.GOOGLE_PAGESPEED_KEY}` : '';
+  const apiUrl = `https://www.googleapis.com/pagespeedonline/v5/runPagespeed?url=${encodeURIComponent(url)}&strategy=${strategy}${key}`;
+
   const res = await fetch(apiUrl, { signal: AbortSignal.timeout(45000) });
-  if (!res.ok) {
-    const err = await res.text().catch(() => '');
-    throw new Error(`PSI ${res.status}: ${err.slice(0, 200)}`);
-  }
+  if (!res.ok) throw new Error(`PSI ${res.status}: ${(await res.text().catch(() => '')).slice(0, 300)}`);
 
   const data = await res.json();
   if (data.error) throw new Error(data.error.message || 'PSI API error');
@@ -116,17 +196,13 @@ async function runPageSpeed(url, strategy) {
 
   const audits = lh.audits || {};
   const score  = Math.round((lh.categories.performance.score || 0) * 100);
+  const lcp    = audits['largest-contentful-paint'];
+  const cls    = audits['cumulative-layout-shift'];
+  const tbt    = audits['total-blocking-time'];
+  const fcp    = audits['first-contentful-paint'];
+  const si     = audits['speed-index'];
+  const tti    = audits['interactive'];
 
-  // Core Web Vitals (lab data)
-  const lcp  = audits['largest-contentful-paint'];
-  const cls  = audits['cumulative-layout-shift'];
-  const tbt  = audits['total-blocking-time'];       // lab proxy for INP
-  const fcp  = audits['first-contentful-paint'];
-  const si   = audits['speed-index'];
-  const tti  = audits['interactive'];
-  const ttfb = audits['server-response-time'];
-
-  // Field data (real user Chrome UX Report data — may not exist for low-traffic pages)
   const fieldMetrics = data.loadingExperience?.metrics || null;
   const fieldData    = fieldMetrics ? {
     lcp:     fieldMetrics.LARGEST_CONTENTFUL_PAINT_MS?.category   || null,
@@ -135,27 +211,11 @@ async function runPageSpeed(url, strategy) {
     overall: data.loadingExperience?.overall_category              || null,
   } : null;
 
-  // Top improvement opportunities from Lighthouse
-  const oppIds = [
-    'render-blocking-resources',
-    'unused-javascript',
-    'unused-css-rules',
-    'uses-optimized-images',
-    'uses-webp-images',
-    'uses-text-compression',
-    'uses-long-cache-ttl',
-    'efficient-animated-content',
-  ];
+  const oppIds = ['render-blocking-resources','unused-javascript','unused-css-rules','uses-optimized-images','uses-webp-images','uses-text-compression','uses-long-cache-ttl'];
   const opportunities = oppIds
     .map(id => audits[id])
     .filter(a => a && a.score !== null && a.score < 0.9 && a.title)
-    .map(a => ({
-      id:           a.id,
-      title:        a.title,
-      description:  (a.description || '').split('.')[0] + '.',
-      displayValue: a.displayValue || null,
-      score:        Math.round((a.score || 0) * 100),
-    }))
+    .map(a => ({ id: a.id, title: a.title, description: (a.description || '').split('.')[0] + '.', displayValue: a.displayValue || null, score: Math.round((a.score || 0) * 100) }))
     .slice(0, 6);
 
   return {
@@ -167,165 +227,157 @@ async function runPageSpeed(url, strategy) {
       fcp:  { display: fcp?.displayValue,  value: fcp?.numericValue },
       si:   { display: si?.displayValue,   value: si?.numericValue },
       tti:  { display: tti?.displayValue,  value: tti?.numericValue },
-      ttfb: { display: ttfb?.displayValue, value: ttfb?.numericValue },
     },
     fieldData,
     opportunities,
   };
 }
 
-// ── CWV thresholds ────────────────────────────────────────────────────────────
+// ── HTTP Health Check ─────────────────────────────────────────────────────────
 
-function scoreLcp(ms) {
-  if (ms == null) return 'unknown';
-  if (ms <= 2500) return 'good';
-  if (ms <= 4000) return 'needs-improvement';
-  return 'poor';
-}
-
-function scoreCls(val) {
-  if (val == null) return 'unknown';
-  if (val <= 0.1)  return 'good';
-  if (val <= 0.25) return 'needs-improvement';
-  return 'poor';
-}
-
-function scoreTbt(ms) {
-  if (ms == null) return 'unknown';
-  if (ms <= 200) return 'good';
-  if (ms <= 600) return 'needs-improvement';
-  return 'poor';
+async function runHealthCheck(url) {
+  const start = Date.now();
+  try {
+    const res = await fetch(url, { method: 'HEAD', signal: AbortSignal.timeout(10000), redirect: 'follow' });
+    const responseTimeMs = Date.now() - start;
+    return {
+      status:         res.ok ? 'ok' : 'error',
+      httpStatus:     res.status,
+      responseTimeMs,
+      finalUrl:       res.url !== url ? res.url : null,
+    };
+  } catch (e) {
+    return { status: 'error', httpStatus: null, responseTimeMs: Date.now() - start, error: e.message };
+  }
 }
 
 // ── Site-level checks ─────────────────────────────────────────────────────────
 
 async function runSiteChecks(domain) {
   const checks = {};
-  const to     = { signal: AbortSignal.timeout(10000) };
+  const to = { signal: AbortSignal.timeout(10000) };
 
-  // sitemap.xml
   try {
     const res = await fetch(`${domain}/sitemap.xml`, { ...to, method: 'HEAD' });
-    checks.sitemap = { status: res.ok ? 'ok' : 'missing', httpStatus: res.status };
     if (!res.ok) {
-      // Try sitemap_index.xml as fallback
       const res2 = await fetch(`${domain}/sitemap_index.xml`, { ...to, method: 'HEAD' });
-      if (res2.ok) checks.sitemap = { status: 'ok', httpStatus: res2.status, path: '/sitemap_index.xml' };
+      checks.sitemap = res2.ok ? { status: 'ok', path: '/sitemap_index.xml' } : { status: 'missing', httpStatus: res.status };
+    } else {
+      checks.sitemap = { status: 'ok', path: '/sitemap.xml' };
     }
-  } catch (e) {
-    checks.sitemap = { status: 'error', error: e.message };
-  }
+  } catch (e) { checks.sitemap = { status: 'error', error: e.message }; }
 
-  // robots.txt
   try {
     const res = await fetch(`${domain}/robots.txt`, to);
     if (!res.ok) {
       checks.robotsTxt = { status: 'missing', blocking: false };
     } else {
-      const text     = await res.text();
-      const blocking = /disallow:\s*\/\s*$/im.test(text);
+      const text       = await res.text();
+      const blocking   = /disallow:\s*\/\s*$/im.test(text);
       const hasSitemap = /sitemap:/i.test(text);
       checks.robotsTxt = { status: 'ok', blocking, hasSitemap, snippet: text.slice(0, 300) };
     }
-  } catch (e) {
-    checks.robotsTxt = { status: 'error', error: e.message };
-  }
+  } catch (e) { checks.robotsTxt = { status: 'error', error: e.message }; }
 
-  // HTTPS enforcement (can only infer from domain string in background function)
   checks.https = { status: domain.startsWith('https://') ? 'ok' : 'warning' };
-
   return checks;
 }
 
-// ── Auto-queue critical issues ─────────────────────────────────────────────────
+// ── CWV thresholds ────────────────────────────────────────────────────────────
 
-async function queueCriticalIssues(brand, page, mobile, desktop) {
+function scoreLcp(ms) { if (!ms) return 'unknown'; return ms <= 2500 ? 'good' : ms <= 4000 ? 'needs-improvement' : 'poor'; }
+function scoreCls(v)  { if (v == null) return 'unknown'; return v <= 0.1 ? 'good' : v <= 0.25 ? 'needs-improvement' : 'poor'; }
+function scoreTbt(ms) { if (!ms) return 'unknown'; return ms <= 200 ? 'good' : ms <= 600 ? 'needs-improvement' : 'poor'; }
+
+// ── Create tech task (developer kanban) ───────────────────────────────────────
+// Issues go to techTask Blobs — NEVER to the main Approvals Queue.
+
+async function createIssuesFromPsi(brand, page, mobile, desktop) {
   const issues = [];
 
   if (mobile.score < 50) {
     issues.push({
-      title:  `🔴 Critical speed issue: ${page.label} scores ${mobile.score}/100 on mobile`,
-      reason: `${page.url} has a very poor mobile performance score of ${mobile.score}/100. This is actively hurting rankings and user experience. ` +
-              `Top fixes: ${mobile.opportunities.slice(0, 3).map(o => o.title).join(' · ')}`,
+      severity: 'critical',
+      title:    `🔴 Critical speed: ${page.label} — ${mobile.score}/100 mobile`,
+      description: `Mobile performance score of ${mobile.score}/100 on ${page.url}. Actively hurting rankings and user experience.\n\nTop fixes:\n${mobile.opportunities.slice(0,3).map(o=>`• ${o.title}${o.displayValue ? ` (${o.displayValue})` : ''}`).join('\n')}`,
     });
   } else if (mobile.score < 70) {
     issues.push({
-      title:  `⚠️ Speed needs work: ${page.label} scores ${mobile.score}/100 on mobile`,
-      reason: `${page.url} scores ${mobile.score}/100 on mobile — below Google's 70 threshold. ` +
-              `Top fixes: ${mobile.opportunities.slice(0, 2).map(o => o.title).join(' · ')}`,
+      severity: 'warning',
+      title:    `⚠️ Speed needs work: ${page.label} — ${mobile.score}/100 mobile`,
+      description: `Mobile score ${mobile.score}/100 — below Google's 70 threshold.\n\nTop fixes:\n${mobile.opportunities.slice(0,2).map(o=>`• ${o.title}`).join('\n')}`,
     });
   }
 
   if (mobile.metrics.lcp.status === 'poor') {
     issues.push({
-      title:  `🔴 Poor LCP on ${page.label}: ${mobile.metrics.lcp.display}`,
-      reason: `Largest Contentful Paint of ${mobile.metrics.lcp.display} on ${page.url}. Google's threshold is 2.5s. ` +
-              `Common causes: unoptimised hero image, render-blocking CSS/JS, slow server response time.`,
+      severity: 'critical',
+      title:    `🔴 Poor LCP: ${page.label} — ${mobile.metrics.lcp.display}`,
+      description: `LCP of ${mobile.metrics.lcp.display} on ${page.url}. Google threshold: 2.5s.\n\nCommon causes: unoptimised hero image, render-blocking CSS/JS, slow server response.`,
     });
   }
 
   if (mobile.metrics.cls.status === 'poor') {
     issues.push({
-      title:  `⚠️ High layout shift on ${page.label}: CLS ${mobile.metrics.cls.display}`,
-      reason: `CLS of ${mobile.metrics.cls.display} on ${page.url} causes visible layout jumping. ` +
-              `Fix: add width/height attributes to images and embeds, avoid inserting content above existing content.`,
+      severity: 'warning',
+      title:    `⚠️ Layout shift: ${page.label} — CLS ${mobile.metrics.cls.display}`,
+      description: `CLS of ${mobile.metrics.cls.display} on ${page.url}. Causes visible jumping as page loads.\n\nFix: add width/height to images, avoid injecting content above existing content.`,
     });
   }
 
   for (const issue of issues) {
-    try {
-      await createApproval({
-        type:  'onpage_suggestion',
-        brand,
-        actor: 'technical-seo audit',
-        title: issue.title,
-        reason: issue.reason,
-        payload: {
-          url:          page.url,
-          issueType:    'technical_seo',
-          pageLabel:    page.label,
-          mobileScore:  mobile.score,
-          desktopScore: desktop.score,
-          lcp:          mobile.metrics.lcp.display,
-          cls:          mobile.metrics.cls.display,
-          tbt:          mobile.metrics.tbt.display,
-          opportunities: mobile.opportunities.map(o => o.title),
-          wpAction:      null, // developer task, not a WP push
-        },
-      });
-      console.log(`[tech-seo] Queued issue: ${issue.title}`);
-    } catch (e) {
-      console.error('[tech-seo] Failed to queue issue:', e.message);
-    }
+    await createTechTask(brand, {
+      ...issue,
+      url:         page.url,
+      pageLabel:   page.label,
+      mobileScore: mobile.score,
+      desktopScore: desktop?.score,
+      lcp:         mobile.metrics.lcp.display,
+      cls:         mobile.metrics.cls.display,
+      tbt:         mobile.metrics.tbt.display,
+      opportunities: mobile.opportunities.map(o => o.title),
+    });
   }
 }
 
-// ── Summary for the overview cards ────────────────────────────────────────────
+async function createTechTask(brand, taskData) {
+  try {
+    const id   = 'tt_' + Date.now() + '_' + Math.random().toString(36).slice(2, 6);
+    const task = {
+      id,
+      brand,
+      status:    'todo',
+      createdAt: Date.now(),
+      updatedAt: Date.now(),
+      source:    'technical_audit',
+      ...taskData,
+    };
+    await setSetting(`techTask:${id}`, task);
+    const index = await getSetting(`techTaskIndex:${brand}`).catch(() => []);
+    await setSetting(`techTaskIndex:${brand}`, [...(index || []), id]);
+    console.log(`[tech-seo] Task created: ${task.title}`);
+  } catch (e) {
+    console.error('[tech-seo] Failed to create tech task:', e.message);
+  }
+}
 
-function buildSummary(results, checks) {
+// ── Summary for overview cards ────────────────────────────────────────────────
+
+function buildSummary(results, intlResults, checks) {
   const scored    = results.filter(r => r.mobile?.score != null);
-  const avgMobile = scored.length
-    ? Math.round(scored.reduce((s, r) => s + r.mobile.score, 0) / scored.length)
-    : null;
-  const avgDesktop = scored.length
-    ? Math.round(scored.reduce((s, r) => s + r.desktop.score, 0) / scored.length)
-    : null;
+  const avgMobile = scored.length ? Math.round(scored.reduce((s, r) => s + r.mobile.score, 0) / scored.length) : null;
+  const avgDesktop = scored.length ? Math.round(scored.reduce((s, r) => s + (r.desktop?.score || 0), 0) / scored.length) : null;
 
-  const cwvStatuses = scored.flatMap(r => [
-    r.mobile?.metrics?.lcp?.status,
-    r.mobile?.metrics?.cls?.status,
-    r.mobile?.metrics?.tbt?.status,
-  ]).filter(Boolean);
+  const cwvStatuses = scored.flatMap(r => [r.mobile?.metrics?.lcp?.status, r.mobile?.metrics?.cls?.status, r.mobile?.metrics?.tbt?.status]).filter(Boolean);
+  const cwvOverall  = cwvStatuses.every(s => s === 'good') ? 'good' : cwvStatuses.some(s => s === 'poor') ? 'poor' : 'needs-improvement';
 
-  const allGood = cwvStatuses.every(s => s === 'good');
-  const anyPoor = cwvStatuses.some(s => s === 'poor');
-  const cwvOverall = allGood ? 'good' : anyPoor ? 'poor' : 'needs-improvement';
+  const intlFailing = intlResults.filter(r => r.health?.status !== 'ok' || r.health?.responseTimeMs > 3000 || r.error).length;
 
   const techIssues = [
-    checks?.sitemap?.status !== 'ok' ? 'Sitemap missing' : null,
+    checks?.sitemap?.status   !== 'ok' ? 'Sitemap missing' : null,
     checks?.robotsTxt?.status !== 'ok' ? 'robots.txt missing' : null,
-    checks?.robotsTxt?.blocking ? 'robots.txt blocking Google' : null,
+    checks?.robotsTxt?.blocking         ? 'robots.txt blocking Google' : null,
   ].filter(Boolean);
 
-  return { avgMobile, avgDesktop, cwvOverall, techIssues };
+  return { avgMobile, avgDesktop, cwvOverall, intlFailing, techIssues };
 }

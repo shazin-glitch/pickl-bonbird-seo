@@ -129,7 +129,9 @@ The Nest is the central marketing operations platform for Yolk Brands. Every dep
     ├── seed-keywords.js                # GET/POST/DELETE seed keywords per brand
     ├── slack-notify.js                 # Webhook sender
     ├── technical-seo.js                # GET cached audit / POST triggers background
-    ├── technical-seo-background.js     # PageSpeed Insights + site health checks
+    ├── technical-seo-background.js     # WP-sourced pages, intl health checks, PSI escalation, dev kanban
+    ├── tech-tasks.js                   # GET/PATCH/DELETE developer kanban tasks
+    ├── perch.js                        # The Perch — marketing team kanban CRUD + visibility
     ├── user-management.js              # Admin user CRUD
     └── wordpress.js                    # WP REST API — drafts, pages, meta, publish
 ```
@@ -182,6 +184,11 @@ The Nest is the central marketing operations platform for Yolk Brands. Every dep
 | `seedKeywords:bonbird` | Manually curated seed keyword list |
 | `technicalSeo:pickl` | Latest technical SEO audit results |
 | `technicalSeo:bonbird` | Latest technical SEO audit results |
+| `techTask:<id>` | Individual developer kanban task from audit |
+| `techTaskIndex:<brand>` | Array of tech task IDs per brand |
+| `perchIndex` | Array of all Perch task IDs |
+| `perchTask:<id>` | Individual Perch marketing task |
+| `userProfile:<email>` | User brand + department assignment |
 | `technicalTasks:pickl` | Developer kanban tasks from audit |
 | `technicalTasks:bonbird` | Developer kanban tasks from audit |
 | `slackWebhookUrl` | Slack webhook URL (set via Settings tab) |
@@ -420,17 +427,21 @@ Google SSO · 3 roles · Sign out button · Competitor Matrix (DataForSEO Standa
 - Results need Brand + Market + Status filters, not just Brand switcher
 - Developer kanban not yet built
 
-### Pending Deploy (zip ready)
-- Sign out button fix
-- How It Works scroll fix
-- Technical SEO tab v1 (basic version — see corrections above)
-- Empty pages partial fix
+### Pending Deploy (zip ready — deploy this)
+**Full bundle — all of the below in one zip:**
+- The Nest rebrand (login page, sidebar, page title, Slack notifications)
+- The Perch tab — first tab on login, role/brand/dept-aware kanban, full task CRUD
+- 5 brands: Pickl, Bonbird, Southpour, Shadowburg, Shadowbird
+- Brand + department assignment in Settings → Users panel
+- Technical SEO v2: WP-sourced pages, international health checks, PSI escalation, developer kanban (own Blobs, not Approvals Queue), weekly cron
+- Empty pages fork: impressions ≥100 → page_creation, else skip
+- PageSpeed Insights API key fix (GOOGLE_PAGESPEED_KEY env var)
 
 ---
 
 ## Roadmap
 
-### Next session — Technical SEO v2 + Empty Pages fix (complete)
+### Session: Full Bundle — The Nest rebrand + The Perch + Technical SEO v2 (June 2026) ✅
 1. Fix empty pages fork: impressions ≥100 → `page_creation`, else skip
 2. Rebuild Technical SEO audit: franchise page + international health checks + PSI escalation
 3. Move technical issues OUT of Approvals Queue → own Blobs key + developer kanban in Technical SEO tab
@@ -473,4 +484,4 @@ Per-item detailed notifications, grouped by brand/type, direct filtered links, S
 
 ---
 
-*Last updated: June 2026 — Platform renamed to The Nest. Nav structure locked. Two kanbans locked. Technical SEO v2 spec locked. The Perch spec locked.*
+*Last updated: June 2026 — Full bundle deployed: The Nest rebrand, The Perch kanban, Technical SEO v2 (WP-sourced URLs, international health checks, PSI escalation, developer kanban), empty pages fork, 5 brands, brand+dept in user management.*

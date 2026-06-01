@@ -287,17 +287,87 @@ async function runMetaRewrites(brand, _rows, dryRun, forceRun, brandCtx, brandPr
   if (dryRun) return { queued: 0, candidates: candidates.length, preview: candidates.map(r => r.keyword + ' → ' + r.page) };
 
   // Validate each page has actual content in WordPress before queuing
-  const validCandidates = [];
+  const validCandidates    = [];
+  const pageCreationNeeded = [];
+
   for (const r of candidates) {
     const hasContent = await wpPageHasContent(brand, r.page);
     if (hasContent) {
       validCandidates.push(r);
     } else {
-      console.log(`[meta_rewrites] Skipping ${r.page} — empty or not in WP`);
+      console.log(`[meta_rewrites] ${r.page} — empty/missing in WP. Impressions: ${r.impressions}`);
+      // High impressions on a missing/empty page = Google wants to rank it but there's nothing there
+      if (r.impressions >= 100) {
+        pageCreationNeeded.push(r);
+      }
     }
   }
 
-  if (!validCandidates.length) return { queued: 0, candidates: candidates.length, skipped: 'all candidates failed WP content check' };
+  // Queue page_creation items for empty pages with real traffic potential
+  for (const r of pageCreationNeeded) {
+    try {
+      const systemPrompt = brandPrompt || buildBrandPrompt(brandCtx);
+      const brandName    = brandCtx?.name || cfg.name;
+      const { text } = await callClaude(`
+Create a full landing page for ${brandName} targeting the keyword "${r.keyword}".
+This page gets ${r.impressions} impressions from Google but currently has no content — that's a missed opportunity.
+
+Requirements:
+- H1 leads naturally with "${r.keyword}"
+- 3 H2 sections covering the keyword topic with specific ${brandName} context
+- FAQ with 3 questions people actually search
+- Internal links to /menu, /locations
+- Image placeholder comments: <!-- IMAGE: [specific description] -->
+- 500-700 words total
+- CTA that sounds like ${brandName}
+
+Return ONLY valid JSON:
+{
+  "title": "SEO title 55-60 chars",
+  "description": "Meta description 150-158 chars",
+  "targetKeyword": "${r.keyword}",
+  "slug": "url-slug",
+  "pageHeading": "H1 text",
+  "excerpt": "short description",
+  "body": "<full HTML content>",
+  "rationale": "why this page will rank"
+}`, { max_tokens: 1800, system: systemPrompt });
+
+      const parsed = extractJson(text);
+      if (!parsed?.body) continue;
+
+      const voiceCheck = await runBrandVoiceCheck(parsed.body, brandCtx, (p, o) => callClaude(p, o)).catch(() => ({ score: 6, verdict: 'PASS', issues: [] }));
+      if (voiceCheck.score < 5) continue;
+
+      await createApproval({
+        type:  'page_creation',
+        brand,
+        actor: 'claude (scheduler)',
+        title: `New page opportunity: "${r.keyword}" — ${r.impressions} impressions, no content`,
+        reason: `GSC shows ${r.impressions} impressions for "${r.keyword}" but the page doesn't exist or is empty. Creating it could capture significant traffic.`,
+        payload: {
+          url:           r.page,
+          title:         parsed.title,
+          description:   parsed.description,
+          targetKeyword: parsed.targetKeyword || r.keyword,
+          slug:          parsed.slug,
+          pageHeading:   parsed.pageHeading,
+          excerpt:       parsed.excerpt,
+          body:          parsed.body,
+          pageType:      'seo',
+          wpAction:      'create_page',
+          voiceScore:    voiceCheck.score,
+          impressions:   r.impressions,
+          currentPos:    r.position,
+        },
+      });
+      console.log(`[meta_rewrites] Queued page_creation for ${r.page} (${r.impressions} impressions)`);
+    } catch (e) {
+      console.error('[meta_rewrites] page_creation error for', r.page, ':', e.message);
+    }
+  }
+
+  if (!validCandidates.length) return { queued: 0, candidates: candidates.length, pageCreationQueued: pageCreationNeeded.length, skipped: 'all candidates failed WP content check' };
 
   const systemPrompt = brandPrompt || buildBrandPrompt(brandCtx);
   const brandName    = brandCtx?.name || cfg.name;
