@@ -108,6 +108,16 @@
   to = "/.netlify/functions/perch"
   status = 200
 
+[[redirects]]
+  from = "/api/brand-examples"
+  to = "/.netlify/functions/brand-examples"
+  status = 200
+
+[[redirects]]
+  from = "/api/slack-callback"
+  to = "/.netlify/functions/slack-callback"
+  status = 200
+
 # Weekly cron — Monday 4:00am UTC = Monday 8:00am Dubai time (UTC+4)
 # Runs before your 9am Monday review so all data is fresh
 [functions."scheduler-background"]
@@ -121,3 +131,7 @@
 
 [functions."technical-seo-background"]
   schedule = "0 4 * * 1"
+
+# Daily Perch due date digest — 5am UTC = 9am Dubai
+[functions."perch-notify-background"]
+  schedule = "0 5 * * *"

@@ -197,8 +197,9 @@ async function fetchSerpRankings(brand, config) {
         for (const task of data.tasks || []) {
           if (task.status_code === 20000 && task.result) {
             results[taskId] = {
-              keyword: task.data?.keyword || "",
-              items:   task.result?.[0]?.items || [],
+              keyword:     task.data?.keyword || "",
+              items:       task.result?.[0]?.items || [],
+              keywordInfo: task.result?.[0]?.keyword_info || null, // CPC, search volume from DataForSEO
             };
             pending.delete(taskId);
           } else if (task.status_code === 40501 || task.status_code === 40601) {
@@ -227,7 +228,7 @@ async function fetchSerpRankings(brand, config) {
   // ── Step 3: Parse results into rows ──────────────────────────────────────
   const rows = [];
 
-  for (const { keyword, items } of Object.values(results)) {
+  for (const { keyword, items, keywordInfo } of Object.values(results)) {
     let ourRank = null;
     for (const item of items) {
       if (item.type !== "organic") continue;
@@ -258,6 +259,8 @@ async function fetchSerpRankings(brand, config) {
       ourRank,
       ourDomain,
       competitorRanks,
+      cpc_usd:      keywordInfo?.cpc      ?? null, // real Google Ads CPC (USD) from DataForSEO SERP result
+      searchVolume: keywordInfo?.search_volume ?? null,
       fetchedAt: new Date().toISOString(),
     });
   }

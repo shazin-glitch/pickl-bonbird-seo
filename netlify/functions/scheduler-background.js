@@ -15,7 +15,7 @@ const {
   getSetting, setSetting, fetchGscDirect, fetchGscWithPages,
   ok, bad, preflight, parseBody,
 } = require('./_lib/store');
-const { getBrandContext, buildBrandPrompt, runBrandVoiceCheck } = require('./_lib/brand');
+const { getBrandContext, buildBrandPrompt, runBrandVoiceCheck, getBrandExamples } = require('./_lib/brand');
 
 // ── Keyword tier classification ────────────────────────────────────────────────
 // Quick Win:    pos 11-20  — already ranking, one update = page 1. Fastest ROI.
@@ -64,9 +64,16 @@ exports.handler = async (event) => {
     summary.brands[brand] = { jobs: {} };
     try {
       const brandCtx = await getBrandContext(brand);
-      const brandPrompt = buildBrandPrompt(brandCtx);
+      const brandExamples = await getBrandExamples(brand).catch(() => null);
+      const brandPrompt = buildBrandPrompt(brandCtx, brandExamples);
       const gscRows = await fetchGscRows(BRANDS[brand].gsc);
       summary.brands[brand].gscRows = gscRows.length;
+
+      // Enrich GSC rows with real CPC data from DataForSEO (~$0.008/week for 150 keywords)
+      // Runs silently — failure doesn't block content generation
+      await enrichGscWithCpc(brand, gscRows, BRANDS[brand]).catch(e =>
+        console.warn(`[scheduler] CPC enrichment failed for ${brand} (non-critical):`, e.message)
+      );
 
       // Background mode: run ALL requested jobs, no timeout concern
       for (const jobName of jobs) {
@@ -96,22 +103,33 @@ exports.handler = async (event) => {
   await setSetting('scheduler:lastrun', summary);
   console.log('Scheduler done:', JSON.stringify(summary));
 
-  // Send Slack notification if items were queued
+  // Send Slack notification per brand with per-item detail
   if (summary.queued > 0) {
-    try {
-      const siteUrl = process.env.URL || 'https://yolkseo.netlify.app';
-      await fetch(`${siteUrl}/.netlify/functions/slack-notify`, {
-        method:  'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body:    JSON.stringify({
-          type:  'queue_summary',
-          brand: brandsToRun.length === 1 ? brandsToRun[0] : null,
-          count: summary.queued,
-          items: [], // summary level — no per-item detail needed
-        }),
-      });
-    } catch (e) {
-      console.warn('[scheduler] Slack notification failed:', e.message);
+    const siteUrl = process.env.URL || 'https://yolkseo.netlify.app';
+    for (const brand of brandsToRun) {
+      try {
+        const brandSummary = summary.brands[brand];
+        if (!brandSummary) continue;
+
+        // Collect item snapshots from each job
+        const items = [];
+        for (const [jobName, jobResult] of Object.entries(brandSummary.jobs || {})) {
+          for (const item of (jobResult.items || [])) {
+            items.push(item);
+          }
+        }
+
+        const brandCount = Object.values(brandSummary.jobs || {}).reduce((s, j) => s + (j.queued || 0), 0);
+        if (brandCount === 0) continue;
+
+        await fetch(`${siteUrl}/.netlify/functions/slack-notify`, {
+          method:  'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body:    JSON.stringify({ type: 'queue_summary', brand, count: brandCount, items }),
+        });
+      } catch (e) {
+        console.warn(`[scheduler] Slack notification failed for ${brand}:`, e.message);
+      }
     }
   }
 
@@ -141,6 +159,96 @@ async function fetchGscRows(siteUrl) {
     console.error('GSC fetch failed for', siteUrl, ':', e.message);
     return [];
   }
+}
+
+// ── CPC enrichment — DataForSEO Keywords Data API ────────────────────────────
+// Fetches real Google Ads CPC for the top non-branded GSC keywords.
+// Cost: ~$0.05 per 1,000 keywords (≈ $0.008/week for 150 keywords).
+// Results merged back into gscCache so the Reports tab picks them up automatically.
+// Branded keywords are excluded — their CPC is near zero (no advertisers bid on brand terms).
+async function enrichGscWithCpc(brand, rows, brandConfig) {
+  const login    = process.env.DATAFORSEO_LOGIN;
+  const password = process.env.DATAFORSEO_PASSWORD;
+  if (!login || !password) return; // no credentials — skip silently
+
+  const BRAND_TERMS = brand === 'pickl' ? ['pickl'] : ['bonbird'];
+  const AED_PER_USD = 3.67;
+
+  // Top 150 non-branded keywords by clicks — enough to cover virtually all traffic value
+  const toEnrich = rows
+    .filter(r => r.keyword && !BRAND_TERMS.some(t => r.keyword.toLowerCase().includes(t)))
+    .sort((a, b) => (b.clicks || 0) - (a.clicks || 0))
+    .slice(0, 150)
+    .map(r => r.keyword);
+
+  if (!toEnrich.length) return;
+
+  const authHeader = 'Basic ' + Buffer.from(`${login}:${password}`).toString('base64');
+  const KW_POST_URL = 'https://api.dataforseo.com/v3/keywords_data/google_ads/search_volume/task_post';
+
+  // POST — one task for all keywords (DataForSEO supports up to 700 per task)
+  const postRes = await fetch(KW_POST_URL, {
+    method:  'POST',
+    headers: { Authorization: authHeader, 'Content-Type': 'application/json' },
+    body:    JSON.stringify([{
+      keywords:      toEnrich,
+      location_code: 2784, // UAE
+      language_code: 'en',
+      tag:           `yolkseo_cpc_${brand}`,
+    }]),
+  });
+
+  if (!postRes.ok) throw new Error(`CPC task_post HTTP ${postRes.status}`);
+  const postData = await postRes.json();
+  const taskId   = postData.tasks?.[0]?.id;
+  if (!taskId) throw new Error('CPC task_post returned no task ID');
+
+  console.log(`[scheduler] CPC enrichment task posted for ${brand}: ${taskId} (${toEnrich.length} keywords)`);
+
+  // Poll — same pattern as competitor matrix
+  const KW_GET_URL = `https://api.dataforseo.com/v3/keywords_data/google_ads/search_volume/task_get/${taskId}`;
+  const cpcMap = {};
+
+  for (let attempt = 0; attempt < 24; attempt++) { // max 2 minutes
+    await new Promise(r => setTimeout(r, 5000));
+    const getRes  = await fetch(KW_GET_URL, { headers: { Authorization: authHeader } });
+    const getData = await getRes.json();
+    const task    = getData.tasks?.[0];
+
+    if (task?.status_code === 20000 && task.result) {
+      for (const item of task.result) {
+        if (item.keyword && item.cpc != null) {
+          cpcMap[item.keyword.toLowerCase()] = item.cpc; // USD
+        }
+      }
+      console.log(`[scheduler] CPC enrichment complete for ${brand}: ${Object.keys(cpcMap).length}/${toEnrich.length} keywords got CPC data`);
+      break;
+    }
+
+    if (attempt === 23) console.warn(`[scheduler] CPC task timed out for ${brand}`);
+  }
+
+  if (!Object.keys(cpcMap).length) return;
+
+  // Merge CPC into gscCache rows and re-save cache
+  // The Reports tab reads from gscCache — this way CPC is available immediately
+  const { getStore } = require('@netlify/blobs');
+  const s = getStore({ name: 'seo-tool', siteID: process.env.NETLIFY_SITE_ID, token: process.env.NETLIFY_AUTH_TOKEN });
+
+  const cacheKey = 'gscCache:' + brandConfig.gsc;
+  const existing = await s.get(cacheKey, { type: 'json' }).catch(() => null);
+  if (!existing?.rows) return;
+
+  const enrichedRows = existing.rows.map(r => ({
+    ...r,
+    cpc_usd: cpcMap[r.keyword?.toLowerCase()] ?? r.cpc_usd ?? null,
+    cpc_aed: cpcMap[r.keyword?.toLowerCase()] != null
+      ? Math.round(cpcMap[r.keyword.toLowerCase()] * AED_PER_USD * 100) / 100
+      : r.cpc_aed ?? null,
+  }));
+
+  await s.setJSON(cacheKey, { ...existing, rows: enrichedRows, cpcEnrichedAt: Date.now() });
+  console.log(`[scheduler] gscCache updated with CPC data for ${brand}`);
 }
 
 // ── Load seed keywords — curated non-branded terms not in GSC ─────────────────
@@ -183,6 +291,7 @@ async function runQuickWins(brand, rows, dryRun, forceRun, brandCtx, brandPrompt
   if (dryRun) return { queued: 0, candidates: candidates.length, preview: candidates.map(r => r.keyword) };
 
   let queued = 0;
+  const items = []; // item snapshots for Slack
   for (const r of candidates) {
     const systemPrompt = brandPrompt || buildBrandPrompt(brandCtx);
     const userPrompt = `The page targeting "${r.keyword}" ranks position ${r.position}. Rewrite it to push into the top 10.
@@ -250,9 +359,10 @@ Return ONLY valid JSON:
         impressions:   r.impressions,
       },
     });
+    items.push({ type: 'page_update', title: parsed.title || r.keyword, keyword: r.keyword, position: r.position, voiceScore: voiceCheck.score, tier: tier.tier });
     queued++;
   }
-  return { queued, candidates: candidates.length };
+  return { queued, candidates: candidates.length, items };
 }
 
 // ════════════════════════════════════════════════════════════════
@@ -421,6 +531,7 @@ Return ONLY a JSON array, no prose:
   if (!Array.isArray(parsed)) return { queued: 0, candidates: validCandidates.length, error: 'Claude did not return JSON array' };
 
   let queued = 0;
+  const items = [];
   for (const p of parsed) {
     // Use matched real URL, fallback to Claude's URL only if it matches a known candidate
     const matched  = validCandidates.find(r => r.page === p.url || r.keyword === p.keyword);
@@ -444,9 +555,10 @@ Return ONLY a JSON array, no prose:
         wpAction:      'update_meta',
       },
     });
+    items.push({ type: 'meta_update', title: p.title || finalUrl, keyword: p.keyword, position: matched?.position });
     queued++;
   }
-  return { queued, candidates: validCandidates.length };
+  return { queued, candidates: validCandidates.length, items };
 }
 
 // ── WordPress content validation ──────────────────────────────────────────────
@@ -617,7 +729,7 @@ Return ONLY valid JSON, no markdown, no fences:
       impressions:     pickedCandidate?.impressions,
     },
   });
-  return { queued: 1, candidates: candidates.length };
+  return { queued: 1, candidates: candidates.length, items: [{ type: 'blog_draft', title: parsed.title, keyword: parsed.targetKeyword, position: pickedCandidate?.position, voiceScore: voiceCheck.score, tier: tier.tier }] };
 }
 
 // ════════════════════════════════════════════════════════════════
@@ -648,6 +760,7 @@ async function runPageCreation(brand, rows, dryRun, forceRun, brandCtx, brandPro
   if (dryRun) return { queued: 0, candidates: candidates.length, preview: candidates.map(r => r.keyword) };
 
   let queued = 0;
+  const items = [];
   for (const r of candidates) {
     const prompt = `You are a senior SEO strategist and copywriter for ${cfg.name} (${cfg.site}), a UAE ${cfg.cuisine} restaurant brand. Tone: ${cfg.tone}.
 
@@ -701,7 +814,8 @@ Return ONLY a JSON object:
         wpAction:      'create_page',
       },
     });
+    items.push({ type: 'page_creation', title: parsed.title, keyword: r.keyword, position: r.position });
     queued++;
   }
-  return { queued, candidates: candidates.length };
+  return { queued, candidates: candidates.length, items };
 }

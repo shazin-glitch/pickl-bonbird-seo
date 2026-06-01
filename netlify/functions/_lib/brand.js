@@ -174,9 +174,21 @@ async function setBrandContext(brand, context) {
   await store().setJSON(`brandContext:${brand}`, context);
 }
 
+// Get user-curated brand voice examples (pasted in Settings)
+async function getBrandExamples(brand) {
+  try {
+    const data = await store().get(`brandExamples:${brand}`, { type: 'json' });
+    return data?.examples || null;
+  } catch {
+    return null;
+  }
+}
+
 // ── Build brand system prompt ─────────────────────────────────────────────────
 // This is injected as the SYSTEM prompt — Claude becomes the brand, not just knows about it.
-function buildBrandPrompt(ctx) {
+// userExamples: string of real brand writing pasted via Settings (optional).
+//   If provided, these replace the hardcoded fallback examples — real writing beats made-up examples.
+function buildBrandPrompt(ctx, userExamples) {
   const isPickl   = ctx.brand === 'pickl' || ctx.name === 'Pickl';
   const isBonbird = ctx.brand === 'bonbird' || ctx.name === 'Bonbird';
 
@@ -251,6 +263,21 @@ KEY RULES FOR EVERY PIECE OF CONTENT:
 - "All bird. No bull." is the brand. Every word should earn its place.
 - If a sentence sounds like it was written by a committee — delete it`;
 
+  // ── Voice examples section ─────────────────────────────────────────────────
+  // If user has pasted real brand writing, use those — they beat any hardcoded examples.
+  // Otherwise fall back to the built-in wrong/right example pairs.
+  let voiceExamplesSection;
+  if (userExamples && userExamples.trim().length > 50) {
+    voiceExamplesSection = `=== REAL ${ctx.name.toUpperCase()} WRITING — STUDY AND MATCH THIS VOICE EXACTLY ===
+The following is real ${ctx.name} writing. This is exactly how ${ctx.name} sounds. Internalise the rhythm, vocabulary, sentence length, and personality. Your output must be indistinguishable from these examples.
+
+${userExamples.trim()}
+
+This is the voice. Everything else in this prompt is the rule — this is the proof. Write like this.`;
+  } else {
+    voiceExamplesSection = isPickl ? picklExamples : (isBonbird ? bonbirdExamples : '');
+  }
+
   return `You are the content voice of ${ctx.name}. You don't write ABOUT ${ctx.name} — you write AS ${ctx.name}.
 
 === WHO YOU ARE ===
@@ -278,8 +305,7 @@ ${ctx.locations?.international ? `International: ${ctx.locations.international}`
 === ABSOLUTE DO NOTS — VIOLATION = REWRITE ===
 ${(ctx.doNot || []).map(d => `• ${d}`).join('\n')}
 
-${isPickl ? picklExamples : ''}
-${isBonbird ? bonbirdExamples : ''}
+${voiceExamplesSection}
 
 === QUALITY BAR ===
 Before finalising any content, ask yourself:
@@ -359,4 +385,4 @@ Be harsh. Em dashes = automatic deduction. Generic = low score.`;
   }
 }
 
-module.exports = { getBrandContext, setBrandContext, buildBrandPrompt, runBrandVoiceCheck, PICKL_DEFAULT, BONBIRD_DEFAULT };
+module.exports = { getBrandContext, setBrandContext, getBrandExamples, buildBrandPrompt, runBrandVoiceCheck, PICKL_DEFAULT, BONBIRD_DEFAULT };

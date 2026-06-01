@@ -48,12 +48,12 @@ The Nest is Yolk Brands' central marketing operations platform. It started as an
 |---|---|---|
 | 🪺 **The Perch** | First tab. Marketing team kanban — replaces Trello | ✅ Built |
 | 📋 **Approvals Queue** | SEO content items awaiting review/publish | ✅ Built |
-| 📈 **Reports** | CEO-ready SEO report. Traffic value, rankings, AI readiness | 🔄 Building now |
+| 📈 **Reports** | CEO-ready SEO report. Traffic value (AED, real CPC), rankings, AI readiness | ✅ Built |
 | 📊 **Analytics & ROI** | Raw GSC data, competitor matrix | ✅ Built |
 | ⚡ **Technical SEO** | PageSpeed, CWV, international health, developer kanban | ✅ Built |
 | 🌍 **International SEO** | 9-market content pipeline | ✅ Built |
 | 🎨 **AI Content Studio** | Review responder, schema gen, content briefs, page audit | ✅ Built |
-| ⚙️ **Settings & Logs** | Brand context, users, roles, departments, audit log | ✅ Built |
+| ⚙️ **Settings & Logs** | Brand context, brand voice examples, users, roles, departments, audit log | ✅ Built |
 | ❓ **How It Works** | Scheduler explained, keyword tiers, seed keywords | ✅ Built |
 
 ---
@@ -66,10 +66,18 @@ The Nest is Yolk Brands' central marketing operations platform. It started as an
   - Meta Rewrites (poor CTR): rewrites title + description using real GSC page URLs
   - Content Gaps (pos 21-100 + seed keywords): writes new blog posts
   - Page Creation (location/service intent): builds full landing pages
-- **Brand voice quality gate** — Every piece of AI-generated content scored 1-10. Below 5 = auto-rejected. 5-7 = warning. 8-10 = green. Banned words list enforced.
+- **Brand voice quality gate** — Every piece scored 1-10. Below 5 = auto-rejected. 5-7 = warning. 8-10 = green. Banned words enforced.
+- **Brand voice examples** — User-curated real writing pasted via Settings → Brand Voice Examples. Stored in Blobs. Injected into every Claude prompt INSTEAD of hardcoded wrong/right examples. Real writing beats described rules every time.
 - **Keyword tier system** — ⚡ Quick Win (11-20) · 📈 Short Term (21-35) · 🎯 Long Term (36-100) · 🚨 Priority Gap (seed list)
-- **Empty pages fork** — GSC showing impressions for missing/empty WP pages: ≥100 impressions → page_creation opportunity queued. <100 → skipped.
+- **Empty pages fork** — GSC showing impressions for missing/empty WP pages: ≥100 impressions → page_creation queued. <100 → skipped.
 - **Seed keywords** — 20 Pickl + 18 Bonbird pre-loaded non-branded terms. Treated as Priority Gap tier.
+- **CPC enrichment** — Every Monday scheduler fetches real Google Ads CPC for top 150 non-branded GSC keywords via DataForSEO Keywords Data API (~$0.008/week). Stored in gscCache rows as `cpc_usd` + `cpc_aed` (× 3.67). Reports uses real CPC when available, falls back to AED 5 estimate.
+
+### Reports Tab ✅
+- All currency in AED throughout.
+- **Traffic value** — non-branded clicks only × real DataForSEO CPC per keyword (AED). Branded keywords excluded (near-zero advertiser value). Shows "DataForSEO CPC" badge once enriched, "AED 5/click est." before first Monday run.
+- **Performance Summary** section (formerly "CEO Talking Points") — auto-adjusts text based on whether CPC data is real or estimated.
+- Data source labels on every section: GSC 90 days, PageSpeed Insights, DataForSEO, Approvals Queue.
 
 ### International SEO ✅
 - 9 markets: Pickl (Bahrain, KSA, Qatar, Egypt, Jordan, Oman) + Bonbird (Oman, Pakistan, Qatar)
@@ -80,12 +88,13 @@ The Nest is Yolk Brands' central marketing operations platform. It started as an
 ### Competitor Intelligence ✅
 - DataForSEO Standard mode (not Live — $0.0006/kw)
 - Batched 100 keywords per POST, polls every 5s
+- SERP Advanced results include `keyword_info.cpc` — now captured and stored on every competitor matrix row (free, already paid for).
 - Pickl competitors: Salt, High Joint, Shake Shack, Five Guys
 - Bonbird competitors: Raising Cane's, Jailbird, Dave's Hot Chicken, Toit, Nash Hot Chicken, Peppers, Jollibee, KFC, Popeyes
 
 ### Technical SEO ✅
 - PageSpeed Insights (mobile + desktop) on core WP pages
-- **Priority pages always audited (from nav screenshots):**
+- **Priority pages always audited:**
   - Pickl: Homepage, About, Menu, Locations, Franchise, Events
   - Bonbird: Homepage, Menu, Locations, Franchise, Philosophy
 - International pages: HTTP health check + mobile PSI on all 9 markets
@@ -96,12 +105,22 @@ The Nest is Yolk Brands' central marketing operations platform. It started as an
 ### The Perch (Marketing Team Kanban) ✅
 - Drag and drop between columns (To Do / In Progress / In Review / Done)
 - Slide-in right panel with inline editing (title, description, all fields)
-- Labels: Urgent, Blocked, Awaiting Feedback, Scheduled, In Review, Campaign, Assets Needed, Done *(labels pending colour update)*
+- **Labels:** Urgent · Blocked · Awaiting Feedback · Scheduled · In Review · Campaign · Assets Needed · Done
 - Quick-add cards at bottom of each column
 - Assignee by name (not email) from users list
 - Filters: Brand + Department + Assignee + Priority + My Tasks toggle
 - Visibility rules: Pickl team sees Pickl+Shadowburg. Bonbird sees Bonbird+Shadowbird. Admin sees all.
 - Comment thread on every task. Full audit log.
+- **Slack notifications:** Task assigned to someone → Slack ping. Task moved to Done → Slack ping. Daily 9am Dubai overdue/due-soon digest.
+
+### Slack ✅
+- Full Block Kit messages (rich formatting, not plain text).
+- Scheduler sends one message per brand after Monday run: items grouped by type (Quick Wins, Blog Drafts, etc.) with title, keyword, position, and voice score per item.
+- Perch: task assignment notification, task completion notification, daily due date digest (overdue / due today / due this week).
+- **Interactive approve/dismiss buttons** (from Slack, no need to open The Nest):
+  - Requires one-time Slack App setup: Settings → Interactivity & Shortcuts → Request URL: `https://yolkseo.netlify.app/api/slack-callback`
+  - `slack-callback.js` handles button presses, updates item status, updates the Slack message in-place.
+- Webhook URL: Settings tab → saved to Blobs `slackWebhookUrl`. SLACK_WEBHOOK_URL env var as fallback.
 
 ### Auth & Roles ✅
 - Google SSO. Only authorised @yolkbrands.com accounts get in.
@@ -111,54 +130,16 @@ The Nest is Yolk Brands' central marketing operations platform. It started as an
 
 ---
 
-## What We're Building This Week
+## Next Up
 
-### 1. CEO Report Tab 📈
-Brand-wise reporting dashboard for executive presentations:
-- **Traffic Value** — total clicks × avg CPC for UAE restaurant queries = "what your SEO is worth in paid ads"
-- **Position overview** — keywords in top 3, top 10, top 20, plus distribution chart
-- **Content pipeline** — items queued, approved, published this month
-- **Top keywords** — by impressions, with position and click data
-- **Quick Wins** — how many keywords are at pos 11-20 right now
-- **AI Search Readiness Score** — based on Google's official AI Overviews guide: HTTPS, page speed, LCP, sitemap, robots.txt, GBP status
+### 1. GBP API Access (apply immediately if not done)
+Google Cloud Console → enable Business Profile API → start OAuth. Some accounts take days. Start the clock now.
 
-### 2. Weekly GSC Snapshots
-Every Monday the scheduler now saves a date-stamped copy of GSC keyword data.
-From next Monday: week-on-week ranking movement becomes trackable.
-From the Monday after: "which keywords moved up/down this week" is real data.
-Key: `gscSnapshot:<brand>:<YYYY-MM-DD>`
-
-### 3. Priority Pages Fix
-PSI audit now always includes the key nav pages from both sites (Menu, Locations, Franchise, About/Philosophy) regardless of GSC impression data. Games page excluded.
-
----
-
-## Next Week (Sprint 2)
-
-### Brand Content Feeding — HIGHEST PRIORITY FOR VOICE QUALITY
-**The problem:** The brand voice scoring system catches bad content but Claude still writes generically because it's working from rules, not examples. Rules say "be playful" — examples SHOW what playful looks like for Pickl specifically.
-
-**The fix:** Pull the last 30 journal posts from each brand's WordPress. Store in Blobs (`brandExamples:pickl`, `brandExamples:bonbird`). Inject 3-5 real examples into every Claude prompt: *"Here is how Pickl actually writes. Match this voice exactly."*
-
-This is the single highest-leverage improvement to content quality. No scoring change — just showing Claude real Pickl/Bonbird writing instead of describing it.
-
-**Phase 2:** Instagram captions (Instagram Graph API or manual import). Real social copy is even more on-brand than journal posts.
-
-### Hreflang for 9 International Markets
+### 2. Hreflang for 9 International Markets
 Currently Pickl has 6 international URL paths and Bonbird has 3. Without hreflang tags, Google may treat them as duplicate content and suppress them. Auto-generate the full hreflang block for every market, queue as `page_update` items.
 
-### Slack Rebuild
-Per-item detailed notifications grouped by brand/type. Direct links filtered to that brand. Slack action buttons: approve/dismiss without opening The Nest. Requires Slack interactive components + new Netlify function for Slack callbacks.
-
-### Perch Labels Update
-Swap current generic labels for: Urgent · Blocked · Awaiting Feedback · Scheduled · In Review · Campaign · Assets Needed · Done
-
----
-
-## Month 2 — Local SEO + Off-Page
-
-### Google Business Profile Integration 🔴 CRITICAL FOR RESTAURANTS
-GBP is more important than the website for local restaurant search. "Smash burger near me" surfaces GBP listings before organic results. Google's AI Overviews guide explicitly calls this out for local businesses.
+### 3. Google Business Profile Integration 🔴 CRITICAL FOR RESTAURANTS
+GBP is more important than the website for local restaurant search. "Smash burger near me" surfaces GBP listings before organic results.
 
 **What to build:**
 - Connect Google Business Profile API (separate OAuth from GSC)
@@ -168,260 +149,93 @@ GBP is more important than the website for local restaurant search. "Smash burge
 - Show GBP health score per location in a new Local SEO tab
 - AI Search Readiness Score goes green when GBP is connected
 
+### 4. Google Reviews Management
+GMB API → auto-queue review responses → brand voice check → admin approves → publishes reply via GMB API.
+
+---
+
+## Month 2 — Local SEO + Off-Page
+
 ### Backlink Monitoring
-DataForSEO has a full backlink API. Weekly check:
+DataForSEO backlink API. Weekly check:
 - Domain authority for eatpickl.com and bonbirdchicken.com
 - New links gained, links lost
 - Competitor backlink comparison (who's linking to Salt that isn't linking to Pickl?)
 - Unlinked brand mentions = link building opportunities
 
-### Google Reviews Management
-GMB API → auto-queue review responses → brand voice check → admin approves → publishes reply via GMB API. This was Phase 3 in the original roadmap.
-
 ### Citation Tracker
 Are Pickl and Bonbird listed consistently on Zomato, TripAdvisor, Time Out Dubai, What's On, The Entertainer? NAP (Name, Address, Phone) consistency check. Missing/inconsistent citations flagged as action items.
 
 ### Deep Competitor URL Audit
-Enter any competitor URL → get: their top keywords, estimated traffic, backlink count, page speed scores, GSC keyword overlap vs your site. Richer than current DataForSEO keyword-only tracking.
+Enter any competitor URL → get: their top keywords, estimated traffic, backlink count, page speed scores, GSC keyword overlap vs your site.
 
 ---
 
 ## Month 3 — Content Channels + Analytics
 
 ### YouTube SEO Module
-YouTube is the second largest search engine. Google owns it. Food content on YouTube ranks in Google search results AND in AI Overviews.
-
-**What to build:**
-- YouTube keyword research (what are people searching for in our category on YouTube?)
-- Video content brief generator (Claude writes a video brief targeting a keyword)
+YouTube is the second largest search engine. Food content ranks in Google results AND in AI Overviews.
+- YouTube keyword research for food/restaurant queries
+- Video content brief generator
 - Video schema markup generator
 - Channel performance tracker if YouTube API connected
-- "Best chicken sandwich Dubai" on YouTube = direct competitor to Google ranking
 
 ### GA4 Integration + Revenue Attribution
-Connect GA4 to get:
-- Real sessions from organic search (not just clicks from GSC)
-- Goal completions / conversions from SEO traffic
-- Revenue attribution if ecommerce tracking is set up
-- True ROI: "Our SEO drove X sessions which generated Y conversions worth $Z"
-- Replaces current estimated traffic value with real revenue data
+- Connect GA4 (requires tracking set up on WP first)
+- Real sessions, conversions, revenue from organic search
+- Replaces estimated traffic value with real AED numbers
+- True ROI: "Our SEO drove X sessions worth AED Y"
 
 ### AI Overview Visibility Tracker
-Are Pickl and Bonbird appearing in Google's AI Overviews for target keywords? Build a monitoring system that checks weekly: for our top 20 keywords, does an AI Overview appear? Are we cited in it? This is the new frontier of SEO visibility.
+- Weekly check: for top 20 keywords, does AI Overview appear?
+- Are we cited in it?
+- This is the new frontier of SEO visibility
 
-### Delivery Platform SEO (UAE-specific)
-Talabat, Deliveroo, Noon Food, Careem Food are search engines in the UAE. People search for food on these platforms before Google. Separate SEO universe — keyword optimization for delivery platform listings, review management, photo quality. Phase 3 addition.
-
-### Content Freshness Monitor
-Flag pages that are 6+ months old and still ranking (they could rank higher with a refresh). Auto-queue `page_update` items for stale high-performing content.
-
-### Arabic Content (GCC Markets)
-Arabic prompt layer for bilingual content in UAE, Bahrain, KSA, Qatar, Egypt markets. RTL content handling. Language detection already in international pipeline — needs Arabic generation layer added.
+### Week-on-Week Ranking Movement
+- By now we have 4+ weekly snapshots
+- Show: keywords that moved up/down, by how much
+- Which published content moved the needle
 
 ---
 
-## Month 4 — Full Marketing Operations
+## Month 4+ — Full Marketing Operations
 
 ### Social Media Workflow → SocialPilot
 - Social post creation with AI assist (brand-voiced captions)
 - Approval workflow (same as content approvals)
 - SocialPilot auto-publish on approval
 - Platform-specific formatting (Instagram vs Twitter/X vs LinkedIn)
-- Content calendar view showing all approved + scheduled social posts
 
 ### Content Calendar View
-Calendar view across all content types and departments. SEO blog posts, social content, design requests, campaign planning — all in one view. Makes The Perch into a true editorial calendar.
+Calendar view across all content types. SEO blog posts, social content, design requests — one view. Makes The Perch an editorial calendar.
 
 ### Email Digest (Resend)
-Weekly summary email every Monday: what Claude queued, what was approved, what's live, top 3 SEO targets for the week. CEO-level digest.
+Weekly summary email: what Claude queued, what was approved, what's live, top 3 SEO targets. CEO-level digest.
 
 ### Brand Voice Interview
-8-question guided interview that auto-populates brand context fields. Much better than manual form filling. Captures founder voice directly.
+8-question guided interview → auto-populates brand context fields. Captures founder voice directly.
 
----
-
-## Month 5+ — Scale
+### Delivery Platform SEO (UAE-specific)
+Talabat, Deliveroo, Noon Food, Careem Food are search engines. Keyword optimization for delivery platform listings, review management, photo quality.
 
 ### Multi-Brand Expansion
-One config object = new brand onboarded. Southpour, Shadowburg, Shadowbird into the full SEO pipeline. Any future Yolk Brands brand added in under an hour.
-
-### Franchise SEO
-Location-specific pages for franchise partners. Their own brand context layer. Local keyword targeting per franchise location.
+One config object = new brand onboarded. Southpour, Shadowburg, Shadowbird into full SEO pipeline.
 
 ### CEO Dashboard + PDF Report
-Monthly one-page PDF: top ranking gains, content published, competitor movements, traffic value, ROI summary. Exportable for board presentations.
-
-### Paid Search Integration
-GSC organic data informs Google Ads strategy. Keyword opportunity cards cross-referenced with paid performance. Organic + paid working together.
+Monthly one-page PDF: top ranking gains, content published, competitor movements, traffic value, ROI. Exportable for board presentations.
 
 ---
 
-## Delivery Timeline
-
-**How we work:** Each session = one or two features. Upload zip, say "read SETUP.md, build X". Deploy. Test. Next session. Keep chats short and focused — long chats make Claude slower and less precise.
-
-**External blockers (outside our control):**
-- Google Business Profile API — requires Google Cloud project + OAuth approval
-- Instagram Graph API — requires Meta app review
-- GA4 revenue attribution — requires proper event tracking on WP sites first
-- Ranking movement data — needs Monday's snapshot run before deltas are available
-
----
-
-### ✅ Done (Sessions 1–N, June 2026)
-- Full SEO content pipeline (quick wins, meta rewrites, content gaps, page creation)
-- Brand voice system (1-10 scoring, banned words, auto-reject below 5)
-- Keyword tier system (Quick Win / Short Term / Long Term / Priority Gap)
-- International SEO pipeline (9 markets, EN + AR)
-- Competitor matrix (DataForSEO Standard mode)
-- Google SSO auth + 3 roles (Viewer / Manager / Admin)
-- WordPress REST API integration (drafts, pages, meta, publish)
-- Seed keywords + How It Works panel
-- The Nest rebrand
-- The Perch kanban (drag-drop, side panel, labels, quick-add, filters)
-- 5 brands (Pickl, Bonbird, Southpour, Shadowburg, Shadowbird)
-- Brand + department in user management
-- Technical SEO v2 (WP-sourced priority pages, international health checks, PSI escalation, developer kanban)
-- Empty pages fork (impressions ≥100 → page_creation)
-- CEO Reports tab (traffic value, position distribution, AI readiness, talking points)
-- Weekly GSC snapshots (starts this Monday)
-- Priority pages fixed (Menu, Locations, Franchise, About always audited)
-- SETUP.md as session handoff document
-
----
-
-### 🔄 Week 1 (Next session — start here)
-**Brand content feeding** ← DO THIS FIRST, highest leverage for voice quality
-- Pull last 30 journal posts from WP for each brand
-- Store in Blobs: `brandExamples:pickl`, `brandExamples:bonbird`
-- Inject 3-5 real examples into every Claude content prompt
-- Result: AI writes FROM real Pickl/Bonbird copy, not just from rules
-
-**Hreflang for 9 markets**
-- Auto-generate hreflang block for every international URL
-- Queue as `page_update` items in Approvals Queue
-
-**Perch labels update**
-- Swap to: Urgent · Blocked · Awaiting Feedback · Scheduled · In Review · Campaign · Assets Needed · Done
-
-**Slack rebuild**
-- Per-item notifications grouped by brand/type
-- Approve/dismiss directly from Slack (interactive components)
-
----
-
-### Week 2
-**Google Business Profile integration** ← biggest local SEO gap
-- Connect GBP API (separate OAuth)
-- Monitor: reviews, photos, Q&A, listing completeness per location
-- Auto-queue review responses (brand voice checked)
-- GBP health score per location in new Local SEO tab
-- AI Readiness Score goes green when connected
-
-**Google Reviews management**
-- Pull reviews via GMB API
-- Queue responses → brand voice check → approve → publish
-
-**Backlink monitoring**
-- DataForSEO backlink API
-- Domain authority, new/lost links, competitor comparison
-
----
-
-### Week 3
-**YouTube SEO module**
-- YouTube keyword research for food/restaurant queries
-- Video content brief generator (Claude writes briefs targeting keywords)
-- Video schema markup generator
-- YouTube = second largest search engine, food content wins
-
-**Citation tracker**
-- Check Zomato, TripAdvisor, Time Out Dubai, What's On, The Entertainer
-- NAP consistency check (Name, Address, Phone)
-- Missing/inconsistent citations → flagged as action items
-
-**Content freshness monitor**
-- Flag pages 6+ months old that are still ranking
-- Auto-queue `page_update` items for stale high-performing content
-
----
-
-### Week 4
-**Social media workflow → SocialPilot**
-- Social post creation with AI assist (brand-voiced captions)
-- Approval workflow (same as content approvals)
-- SocialPilot auto-publish on approval
-- Platform-specific formatting
-
-**Content calendar view**
-- Calendar showing all approved + scheduled content
-- SEO posts, social content, design requests — one view
-
-**Delivery platform SEO (UAE-specific)**
-- Talabat, Deliveroo, Noon Food keyword optimisation
-- UAE-specific: people search for food on these before Google
-
----
-
-### Week 5
-**GA4 integration + Revenue attribution**
-- Connect GA4 (requires tracking set up on WP first)
-- Real sessions, conversions, revenue from organic search
-- Replaces estimated traffic value with real £/$ numbers
-
-**AI Overview visibility tracker**
-- Weekly check: for top 20 keywords, does AI Overview appear?
-- Are we cited in it?
-- This is the new frontier of SEO visibility
-
-**Week-on-week ranking movement**
-- By now we have 3+ weekly snapshots
-- Show: keywords that moved up/down, by how much
-- Which published content moved the needle
-
----
-
-### Week 6
-**Deep competitor URL audit**
-- Enter any URL → full audit (keywords, traffic estimate, backlinks, speed)
-- Richer than current DataForSEO keyword-only tracking
-
-**Email digest (Resend)**
-- Weekly summary: what was queued, approved, published
-- Top 3 SEO targets for the week
-- CEO-level digest every Monday
-
-**Brand voice interview**
-- 8-question guided interview → auto-populates brand context
-- Captures founder voice directly
-
-**Arabic content generation**
-- Arabic prompt layer for GCC markets
-- RTL content handling
-
----
-
-### Beyond Week 6
-- Franchise SEO (location-specific pages for franchise partners)
-- Southpour + dark kitchens into full SEO pipeline
-- CEO monthly PDF report (exportable for board)
-- Multi-brand expansion (one config = new brand onboarded)
-- Paid search integration (organic data informs Google Ads)
-
----
-
-## What This Week Means for the CEO Meeting
-
-## What This Week Means for the CEO Meeting
+## What This Means for the CEO Meeting
 
 **What we've built (talk to this):**
-> "We've built The Nest — our internal marketing operations platform. The SEO engine runs every Monday automatically: it identifies our weakest keyword opportunities, writes improved content in Pickl and Bonbird's exact brand voice, and queues it for our approval. We've run this for [X] weeks. The international pipeline covers 9 markets. We have technical SEO monitoring with Core Web Vitals data. And we've built The Perch — a Trello replacement for the whole marketing department."
+> "We've built The Nest — our internal marketing operations platform. The SEO engine runs every Monday automatically: it identifies our weakest keyword opportunities, writes improved content in Pickl and Bonbird's exact brand voice, and queues it for approval. The brand voice system uses real Pickl and Bonbird writing as examples, not just rules. The international pipeline covers 9 markets. We have technical SEO monitoring, a competitor intelligence engine, and The Perch — a Trello replacement for the whole marketing department."
 
 **What we're showing today:**
-> "Here's our current SEO performance: [open Reports tab — traffic value, position distribution, top keywords, Quick Wins waiting]. Here's our AI Search Readiness Score against Google's own AI Overviews criteria — and here's exactly what's holding us back [page speed, GBP]. Here's the content pipeline this month — [X] items queued, [Y] approved, [Z] live."
+> "Here's our current SEO performance: [open Reports tab — traffic value in AED, position distribution, top keywords, Quick Wins waiting]. The traffic value figure uses real Google Ads CPC data per keyword — not an estimate. Here's our AI Search Readiness Score against Google's own criteria — and here's exactly what's holding us back [page speed, GBP]. Here's the content pipeline this month — [X] items queued, [Y] approved, [Z] live."
 
 **What's coming:**
-> "Next week we fix the single biggest problem: our brand voice training. The AI is working from rules — next week it works from real Pickl and Bonbird writing. Month 2 is Google Business Profile — the biggest local SEO gap for a restaurant brand. Month 3 is YouTube SEO and revenue attribution. We'll be able to show you the actual money value of every SEO improvement."
+> "This week: hreflang for all 9 international markets, GBP integration (biggest local SEO gap for a restaurant brand). Month 2 is Google Reviews management and backlink monitoring. Month 3 is YouTube SEO and GA4 revenue attribution — real AED numbers on every SEO improvement."
 
 **The honest truth on page speed:**
 > "Pickl's homepage scores 40/100 on mobile. LCP is 9.4 seconds against Google's 2.5-second threshold. This is directly limiting our eligibility for AI Overviews — the fastest-growing traffic source on Google. This is a developer fix, not a content fix. It needs to be prioritised immediately."
@@ -446,7 +260,7 @@ GSC organic data informs Google Ads strategy. Keyword opportunity cards cross-re
 | `WP_BONBIRD_BASE` | Bonbird WordPress REST base URL |
 | `WP_BONBIRD_USER` | WP username |
 | `WP_BONBIRD_APP_PASS` | WP application password |
-| `DATAFORSEO_LOGIN` | DataForSEO API |
+| `DATAFORSEO_LOGIN` | DataForSEO API (SERP + Keywords Data) |
 | `DATAFORSEO_PASSWORD` | DataForSEO API |
 | `SLACK_WEBHOOK_URL` | Optional — Blobs value takes priority |
 | `GOOGLE_PAGESPEED_KEY` | PageSpeed Insights API (25k/day free) |
@@ -462,12 +276,12 @@ GSC organic data informs Google Ads strategy. Keyword opportunity cards cross-re
 | `userProfile:<email>` | Brand + department assignment |
 | `userIndex` | Array of all user emails |
 | `gscTokens` | GSC OAuth tokens |
-| `gscCache:<siteUrl>` | GSC keyword data (query only) — 24hr TTL |
+| `gscCache:<siteUrl>` | GSC keyword data + `cpc_usd` / `cpc_aed` per row after Monday enrichment — 24hr TTL |
 | `gscPageCache:<siteUrl>` | GSC keyword+page data — 24hr TTL |
-| `gscSnapshot:<brand>:<YYYY-MM-DD>` | Weekly ranking snapshot (new) |
-| `brandContext:pickl/bonbird` | Editable brand context |
-| `brandExamples:pickl/bonbird` | Real WP journal posts for voice training (Sprint 2) |
-| `competitorMatrix:<brand>` | Latest competitor rankings |
+| `gscSnapshot:<brand>:<YYYY-MM-DD>` | Weekly ranking snapshot |
+| `brandContext:pickl/bonbird` | Editable brand context (Settings) |
+| `brandExamples:pickl/bonbird` | User-curated brand writing examples pasted in Settings → Brand Voice Examples. Injected into every Claude content prompt. Max 50k chars. |
+| `competitorMatrix:<brand>` | Latest competitor rankings + `cpc_usd` per keyword |
 | `competitorConfig:<brand>` | Competitor domain list |
 | `keywordConfig:<brand>` | Keyword filter settings |
 | `seedKeywords:<brand>` | Manually curated seed keywords |
@@ -480,14 +294,28 @@ GSC organic data informs Google Ads strategy. Keyword opportunity cards cross-re
 | `scheduler:lastrun` | Last scheduler run summary |
 | `intlProcessed:<marketKey>:<lang>` | International dedup check |
 
-### Cron Schedule (All Monday 04:00 UTC = 08:00 Dubai)
+### Cron Schedule
 
 ```toml
-[functions."scheduler-background"]       # Content pipeline + GSC snapshots
-[functions."competitor-matrix-background"] # Competitor keyword tracking
+# Monday 04:00 UTC = 08:00 Dubai
+[functions."scheduler-background"]         # Content pipeline + GSC snapshots + CPC enrichment
+[functions."competitor-matrix-background"] # Competitor keyword tracking + CPC capture
 [functions."international-seo-background"] # 9-market content
-[functions."technical-seo-background"]    # PageSpeed + health checks
+[functions."technical-seo-background"]     # PageSpeed + health checks
+
+# Daily 05:00 UTC = 09:00 Dubai
+[functions."perch-notify-background"]      # Overdue + due today + due this week digest
 ```
+
+### DataForSEO Usage
+
+| Endpoint | What for | Cost |
+|---|---|---|
+| `serp/google/organic` Standard | Competitor keyword rankings. Response includes `keyword_info.cpc` — captured for free. | ~$0.0006/kw |
+| `keywords_data/google_ads/search_volume` Standard | Real Google Ads CPC for top 150 non-branded GSC keywords. Runs Monday. | ~$0.05/1000 kw ≈ $0.008/week |
+
+**Rule:** Standard mode ONLY — task_post then task_get polling. NEVER use live/advanced endpoints.
+Batch up to 100 keywords per SERP POST. Poll every 5s, max 10 minutes.
 
 ### API Routes
 
@@ -501,6 +329,7 @@ GSC organic data informs Google Ads strategy. Keyword opportunity cards cross-re
 | `/api/auth/logout` | auth-logout.js |
 | `/api/users` | user-management.js |
 | `/api/slack-notify` | slack-notify.js |
+| `/api/slack-callback` | slack-callback.js ← Slack interactive button handler |
 | `/api/seed-keywords` | seed-keywords.js |
 | `/api/gsc-data` | gsc-data.js |
 | `/api/db/get` | db-get.js |
@@ -514,6 +343,7 @@ GSC organic data informs Google Ads strategy. Keyword opportunity cards cross-re
 | `/api/technical-seo` | technical-seo.js |
 | `/api/tech-tasks` | tech-tasks.js |
 | `/api/perch` | perch.js |
+| `/api/brand-examples` | brand-examples.js ← Brand voice examples CRUD |
 
 ### International Markets
 
@@ -529,35 +359,46 @@ From Google's official AI Optimization Guide (June 2026):
 
 1. **Page speed is an eligibility gate** — pages must provide "good page experience" to appear in AI Overviews. Pickl's 40/100 mobile score is actively blocking AI Overview eligibility.
 2. **GBP is explicitly called out** for local businesses — our #1 missing integration.
-3. **Non-commodity content wins** — unique, first-hand, brand-specific content. Our voice system enforces this. Brand content feeding (Sprint 2) makes it even stronger.
+3. **Non-commodity content wins** — unique, first-hand, brand-specific content. Our voice system enforces this. Brand voice examples (real writing) make it even stronger.
 4. **RAG means ranking still matters** — AI Overviews are grounded in search rankings. SEO fundamentals still apply.
 5. **Things to ignore** — llms.txt files, content chunking, rewriting for AI, inauthentic mentions.
 6. **Agentic experiences** — emerging. Semantic HTML and accessibility help browser agents use your site.
 
 ---
 
-*Last updated: June 2026 — Full roadmap consolidated. Reports tab live. 6-week timeline revised.*
+## Done (Full History)
+
+- Full SEO content pipeline (quick wins, meta rewrites, content gaps, page creation)
+- Brand voice system (1-10 scoring, banned words, auto-reject below 5)
+- Brand voice examples — paste real brand writing in Settings, injected into every prompt
+- Keyword tier system (Quick Win / Short Term / Long Term / Priority Gap)
+- International SEO pipeline (9 markets, EN + AR)
+- Competitor matrix (DataForSEO Standard mode) + CPC capture from SERP results
+- Google SSO auth + 3 roles (Viewer / Manager / Admin)
+- WordPress REST API integration (drafts, pages, meta, publish)
+- Seed keywords + How It Works panel
+- The Nest rebrand
+- The Perch kanban (drag-drop, side panel, labels, quick-add, filters)
+- Perch labels: Urgent · Blocked · Awaiting Feedback · Scheduled · In Review · Campaign · Assets Needed · Done
+- Perch Slack notifications: task assigned, task done, daily due date digest
+- Perch labels bug fix: labels were not being saved (not in EDITABLE list — fixed)
+- 5 brands (Pickl, Bonbird, Southpour, Shadowburg, Shadowbird)
+- Brand + department in user management
+- Technical SEO v2 (WP-sourced priority pages, international health checks, PSI escalation, developer kanban)
+- Empty pages fork (impressions ≥100 → page_creation)
+- CEO Reports tab — now fully live:
+  - Traffic value in AED, non-branded only, real DataForSEO CPC (falls back to AED 5/click)
+  - Position distribution, top keywords, content pipeline, opportunities, AI readiness
+  - "Performance Summary" section (renamed from "CEO Talking Points")
+  - Data source labels on every chart/section
+- Weekly GSC snapshots (every Monday)
+- Priority pages fixed (Menu, Locations, Franchise, About always audited)
+- CPC enrichment — DataForSEO Keywords Data API runs Monday, stores `cpc_usd`/`cpc_aed` in gscCache
+- Slack rebuilt — Block Kit messages, per-item detail grouped by brand/type with voice scores
+- Slack interactive buttons — approve/dismiss SEO items from Slack (`slack-callback.js`, needs Slack App interactivity URL set to `https://yolkseo.netlify.app/api/slack-callback`)
+- Daily Perch due date digest (`perch-notify-background.js`, 5am UTC = 9am Dubai)
+- SETUP.md as session handoff document
 
 ---
 
-## Next Session — Fix List Before Anything Else
-
-### 1. Reports Tab — Data & Currency Fixes
-- **Currency:** Change all $ to AED throughout the Reports tab
-- **Traffic value is misleading** — current formula `clicks × $1.00` flat rate is wrong because:
-  - Branded keywords (Pickl Dubai, Bonbird UAE) have near-zero real CPC — no competitor bids on your brand
-  - Non-branded keywords (smash burger Dubai, best chicken sandwich) have real advertiser value
-  - Fix: filter branded terms out of traffic value calculation, use DataForSEO CPC per keyword for non-branded only, show in AED
-  - Add disclaimer: "Estimated value for non-branded organic traffic based on UAE restaurant keyword CPCs via DataForSEO"
-- **CEO Talking Points** — rename this section to something less blunt. Options to discuss: "Performance Summary", "Key Takeaways", "What To Know", "The Numbers"
-- **Data source labels** — every metric should show its source (GSC 90 days, DataForSEO, PSI) so CEO can ask "where does that come from" and there's an answer
-
-### 2. Week 1 Corrected Priority Order
-**Apply for GBP API access immediately** (Google Cloud Console → enable Business Profile API → start OAuth). Some accounts get instant access, some take days. Start the clock.
-
-| Track | This week | Next week |
-|---|---|---|
-| While waiting for GBP approval | Brand content feeding · Hreflang · Perch labels · Slack rebuild | GBP connected + Google Reviews live |
-| GBP API (apply NOW) | Apply + OAuth setup | Build + deploy |
-
-Google Reviews is NOT Month 2 — it's next week once GBP API is approved. Was Phase 3 in original roadmap but that was written before we knew how fast we could build.
+*Last updated: June 2026 — Reports live with real AED CPC. Brand voice examples in Settings. Slack rebuilt with Block Kit + interactive buttons. Perch labels updated. Daily due date digest. CPC enrichment via DataForSEO Keywords Data API.*

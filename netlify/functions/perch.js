@@ -20,6 +20,21 @@
 const { getStore } = require('@netlify/blobs');
 const { newId, getSetting, setSetting, logAudit, ok, bad, preflight, parseBody, CORS } = require('./_lib/store');
 
+const SITE_URL = process.env.URL || 'https://yolkseo.netlify.app';
+
+// ── Fire-and-forget Slack notification ──────────────────────────────────────
+async function notifySlack(type, data) {
+  try {
+    await fetch(`${SITE_URL}/.netlify/functions/slack-notify`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ type, ...data }),
+    });
+  } catch (e) {
+    console.warn('[perch] Slack notify failed:', e.message);
+  }
+}
+
 const BOOTSTRAP_ADMINS = ['shazin@yolkbrands.com', 'steve@yolkbrands.com'];
 
 const BRAND_SIBLINGS = {
@@ -164,6 +179,11 @@ exports.handler = async (event) => {
       await setSetting('perchIndex', [...(index || []), id]);
       await logAudit({ action: 'perch_task_created', actor: user.email, details: { id, title: task.title, brand: task.brand, department: task.department } });
 
+      // Slack: notify if assigned to someone other than the creator
+      if (task.assignee && task.assignee !== user.email) {
+        notifySlack('perch_assigned', { task, assignedBy: user.name || user.email }).catch(() => {});
+      }
+
       return ok({ task });
     } catch (e) {
       return bad(500, e.message);
@@ -182,7 +202,7 @@ exports.handler = async (event) => {
       if (!canSeeTask(task, user))      return bad(403, 'Access denied');
       if (!canEditTask(task, user))     return bad(403, 'Only admin, creator, or assignee can edit this task');
 
-      const EDITABLE = ['title', 'description', 'brand', 'department', 'assignee', 'dueDate', 'priority', 'status', 'collaborators'];
+      const EDITABLE = ['title', 'description', 'brand', 'department', 'assignee', 'dueDate', 'priority', 'status', 'collaborators', 'labels'];
       const changes  = Object.fromEntries(Object.entries(body).filter(([k]) => EDITABLE.includes(k)));
 
       const updatedTask = {
@@ -210,6 +230,15 @@ exports.handler = async (event) => {
 
       await setSetting('perchTask:' + id, updatedTask);
       await logAudit({ action: 'perch_task_updated', actor: user.email, details: { id, changes: Object.keys(changes) } });
+
+      // Slack: notify on assignee change (new assignee gets pinged)
+      if (changes.assignee && changes.assignee !== task.assignee && changes.assignee !== user.email) {
+        notifySlack('perch_assigned', { task: updatedTask, assignedBy: user.name || user.email }).catch(() => {});
+      }
+      // Slack: notify on status change to 'done'
+      if (changes.status === 'done' && task.status !== 'done') {
+        notifySlack('perch_done', { task: updatedTask, completedBy: user.name || user.email }).catch(() => {});
+      }
 
       return ok({ task: updatedTask });
     } catch (e) {

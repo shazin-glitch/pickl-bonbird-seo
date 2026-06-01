@@ -510,9 +510,9 @@
           <div id="report-opportunities" style="display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));gap:12px"></div>
         </div>
 
-        <!-- CEO talking points -->
+        <!-- Performance Summary -->
         <div class="card" style="background:linear-gradient(135deg,#1e293b,#0f172a);border-color:#334155">
-          <div style="font-weight:600;font-size:14px;margin-bottom:16px;color:#f1f5f9">💬 CEO Talking Points</div>
+          <div style="font-weight:600;font-size:14px;margin-bottom:16px;color:#f1f5f9">📋 Performance Summary</div>
           <div id="report-talking-points" style="color:#cbd5e1;font-size:13px;line-height:1.7"></div>
         </div>
 
@@ -754,7 +754,7 @@
           <div class="toggle-row">
             <div class="toggle-label">
               <h4>Slack Notifications</h4>
-              <p>Get pinged when new items are queued by the scheduler or international SEO.</p>
+              <p>Get pinged for SEO queue items, Perch task assignments, completions, and daily due date digests.</p>
             </div>
             <div class="toggle-switch" id="slack-toggle" onclick="this.classList.toggle('off')"></div>
           </div>
@@ -765,6 +765,11 @@
               <button class="btn btn-outline" onclick="saveSlackWebhook()">Save</button>
             </div>
             <div id="slack-webhook-status" style="font-size:12px;color:var(--text-muted);margin-top:4px"></div>
+          </div>
+          <div style="background:var(--bg-base);border-radius:8px;padding:12px 14px;margin-bottom:16px;font-size:12px;color:var(--text-muted);line-height:1.6">
+            <strong style="color:var(--text-main)">💬 Approve/dismiss from Slack</strong> — To enable approve &amp; dismiss buttons directly in Slack, set your Slack App's Interactivity Request URL to:<br>
+            <code style="font-size:11px;background:var(--bg-surface);padding:2px 6px;border-radius:4px;margin-top:4px;display:inline-block">https://yolkseo.netlify.app/api/slack-callback</code><br>
+            <span style="margin-top:4px;display:inline-block">Slack App → Settings → Interactivity &amp; Shortcuts → Request URL</span>
           </div>
 
           <div class="toggle-row">
@@ -832,6 +837,30 @@
             </div>
           </div>
           <div id="brand-ctx-status" style="font-size:12px;color:var(--text-muted);margin-top:8px"></div>
+        </div>
+
+        <!-- Brand Voice Examples -->
+        <div class="card" style="grid-column:1/-1">
+          <div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:20px">
+            <div>
+              <h3 style="font-size:16px;font-weight:600">Brand Voice Examples</h3>
+              <p style="font-size:13px;color:var(--text-muted);margin-top:4px">Paste real writing from this brand — blog posts, social copy, journal entries, campaign lines. The AI studies these examples directly and matches this voice when generating content. More = better. Quality beats quantity.</p>
+            </div>
+            <div style="display:flex;gap:8px;flex-shrink:0;margin-left:16px">
+              <select id="brand-ex-selector" class="form-input" style="width:140px;font-family:var(--font-sans)" onchange="loadBrandExamples()">
+                <option value="pickl">Pickl</option>
+                <option value="bonbird">Bonbird</option>
+              </select>
+              <button class="btn btn-primary" onclick="saveBrandExamples()">Save Examples</button>
+            </div>
+          </div>
+          <div class="form-group">
+            <textarea id="brand-ex-content" class="form-input" rows="14" style="font-family:var(--font-sans);resize:vertical;font-size:13px;line-height:1.7" oninput="updateExCharCount()" placeholder="Paste real brand writing here. Can be blog posts, journal entries, social captions, campaign copy — anything that captures how this brand actually talks. Separate examples with a blank line or --- divider.&#10;&#10;Example:&#10;---&#10;Smash. Season. Serve. That's the whole playbook.&#10;Grain-fed beef, hand-smashed to order, piled with house-made pickles. You either get it or you don't, Legend.&#10;---"></textarea>
+          </div>
+          <div style="display:flex;align-items:center;justify-content:space-between">
+            <div id="brand-ex-status" style="font-size:12px;color:var(--text-muted)"></div>
+            <div id="brand-ex-char-count" style="font-size:12px;color:var(--text-muted)"></div>
+          </div>
         </div>
 
       <!-- Audit Log -->
@@ -1236,7 +1265,7 @@ function switchView(target) {
   if (target === 'analytics')     loadGscIfNeeded();
   if (target === 'reports')       loadReports();
   if (target === 'techseo')       { loadTechnicalSeo(); loadTechDevKanban(techSeoState.brand); }
-  if (target === 'settings')      { renderAuditLog(); loadBrandCtx(); loadSlackWebhook(); if (state.userRole === 'admin') { document.getElementById('users-panel').style.display = ''; loadUsersPanel(); } }
+  if (target === 'settings')      { renderAuditLog(); loadBrandCtx(); loadBrandExamples(); loadSlackWebhook(); if (state.userRole === 'admin') { document.getElementById('users-panel').style.display = ''; loadUsersPanel(); } }
   if (target === 'international') loadIntlDashboard();
   if (target === 'howto')         loadHowItWorks();
 }
@@ -2098,6 +2127,54 @@ async function saveBrandCtx() {
   }
 }
 
+// ── Brand Voice Examples ──────────────────────────────────────────────────────
+async function loadBrandExamples() {
+  const brand = document.getElementById('brand-ex-selector').value;
+  const textarea = document.getElementById('brand-ex-content');
+  const status = document.getElementById('brand-ex-status');
+  const charCount = document.getElementById('brand-ex-char-count');
+  if (!textarea) return;
+  status.textContent = 'Loading…';
+  try {
+    const data = await fetch(`/api/brand-examples?brand=${brand}`, { credentials: 'include' }).then(r => r.json());
+    textarea.value = data?.examples || '';
+    status.textContent = data?.examples ? `✓ Examples loaded` : 'No examples saved yet for this brand';
+    updateExCharCount();
+  } catch (e) {
+    status.textContent = 'Could not load examples';
+  }
+}
+
+function updateExCharCount() {
+  const textarea = document.getElementById('brand-ex-content');
+  const charCount = document.getElementById('brand-ex-char-count');
+  if (!textarea || !charCount) return;
+  const len = textarea.value.length;
+  const words = textarea.value.trim() ? textarea.value.trim().split(/\s+/).length : 0;
+  charCount.textContent = `${words.toLocaleString()} words · ${len.toLocaleString()} chars`;
+}
+
+async function saveBrandExamples() {
+  const brand = document.getElementById('brand-ex-selector').value;
+  const examples = document.getElementById('brand-ex-content').value.trim();
+  const status = document.getElementById('brand-ex-status');
+  status.textContent = 'Saving…';
+  try {
+    await fetch('/api/brand-examples', {
+      method: 'POST',
+      credentials: 'include',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ brand, examples }),
+    });
+    status.textContent = `✓ ${brand === 'pickl' ? 'Pickl' : 'Bonbird'} voice examples saved — Claude will use these in all content generation`;
+    status.style.color = 'var(--success)';
+    setTimeout(() => { status.style.color = ''; status.textContent = ''; }, 4000);
+  } catch (e) {
+    status.textContent = 'Save failed: ' + e.message;
+    status.style.color = 'var(--danger)';
+  }
+}
+
 async function renderAuditLog() {
   const el = document.getElementById('audit-log-list');
   try {
@@ -2650,12 +2727,12 @@ async function quickAddCard(colId) {
 const LABEL_PRESETS = [
   { c: '#ef4444', t: 'Urgent' },
   { c: '#f97316', t: 'Blocked' },
-  { c: '#eab308', t: 'Review' },
-  { c: '#22c55e', t: 'On Track' },
-  { c: '#3b82f6', t: 'Client' },
+  { c: '#eab308', t: 'Awaiting Feedback' },
+  { c: '#3b82f6', t: 'Scheduled' },
+  { c: '#6366f1', t: 'In Review' },
   { c: '#8b5cf6', t: 'Campaign' },
-  { c: '#ec4899', t: 'Design' },
-  { c: '#6b7280', t: 'Info' },
+  { c: '#ec4899', t: 'Assets Needed' },
+  { c: '#22c55e', t: 'Done' },
 ];
 
 async function toggleLabel(taskId, labelColor) {
@@ -3022,8 +3099,18 @@ function renderReports(brand, rows, techData, queue) {
   const totalClicks      = rows.reduce((s, r) => s + (r.clicks || 0), 0);
   const top10            = rows.filter(r => r.position <= 10).length;
   const top3             = rows.filter(r => r.position <= 3).length;
-  // Traffic value: clicks × estimated avg CPC for UAE restaurant queries ($1.00 conservative)
-  const trafficValue     = totalClicks * 1.00;
+  // Traffic value: non-branded clicks × real DataForSEO CPC (AED), falling back to AED 5 estimate
+  // Branded keywords (pickl/bonbird) excluded — near-zero advertiser value
+  const BRAND_TERMS      = brand === 'pickl' ? ['pickl', 'pickle restaurant'] : ['bonbird', 'bon bird'];
+  const AED_PER_USD      = 3.67;
+  const nonBrandedRows   = rows.filter(r => !BRAND_TERMS.some(t => r.keyword?.toLowerCase().includes(t)));
+  const hasCpcData       = nonBrandedRows.some(r => r.cpc_usd != null || r.cpc_aed != null);
+  const trafficValue     = Math.round(
+    nonBrandedRows.reduce((s, r) => {
+      const cpcAed = r.cpc_aed ?? (r.cpc_usd != null ? r.cpc_usd * AED_PER_USD : 5);
+      return s + (r.clicks || 0) * cpcAed;
+    }, 0)
+  );
   const avgPos           = rows.length ? (rows.reduce((s,r) => s + r.position, 0) / rows.length).toFixed(1) : '—';
 
   // ── Position distribution ────────────────────────────────────
@@ -3069,10 +3156,10 @@ function renderReports(brand, rows, techData, queue) {
 
   // Metric cards
   document.getElementById('report-metrics').innerHTML = [
-    { label: 'Top 10 Keywords', value: top10.toLocaleString(), sub: `${top3} in top 3`, color: '#059669', icon: '🏆' },
-    { label: 'Impressions (90d)', value: totalImpressions.toLocaleString(), sub: `${rows.length} total keywords`, color: '#3b82f6', icon: '👁️' },
-    { label: 'Clicks (90d)',      value: totalClicks.toLocaleString(), sub: `${((totalClicks/Math.max(totalImpressions,1))*100).toFixed(1)}% avg CTR`, color: '#8b5cf6', icon: '👆' },
-    { label: 'Traffic Value',     value: '$' + trafficValue.toLocaleString('en', {minimumFractionDigits:0}), sub: 'Est. paid ad equivalent/mo', color: '#d97706', icon: '💰' },
+    { label: 'Top 10 Keywords', value: top10.toLocaleString(), sub: `${top3} in top 3 · GSC 90 days`, color: '#059669', icon: '🏆' },
+    { label: 'Impressions (90d)', value: totalImpressions.toLocaleString(), sub: `${rows.length} total keywords · GSC`, color: '#3b82f6', icon: '👁️' },
+    { label: 'Clicks (90d)',      value: totalClicks.toLocaleString(), sub: `${((totalClicks/Math.max(totalImpressions,1))*100).toFixed(1)}% avg CTR · GSC`, color: '#8b5cf6', icon: '👆' },
+    { label: 'Traffic Value',     value: 'AED ' + trafficValue.toLocaleString('en', {minimumFractionDigits:0}), sub: hasCpcData ? `Non-branded · DataForSEO CPC` : `Non-branded · AED 5/click est.`, color: '#d97706', icon: '💰' },
   ].map(m => `
     <div class="card" style="text-align:center;padding:20px 16px">
       <div style="font-size:24px;margin-bottom:8px">${m.icon}</div>
@@ -3096,7 +3183,8 @@ function renderReports(brand, rows, techData, queue) {
     <div style="margin-top:16px;padding-top:12px;border-top:1px solid var(--border);display:flex;justify-content:space-between;font-size:12px;color:var(--text-muted)">
       <span>Avg position: <strong style="color:var(--text)">${avgPos}</strong></span>
       <span>Total keywords: <strong style="color:var(--text)">${rows.length}</strong></span>
-    </div>`;
+    </div>
+    <div style="margin-top:8px;font-size:11px;color:var(--text-muted)">Source: Google Search Console · 90-day window</div>`;
 
   // AI Search Readiness
   document.getElementById('report-ai-readiness').innerHTML = `
@@ -3114,7 +3202,8 @@ function renderReports(brand, rows, techData, queue) {
           <div style="font-size:13px;font-weight:600;color:${c.pass ? 'var(--text)' : '#dc2626'}">${c.label}</div>
           <div style="font-size:11px;color:var(--text-muted)">${c.note}</div>
         </div>
-      </div>`).join('')}`;
+      </div>`).join('')}
+    <div style="margin-top:10px;font-size:11px;color:var(--text-muted)">Sources: PageSpeed Insights + Technical SEO audit</div>`;
 
   // Top keywords table
   const topKws = [...rows].sort((a,b) => b.impressions - a.impressions).slice(0, 10);
@@ -3161,6 +3250,7 @@ function renderReports(brand, rows, techData, queue) {
       <div style="padding:10px 14px;background:var(--bg-base);border-radius:8px;font-size:12px;color:var(--text-muted)">
         📅 Weekly snapshots saving from <strong>next Monday</strong> — ranking movement tracking enabled
       </div>
+      <div style="font-size:11px;color:var(--text-muted);padding:4px 0">Source: The Nest Approvals Queue · last 30 days</div>
     </div>`;
 
   // Opportunities
@@ -3179,15 +3269,15 @@ function renderReports(brand, rows, techData, queue) {
       <div style="font-size:12px;color:#64748b">${o.desc}</div>
     </div>`).join('');
 
-  // CEO talking points
+  // Performance Summary
   const talkingPoints = [
     `<strong>What's running:</strong> Every Monday at 8am Dubai, The Nest automatically identifies keyword opportunities, writes ${brandName}-branded content, and queues it for approval. Zero manual effort on content research.`,
-    `<strong>Current performance:</strong> ${top10.toLocaleString()} keywords in the top 10, generating ${totalClicks.toLocaleString()} organic clicks in the last 90 days. Estimated organic traffic value: <strong>$${trafficValue.toLocaleString()}/month</strong> in paid ad equivalent.`,
+    `<strong>Current performance:</strong> ${top10.toLocaleString()} keywords in the top 10, generating ${totalClicks.toLocaleString()} organic clicks in the last 90 days. Estimated non-branded traffic value: <strong>AED ${trafficValue.toLocaleString()}/month</strong> in paid ad equivalent (${hasCpcData ? 'real Google Ads CPC via DataForSEO, branded keywords excluded' : 'AED 5/click UAE restaurant estimate, branded keywords excluded'}).`,
     quickWins > 0 ? `<strong>Immediate opportunity:</strong> ${quickWins} keywords are ranked 11-20 right now — one content update away from page 1. The tool is already targeting these every Monday.` : '',
-    avgMobile && avgMobile < 70 ? `<strong>⚠️ Critical issue:</strong> ${brandName}'s mobile page speed scores ${avgMobile}/100. Google requires good page experience for AI Overview eligibility. Pickl's LCP is 9.4s against a 2.5s threshold — this is blocking us from appearing in AI-generated search results. Developer fix needed urgently.` : '',
-    `<strong>Next week:</strong> Brand content training — pulling real ${brandName} journal posts to teach the AI to write in authentic ${brandName} voice. Hreflang implementation for all 9 international markets.`,
+    avgMobile && avgMobile < 70 ? `<strong>⚠️ Critical issue:</strong> ${brandName}'s mobile page speed scores ${avgMobile}/100. Google requires good page experience for AI Overview eligibility. LCP needs to be under 2.5s — this is blocking us from appearing in AI-generated search results. Developer fix needed urgently.` : '',
+    `<strong>Next:</strong> Brand content training — real ${brandName} writing examples injected into every AI prompt so content matches authentic ${brandName} voice exactly. Hreflang for all 9 international markets.`,
     `<strong>Month 2:</strong> Google Business Profile integration (biggest local SEO gap for a restaurant brand), backlink monitoring, Google Reviews management.`,
-    `<strong>By end of Month 3:</strong> YouTube SEO module, GA4 revenue attribution (real £/$ numbers), AI Overview visibility tracking.`,
+    `<strong>By end of Month 3:</strong> YouTube SEO module, GA4 revenue attribution (real AED numbers), AI Overview visibility tracking.`,
   ].filter(Boolean);
 
   document.getElementById('report-talking-points').innerHTML = talkingPoints.map(p => `<div style="margin-bottom:12px;padding-left:12px;border-left:2px solid #475569">• ${p}</div>`).join('');
