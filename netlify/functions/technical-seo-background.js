@@ -64,36 +64,36 @@ exports.handler = async (event) => {
     }
   }
 
-  // ── PART 2: Health check on international pages ──────────────────────────
+  // ── PART 2: Health check + PSI on ALL international pages ───────────────
+  // Health check first (fast), then always run mobile PSI regardless.
+  // Desktop PSI skipped for international to keep audit time manageable.
   const intlPages = getInternationalPages(brand, domain);
-  console.log(`[tech-seo] ${brand}: ${intlPages.length} international pages to health-check`);
+  console.log(`[tech-seo] ${brand}: ${intlPages.length} international pages to audit`);
 
   for (const page of intlPages) {
     try {
       const health = await runHealthCheck(page.url);
       const result = { url: page.url, label: page.label, market: page.market, health, checkedAt: Date.now() };
 
-      // Escalate to full PSI if health check fails
-      if (health.status !== 'ok' || health.responseTimeMs > 3000) {
-        console.log(`[tech-seo] Escalating ${page.url} to PSI (${health.status}, ${health.responseTimeMs}ms)`);
-        try {
-          const [mobile, desktop] = await Promise.all([
-            runPageSpeed(page.url, 'mobile'),
-            runPageSpeed(page.url, 'desktop'),
-          ]);
-          result.mobile  = mobile;
-          result.desktop = desktop;
-          result.escalated = true;
-          await createIssuesFromPsi(brand, page, mobile, desktop);
-        } catch (psiErr) {
-          result.psiError = psiErr.message;
+      // Always run mobile PSI — real performance data, not just server response time
+      console.log(`[tech-seo] PSI (mobile) for ${page.url}`);
+      try {
+        result.mobile = await runPageSpeed(page.url, 'mobile');
+        // Also run desktop if health check flagged an issue
+        if (health.status !== 'ok' || health.responseTimeMs > 3000) {
+          result.desktop  = await runPageSpeed(page.url, 'desktop');
+          result.hasIssue = true;
         }
+        await createIssuesFromPsi(brand, page, result.mobile, result.desktop || result.mobile);
+      } catch (psiErr) {
+        console.warn(`[tech-seo] PSI failed for ${page.url}:`, psiErr.message);
+        result.psiError = psiErr.message;
       }
 
       audit.intlResults.push(result);
       await setSetting(`technicalSeo:${brand}`, { ...audit });
     } catch (e) {
-      console.error(`[tech-seo] Health check error ${page.url}:`, e.message);
+      console.error(`[tech-seo] Error for ${page.url}:`, e.message);
       audit.intlResults.push({ url: page.url, label: page.label, market: page.market, error: e.message, checkedAt: Date.now() });
     }
   }

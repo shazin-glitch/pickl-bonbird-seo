@@ -55,18 +55,36 @@
   .page-view { display: none; padding: 32px; max-width: 1200px; margin: 0 auto; width: 100%; }
   .page-view.active { display: block; }
   /* ── The Perch Kanban ── */
-  .perch-board { display: grid; grid-template-columns: repeat(4, 1fr); gap: 16px; overflow-x: auto; padding-bottom: 8px; }
-  .perch-col { background: var(--bg-surface); border-radius: 10px; padding: 14px; min-height: 200px; }
+  .perch-board { display: grid; grid-template-columns: repeat(4, 1fr); gap: 16px; overflow-x: auto; padding-bottom: 8px; transition: padding-right 0.25s ease; }
+  .perch-col { background: #f1f5f9; border-radius: 10px; padding: 14px; min-height: 200px; transition: background 0.15s, border 0.15s; border: 2px solid transparent; }
+  .perch-col.drag-over { background: #e0e7ff; border: 2px dashed #6366f1; }
   .perch-col-header { font-weight: 600; font-size: 13px; margin-bottom: 12px; display: flex; justify-content: space-between; align-items: center; }
-  .perch-card { background: var(--bg-surface); border: 1px solid var(--border); border-radius: 8px; padding: 12px; margin-bottom: 8px; cursor: pointer; transition: border-color 0.15s, transform 0.1s; }
-  .perch-card:hover { border-color: var(--primary); transform: translateY(-1px); }
-  .perch-card-title { font-weight: 600; font-size: 13px; margin-bottom: 8px; line-height: 1.3; }
+  .perch-card { background: #fff; border: 1px solid #e2e8f0; border-radius: 8px; padding: 12px; margin-bottom: 8px; cursor: pointer; transition: border-color 0.15s, box-shadow 0.15s; user-select: none; }
+  .perch-card:hover { border-color: #6366f1; box-shadow: 0 2px 8px rgba(99,102,241,0.15); }
+  .perch-card.dragging { opacity: 0.4; transform: rotate(1.5deg); box-shadow: 0 8px 24px rgba(0,0,0,0.15); }
+  .perch-card-title { font-weight: 600; font-size: 13px; margin-bottom: 8px; line-height: 1.3; color: #1e293b; }
   .perch-card-meta { display: flex; flex-wrap: wrap; gap: 4px; margin-bottom: 6px; }
   .perch-pill { font-size: 10px; font-weight: 600; padding: 2px 7px; border-radius: 99px; }
   .perch-card-footer { display: flex; justify-content: space-between; align-items: center; margin-top: 8px; }
-  .perch-assignee { font-size: 11px; color: var(--text-muted); }
+  .perch-assignee { font-size: 11px; color: #64748b; }
   .perch-due { font-size: 11px; }
-  @media (max-width: 900px) { .perch-board { grid-template-columns: repeat(2, 1fr); } }
+  .perch-labels { display: flex; gap: 4px; margin-bottom: 6px; flex-wrap: wrap; }
+  .perch-label { height: 8px; border-radius: 4px; min-width: 32px; }
+  .perch-quick-add-btn { width: 100%; text-align: left; padding: 6px 8px; font-size: 12px; color: #64748b; background: none; border: none; cursor: pointer; border-radius: 6px; margin-top: 4px; transition: background 0.12s, color 0.12s; }
+  .perch-quick-add-btn:hover { background: rgba(0,0,0,0.06); color: #1e293b; }
+  .perch-quick-add-form { margin-top: 6px; }
+  .perch-quick-add-form textarea { width: 100%; padding: 8px 10px; border-radius: 8px; border: 2px solid #6366f1; background: #fff; color: #1e293b; font-size: 13px; resize: none; font-family: inherit; outline: none; }
+  /* Side panel */
+  #perch-side-panel { position: fixed; top: 64px; right: 0; bottom: 0; width: 400px; background: #fff; border-left: 1px solid #e2e8f0; z-index: 200; transform: translateX(100%); transition: transform 0.25s cubic-bezier(0.4,0,0.2,1); overflow-y: auto; box-shadow: -4px 0 24px rgba(0,0,0,0.08); }
+  #perch-side-panel.open { transform: translateX(0); }
+  .panel-field-row { display: flex; align-items: center; gap: 12px; padding: 8px 0; border-bottom: 1px solid #f1f5f9; }
+  .panel-field-label { font-size: 12px; font-weight: 600; color: #64748b; width: 90px; flex-shrink: 0; }
+  .panel-field-val { font-size: 13px; color: #1e293b; flex: 1; }
+  .panel-select { font-size: 13px; padding: 4px 8px; border-radius: 6px; border: 1px solid #e2e8f0; background: #f8fafc; color: #1e293b; cursor: pointer; flex: 1; }
+  .panel-select:focus { outline: 2px solid #6366f1; border-color: transparent; }
+  .panel-input { font-size: 13px; padding: 4px 8px; border-radius: 6px; border: 1px solid #e2e8f0; background: #f8fafc; color: #1e293b; flex: 1; }
+  .panel-input:focus { outline: 2px solid #6366f1; border-color: transparent; }
+  @media (max-width: 900px) { .perch-board { grid-template-columns: repeat(2, 1fr); } #perch-side-panel { width: 100%; top: 0; } }
 
   /* ── Common UI ── */
   .section-header { display: flex; justify-content: space-between; align-items: flex-end; margin-bottom: 16px; }
@@ -274,12 +292,16 @@
           <option value="design">Design</option>
           <option value="content">Content</option>
         </select>
+        <select id="perch-filter-assignee" onchange="renderPerchBoard()" style="font-size:13px;padding:6px 10px;border-radius:8px;border:1px solid var(--border);background:var(--bg-surface);color:var(--text);cursor:pointer">
+          <option value="">All Members</option>
+        </select>
         <select id="perch-filter-priority" onchange="renderPerchBoard()" style="font-size:13px;padding:6px 10px;border-radius:8px;border:1px solid var(--border);background:var(--bg-surface);color:var(--text);cursor:pointer">
           <option value="">All Priorities</option>
           <option value="high">🔴 High</option>
           <option value="medium">🟡 Medium</option>
           <option value="low">🟢 Low</option>
         </select>
+        <button id="perch-my-tasks-btn" onclick="toggleMyTasks()" style="font-size:13px;padding:6px 14px;border-radius:8px;border:1px solid var(--border);background:var(--bg-surface);color:var(--text-muted);cursor:pointer;transition:all 0.15s">👤 My Tasks</button>
         <span id="perch-task-count" style="font-size:12px;color:var(--text-muted);margin-left:4px"></span>
       </div>
 
@@ -1125,6 +1147,7 @@ function switchView(target) {
   document.querySelectorAll('.page-view').forEach(v => v.classList.toggle('active', v.id === 'view-' + target));
   document.getElementById('top-title').textContent = VIEW_TITLES[target] || target;
   if (target === 'perch')         loadPerch();
+  else                            closePerchPanel(); // close panel when leaving perch
   if (target === 'analytics')     loadGscIfNeeded();
   if (target === 'techseo')       { loadTechnicalSeo(); loadTechDevKanban(techSeoState.brand); }
   if (target === 'settings')      { renderAuditLog(); loadBrandCtx(); loadSlackWebhook(); if (state.userRole === 'admin') { document.getElementById('users-panel').style.display = ''; loadUsersPanel(); } }
@@ -2244,7 +2267,7 @@ document.addEventListener('keydown', e => {
     closeTool();
     closeKwModal();
     closeContentPreview();
-    closeTaskModal();
+    closePerchPanel();
     closeAddModal();
   }
 });
@@ -2307,12 +2330,49 @@ const COLUMNS = [
 
 let perchTasks    = [];
 let perchFiltered = [];
+let perchUsers    = []; // cached users list for assignee picker
+let perchMyTasks  = false; // My Tasks quick filter toggle
+
+async function loadPerchUsers() {
+  if (perchUsers.length) return perchUsers;
+  try {
+    const data = await fetch('/api/users', { credentials: 'include' }).then(r => r.json());
+    perchUsers = (data.users || []).map(u => ({
+      email: u.email,
+      name:  u.name || u.email.split('@')[0],
+    }));
+    // Populate assignee filter dropdown
+    const sel = document.getElementById('perch-filter-assignee');
+    if (sel) {
+      sel.innerHTML = '<option value="">All Members</option>' +
+        perchUsers.map(u => `<option value="${esc(u.email)}">${esc(u.name)}</option>`).join('');
+    }
+  } catch { /* use email fallback */ }
+  return perchUsers;
+}
+
+function getUserName(email) {
+  const user = perchUsers.find(u => u.email === email);
+  return user?.name || (email || '').split('@')[0];
+}
+
+function toggleMyTasks() {
+  perchMyTasks = !perchMyTasks;
+  const btn = document.getElementById('perch-my-tasks-btn');
+  if (btn) {
+    btn.style.background = perchMyTasks ? 'var(--primary)' : 'var(--bg-surface)';
+    btn.style.color      = perchMyTasks ? '#fff' : 'var(--text-muted)';
+    btn.style.borderColor = perchMyTasks ? 'var(--primary)' : 'var(--border)';
+  }
+  renderPerchBoard();
+}
 
 async function loadPerch() {
   document.getElementById('perch-loading').style.display = '';
   document.getElementById('perch-board').style.display   = 'none';
   document.getElementById('perch-empty').style.display   = 'none';
   try {
+    await loadPerchUsers();
     const data = await fetch('/api/perch', { credentials: 'include' }).then(r => r.json());
     perchTasks = data.tasks || [];
     renderPerchBoard();
@@ -2322,14 +2382,17 @@ async function loadPerch() {
 }
 
 function renderPerchBoard() {
-  const brandF = document.getElementById('perch-filter-brand')?.value    || '';
-  const deptF  = document.getElementById('perch-filter-dept')?.value     || '';
-  const priF   = document.getElementById('perch-filter-priority')?.value || '';
+  const brandF    = document.getElementById('perch-filter-brand')?.value    || '';
+  const deptF     = document.getElementById('perch-filter-dept')?.value     || '';
+  const priF      = document.getElementById('perch-filter-priority')?.value || '';
+  const assigneeF = document.getElementById('perch-filter-assignee')?.value || '';
 
   perchFiltered = perchTasks.filter(t =>
-    (!brandF || t.brand === brandF || t.brand === 'all') &&
-    (!deptF  || t.department === deptF) &&
-    (!priF   || t.priority === priF)
+    (!brandF    || t.brand      === brandF    || t.brand === 'all') &&
+    (!deptF     || t.department === deptF) &&
+    (!priF      || t.priority   === priF) &&
+    (!assigneeF || t.assignee   === assigneeF || (t.collaborators||[]).includes(assigneeF)) &&
+    (!perchMyTasks || t.assignee === state.userEmail || t.createdBy === state.userEmail || (t.collaborators||[]).includes(state.userEmail))
   );
 
   const countEl = document.getElementById('perch-task-count');
@@ -2350,227 +2413,428 @@ function renderPerchBoard() {
   board.innerHTML = COLUMNS.map(col => {
     const colTasks = perchFiltered.filter(t => t.status === col.id);
     return `
-      <div class="perch-col">
+      <div class="perch-col" id="col-${col.id}"
+           ondragover="perchDragOver(event)"
+           ondragleave="perchDragLeave(event)"
+           ondrop="perchDrop(event,'${col.id}')">
         <div class="perch-col-header">
-          <span style="color:${col.color}">${col.label}</span>
-          <span style="background:var(--border);color:var(--text-muted);padding:2px 8px;border-radius:99px;font-size:11px">${colTasks.length}</span>
+          <span style="color:${col.color};font-weight:700">${col.label}</span>
+          <span style="background:#e2e8f0;color:#64748b;padding:2px 8px;border-radius:99px;font-size:11px">${colTasks.length}</span>
         </div>
         ${colTasks.map(t => buildTaskCard(t)).join('')}
+        <div class="perch-quick-add-form" id="quick-form-${col.id}" style="display:none">
+          <textarea rows="2" id="quick-input-${col.id}" placeholder="Card title…"
+            onkeydown="if(event.key==='Enter'&&!event.shiftKey){event.preventDefault();quickAddCard('${col.id}');}if(event.key==='Escape')hideQuickAdd('${col.id}');"
+            style="width:100%;padding:8px 10px;border-radius:8px;border:2px solid #6366f1;background:#fff;color:#1e293b;font-size:13px;resize:none;font-family:inherit;outline:none;margin-bottom:6px"></textarea>
+          <div style="display:flex;gap:6px">
+            <button onclick="quickAddCard('${col.id}')" style="padding:6px 14px;background:#6366f1;color:#fff;border:none;border-radius:6px;cursor:pointer;font-size:13px;font-weight:600">Add</button>
+            <button onclick="hideQuickAdd('${col.id}')" style="padding:6px 10px;background:none;border:none;color:#64748b;cursor:pointer;font-size:18px;line-height:1">✕</button>
+          </div>
+        </div>
+        <button class="perch-quick-add-btn" id="quick-btn-${col.id}" onclick="showQuickAdd('${col.id}')">+ Add a card</button>
       </div>`;
   }).join('');
 }
 
 function buildTaskCard(t) {
   const bc  = BRAND_CONFIG[t.brand]  || BRAND_CONFIG.all;
-  const dc  = DEPT_CONFIG[t.department] || { label: t.department, color: '#6b7280', bg: '#f3f4f6' };
+  const dc  = DEPT_CONFIG[t.department] || { label: t.department || '—', color: '#6b7280', bg: '#f3f4f6' };
   const pc  = PRIORITY_CONFIG[t.priority] || PRIORITY_CONFIG.medium;
   const now = Date.now();
   const due = t.dueDate ? new Date(t.dueDate) : null;
-  const overdue = due && due < now && t.status !== 'done';
-  const dueStr  = due ? due.toLocaleDateString('en-GB', { day:'numeric', month:'short' }) : '';
+  const overdue      = due && due < now && t.status !== 'done';
+  const dueStr       = due ? due.toLocaleDateString('en-GB', { day:'numeric', month:'short' }) : '';
+  const assigneeName = getUserName(t.assignee);
+  const initial      = assigneeName.charAt(0).toUpperCase();
+  const labels       = t.labels || [];
+  const commentCount = (t.comments || []).length;
 
   return `
-    <div class="perch-card" onclick="openTaskModal('${esc(t.id)}')">
+    <div class="perch-card" draggable="true"
+         ondragstart="perchDragStart(event,'${t.id}')"
+         ondragend="perchDragEnd(event)"
+         onclick="openPerchPanel('${t.id}')">
+      ${labels.length ? `<div class="perch-labels">${labels.map(l => `<span class="perch-label" style="background:${l.c};min-width:${l.t ? 'auto' : '32px'};padding:${l.t ? '2px 8px' : '0'};font-size:11px;font-weight:600;color:#fff;border-radius:4px;height:${l.t ? 'auto' : '8px'};display:inline-flex;align-items:center" title="${esc(l.t||'')}">${l.t ? esc(l.t) : ''}</span>`).join('')}</div>` : ''}
       <div class="perch-card-title">${esc(t.title)}</div>
       <div class="perch-card-meta">
         <span class="perch-pill" style="background:${bc.bg};color:${bc.color}">${bc.label}</span>
         <span class="perch-pill" style="background:${dc.bg};color:${dc.color}">${dc.label}</span>
       </div>
       <div class="perch-card-footer">
-        <span class="perch-assignee">${esc((t.assignee || '').split('@')[0])}</span>
         <div style="display:flex;align-items:center;gap:6px">
-          ${dueStr ? `<span class="perch-due" style="color:${overdue ? '#dc2626' : 'var(--text-muted)'}">${overdue ? '⚠️ ' : ''}${dueStr}</span>` : ''}
-          <span title="${pc.label} priority">${pc.dot}</span>
+          <div style="width:24px;height:24px;border-radius:50%;background:#6366f1;color:#fff;font-size:11px;font-weight:700;display:flex;align-items:center;justify-content:center;flex-shrink:0" title="${esc(assigneeName)}">${initial}</div>
+          <span class="perch-assignee">${esc(assigneeName)}</span>
+        </div>
+        <div style="display:flex;align-items:center;gap:8px">
+          ${commentCount ? `<span style="font-size:11px;color:#64748b">💬 ${commentCount}</span>` : ''}
+          ${dueStr ? `<span class="perch-due" style="color:${overdue ? '#dc2626' : '#64748b'}">${overdue ? '⚠️ ' : ''}${dueStr}</span>` : ''}
+          <span title="${pc.label} priority" style="font-size:13px">${pc.dot}</span>
         </div>
       </div>
     </div>`;
 }
 
-function openTaskModal(id) {
+// ── Drag and drop ─────────────────────────────────────────────────────────────
+let perchDragging = null;
+
+function perchDragStart(event, id) {
+  perchDragging = id;
+  // Delay so the card opacity change doesn't affect the drag image
+  setTimeout(() => {
+    const el = document.querySelector(`[ondragstart*="${id}"]`);
+    if (el) el.classList.add('dragging');
+  }, 0);
+  event.dataTransfer.effectAllowed = 'move';
+}
+
+function perchDragEnd(event) {
+  event.target.classList.remove('dragging');
+  document.querySelectorAll('.perch-col').forEach(c => c.classList.remove('drag-over'));
+  perchDragging = null;
+}
+
+function perchDragOver(event) {
+  event.preventDefault();
+  event.dataTransfer.dropEffect = 'move';
+  const col = event.currentTarget.closest('.perch-col');
+  if (col) col.classList.add('drag-over');
+}
+
+function perchDragLeave(event) {
+  const col = event.currentTarget.closest('.perch-col');
+  if (col && !col.contains(event.relatedTarget)) col.classList.remove('drag-over');
+}
+
+async function perchDrop(event, colId) {
+  event.preventDefault();
+  const col = event.currentTarget.closest('.perch-col');
+  if (col) col.classList.remove('drag-over');
+  if (!perchDragging) return;
+  const task = perchTasks.find(t => t.id === perchDragging);
+  if (!task || task.status === colId) { perchDragging = null; return; }
+  const prevStatus = task.status;
+  task.status = colId;
+  renderPerchBoard();
+  // If panel is open for this task, refresh it
+  if (panelTaskId === task.id) openPerchPanel(task.id);
+  try {
+    await fetch(`/api/perch?id=${perchDragging}`, { method:'PATCH', credentials:'include', headers:{'Content-Type':'application/json'}, body: JSON.stringify({ status: colId }) });
+    showToast(`Moved to ${COLUMNS.find(c => c.id === colId)?.label}`, '');
+  } catch {
+    task.status = prevStatus;
+    renderPerchBoard();
+    showToast('Failed to move task', 'error');
+  }
+  perchDragging = null;
+}
+
+// ── Quick add ─────────────────────────────────────────────────────────────────
+function showQuickAdd(colId) {
+  document.getElementById(`quick-btn-${colId}`).style.display  = 'none';
+  document.getElementById(`quick-form-${colId}`).style.display = '';
+  document.getElementById(`quick-input-${colId}`)?.focus();
+}
+
+function hideQuickAdd(colId) {
+  document.getElementById(`quick-form-${colId}`).style.display = 'none';
+  document.getElementById(`quick-btn-${colId}`).style.display  = '';
+  const inp = document.getElementById(`quick-input-${colId}`);
+  if (inp) inp.value = '';
+}
+
+async function quickAddCard(colId) {
+  const inp   = document.getElementById(`quick-input-${colId}`);
+  const title = inp?.value?.trim();
+  if (!title) { inp?.focus(); return; }
+  const brandF = document.getElementById('perch-filter-brand')?.value || state.userBrand || 'all';
+  const deptF  = document.getElementById('perch-filter-dept')?.value  || state.userDepartment || 'seo';
+  try {
+    const res  = await fetch('/api/perch', { method:'POST', credentials:'include', headers:{'Content-Type':'application/json'},
+      body: JSON.stringify({ title, brand: brandF, department: deptF, priority:'medium', assignee: state.userEmail, status: colId }) });
+    const data = await res.json();
+    if (!res.ok) throw new Error(data.error || 'Failed');
+    perchTasks.unshift(data.task);
+    hideQuickAdd(colId);
+    renderPerchBoard();
+    showToast('Card added', '');
+  } catch (e) { showToast('Failed: ' + e.message, 'error'); }
+}
+
+// ── Labels ────────────────────────────────────────────────────────────────────
+const LABEL_PRESETS = [
+  { c: '#ef4444', t: 'Urgent' },
+  { c: '#f97316', t: 'Blocked' },
+  { c: '#eab308', t: 'Review' },
+  { c: '#22c55e', t: 'On Track' },
+  { c: '#3b82f6', t: 'Client' },
+  { c: '#8b5cf6', t: 'Campaign' },
+  { c: '#ec4899', t: 'Design' },
+  { c: '#6b7280', t: 'Info' },
+];
+
+async function toggleLabel(taskId, labelColor) {
+  const task = perchTasks.find(t => t.id === taskId);
+  if (!task) return;
+  const labels  = task.labels || [];
+  const preset  = LABEL_PRESETS.find(l => l.c === labelColor);
+  const existing = labels.findIndex(l => l.c === labelColor);
+  if (existing >= 0) {
+    labels.splice(existing, 1);
+  } else {
+    labels.push(preset || { c: labelColor, t: '' });
+  }
+  task.labels = labels;
+  try {
+    await fetch(`/api/perch?id=${taskId}`, { method:'PATCH', credentials:'include', headers:{'Content-Type':'application/json'}, body: JSON.stringify({ labels }) });
+  } catch { showToast('Failed to update labels', 'error'); }
+  renderPerchBoard();
+  openPerchPanel(taskId); // refresh panel
+}
+
+// ── Side panel ────────────────────────────────────────────────────────────────
+let panelTaskId = null;
+
+function openPerchPanel(id) {
+  panelTaskId = id;
   const task = perchTasks.find(t => t.id === id);
   if (!task) return;
+  const panel = document.getElementById('perch-side-panel');
+  document.getElementById('perch-panel-content').innerHTML = buildPanelHTML(task);
+  panel.classList.add('open');
+  document.getElementById('perch-board').style.paddingRight = '416px';
+}
 
-  const bc = BRAND_CONFIG[task.brand]  || BRAND_CONFIG.all;
-  const dc = DEPT_CONFIG[task.department] || { label: task.department || '', color: '#6b7280', bg: '#f3f4f6' };
+function closePerchPanel() {
+  document.getElementById('perch-side-panel').classList.remove('open');
+  document.getElementById('perch-board').style.paddingRight = '';
+  panelTaskId = null;
+}
 
-  const modal = document.createElement('div');
-  modal.id = 'perch-task-modal';
-  modal.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,0.6);z-index:1000;display:flex;align-items:center;justify-content:center;padding:20px';
-  modal.innerHTML = `
-    <div style="background:var(--bg-surface);border-radius:12px;padding:28px;width:100%;max-width:560px;max-height:80vh;overflow-y:auto;border:1px solid var(--border)">
-      <div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:20px">
-        <div style="flex:1">
-          <div style="font-weight:700;font-size:17px;margin-bottom:8px">${esc(task.title)}</div>
-          <div style="display:flex;gap:6px;flex-wrap:wrap">
-            <span class="perch-pill" style="background:${bc.bg};color:${bc.color}">${bc.label}</span>
-            <span class="perch-pill" style="background:${dc.bg};color:${dc.color}">${dc.label}</span>
-            <span class="perch-pill" style="background:var(--bg-surface);color:var(--text-muted)">${PRIORITY_CONFIG[task.priority]?.dot} ${task.priority}</span>
+function buildPanelHTML(task) {
+  const bc     = BRAND_CONFIG[task.brand]  || BRAND_CONFIG.all;
+  const dc     = DEPT_CONFIG[task.department] || { label: task.department || '—', color:'#6b7280', bg:'#f3f4f6' };
+  const labels = task.labels || [];
+
+  return `
+    <div style="padding:20px 20px 0;border-bottom:1px solid #e2e8f0;background:#f8fafc;position:sticky;top:0;z-index:1">
+      <div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:12px">
+        <div style="font-size:11px;font-weight:700;color:#64748b;text-transform:uppercase;letter-spacing:0.5px">${bc.label} · ${dc.label}</div>
+        <button onclick="closePerchPanel()" style="background:none;border:none;color:#64748b;font-size:20px;cursor:pointer;line-height:1;padding:0">✕</button>
+      </div>
+      <div contenteditable="true" id="panel-title"
+           onblur="panelSave('${task.id}','title',this.textContent.trim())"
+           style="font-size:18px;font-weight:700;color:#1e293b;margin-bottom:16px;line-height:1.3;outline:none;padding:4px;border-radius:4px;cursor:text"
+           title="Click to edit">${esc(task.title)}</div>
+    </div>
+
+    <div style="padding:20px">
+
+      <!-- Labels -->
+      <div style="margin-bottom:20px">
+        <div style="font-size:11px;font-weight:700;color:#64748b;text-transform:uppercase;letter-spacing:0.5px;margin-bottom:8px">Labels</div>
+        <div style="display:flex;flex-wrap:wrap;gap:6px;margin-bottom:8px">
+          ${LABEL_PRESETS.map(l => {
+            const active = labels.some(x => x.c === l.c);
+            return `<button onclick="toggleLabel('${task.id}','${l.c}')"
+              style="padding:4px 12px;border-radius:4px;background:${active ? l.c : '#f1f5f9'};color:${active ? '#fff' : '#475569'};border:2px solid ${active ? l.c : '#e2e8f0'};font-size:12px;font-weight:600;cursor:pointer;transition:all 0.12s">
+              ${esc(l.t)}</button>`;
+          }).join('')}
+        </div>
+      </div>
+
+      <!-- Fields -->
+      <div style="margin-bottom:20px">
+        <div style="font-size:11px;font-weight:700;color:#64748b;text-transform:uppercase;letter-spacing:0.5px;margin-bottom:8px">Details</div>
+
+        <div class="panel-field-row">
+          <div class="panel-field-label">Status</div>
+          <select class="panel-select" onchange="panelSave('${task.id}','status',this.value)">
+            ${COLUMNS.map(c => `<option value="${c.id}" ${task.status===c.id?'selected':''}>${c.label}</option>`).join('')}
+          </select>
+        </div>
+        <div class="panel-field-row">
+          <div class="panel-field-label">Brand</div>
+          <select class="panel-select" onchange="panelSave('${task.id}','brand',this.value)">
+            ${Object.entries(BRAND_CONFIG).map(([k,v]) => `<option value="${k}" ${task.brand===k?'selected':''}>${v.label}</option>`).join('')}
+          </select>
+        </div>
+        <div class="panel-field-row">
+          <div class="panel-field-label">Department</div>
+          <select class="panel-select" onchange="panelSave('${task.id}','department',this.value)">
+            ${Object.entries(DEPT_CONFIG).map(([k,v]) => `<option value="${k}" ${task.department===k?'selected':''}>${v.label}</option>`).join('')}
+          </select>
+        </div>
+        <div class="panel-field-row">
+          <div class="panel-field-label">Priority</div>
+          <select class="panel-select" onchange="panelSave('${task.id}','priority',this.value)">
+            ${Object.entries(PRIORITY_CONFIG).map(([k,v]) => `<option value="${k}" ${task.priority===k?'selected':''}>${v.dot} ${v.label}</option>`).join('')}
+          </select>
+        </div>
+        <div class="panel-field-row">
+          <div class="panel-field-label">Assign to</div>
+          <select class="panel-select" onchange="panelSave('${task.id}','assignee',this.value)">
+            ${perchUsers.map(u => `<option value="${esc(u.email)}" ${task.assignee===u.email?'selected':''}>${esc(u.name)}</option>`).join('')}
+          </select>
+        </div>
+        <div class="panel-field-row">
+          <div class="panel-field-label">Due date</div>
+          <input type="date" class="panel-input" value="${task.dueDate || ''}" onchange="panelSave('${task.id}','dueDate',this.value||null)">
+        </div>
+        <div class="panel-field-row">
+          <div class="panel-field-label">Created by</div>
+          <div class="panel-field-val">${esc(getUserName(task.createdBy))} · ${task.createdAt ? new Date(task.createdAt).toLocaleDateString('en-GB',{day:'numeric',month:'short',year:'numeric'}) : '—'}</div>
+        </div>
+      </div>
+
+      <!-- Description -->
+      <div style="margin-bottom:20px">
+        <div style="font-size:11px;font-weight:700;color:#64748b;text-transform:uppercase;letter-spacing:0.5px;margin-bottom:8px">Description</div>
+        <textarea id="panel-desc" rows="3" placeholder="Add a description…"
+          onblur="panelSave('${task.id}','description',this.value)"
+          style="width:100%;padding:10px 12px;border-radius:8px;border:1px solid #e2e8f0;background:#f8fafc;color:#1e293b;font-size:13px;resize:vertical;font-family:inherit;outline:none;transition:border 0.15s"
+          onfocus="this.style.borderColor='#6366f1'" onblur2="this.style.borderColor='#e2e8f0'"
+          >${esc(task.description || '')}</textarea>
+      </div>
+
+      <!-- Activity -->
+      <div style="margin-bottom:20px">
+        <div style="font-size:11px;font-weight:700;color:#64748b;text-transform:uppercase;letter-spacing:0.5px;margin-bottom:12px">Activity</div>
+        <div style="display:flex;gap:8px;margin-bottom:16px">
+          <div style="width:28px;height:28px;border-radius:50%;background:#6366f1;color:#fff;font-size:12px;font-weight:700;display:flex;align-items:center;justify-content:center;flex-shrink:0">${getUserName(state.userEmail).charAt(0).toUpperCase()}</div>
+          <div style="flex:1">
+            <input id="panel-comment" type="text" placeholder="Write a comment…"
+              onkeydown="if(event.key==='Enter')panelPostComment('${task.id}')"
+              style="width:100%;padding:8px 12px;border-radius:8px;border:1px solid #e2e8f0;background:#f8fafc;color:#1e293b;font-size:13px;outline:none"
+              onfocus="this.style.borderColor='#6366f1'" onblur="this.style.borderColor='#e2e8f0'">
+            <button onclick="panelPostComment('${task.id}')" style="margin-top:6px;padding:5px 14px;background:#6366f1;color:#fff;border:none;border-radius:6px;cursor:pointer;font-size:12px;font-weight:600">Post</button>
           </div>
         </div>
-        <button onclick="closeTaskModal()" style="background:none;border:none;color:var(--text-muted);font-size:20px;cursor:pointer;padding:0 4px">✕</button>
-      </div>
-
-      ${task.description ? `<div style="font-size:14px;color:var(--text-muted);margin-bottom:20px;white-space:pre-wrap">${esc(task.description)}</div>` : ''}
-
-      <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:20px;font-size:13px">
-        <div><span style="color:var(--text-muted)">Assignee:</span> ${esc((task.assignee||'').split('@')[0])}</div>
-        <div><span style="color:var(--text-muted)">Due:</span> ${task.dueDate ? new Date(task.dueDate).toLocaleDateString('en-GB',{day:'numeric',month:'short',year:'numeric'}) : '—'}</div>
-        <div><span style="color:var(--text-muted)">Created by:</span> ${esc((task.createdBy||'').split('@')[0])}</div>
-        <div><span style="color:var(--text-muted)">Created:</span> ${task.createdAt ? new Date(task.createdAt).toLocaleDateString('en-GB',{day:'numeric',month:'short'}) : '—'}</div>
-      </div>
-
-      <!-- Status buttons -->
-      <div style="margin-bottom:20px">
-        <div style="font-size:12px;color:var(--text-muted);font-weight:600;margin-bottom:8px;text-transform:uppercase;letter-spacing:0.5px">Move to</div>
-        <div style="display:flex;gap:8px;flex-wrap:wrap">
-          ${COLUMNS.filter(c => c.id !== task.status).map(c =>
-            `<button onclick="moveTask('${task.id}','${c.id}')" style="font-size:12px;padding:6px 14px;border-radius:8px;border:1px solid var(--border);background:var(--bg-surface);color:var(--text);cursor:pointer" onmouseover="this.style.borderColor='${c.color}'" onmouseout="this.style.borderColor='var(--border)'">${c.label}</button>`
-          ).join('')}
-        </div>
-      </div>
-
-      <!-- Comment -->
-      <div style="margin-bottom:20px">
-        <div style="font-size:12px;color:var(--text-muted);font-weight:600;margin-bottom:8px;text-transform:uppercase;letter-spacing:0.5px">Add Comment</div>
-        <div style="display:flex;gap:8px">
-          <input id="perch-comment-input" type="text" placeholder="Write a comment…" style="flex:1;padding:8px 12px;border-radius:8px;border:1px solid var(--border);background:var(--bg-surface);color:var(--text);font-size:13px">
-          <button onclick="addComment('${task.id}')" style="padding:8px 16px;background:var(--primary);color:#fff;border:none;border-radius:8px;cursor:pointer;font-size:13px">Post</button>
-        </div>
-      </div>
-
-      <!-- Comments -->
-      ${(task.comments||[]).length ? `
-        <div>
-          <div style="font-size:12px;color:var(--text-muted);font-weight:600;margin-bottom:8px;text-transform:uppercase;letter-spacing:0.5px">Comments</div>
-          ${task.comments.map(c => `
-            <div style="padding:10px;background:var(--bg-surface);border-radius:8px;margin-bottom:6px">
-              <div style="font-size:11px;color:var(--text-muted);margin-bottom:4px">${esc((c.author||'').split('@')[0])} · ${new Date(c.timestamp).toLocaleDateString('en-GB',{day:'numeric',month:'short'})}</div>
-              <div style="font-size:13px">${esc(c.text)}</div>
+        <div id="panel-comments">
+          ${(task.comments||[]).slice().reverse().map(c => `
+            <div style="display:flex;gap:8px;margin-bottom:12px">
+              <div style="width:28px;height:28px;border-radius:50%;background:#e2e8f0;color:#475569;font-size:11px;font-weight:700;display:flex;align-items:center;justify-content:center;flex-shrink:0">${getUserName(c.author).charAt(0).toUpperCase()}</div>
+              <div>
+                <div style="font-size:12px;font-weight:600;color:#1e293b">${esc(getUserName(c.author))} <span style="font-weight:400;color:#64748b;font-size:11px">${new Date(c.timestamp).toLocaleDateString('en-GB',{day:'numeric',month:'short'})}</span></div>
+                <div style="font-size:13px;color:#334155;margin-top:2px">${esc(c.text)}</div>
+              </div>
             </div>`).join('')}
-        </div>` : ''}
+        </div>
+      </div>
 
       <!-- Delete -->
-      <div style="margin-top:20px;padding-top:16px;border-top:1px solid var(--border);text-align:right">
-        <button onclick="deleteTask('${task.id}')" style="font-size:12px;color:#ef4444;background:none;border:1px solid rgba(239,68,68,0.3);padding:6px 14px;border-radius:8px;cursor:pointer">Delete Task</button>
+      <div style="padding-top:16px;border-top:1px solid #f1f5f9">
+        <button onclick="panelDeleteTask('${task.id}')" style="font-size:12px;color:#ef4444;background:none;border:1px solid rgba(239,68,68,0.3);padding:6px 14px;border-radius:8px;cursor:pointer">Delete task</button>
       </div>
+
     </div>`;
-
-  document.body.appendChild(modal);
-  modal.addEventListener('click', e => { if (e.target === modal) closeTaskModal(); });
 }
 
-function closeTaskModal() {
-  const modal = document.getElementById('perch-task-modal');
-  if (modal) modal.remove();
-}
-
-async function moveTask(id, newStatus) {
+async function panelSave(id, field, value) {
+  const task = perchTasks.find(t => t.id === id);
+  if (!task) return;
+  if (task[field] === value) return; // no change
+  task[field] = value;
+  renderPerchBoard();
   try {
-    await fetch(`/api/perch?id=${id}`, { method: 'PATCH', credentials: 'include', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ status: newStatus }) });
-    const task = perchTasks.find(t => t.id === id);
-    if (task) task.status = newStatus;
-    closeTaskModal();
-    renderPerchBoard();
-    showToast('Task moved to ' + COLUMNS.find(c => c.id === newStatus)?.label, '');
-  } catch (e) { showToast('Failed to update task', 'error'); }
+    await fetch(`/api/perch?id=${id}`, { method:'PATCH', credentials:'include', headers:{'Content-Type':'application/json'}, body: JSON.stringify({ [field]: value }) });
+  } catch { showToast('Failed to save', 'error'); }
 }
 
-async function addComment(id) {
-  const input = document.getElementById('perch-comment-input');
-  const text  = input?.value?.trim();
+async function panelPostComment(id) {
+  const inp  = document.getElementById('panel-comment');
+  const text = inp?.value?.trim();
   if (!text) return;
   try {
-    const res  = await fetch(`/api/perch?id=${id}`, { method: 'PATCH', credentials: 'include', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ comment: text }) });
+    const res  = await fetch(`/api/perch?id=${id}`, { method:'PATCH', credentials:'include', headers:{'Content-Type':'application/json'}, body: JSON.stringify({ comment: text }) });
     const data = await res.json();
     const idx  = perchTasks.findIndex(t => t.id === id);
     if (idx >= 0) perchTasks[idx] = data.task;
-    closeTaskModal();
-    openTaskModal(id);
-    showToast('Comment added', '');
-  } catch (e) { showToast('Failed to add comment', 'error'); }
+    openPerchPanel(id); // re-render panel with new comment
+    renderPerchBoard();  // update comment count on card
+  } catch { showToast('Failed to post comment', 'error'); }
 }
 
-async function deleteTask(id) {
+async function panelDeleteTask(id) {
   if (!confirm('Delete this task? This cannot be undone.')) return;
   try {
-    await fetch(`/api/perch?id=${id}`, { method: 'DELETE', credentials: 'include' });
+    await fetch(`/api/perch?id=${id}`, { method:'DELETE', credentials:'include' });
     perchTasks = perchTasks.filter(t => t.id !== id);
-    closeTaskModal();
+    closePerchPanel();
     renderPerchBoard();
     showToast('Task deleted', '');
-  } catch (e) { showToast('Failed to delete task', 'error'); }
+  } catch { showToast('Failed to delete task', 'error'); }
 }
+
+// Keep backward-compat aliases
+function openTaskModal(id)  { openPerchPanel(id); }
+function closeTaskModal()   { closePerchPanel(); }
+async function moveTask(id, newStatus) {
+  const task = perchTasks.find(t => t.id === id);
+  if (task) { task.status = newStatus; renderPerchBoard(); if (panelTaskId === id) openPerchPanel(id); }
+  try { await fetch(`/api/perch?id=${id}`, { method:'PATCH', credentials:'include', headers:{'Content-Type':'application/json'}, body: JSON.stringify({ status: newStatus }) }); }
+  catch { showToast('Failed to move', 'error'); }
+}
+async function deleteTask(id) { return panelDeleteTask(id); }
+async function addComment(id) { return panelPostComment(id); }
 
 function openAddTaskModal() {
   const modal = document.createElement('div');
   modal.id = 'perch-add-modal';
   modal.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,0.6);z-index:1000;display:flex;align-items:center;justify-content:center;padding:20px';
   modal.innerHTML = `
-    <div style="background:var(--bg-surface);border-radius:12px;padding:28px;width:100%;max-width:480px;border:1px solid var(--border)">
+    <div style="background:#fff;border-radius:12px;padding:28px;width:100%;max-width:480px;border:1px solid #e2e8f0;box-shadow:0 20px 60px rgba(0,0,0,0.15)">
       <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:20px">
-        <div style="font-weight:700;font-size:17px">New Task</div>
-        <button onclick="closeAddModal()" style="background:none;border:none;color:var(--text-muted);font-size:20px;cursor:pointer">✕</button>
+        <div style="font-weight:700;font-size:17px;color:#1e293b">New Task</div>
+        <button onclick="closeAddModal()" style="background:none;border:none;color:#64748b;font-size:20px;cursor:pointer">✕</button>
       </div>
-
       <div style="display:flex;flex-direction:column;gap:14px">
         <div>
-          <label style="font-size:12px;font-weight:600;color:var(--text-muted);display:block;margin-bottom:4px">TITLE *</label>
-          <input id="new-task-title" type="text" placeholder="What needs to be done?" style="width:100%;padding:9px 12px;border-radius:8px;border:1px solid var(--border);background:var(--bg-surface);color:var(--text);font-size:13px">
-        </div>
-        <div>
-          <label style="font-size:12px;font-weight:600;color:var(--text-muted);display:block;margin-bottom:4px">DESCRIPTION</label>
-          <textarea id="new-task-desc" placeholder="Optional details…" rows="3" style="width:100%;padding:9px 12px;border-radius:8px;border:1px solid var(--border);background:var(--bg-surface);color:var(--text);font-size:13px;resize:vertical"></textarea>
+          <label style="font-size:12px;font-weight:600;color:#64748b;display:block;margin-bottom:4px">TITLE *</label>
+          <input id="new-task-title" type="text" placeholder="What needs to be done?" style="width:100%;padding:9px 12px;border-radius:8px;border:1px solid #e2e8f0;background:#f8fafc;color:#1e293b;font-size:13px;outline:none" onfocus="this.style.borderColor='#6366f1'" onblur="this.style.borderColor='#e2e8f0'">
         </div>
         <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px">
           <div>
-            <label style="font-size:12px;font-weight:600;color:var(--text-muted);display:block;margin-bottom:4px">BRAND</label>
-            <select id="new-task-brand" style="width:100%;padding:8px 10px;border-radius:8px;border:1px solid var(--border);background:var(--bg-surface);color:var(--text);font-size:13px">
+            <label style="font-size:12px;font-weight:600;color:#64748b;display:block;margin-bottom:4px">BRAND</label>
+            <select id="new-task-brand" style="width:100%;padding:8px 10px;border-radius:8px;border:1px solid #e2e8f0;background:#f8fafc;color:#1e293b;font-size:13px">
               <option value="all">All Brands</option>
-              <option value="pickl">Pickl</option>
-              <option value="bonbird">Bonbird</option>
-              <option value="southpour">Southpour</option>
-              <option value="shadowburg">Shadowburg</option>
-              <option value="shadowbird">Shadowbird</option>
+              <option value="pickl">Pickl</option><option value="bonbird">Bonbird</option>
+              <option value="southpour">Southpour</option><option value="shadowburg">Shadowburg</option><option value="shadowbird">Shadowbird</option>
             </select>
           </div>
           <div>
-            <label style="font-size:12px;font-weight:600;color:var(--text-muted);display:block;margin-bottom:4px">DEPARTMENT</label>
-            <select id="new-task-dept" style="width:100%;padding:8px 10px;border-radius:8px;border:1px solid var(--border);background:var(--bg-surface);color:var(--text);font-size:13px">
-              <option value="seo">SEO</option>
-              <option value="social">Social</option>
-              <option value="design">Design</option>
-              <option value="content">Content</option>
+            <label style="font-size:12px;font-weight:600;color:#64748b;display:block;margin-bottom:4px">DEPARTMENT</label>
+            <select id="new-task-dept" style="width:100%;padding:8px 10px;border-radius:8px;border:1px solid #e2e8f0;background:#f8fafc;color:#1e293b;font-size:13px">
+              <option value="seo">SEO</option><option value="social">Social</option>
+              <option value="design">Design</option><option value="content">Content</option>
             </select>
           </div>
           <div>
-            <label style="font-size:12px;font-weight:600;color:var(--text-muted);display:block;margin-bottom:4px">PRIORITY</label>
-            <select id="new-task-priority" style="width:100%;padding:8px 10px;border-radius:8px;border:1px solid var(--border);background:var(--bg-surface);color:var(--text);font-size:13px">
-              <option value="medium">Medium</option>
-              <option value="high">High</option>
-              <option value="low">Low</option>
+            <label style="font-size:12px;font-weight:600;color:#64748b;display:block;margin-bottom:4px">PRIORITY</label>
+            <select id="new-task-priority" style="width:100%;padding:8px 10px;border-radius:8px;border:1px solid #e2e8f0;background:#f8fafc;color:#1e293b;font-size:13px">
+              <option value="medium">🟡 Medium</option><option value="high">🔴 High</option><option value="low">🟢 Low</option>
             </select>
           </div>
           <div>
-            <label style="font-size:12px;font-weight:600;color:var(--text-muted);display:block;margin-bottom:4px">DUE DATE</label>
-            <input id="new-task-due" type="date" style="width:100%;padding:8px 10px;border-radius:8px;border:1px solid var(--border);background:var(--bg-surface);color:var(--text);font-size:13px">
+            <label style="font-size:12px;font-weight:600;color:#64748b;display:block;margin-bottom:4px">DUE DATE</label>
+            <input id="new-task-due" type="date" style="width:100%;padding:8px 10px;border-radius:8px;border:1px solid #e2e8f0;background:#f8fafc;color:#1e293b;font-size:13px">
           </div>
         </div>
         <div>
-          <label style="font-size:12px;font-weight:600;color:var(--text-muted);display:block;margin-bottom:4px">ASSIGNEE EMAIL</label>
-          <input id="new-task-assignee" type="email" placeholder="${state.userEmail}" style="width:100%;padding:9px 12px;border-radius:8px;border:1px solid var(--border);background:var(--bg-surface);color:var(--text);font-size:13px">
+          <label style="font-size:12px;font-weight:600;color:#64748b;display:block;margin-bottom:4px">ASSIGN TO</label>
+          <select id="new-task-assignee" style="width:100%;padding:9px 12px;border-radius:8px;border:1px solid #e2e8f0;background:#f8fafc;color:#1e293b;font-size:13px">
+            <option value="${state.userEmail}">${getUserName(state.userEmail)} (me)</option>
+            ${perchUsers.filter(u => u.email !== state.userEmail).map(u => `<option value="${esc(u.email)}">${esc(u.name)}</option>`).join('')}
+          </select>
         </div>
       </div>
-
       <div style="display:flex;gap:10px;justify-content:flex-end;margin-top:20px">
-        <button onclick="closeAddModal()" style="padding:9px 20px;border-radius:8px;border:1px solid var(--border);background:transparent;color:var(--text);font-size:13px;cursor:pointer">Cancel</button>
+        <button onclick="closeAddModal()" style="padding:9px 20px;border-radius:8px;border:1px solid #e2e8f0;background:transparent;color:#475569;font-size:13px;cursor:pointer">Cancel</button>
         <button onclick="submitNewTask()" class="btn-primary" style="padding:9px 20px;font-size:13px">Create Task</button>
       </div>
     </div>`;
-
   document.body.appendChild(modal);
   modal.addEventListener('click', e => { if (e.target === modal) closeAddModal(); });
   document.getElementById('new-task-title')?.focus();
-  // Pre-fill user's brand + dept
   if (state.userBrand)      document.getElementById('new-task-brand').value = state.userBrand;
   if (state.userDepartment) document.getElementById('new-task-dept').value  = state.userDepartment;
 }
@@ -2582,18 +2846,15 @@ function closeAddModal() {
 
 async function submitNewTask() {
   const title    = document.getElementById('new-task-title')?.value?.trim();
-  const desc     = document.getElementById('new-task-desc')?.value?.trim();
   const brand    = document.getElementById('new-task-brand')?.value;
   const dept     = document.getElementById('new-task-dept')?.value;
   const priority = document.getElementById('new-task-priority')?.value;
   const dueDate  = document.getElementById('new-task-due')?.value;
-  const assignee = document.getElementById('new-task-assignee')?.value?.trim() || state.userEmail;
-
+  const assignee = document.getElementById('new-task-assignee')?.value || state.userEmail;
   if (!title) { showToast('Title is required', 'error'); return; }
-
   try {
-    const res  = await fetch('/api/perch', { method: 'POST', credentials: 'include', headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ title, description: desc, brand, department: dept, priority, dueDate: dueDate || null, assignee }) });
+    const res  = await fetch('/api/perch', { method:'POST', credentials:'include', headers:{'Content-Type':'application/json'},
+      body: JSON.stringify({ title, brand, department: dept, priority, dueDate: dueDate || null, assignee }) });
     const data = await res.json();
     if (!res.ok) throw new Error(data.error || 'Failed');
     perchTasks.unshift(data.task);
@@ -2841,7 +3102,7 @@ function renderTechSeoResults(data) {
       ${tc.robotsTxt?.snippet ? `
         <details style="margin-top:12px">
           <summary style="font-size:12px;color:var(--text-muted);cursor:pointer">robots.txt contents</summary>
-          <pre style="font-size:11px;background:var(--sidebar-bg);padding:12px;border-radius:6px;overflow-x:auto;margin-top:8px;white-space:pre-wrap">${tc.robotsTxt.snippet}</pre>
+          <pre style="font-size:11px;background:#1e293b;color:#e2e8f0;padding:12px;border-radius:6px;overflow-x:auto;margin-top:8px;white-space:pre-wrap">${tc.robotsTxt.snippet}</pre>
         </details>` : ''}`;
   } else if (tcEl) {
     tcEl.innerHTML = data.status === 'running'
@@ -3532,5 +3793,10 @@ async function removeSeedKeyword(kw) {
 }
 </script>
 <script src="/js/competitor-matrix-ui.js"></script>
+<!-- ═══ PERCH SIDE PANEL ═══ -->
+<div id="perch-side-panel">
+  <div id="perch-panel-content" style="padding:0"></div>
+</div>
+
 </body>
 </html>
