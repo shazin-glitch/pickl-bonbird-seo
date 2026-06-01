@@ -126,8 +126,10 @@ The Nest is Yolk Brands' central marketing operations platform. It started as an
 ### Auth & Roles ✅
 - Google SSO. Only authorised @yolkbrands.com accounts get in.
 - Bootstrap admins: shazin@yolkbrands.com, steve@yolkbrands.com (always Admin)
-- Roles: Viewer (read-only) · Manager (approve/action) · Admin (everything + user management)
-- User profile: role + brand + department assigned by Admin in Settings → Users
+- Roles: Viewer (read-only) · Manager (approve/action) · Admin (everything + user management) · Developer (Technical SEO tab only — dev kanban only)
+- User profile: role + brand + department — assigned at invite time OR updated after via Settings → Users
+- Add User: proper modal form (email, role, brand, department all at once) — replaced old window.prompt
+- Last Login column in Users table (relative time: Just now / 2h ago / Yesterday / X days ago)
 
 ---
 
@@ -276,7 +278,7 @@ Monthly one-page PDF: top ranking gains, content published, competitor movements
 | `approvals:index` | Array of all approval IDs |
 | `approvals:<id>` | Individual approval payload |
 | `userSession:<token>` | Session (email, name, picture) |
-| `userRole:<email>` | Role: viewer/manager/admin |
+| `userRole:<email>` | Role: viewer/manager/admin/developer · lastLogin timestamp |
 | `userProfile:<email>` | Brand + department assignment |
 | `userIndex` | Array of all user emails |
 | `gscTokens` | GSC OAuth tokens |
@@ -407,6 +409,12 @@ From Google's official AI Optimization Guide (June 2026):
 - Slack interactive buttons — approve/dismiss SEO items from Slack (`slack-callback.js`, needs Slack App interactivity URL set to `https://yolkseo.netlify.app/api/slack-callback`)
 - Daily Perch due date digest (`perch-notify-background.js`, 5am UTC = 9am Dubai)
 - SETUP.md as session handoff document
+- Developer role (Technical SEO only — all other tabs hidden, lands on tech SEO automatically)
+- Add User modal: proper form with email + role + brand + department at invite time
+- Last Login column in Users table (relative time)
+- Performance Summary updated to reflect actual build state
+- GBP data fix: Account Management API used for listing locations (was using wrong API)
+- Removed duplicate updateUserRole function
 - 📍 Local SEO tab — GBP location health cards, review queue (pending approval state), local SEO flags, GBP connect OAuth flow
 - Hreflang generator — button in International SEO tab, queues all 9 markets as approvals with ready-to-use HTML code
 - GBP OAuth flow (auth-login.js ?type=gbp, callback stores gbpTokens, redirects to /?gbp_connected=1)
@@ -416,4 +424,4 @@ From Google's official AI Optimization Guide (June 2026):
 
 ---
 
-*Last updated: June 2026 — Local SEO tab built (GBP location health + review queue). Hreflang generated for 9 markets. GBP OAuth flow. gbp-data.js + gbp-reviews.js (stub). Reports AI Readiness GBP check live. CPC enrichment, Slack Block Kit, brand voice examples, Perch labels all done.*
+*Last updated: June 2026 — Developer role added. Add User modal. Last Login column. Performance Summary updated. GBP data API fix. Local SEO tab, hreflang, GBP OAuth, CPC enrichment, Slack Block Kit, brand voice examples, Perch labels — all done.*

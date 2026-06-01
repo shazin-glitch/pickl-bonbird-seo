@@ -1,9 +1,10 @@
 // netlify/functions/gbp-data.js
 // Fetches Google Business Profile location health data.
-// Uses My Business Account Management API + My Business Business Information API.
 //
-// GET /api/gbp-data?brand=pickl   — returns location health for brand
-// Returns { notConnected: true } if gbpTokens not in Blobs.
+// Flow:
+//   1. Account Management API → list accounts
+//   2. Account Management API → list locations under each account
+//   3. Business Information API → get details per location (name, address, hours, etc.)
 
 const { getStore } = require('@netlify/blobs');
 
@@ -20,25 +21,22 @@ exports.handler = async (event) => {
   if (event.httpMethod === 'OPTIONS') return { statusCode: 204, headers: CORS, body: '' };
 
   const brand = event.queryStringParameters?.brand || 'pickl';
-  const brandDomain = brand === 'pickl' ? 'eatpickl.com' : 'bonbirdchicken.com';
 
   const store = getStore({ name: 'seo-tool', siteID: process.env.NETLIFY_SITE_ID, token: process.env.NETLIFY_AUTH_TOKEN });
 
   // Check for GBP tokens
   let tokens;
-  try {
-    tokens = await store.get('gbpTokens', { type: 'json' });
-  } catch { tokens = null; }
+  try { tokens = await store.get('gbpTokens', { type: 'json' }); } catch { tokens = null; }
 
   if (!tokens?.access_token) {
     return { statusCode: 200, headers: CORS, body: JSON.stringify({ notConnected: true }) };
   }
 
-  // Check cache
+  // Check cache (v2 key to bust any stale cache)
   const cacheKey = `gbpCache:${brand}:v2`;
   try {
     const cached = await store.get(cacheKey, { type: 'json' });
-    if (cached && cached.cachedAt && (Date.now() - cached.cachedAt) < CACHE_TTL_MS) {
+    if (cached?.cachedAt && (Date.now() - cached.cachedAt) < CACHE_TTL_MS && cached.locations) {
       return { statusCode: 200, headers: CORS, body: JSON.stringify(cached) };
     }
   } catch { /* cache miss */ }
@@ -47,7 +45,7 @@ exports.handler = async (event) => {
   let accessToken = tokens.access_token;
   if (tokens.refresh_token && tokens.expires_at && Date.now() > tokens.expires_at - 60000) {
     try {
-      const refreshRes = await fetch('https://oauth2.googleapis.com/token', {
+      const r = await fetch('https://oauth2.googleapis.com/token', {
         method: 'POST',
         headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
         body: new URLSearchParams({
@@ -57,70 +55,70 @@ exports.handler = async (event) => {
           grant_type:    'refresh_token',
         }),
       });
-      const refreshData = await refreshRes.json();
-      if (refreshData.access_token) {
-        accessToken = refreshData.access_token;
-        await store.set('gbpTokens', JSON.stringify({
-          ...tokens,
-          access_token: accessToken,
-          expires_at:   Date.now() + (refreshData.expires_in || 3600) * 1000,
-        }));
+      const rd = await r.json();
+      if (rd.access_token) {
+        accessToken = rd.access_token;
+        await store.set('gbpTokens', JSON.stringify({ ...tokens, access_token: accessToken, expires_at: Date.now() + (rd.expires_in || 3600) * 1000 }));
       }
-    } catch (e) {
-      console.warn('[gbp-data] Token refresh failed:', e.message);
-    }
+    } catch (e) { console.warn('[gbp-data] Token refresh failed:', e.message); }
   }
 
-  const authHeader = `Bearer ${accessToken}`;
+  const auth = `Bearer ${accessToken}`;
 
   try {
-    // Step 1: Get accounts
-    const accountsRes = await fetch(`${ACCOUNT_MGMT_BASE}/accounts`, {
-      headers: { Authorization: authHeader },
-    });
+    // ── Step 1: List accounts ─────────────────────────────────────────────────
+    const accountsRes  = await fetch(`${ACCOUNT_MGMT_BASE}/accounts`, { headers: { Authorization: auth } });
     const accountsData = await accountsRes.json();
+    console.log('[gbp-data] Accounts response:', JSON.stringify(accountsData).slice(0, 300));
 
     if (!accountsRes.ok) {
-      console.error('[gbp-data] Accounts API error:', JSON.stringify(accountsData));
-      return { statusCode: 200, headers: CORS, body: JSON.stringify({ error: accountsData.error?.message || 'Failed to fetch accounts', notConnected: false }) };
+      return { statusCode: 200, headers: CORS, body: JSON.stringify({ error: accountsData.error?.message || 'Accounts API failed', locations: [], reviews: [], reviewsApiPending: true, cachedAt: Date.now() }) };
     }
 
     const accounts = accountsData.accounts || [];
     if (!accounts.length) {
-      return { statusCode: 200, headers: CORS, body: JSON.stringify({ locations: [], reviews: [], reviewsApiPending: true, cachedAt: Date.now() }) };
+      return { statusCode: 200, headers: CORS, body: JSON.stringify({ locations: [], reviews: [], reviewsApiPending: true, cachedAt: Date.now(), debugNote: 'No accounts returned — check GBP account has locations' }) };
     }
 
-    // Step 2: Get locations across all accounts
-    const allLocations = [];
-    for (const account of accounts.slice(0, 5)) { // max 5 accounts
+    // ── Step 2: List locations via Account Management API ─────────────────────
+    const allLocationNames = [];
+    for (const account of accounts.slice(0, 10)) {
       try {
-        const locRes = await fetch(
-          `${BIZ_INFO_BASE}/${account.name}/locations?readMask=name,title,storefrontAddress,regularHours,metadata,profile,phoneNumbers&pageSize=100`,
-          { headers: { Authorization: authHeader } }
-        );
+        const locRes  = await fetch(`${ACCOUNT_MGMT_BASE}/${account.name}/locations?pageSize=100`, { headers: { Authorization: auth } });
         const locData = await locRes.json();
+        console.log(`[gbp-data] Locations for ${account.name}:`, JSON.stringify(locData).slice(0, 300));
         for (const loc of locData.locations || []) {
-          allLocations.push(parseLocation(loc, account.name));
+          allLocationNames.push(loc.name); // e.g. "accounts/123/locations/456"
         }
-      } catch (e) {
-        console.warn('[gbp-data] Location fetch failed for account', account.name, ':', e.message);
-      }
+      } catch (e) { console.warn('[gbp-data] Location list failed for', account.name, ':', e.message); }
     }
 
-    // Step 3: Try to get review summary (may fail if Reviews API not yet approved)
-    let reviews = [];
-    let reviewsApiPending = true;
-    // Reviews will be fetched by gbp-reviews.js once API is approved
+    // ── Step 3: Get details for each location via Business Information API ─────
+    const allLocations = [];
+    for (const locName of allLocationNames.slice(0, 50)) {
+      try {
+        // Convert account management name format to business information format
+        const bizInfoName = locName; // same format: accounts/{id}/locations/{id}
+        const detailRes  = await fetch(`${BIZ_INFO_BASE}/${bizInfoName}`, { headers: { Authorization: auth } });
+        const detail     = await detailRes.json();
+
+        if (detailRes.ok) {
+          allLocations.push(parseLocation(detail));
+        } else {
+          // Fallback: use basic info from account management
+          allLocations.push({ id: locName, name: locName.split('/').pop(), address: '', health: 'green', flags: [] });
+        }
+      } catch (e) { console.warn('[gbp-data] Detail fetch failed for', locName, ':', e.message); }
+    }
 
     const result = {
       brand,
       locations: allLocations,
-      reviews,
-      reviewsApiPending,
+      reviews: [],
+      reviewsApiPending: true,
       cachedAt: Date.now(),
     };
 
-    // Save to cache
     await store.set(cacheKey, JSON.stringify(result)).catch(() => {});
 
     return { statusCode: 200, headers: CORS, body: JSON.stringify(result) };
@@ -131,37 +129,32 @@ exports.handler = async (event) => {
   }
 };
 
-function parseLocation(loc, accountName) {
+function parseLocation(loc) {
   const address = [
-    loc.storefrontAddress?.addressLines?.[0],
+    ...(loc.storefrontAddress?.addressLines || []),
     loc.storefrontAddress?.locality,
-    loc.storefrontAddress?.regionCode,
+    loc.storefrontAddress?.administrativeArea,
   ].filter(Boolean).join(', ');
 
-  const rating       = loc.metadata?.mapsUri ? null : null; // rating comes from reviews API
-  const hasHours     = !!(loc.regularHours?.periods?.length);
-  const photoCount   = null; // requires Media API call
+  const hasHours = !!(loc.regularHours?.periods?.length);
+  const flags    = [];
+  let health     = 'green';
 
-  // Determine health
-  let health = 'green';
-  const flags = [];
-
-  if (!hasHours) { flags.push('No hours set'); health = 'amber'; }
-  if (!loc.profile?.description) { flags.push('No description'); health = 'amber'; }
-  if (!loc.phoneNumbers?.primaryPhone) { flags.push('No phone'); health = 'amber'; }
+  if (!hasHours)                           { flags.push('No hours set');      health = 'amber'; }
+  if (!loc.profile?.description)           { flags.push('No description');    if (health === 'green') health = 'amber'; }
+  if (!loc.phoneNumbers?.primaryPhone)     { flags.push('No phone number');   if (health === 'green') health = 'amber'; }
 
   return {
-    id:             loc.name,
-    accountName,
-    name:           loc.title || 'Location',
+    id:               loc.name,
+    name:             loc.title || loc.name?.split('/').pop() || 'Location',
     address,
-    rating,
-    totalReviews:   null, // populated by reviews API
+    rating:           null, // from reviews API (pending approval)
+    totalReviews:     null,
     unansweredReviews: 0,
     hasHours,
-    photoCount,
+    photoCount:       null,
     health,
     flags,
-    googleMapsUri:  loc.metadata?.mapsUri || null,
+    googleMapsUri:    loc.metadata?.mapsUri || null,
   };
 }
