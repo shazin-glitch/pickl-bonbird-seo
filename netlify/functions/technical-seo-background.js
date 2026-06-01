@@ -111,8 +111,34 @@ exports.handler = async (event) => {
 
 // ── Get core pages from WordPress ─────────────────────────────────────────────
 
+// Priority pages — confirmed from site nav (June 2026)
+const PRIORITY_PAGES = {
+  pickl: [
+    { url: 'https://eatpickl.com',          label: 'Homepage' },
+    { url: 'https://eatpickl.com/menu',      label: 'Menu' },
+    { url: 'https://eatpickl.com/locations', label: 'Locations' },
+    { url: 'https://eatpickl.com/franchise', label: 'Franchise' },
+    { url: 'https://eatpickl.com/about',     label: 'About' },
+    { url: 'https://eatpickl.com/events',    label: 'Events' },
+  ],
+  bonbird: [
+    { url: 'https://bonbirdchicken.com',             label: 'Homepage' },
+    { url: 'https://bonbirdchicken.com/menu',         label: 'Menu' },
+    { url: 'https://bonbirdchicken.com/locations',    label: 'Locations' },
+    { url: 'https://bonbirdchicken.com/franchise',    label: 'Franchise' },
+    { url: 'https://bonbirdchicken.com/philosophy',   label: 'Philosophy' },
+  ],
+};
+const SKIP_SLUGS = ['sample-page','privacy-policy','cookie-policy','terms','thank-you',
+  'cart','checkout','my-account','games','pickl-games','burger-generator',
+  'pickl-burger-muncher','pickl-munch','seoul-catcher'];
+
 async function getCorePages(brand, domain) {
-  const pages = [{ url: domain, label: 'Homepage' }]; // Homepage always first
+  // Priority pages always come first — these are always audited
+  const priorityPages = PRIORITY_PAGES[brand] || [{ url: domain, label: 'Homepage' }];
+  const priorityUrls  = new Set(priorityPages.map(p => p.url));
+  const pages         = [...priorityPages];
+
   const envKeys = BRAND_WP[brand];
   const wpBase  = process.env[envKeys.base];
   const wpUser  = process.env[envKeys.user];
@@ -122,13 +148,11 @@ async function getCorePages(brand, domain) {
     try {
       const auth = Buffer.from(`${wpUser}:${wpPass}`).toString('base64');
       const res  = await fetch(
-        `${wpBase}/wp-json/wp/v2/pages?status=publish&per_page=100&_fields=id,slug,link,title,parent&orderby=menu_order&order=asc`,
+        `${wpBase}/wp-json/wp/v2/pages?status=publish&per_page=100&_fields=id,slug,link,title,parent`,
         { headers: { Authorization: `Basic ${auth}` }, signal: AbortSignal.timeout(15000) }
       );
       const wpPages = await res.json();
-
       if (Array.isArray(wpPages)) {
-        // Get impressions from GSC page cache for prioritisation
         const gscSiteUrl = brand === 'pickl' ? 'https://eatpickl.com/' : 'sc-domain:bonbirdchicken.com';
         const gscCache   = await getSetting('gscPageCache:' + gscSiteUrl).catch(() => null);
         const impMap     = {};
@@ -136,29 +160,21 @@ async function getCorePages(brand, domain) {
           const path = (row.page || '').replace(/^https?:\/\/[^/]+/, '');
           impMap[path] = (impMap[path] || 0) + row.impressions;
         }
-
-        // Filter out WP internal pages + sort by impressions desc
-        const SKIP_SLUGS = ['sample-page', 'privacy-policy', 'cookie-policy', 'terms', 'thank-you', 'cart', 'checkout', 'my-account'];
-        const mapped = wpPages
-          .filter(p => !SKIP_SLUGS.includes(p.slug))
+        // Add up to 3 extra high-traffic pages not already in priority list
+        const extras = wpPages
+          .filter(p => !SKIP_SLUGS.includes((p.slug || '').toLowerCase()))
           .map(p => {
             const url  = p.link || `${domain}/${p.slug}/`;
             const path = url.replace(/^https?:\/\/[^/]+/, '');
-            return { url, label: p.title?.rendered || p.slug, slug: p.slug, impressions: impMap[path] || 0 };
+            return { url, label: p.title?.rendered || p.slug, impressions: impMap[path] || 0 };
           })
+          .filter(p => !priorityUrls.has(p.url))
           .sort((a, b) => b.impressions - a.impressions)
-          .slice(0, 8); // Top 8 by impressions + homepage = 9 total
-
-        pages.push(...mapped);
+          .slice(0, 3);
+        pages.push(...extras);
       }
     } catch (e) {
-      console.warn('[tech-seo] WP pages fetch failed:', e.message);
-      // Fallback to sensible defaults
-      pages.push(
-        { url: `${domain}/menu`,      label: 'Menu' },
-        { url: `${domain}/locations`, label: 'Locations' },
-        { url: `${domain}/franchise`, label: 'Franchise' },
-      );
+      console.warn('[tech-seo] WP pages fetch failed, using priority pages only:', e.message);
     }
   }
 

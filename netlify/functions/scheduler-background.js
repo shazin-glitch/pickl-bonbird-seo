@@ -121,7 +121,22 @@ exports.handler = async (event) => {
 // ── GSC fetchll, no internal HTTP hop ───────────
 async function fetchGscRows(siteUrl) {
   try {
-    return await fetchGscDirect(siteUrl);
+    const rows = await fetchGscDirect(siteUrl);
+    // Save weekly snapshot — enables week-on-week ranking movement tracking
+    // Key: gscSnapshot:<brand>:<YYYY-MM-DD> — saved once per day, never overwritten
+    try {
+      const dateKey   = new Date().toISOString().split('T')[0];
+      const brand     = siteUrl.includes('pickl') ? 'pickl' : 'bonbird';
+      const snapKey   = `gscSnapshot:${brand}:${dateKey}`;
+      const existing  = await getSetting(snapKey).catch(() => null);
+      if (!existing) {
+        await setSetting(snapKey, { rows, savedAt: Date.now(), brand, siteUrl });
+        console.log(`[scheduler] GSC snapshot saved: ${snapKey} (${rows.length} keywords)`);
+      }
+    } catch (snapErr) {
+      console.warn('[scheduler] Snapshot save failed (non-critical):', snapErr.message);
+    }
+    return rows;
   } catch (e) {
     console.error('GSC fetch failed for', siteUrl, ':', e.message);
     return [];

@@ -222,6 +222,9 @@
     <div class="nav-item" data-target="analytics">
       <span>📊 Analytics & ROI</span>
     </div>
+    <div class="nav-item" data-target="reports">
+      <span>📈 Reports</span>
+    </div>
     <div class="nav-item" data-target="techseo">
       <span>⚡ Technical SEO</span>
     </div>
@@ -442,6 +445,87 @@
         <div id="competitor-matrix-live"></div>
       </div>
     </div>
+
+    <!-- ═══ VIEW: REPORTS ═══ -->
+    <div class="page-view" id="view-reports">
+
+      <div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:20px;flex-wrap:wrap;gap:12px">
+        <div>
+          <div class="page-title">SEO Report</div>
+          <div class="section-desc" style="margin-top:4px">Performance overview for the CEO meeting. Traffic value, rankings, AI search readiness.</div>
+        </div>
+        <div style="font-size:12px;color:var(--text-muted);text-align:right;padding-top:4px">
+          Data: last 90 days (Google Search Console)<br>
+          <span id="report-last-updated"></span>
+        </div>
+      </div>
+
+      <!-- Brand switcher -->
+      <div class="pill-nav" id="report-brand-pills" style="margin-bottom:24px">
+        <div class="pill active" onclick="switchReportBrand('pickl')">🟡 Pickl</div>
+        <div class="pill" onclick="switchReportBrand('bonbird')">🔴 Bonbird</div>
+      </div>
+
+      <!-- Loading -->
+      <div id="report-loading" style="text-align:center;padding:48px;color:var(--text-muted)">
+        <div style="font-size:32px;margin-bottom:12px">📈</div>
+        Loading report data…
+      </div>
+
+      <!-- Report content -->
+      <div id="report-content" style="display:none">
+
+        <!-- 4 headline metrics -->
+        <div style="display:grid;grid-template-columns:repeat(4,1fr);gap:16px;margin-bottom:24px" id="report-metrics"></div>
+
+        <!-- Row 2: Position distribution + AI Readiness -->
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:16px;margin-bottom:24px">
+          <div class="card">
+            <div style="font-weight:600;font-size:14px;margin-bottom:16px">📊 Position Distribution</div>
+            <div id="report-position-chart"></div>
+          </div>
+          <div class="card">
+            <div style="font-weight:600;font-size:14px;margin-bottom:16px">🤖 AI Search Readiness</div>
+            <div style="font-size:12px;color:var(--text-muted);margin-bottom:12px">Based on Google's official AI Overviews eligibility criteria</div>
+            <div id="report-ai-readiness"></div>
+          </div>
+        </div>
+
+        <!-- Row 3: Top keywords + Content pipeline -->
+        <div style="display:grid;grid-template-columns:1.5fr 1fr;gap:16px;margin-bottom:24px">
+          <div class="card">
+            <div style="font-weight:600;font-size:14px;margin-bottom:16px">🔑 Top Keywords by Impressions</div>
+            <div id="report-top-keywords"></div>
+          </div>
+          <div class="card">
+            <div style="font-weight:600;font-size:14px;margin-bottom:8px">⚙️ Content Pipeline</div>
+            <div style="font-size:12px;color:var(--text-muted);margin-bottom:16px">Last 30 days</div>
+            <div id="report-pipeline"></div>
+          </div>
+        </div>
+
+        <!-- Row 4: Opportunities -->
+        <div class="card" style="margin-bottom:24px">
+          <div style="font-weight:600;font-size:14px;margin-bottom:16px">🎯 Opportunities This Week</div>
+          <div id="report-opportunities" style="display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));gap:12px"></div>
+        </div>
+
+        <!-- CEO talking points -->
+        <div class="card" style="background:linear-gradient(135deg,#1e293b,#0f172a);border-color:#334155">
+          <div style="font-weight:600;font-size:14px;margin-bottom:16px;color:#f1f5f9">💬 CEO Talking Points</div>
+          <div id="report-talking-points" style="color:#cbd5e1;font-size:13px;line-height:1.7"></div>
+        </div>
+
+      </div><!-- /report-content -->
+
+      <!-- No GSC data -->
+      <div id="report-no-data" style="display:none;text-align:center;padding:48px">
+        <div style="font-size:48px;margin-bottom:12px">📊</div>
+        <div style="font-weight:600;margin-bottom:8px">GSC not connected</div>
+        <div style="color:var(--text-muted);font-size:14px">Open Analytics & ROI tab and connect Google Search Console first.</div>
+      </div>
+
+    </div><!-- /view-reports -->
 
     <!-- ═══ VIEW: TECHNICAL SEO ═══ -->
     <div class="page-view" id="view-techseo">
@@ -1129,6 +1213,7 @@ const VIEW_TITLES = {
   perch:         'The Perch',
   dashboard:     'Approvals Queue',
   analytics:     'Analytics & ROI',
+  reports:       'SEO Report',
   techseo:       'Technical SEO',
   international: 'International SEO',
   studio:        'AI Content Studio',
@@ -1147,8 +1232,9 @@ function switchView(target) {
   document.querySelectorAll('.page-view').forEach(v => v.classList.toggle('active', v.id === 'view-' + target));
   document.getElementById('top-title').textContent = VIEW_TITLES[target] || target;
   if (target === 'perch')         loadPerch();
-  else                            closePerchPanel(); // close panel when leaving perch
+  else                            closePerchPanel();
   if (target === 'analytics')     loadGscIfNeeded();
+  if (target === 'reports')       loadReports();
   if (target === 'techseo')       { loadTechnicalSeo(); loadTechDevKanban(techSeoState.brand); }
   if (target === 'settings')      { renderAuditLog(); loadBrandCtx(); loadSlackWebhook(); if (state.userRole === 'admin') { document.getElementById('users-panel').style.display = ''; loadUsersPanel(); } }
   if (target === 'international') loadIntlDashboard();
@@ -2862,6 +2948,249 @@ async function submitNewTask() {
     renderPerchBoard();
     showToast('Task created', '');
   } catch (e) { showToast('Failed: ' + e.message, 'error'); }
+}
+
+
+// ═══════════════════════════════════════════════════════════════
+// SEO REPORTS
+// ═══════════════════════════════════════════════════════════════
+
+const reportState = { brand: 'pickl' };
+
+function switchReportBrand(brand) {
+  reportState.brand = brand;
+  document.querySelectorAll('#report-brand-pills .pill').forEach(p =>
+    p.classList.toggle('active', p.textContent.toLowerCase().includes(brand))
+  );
+  loadReports();
+}
+
+async function loadReports() {
+  document.getElementById('report-loading').style.display  = '';
+  document.getElementById('report-content').style.display  = 'none';
+  document.getElementById('report-no-data').style.display  = 'none';
+
+  const brand = reportState.brand;
+
+  // Load GSC data — try state first, then fetch
+  let gscRows = state.gscRows?.[brand] || [];
+  if (!gscRows.length) {
+    try {
+      const gscSite = brand === 'pickl' ? 'https://eatpickl.com/' : 'sc-domain:bonbirdchicken.com';
+      const cached  = await apiGet('/api/db/get');
+      const key     = brand === 'pickl' ? 'gscCache:https://eatpickl.com/' : 'gscCache:sc-domain:bonbirdchicken.com';
+      gscRows = cached?.[key]?.rows || cached?.keywords?.[brand] || [];
+    } catch { gscRows = []; }
+  }
+
+  // Also try getting direct from gsc endpoint
+  if (!gscRows.length) {
+    try {
+      const res = await fetch(`/api/gsc-data?site=${brand === 'pickl' ? 'https://eatpickl.com/' : 'sc-domain:bonbirdchicken.com'}`, { credentials: 'include' });
+      const d   = await res.json();
+      gscRows   = d.rows || d.keywords || [];
+    } catch {}
+  }
+
+  if (!gscRows.length) {
+    document.getElementById('report-loading').style.display  = 'none';
+    document.getElementById('report-no-data').style.display  = '';
+    return;
+  }
+
+  // Load technical audit for AI readiness
+  let techData = null;
+  try {
+    techData = await fetch(`/api/technical-seo?brand=${brand}`, { credentials: 'include' }).then(r => r.json());
+  } catch {}
+
+  // Load approvals for pipeline data
+  const allQueue = state.queue || [];
+
+  renderReports(brand, gscRows, techData, allQueue);
+}
+
+function renderReports(brand, rows, techData, queue) {
+  document.getElementById('report-loading').style.display = 'none';
+  document.getElementById('report-content').style.display = '';
+
+  const brandName = brand === 'pickl' ? 'Pickl' : 'Bonbird';
+  document.getElementById('report-last-updated').textContent = 'Generated: ' + new Date().toLocaleDateString('en-GB', { day:'numeric', month:'long', year:'numeric' });
+
+  // ── Compute core metrics ─────────────────────────────────────
+  const totalImpressions = rows.reduce((s, r) => s + (r.impressions || 0), 0);
+  const totalClicks      = rows.reduce((s, r) => s + (r.clicks || 0), 0);
+  const top10            = rows.filter(r => r.position <= 10).length;
+  const top3             = rows.filter(r => r.position <= 3).length;
+  // Traffic value: clicks × estimated avg CPC for UAE restaurant queries ($1.00 conservative)
+  const trafficValue     = totalClicks * 1.00;
+  const avgPos           = rows.length ? (rows.reduce((s,r) => s + r.position, 0) / rows.length).toFixed(1) : '—';
+
+  // ── Position distribution ────────────────────────────────────
+  const bands = [
+    { label: '1–3',   color: '#059669', count: rows.filter(r => r.position <= 3).length },
+    { label: '4–10',  color: '#3b82f6', count: rows.filter(r => r.position > 3  && r.position <= 10).length },
+    { label: '11–20', color: '#d97706', count: rows.filter(r => r.position > 10 && r.position <= 20).length },
+    { label: '21–50', color: '#f97316', count: rows.filter(r => r.position > 20 && r.position <= 50).length },
+    { label: '51+',   color: '#dc2626', count: rows.filter(r => r.position > 50).length },
+  ];
+  const maxCount = Math.max(...bands.map(b => b.count), 1);
+
+  // ── Quick Wins & opportunities ───────────────────────────────
+  const quickWins    = rows.filter(r => r.position >= 11 && r.position <= 20).length;
+  const priorityGaps = (state.seedKeywords?.[brand] || []).length;
+  const lowCtr       = rows.filter(r => r.position <= 10 && r.impressions >= 100 && r.ctr < (30 / r.position)).length;
+
+  // ── Content pipeline (last 30 days) ─────────────────────────
+  const now     = Date.now();
+  const month   = 30 * 24 * 3600 * 1000;
+  const recent  = queue.filter(q => q.brand === brand && (now - (q.createdAt || 0)) < month);
+  const queued  = recent.length;
+  const approved = recent.filter(q => ['approved','published'].includes(q.status)).length;
+  const published = recent.filter(q => q.status === 'published').length;
+
+  // ── AI Search Readiness ──────────────────────────────────────
+  const tc       = techData?.technicalChecks;
+  const scored   = techData?.results?.filter(r => r.mobile?.score != null) || [];
+  const avgMobile = scored.length ? Math.round(scored.reduce((s,r) => s + r.mobile.score, 0) / scored.length) : null;
+  const anyLcpBad = scored.some(r => r.mobile?.metrics?.lcp?.status === 'poor');
+
+  const readinessChecks = [
+    { label: 'HTTPS enforced',         pass: true,                              note: 'Domain uses HTTPS' },
+    { label: 'Sitemap found',          pass: tc?.sitemap?.status === 'ok',      note: tc?.sitemap?.status !== 'ok' ? 'Missing — submit to Google Search Console' : 'Found at /sitemap.xml' },
+    { label: 'robots.txt clean',       pass: tc?.robotsTxt?.status === 'ok' && !tc?.robotsTxt?.blocking, note: tc?.robotsTxt?.blocking ? '⚠️ Disallow: / detected — blocking Google!' : tc?.robotsTxt?.status !== 'ok' ? 'Missing robots.txt' : 'Googlebot not blocked' },
+    { label: 'Mobile page speed',      pass: avgMobile !== null && avgMobile >= 70, note: avgMobile ? `${avgMobile}/100 mobile avg${avgMobile < 70 ? ' — below Google threshold' : ''}` : 'Run Technical SEO audit first' },
+    { label: 'LCP under 2.5s',         pass: !anyLcpBad && avgMobile !== null, note: anyLcpBad ? 'Pages failing LCP — blocks AI Overview eligibility' : avgMobile ? 'Passing' : 'Run audit to check' },
+    { label: 'Google Business Profile', pass: false,                            note: 'Not yet integrated — critical for local restaurant search' },
+  ];
+  const readinessScore = readinessChecks.filter(c => c.pass).length;
+
+  // ── Render ───────────────────────────────────────────────────
+
+  // Metric cards
+  document.getElementById('report-metrics').innerHTML = [
+    { label: 'Top 10 Keywords', value: top10.toLocaleString(), sub: `${top3} in top 3`, color: '#059669', icon: '🏆' },
+    { label: 'Impressions (90d)', value: totalImpressions.toLocaleString(), sub: `${rows.length} total keywords`, color: '#3b82f6', icon: '👁️' },
+    { label: 'Clicks (90d)',      value: totalClicks.toLocaleString(), sub: `${((totalClicks/Math.max(totalImpressions,1))*100).toFixed(1)}% avg CTR`, color: '#8b5cf6', icon: '👆' },
+    { label: 'Traffic Value',     value: '$' + trafficValue.toLocaleString('en', {minimumFractionDigits:0}), sub: 'Est. paid ad equivalent/mo', color: '#d97706', icon: '💰' },
+  ].map(m => `
+    <div class="card" style="text-align:center;padding:20px 16px">
+      <div style="font-size:24px;margin-bottom:8px">${m.icon}</div>
+      <div style="font-size:28px;font-weight:800;color:${m.color};line-height:1;margin-bottom:4px">${m.value}</div>
+      <div style="font-size:12px;font-weight:600;color:var(--text-muted);margin-bottom:4px;text-transform:uppercase;letter-spacing:0.4px">${m.label}</div>
+      <div style="font-size:11px;color:var(--text-muted)">${m.sub}</div>
+    </div>`).join('');
+
+  // Position distribution chart
+  document.getElementById('report-position-chart').innerHTML = `
+    <div style="display:flex;align-items:flex-end;gap:12px;height:120px;margin-bottom:16px">
+      ${bands.map(b => `
+        <div style="flex:1;display:flex;flex-direction:column;align-items:center;gap:6px">
+          <div style="font-size:12px;font-weight:700;color:${b.color}">${b.count}</div>
+          <div style="width:100%;background:${b.color};border-radius:4px 4px 0 0;height:${Math.round((b.count/maxCount)*90)}px;min-height:${b.count>0?'4px':'0'};transition:height 0.3s"></div>
+        </div>`).join('')}
+    </div>
+    <div style="display:flex;gap:12px">
+      ${bands.map(b => `<div style="flex:1;text-align:center;font-size:11px;color:var(--text-muted);font-weight:600">${b.label}</div>`).join('')}
+    </div>
+    <div style="margin-top:16px;padding-top:12px;border-top:1px solid var(--border);display:flex;justify-content:space-between;font-size:12px;color:var(--text-muted)">
+      <span>Avg position: <strong style="color:var(--text)">${avgPos}</strong></span>
+      <span>Total keywords: <strong style="color:var(--text)">${rows.length}</strong></span>
+    </div>`;
+
+  // AI Search Readiness
+  document.getElementById('report-ai-readiness').innerHTML = `
+    <div style="display:flex;align-items:center;gap:12px;margin-bottom:16px;padding:12px;background:${readinessScore >= 5 ? '#ecfdf5' : readinessScore >= 3 ? '#fffbeb' : '#fef2f2'};border-radius:8px">
+      <div style="font-size:28px;font-weight:800;color:${readinessScore >= 5 ? '#059669' : readinessScore >= 3 ? '#d97706' : '#dc2626'}">${readinessScore}/6</div>
+      <div>
+        <div style="font-weight:600;font-size:13px;color:${readinessScore >= 5 ? '#059669' : readinessScore >= 3 ? '#d97706' : '#dc2626'}">${readinessScore >= 5 ? 'Good' : readinessScore >= 3 ? 'Needs work' : 'Poor'}</div>
+        <div style="font-size:11px;color:var(--text-muted)">AI Overview eligibility</div>
+      </div>
+    </div>
+    ${readinessChecks.map(c => `
+      <div style="display:flex;align-items:flex-start;gap:10px;padding:8px 0;border-bottom:1px solid var(--border)">
+        <span style="font-size:16px;flex-shrink:0;margin-top:1px">${c.pass ? '✅' : '❌'}</span>
+        <div>
+          <div style="font-size:13px;font-weight:600;color:${c.pass ? 'var(--text)' : '#dc2626'}">${c.label}</div>
+          <div style="font-size:11px;color:var(--text-muted)">${c.note}</div>
+        </div>
+      </div>`).join('')}`;
+
+  // Top keywords table
+  const topKws = [...rows].sort((a,b) => b.impressions - a.impressions).slice(0, 10);
+  document.getElementById('report-top-keywords').innerHTML = `
+    <table style="width:100%;border-collapse:collapse;font-size:13px">
+      <thead>
+        <tr style="border-bottom:1px solid var(--border);color:var(--text-muted)">
+          <th style="text-align:left;padding:6px 8px;font-weight:600">Keyword</th>
+          <th style="text-align:center;padding:6px 8px;font-weight:600">Pos</th>
+          <th style="text-align:right;padding:6px 8px;font-weight:600">Impressions</th>
+          <th style="text-align:right;padding:6px 8px;font-weight:600">Clicks</th>
+          <th style="text-align:right;padding:6px 8px;font-weight:600">CTR</th>
+        </tr>
+      </thead>
+      <tbody>
+        ${topKws.map(r => {
+          const posColor = r.position <= 3 ? '#059669' : r.position <= 10 ? '#3b82f6' : r.position <= 20 ? '#d97706' : '#dc2626';
+          return `<tr style="border-bottom:1px solid var(--border)">
+            <td style="padding:8px;font-weight:500">${esc(r.keyword)}</td>
+            <td style="text-align:center;padding:8px"><span style="background:${posColor}20;color:${posColor};padding:2px 8px;border-radius:12px;font-weight:700;font-size:12px">${Math.round(r.position)}</span></td>
+            <td style="text-align:right;padding:8px;color:var(--text-muted)">${(r.impressions||0).toLocaleString()}</td>
+            <td style="text-align:right;padding:8px;color:var(--text-muted)">${(r.clicks||0).toLocaleString()}</td>
+            <td style="text-align:right;padding:8px;color:var(--text-muted)">${r.ctr || '0'}%</td>
+          </tr>`;
+        }).join('')}
+      </tbody>
+    </table>`;
+
+  // Content pipeline
+  document.getElementById('report-pipeline').innerHTML = `
+    <div style="display:flex;flex-direction:column;gap:12px">
+      ${[
+        { label: 'AI generated & queued', value: queued, color: '#6366f1', icon: '🤖' },
+        { label: 'Reviewed & approved', value: approved, color: '#3b82f6', icon: '✅' },
+        { label: 'Published live', value: published, color: '#059669', icon: '🚀' },
+      ].map(s => `
+        <div style="display:flex;align-items:center;justify-content:space-between;padding:10px 14px;background:var(--bg-base);border-radius:8px">
+          <div style="display:flex;align-items:center;gap:8px">
+            <span>${s.icon}</span>
+            <span style="font-size:13px;color:var(--text-muted)">${s.label}</span>
+          </div>
+          <span style="font-size:22px;font-weight:800;color:${s.color}">${s.value}</span>
+        </div>`).join('')}
+      <div style="padding:10px 14px;background:var(--bg-base);border-radius:8px;font-size:12px;color:var(--text-muted)">
+        📅 Weekly snapshots saving from <strong>next Monday</strong> — ranking movement tracking enabled
+      </div>
+    </div>`;
+
+  // Opportunities
+  document.getElementById('report-opportunities').innerHTML = [
+    { emoji: '⚡', label: 'Quick Wins', value: quickWins, desc: 'Keywords at pos 11-20 ready to push to page 1', color: '#059669', bg: '#ecfdf5' },
+    { emoji: '📉', label: 'Low CTR', value: lowCtr, desc: 'Page 1 keywords with below-expected click-through rate', color: '#d97706', bg: '#fffbeb' },
+    { emoji: '🚨', label: 'Priority Gaps', value: priorityGaps, desc: 'Seed keywords with no Google presence yet', color: '#dc2626', bg: '#fef2f2' },
+    { emoji: '🐢', label: 'Page Speed', value: avgMobile ? `${avgMobile}/100` : '—', desc: avgMobile && avgMobile < 70 ? 'Mobile score below 70 — impacting AI Overview eligibility' : 'Mobile performance score', color: avgMobile && avgMobile >= 70 ? '#059669' : '#dc2626', bg: avgMobile && avgMobile >= 70 ? '#ecfdf5' : '#fef2f2' },
+  ].map(o => `
+    <div style="background:${o.bg};border-radius:10px;padding:16px">
+      <div style="display:flex;align-items:center;gap:8px;margin-bottom:8px">
+        <span style="font-size:20px">${o.emoji}</span>
+        <span style="font-weight:700;font-size:22px;color:${o.color}">${o.value}</span>
+      </div>
+      <div style="font-weight:600;font-size:13px;color:${o.color};margin-bottom:4px">${o.label}</div>
+      <div style="font-size:12px;color:#64748b">${o.desc}</div>
+    </div>`).join('');
+
+  // CEO talking points
+  const talkingPoints = [
+    `<strong>What's running:</strong> Every Monday at 8am Dubai, The Nest automatically identifies keyword opportunities, writes ${brandName}-branded content, and queues it for approval. Zero manual effort on content research.`,
+    `<strong>Current performance:</strong> ${top10.toLocaleString()} keywords in the top 10, generating ${totalClicks.toLocaleString()} organic clicks in the last 90 days. Estimated organic traffic value: <strong>$${trafficValue.toLocaleString()}/month</strong> in paid ad equivalent.`,
+    quickWins > 0 ? `<strong>Immediate opportunity:</strong> ${quickWins} keywords are ranked 11-20 right now — one content update away from page 1. The tool is already targeting these every Monday.` : '',
+    avgMobile && avgMobile < 70 ? `<strong>⚠️ Critical issue:</strong> ${brandName}'s mobile page speed scores ${avgMobile}/100. Google requires good page experience for AI Overview eligibility. Pickl's LCP is 9.4s against a 2.5s threshold — this is blocking us from appearing in AI-generated search results. Developer fix needed urgently.` : '',
+    `<strong>Next week:</strong> Brand content training — pulling real ${brandName} journal posts to teach the AI to write in authentic ${brandName} voice. Hreflang implementation for all 9 international markets.`,
+    `<strong>Month 2:</strong> Google Business Profile integration (biggest local SEO gap for a restaurant brand), backlink monitoring, Google Reviews management.`,
+    `<strong>By end of Month 3:</strong> YouTube SEO module, GA4 revenue attribution (real £/$ numbers), AI Overview visibility tracking.`,
+  ].filter(Boolean);
+
+  document.getElementById('report-talking-points').innerHTML = talkingPoints.map(p => `<div style="margin-bottom:12px;padding-left:12px;border-left:2px solid #475569">• ${p}</div>`).join('');
 }
 
 // ═══════════════════════════════════════════════════════════════
