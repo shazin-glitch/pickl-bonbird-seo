@@ -56,9 +56,9 @@
   .page-view.active { display: block; }
   /* ── The Perch Kanban ── */
   .perch-board { display: grid; grid-template-columns: repeat(4, 1fr); gap: 16px; overflow-x: auto; padding-bottom: 8px; }
-  .perch-col { background: var(--surface); border-radius: 10px; padding: 14px; min-height: 200px; }
+  .perch-col { background: var(--bg-surface); border-radius: 10px; padding: 14px; min-height: 200px; }
   .perch-col-header { font-weight: 600; font-size: 13px; margin-bottom: 12px; display: flex; justify-content: space-between; align-items: center; }
-  .perch-card { background: var(--card-bg); border: 1px solid var(--border); border-radius: 8px; padding: 12px; margin-bottom: 8px; cursor: pointer; transition: border-color 0.15s, transform 0.1s; }
+  .perch-card { background: var(--bg-surface); border: 1px solid var(--border); border-radius: 8px; padding: 12px; margin-bottom: 8px; cursor: pointer; transition: border-color 0.15s, transform 0.1s; }
   .perch-card:hover { border-color: var(--primary); transform: translateY(-1px); }
   .perch-card-title { font-weight: 600; font-size: 13px; margin-bottom: 8px; line-height: 1.3; }
   .perch-card-meta { display: flex; flex-wrap: wrap; gap: 4px; margin-bottom: 6px; }
@@ -259,7 +259,7 @@
 
       <!-- Filters -->
       <div style="display:flex;gap:8px;margin-bottom:20px;flex-wrap:wrap;align-items:center">
-        <select id="perch-filter-brand" onchange="renderPerchBoard()" style="font-size:13px;padding:6px 10px;border-radius:8px;border:1px solid var(--border);background:var(--surface);color:var(--text);cursor:pointer">
+        <select id="perch-filter-brand" onchange="renderPerchBoard()" style="font-size:13px;padding:6px 10px;border-radius:8px;border:1px solid var(--border);background:var(--bg-surface);color:var(--text);cursor:pointer">
           <option value="">All Brands</option>
           <option value="pickl">🟡 Pickl</option>
           <option value="bonbird">🔴 Bonbird</option>
@@ -267,14 +267,14 @@
           <option value="shadowburg">🟣 Shadowburg</option>
           <option value="shadowbird">🔵 Shadowbird</option>
         </select>
-        <select id="perch-filter-dept" onchange="renderPerchBoard()" style="font-size:13px;padding:6px 10px;border-radius:8px;border:1px solid var(--border);background:var(--surface);color:var(--text);cursor:pointer">
+        <select id="perch-filter-dept" onchange="renderPerchBoard()" style="font-size:13px;padding:6px 10px;border-radius:8px;border:1px solid var(--border);background:var(--bg-surface);color:var(--text);cursor:pointer">
           <option value="">All Departments</option>
           <option value="seo">SEO</option>
           <option value="social">Social</option>
           <option value="design">Design</option>
           <option value="content">Content</option>
         </select>
-        <select id="perch-filter-priority" onchange="renderPerchBoard()" style="font-size:13px;padding:6px 10px;border-radius:8px;border:1px solid var(--border);background:var(--surface);color:var(--text);cursor:pointer">
+        <select id="perch-filter-priority" onchange="renderPerchBoard()" style="font-size:13px;padding:6px 10px;border-radius:8px;border:1px solid var(--border);background:var(--bg-surface);color:var(--text);cursor:pointer">
           <option value="">All Priorities</option>
           <option value="high">🔴 High</option>
           <option value="medium">🟡 Medium</option>
@@ -780,7 +780,7 @@
             <div>
               <div style="display:flex;gap:8px;align-items:center;margin-bottom:4px">
                 <span style="font-weight:700;font-size:13px;color:#059669">Quick Win</span>
-                <span style="font-size:11px;color:var(--text-muted);background:var(--surface);padding:1px 8px;border-radius:99px;border:1px solid var(--border)">Position 11–20</span>
+                <span style="font-size:11px;color:var(--text-muted);background:var(--bg-surface);padding:1px 8px;border-radius:99px;border:1px solid var(--border)">Position 11–20</span>
               </div>
               <div style="font-size:13px;color:var(--text)">You already rank. One strong content update pushes you to page 1. Fastest ROI — expect results in days to weeks.</div>
             </div>
@@ -791,7 +791,7 @@
             <div>
               <div style="display:flex;gap:8px;align-items:center;margin-bottom:4px">
                 <span style="font-weight:700;font-size:13px;color:#d97706">Short Term</span>
-                <span style="font-size:11px;color:var(--text-muted);background:var(--surface);padding:1px 8px;border-radius:99px;border:1px solid var(--border)">Position 21–35</span>
+                <span style="font-size:11px;color:var(--text-muted);background:var(--bg-surface);padding:1px 8px;border-radius:99px;border:1px solid var(--border)">Position 21–35</span>
               </div>
               <div style="font-size:13px;color:var(--text)">You're ranking weakly. A focused new post or page rewrite builds relevance. Expect results in 4–8 weeks.</div>
             </div>
@@ -802,7 +802,7 @@
             <div>
               <div style="display:flex;gap:8px;align-items:center;margin-bottom:4px">
                 <span style="font-weight:700;font-size:13px;color:#6366f1">Long Term</span>
-                <span style="font-size:11px;color:var(--text-muted);background:var(--surface);padding:1px 8px;border-radius:99px;border:1px solid var(--border)">Position 36–100</span>
+                <span style="font-size:11px;color:var(--text-muted);background:var(--bg-surface);padding:1px 8px;border-radius:99px;border:1px solid var(--border)">Position 36–100</span>
               </div>
               <div style="font-size:13px;color:var(--text)">Barely visible. New content from scratch builds authority over time. Expect results in 2–4 months.</div>
             </div>
@@ -813,7 +813,7 @@
             <div>
               <div style="display:flex;gap:8px;align-items:center;margin-bottom:4px">
                 <span style="font-weight:700;font-size:13px;color:#dc2626">Priority Gap</span>
-                <span style="font-size:11px;color:var(--text-muted);background:var(--surface);padding:1px 8px;border-radius:99px;border:1px solid var(--border)">Seed list — not in GSC</span>
+                <span style="font-size:11px;color:var(--text-muted);background:var(--bg-surface);padding:1px 8px;border-radius:99px;border:1px solid var(--border)">Seed list — not in GSC</span>
               </div>
               <div style="font-size:13px;color:var(--text)">Competitors rank here, you don't appear at all. Manually curated keywords you want to own. Highest strategic value.</div>
             </div>
@@ -2146,19 +2146,19 @@ async function loadUsersPanel() {
               <td style="padding:10px 12px">
                 ${u.isBootstrap
                   ? `<span style="font-size:12px;font-weight:600;color:${ROLE_COLORS.admin}">admin</span>`
-                  : `<select onchange="updateUserField('${esc(u.email)}','role',this.value)" style="font-size:12px;padding:3px 6px;border-radius:6px;border:1px solid var(--border);background:var(--surface);color:var(--text);cursor:pointer">
+                  : `<select onchange="updateUserField('${esc(u.email)}','role',this.value)" style="font-size:12px;padding:3px 6px;border-radius:6px;border:1px solid var(--border);background:var(--bg-surface);color:var(--text);cursor:pointer">
                       ${['viewer','manager','admin'].map(r => `<option value="${r}" ${u.role===r?'selected':''}>${r}</option>`).join('')}
                     </select>`
                 }
               </td>
               <td style="padding:10px 12px">
-                <select onchange="updateUserField('${esc(u.email)}','brand',this.value)" style="font-size:12px;padding:3px 6px;border-radius:6px;border:1px solid var(--border);background:var(--surface);color:var(--text);cursor:pointer">
+                <select onchange="updateUserField('${esc(u.email)}','brand',this.value)" style="font-size:12px;padding:3px 6px;border-radius:6px;border:1px solid var(--border);background:var(--bg-surface);color:var(--text);cursor:pointer">
                   <option value="">-- none --</option>
                   ${ALL_BRANDS.map(b => `<option value="${b}" ${u.brand===b?'selected':''}>${b.charAt(0).toUpperCase()+b.slice(1)}</option>`).join('')}
                 </select>
               </td>
               <td style="padding:10px 12px">
-                <select onchange="updateUserField('${esc(u.email)}','department',this.value)" style="font-size:12px;padding:3px 6px;border-radius:6px;border:1px solid var(--border);background:var(--surface);color:var(--text);cursor:pointer">
+                <select onchange="updateUserField('${esc(u.email)}','department',this.value)" style="font-size:12px;padding:3px 6px;border-radius:6px;border:1px solid var(--border);background:var(--bg-surface);color:var(--text);cursor:pointer">
                   <option value="">-- none --</option>
                   ${ALL_DEPTS.map(d => `<option value="${d}" ${u.department===d?'selected':''}>${d.charAt(0).toUpperCase()+d.slice(1)}</option>`).join('')}
                 </select>
@@ -2397,14 +2397,14 @@ function openTaskModal(id) {
   modal.id = 'perch-task-modal';
   modal.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,0.6);z-index:1000;display:flex;align-items:center;justify-content:center;padding:20px';
   modal.innerHTML = `
-    <div style="background:var(--card-bg);border-radius:12px;padding:28px;width:100%;max-width:560px;max-height:80vh;overflow-y:auto;border:1px solid var(--border)">
+    <div style="background:var(--bg-surface);border-radius:12px;padding:28px;width:100%;max-width:560px;max-height:80vh;overflow-y:auto;border:1px solid var(--border)">
       <div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:20px">
         <div style="flex:1">
           <div style="font-weight:700;font-size:17px;margin-bottom:8px">${esc(task.title)}</div>
           <div style="display:flex;gap:6px;flex-wrap:wrap">
             <span class="perch-pill" style="background:${bc.bg};color:${bc.color}">${bc.label}</span>
             <span class="perch-pill" style="background:${dc.bg};color:${dc.color}">${dc.label}</span>
-            <span class="perch-pill" style="background:var(--surface);color:var(--text-muted)">${PRIORITY_CONFIG[task.priority]?.dot} ${task.priority}</span>
+            <span class="perch-pill" style="background:var(--bg-surface);color:var(--text-muted)">${PRIORITY_CONFIG[task.priority]?.dot} ${task.priority}</span>
           </div>
         </div>
         <button onclick="closeTaskModal()" style="background:none;border:none;color:var(--text-muted);font-size:20px;cursor:pointer;padding:0 4px">✕</button>
@@ -2424,7 +2424,7 @@ function openTaskModal(id) {
         <div style="font-size:12px;color:var(--text-muted);font-weight:600;margin-bottom:8px;text-transform:uppercase;letter-spacing:0.5px">Move to</div>
         <div style="display:flex;gap:8px;flex-wrap:wrap">
           ${COLUMNS.filter(c => c.id !== task.status).map(c =>
-            `<button onclick="moveTask('${task.id}','${c.id}')" style="font-size:12px;padding:6px 14px;border-radius:8px;border:1px solid var(--border);background:var(--surface);color:var(--text);cursor:pointer" onmouseover="this.style.borderColor='${c.color}'" onmouseout="this.style.borderColor='var(--border)'">${c.label}</button>`
+            `<button onclick="moveTask('${task.id}','${c.id}')" style="font-size:12px;padding:6px 14px;border-radius:8px;border:1px solid var(--border);background:var(--bg-surface);color:var(--text);cursor:pointer" onmouseover="this.style.borderColor='${c.color}'" onmouseout="this.style.borderColor='var(--border)'">${c.label}</button>`
           ).join('')}
         </div>
       </div>
@@ -2433,7 +2433,7 @@ function openTaskModal(id) {
       <div style="margin-bottom:20px">
         <div style="font-size:12px;color:var(--text-muted);font-weight:600;margin-bottom:8px;text-transform:uppercase;letter-spacing:0.5px">Add Comment</div>
         <div style="display:flex;gap:8px">
-          <input id="perch-comment-input" type="text" placeholder="Write a comment…" style="flex:1;padding:8px 12px;border-radius:8px;border:1px solid var(--border);background:var(--surface);color:var(--text);font-size:13px">
+          <input id="perch-comment-input" type="text" placeholder="Write a comment…" style="flex:1;padding:8px 12px;border-radius:8px;border:1px solid var(--border);background:var(--bg-surface);color:var(--text);font-size:13px">
           <button onclick="addComment('${task.id}')" style="padding:8px 16px;background:var(--primary);color:#fff;border:none;border-radius:8px;cursor:pointer;font-size:13px">Post</button>
         </div>
       </div>
@@ -2443,7 +2443,7 @@ function openTaskModal(id) {
         <div>
           <div style="font-size:12px;color:var(--text-muted);font-weight:600;margin-bottom:8px;text-transform:uppercase;letter-spacing:0.5px">Comments</div>
           ${task.comments.map(c => `
-            <div style="padding:10px;background:var(--surface);border-radius:8px;margin-bottom:6px">
+            <div style="padding:10px;background:var(--bg-surface);border-radius:8px;margin-bottom:6px">
               <div style="font-size:11px;color:var(--text-muted);margin-bottom:4px">${esc((c.author||'').split('@')[0])} · ${new Date(c.timestamp).toLocaleDateString('en-GB',{day:'numeric',month:'short'})}</div>
               <div style="font-size:13px">${esc(c.text)}</div>
             </div>`).join('')}
@@ -2506,7 +2506,7 @@ function openAddTaskModal() {
   modal.id = 'perch-add-modal';
   modal.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,0.6);z-index:1000;display:flex;align-items:center;justify-content:center;padding:20px';
   modal.innerHTML = `
-    <div style="background:var(--card-bg);border-radius:12px;padding:28px;width:100%;max-width:480px;border:1px solid var(--border)">
+    <div style="background:var(--bg-surface);border-radius:12px;padding:28px;width:100%;max-width:480px;border:1px solid var(--border)">
       <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:20px">
         <div style="font-weight:700;font-size:17px">New Task</div>
         <button onclick="closeAddModal()" style="background:none;border:none;color:var(--text-muted);font-size:20px;cursor:pointer">✕</button>
@@ -2515,16 +2515,16 @@ function openAddTaskModal() {
       <div style="display:flex;flex-direction:column;gap:14px">
         <div>
           <label style="font-size:12px;font-weight:600;color:var(--text-muted);display:block;margin-bottom:4px">TITLE *</label>
-          <input id="new-task-title" type="text" placeholder="What needs to be done?" style="width:100%;padding:9px 12px;border-radius:8px;border:1px solid var(--border);background:var(--surface);color:var(--text);font-size:13px">
+          <input id="new-task-title" type="text" placeholder="What needs to be done?" style="width:100%;padding:9px 12px;border-radius:8px;border:1px solid var(--border);background:var(--bg-surface);color:var(--text);font-size:13px">
         </div>
         <div>
           <label style="font-size:12px;font-weight:600;color:var(--text-muted);display:block;margin-bottom:4px">DESCRIPTION</label>
-          <textarea id="new-task-desc" placeholder="Optional details…" rows="3" style="width:100%;padding:9px 12px;border-radius:8px;border:1px solid var(--border);background:var(--surface);color:var(--text);font-size:13px;resize:vertical"></textarea>
+          <textarea id="new-task-desc" placeholder="Optional details…" rows="3" style="width:100%;padding:9px 12px;border-radius:8px;border:1px solid var(--border);background:var(--bg-surface);color:var(--text);font-size:13px;resize:vertical"></textarea>
         </div>
         <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px">
           <div>
             <label style="font-size:12px;font-weight:600;color:var(--text-muted);display:block;margin-bottom:4px">BRAND</label>
-            <select id="new-task-brand" style="width:100%;padding:8px 10px;border-radius:8px;border:1px solid var(--border);background:var(--surface);color:var(--text);font-size:13px">
+            <select id="new-task-brand" style="width:100%;padding:8px 10px;border-radius:8px;border:1px solid var(--border);background:var(--bg-surface);color:var(--text);font-size:13px">
               <option value="all">All Brands</option>
               <option value="pickl">Pickl</option>
               <option value="bonbird">Bonbird</option>
@@ -2535,7 +2535,7 @@ function openAddTaskModal() {
           </div>
           <div>
             <label style="font-size:12px;font-weight:600;color:var(--text-muted);display:block;margin-bottom:4px">DEPARTMENT</label>
-            <select id="new-task-dept" style="width:100%;padding:8px 10px;border-radius:8px;border:1px solid var(--border);background:var(--surface);color:var(--text);font-size:13px">
+            <select id="new-task-dept" style="width:100%;padding:8px 10px;border-radius:8px;border:1px solid var(--border);background:var(--bg-surface);color:var(--text);font-size:13px">
               <option value="seo">SEO</option>
               <option value="social">Social</option>
               <option value="design">Design</option>
@@ -2544,7 +2544,7 @@ function openAddTaskModal() {
           </div>
           <div>
             <label style="font-size:12px;font-weight:600;color:var(--text-muted);display:block;margin-bottom:4px">PRIORITY</label>
-            <select id="new-task-priority" style="width:100%;padding:8px 10px;border-radius:8px;border:1px solid var(--border);background:var(--surface);color:var(--text);font-size:13px">
+            <select id="new-task-priority" style="width:100%;padding:8px 10px;border-radius:8px;border:1px solid var(--border);background:var(--bg-surface);color:var(--text);font-size:13px">
               <option value="medium">Medium</option>
               <option value="high">High</option>
               <option value="low">Low</option>
@@ -2552,12 +2552,12 @@ function openAddTaskModal() {
           </div>
           <div>
             <label style="font-size:12px;font-weight:600;color:var(--text-muted);display:block;margin-bottom:4px">DUE DATE</label>
-            <input id="new-task-due" type="date" style="width:100%;padding:8px 10px;border-radius:8px;border:1px solid var(--border);background:var(--surface);color:var(--text);font-size:13px">
+            <input id="new-task-due" type="date" style="width:100%;padding:8px 10px;border-radius:8px;border:1px solid var(--border);background:var(--bg-surface);color:var(--text);font-size:13px">
           </div>
         </div>
         <div>
           <label style="font-size:12px;font-weight:600;color:var(--text-muted);display:block;margin-bottom:4px">ASSIGNEE EMAIL</label>
-          <input id="new-task-assignee" type="email" placeholder="${state.userEmail}" style="width:100%;padding:9px 12px;border-radius:8px;border:1px solid var(--border);background:var(--surface);color:var(--text);font-size:13px">
+          <input id="new-task-assignee" type="email" placeholder="${state.userEmail}" style="width:100%;padding:9px 12px;border-radius:8px;border:1px solid var(--border);background:var(--bg-surface);color:var(--text);font-size:13px">
         </div>
       </div>
 
@@ -2620,6 +2620,21 @@ function switchTechSeoBrand(brand) {
 
 async function loadTechnicalSeo() {
   const brand = techSeoState.brand;
+
+  // Immediately clear stale content so switching brands never shows wrong data
+  document.getElementById('techseo-last-run').textContent  = '';
+  document.getElementById('techseo-loading').style.display = 'none';
+  document.getElementById('techseo-results').style.display = 'none';
+  document.getElementById('techseo-empty').style.display   = '';
+  // Clear rendered content inside results panels
+  ['techseo-gauge-mobile','techseo-gauge-desktop','techseo-mobile-label','techseo-desktop-label',
+   'techseo-cwv-overall','techseo-cwv-label','techseo-tech-overall','techseo-tech-label',
+   'techseo-pages-table','techseo-opportunities','techseo-site-checks','techseo-intl-table',
+   'techseo-dev-kanban'].forEach(id => {
+    const el = document.getElementById(id);
+    if (el) el.innerHTML = '';
+  });
+
   try {
     const data = await apiGet('/api/technical-seo?brand=' + brand);
     renderTechSeoResults(data);
@@ -2725,10 +2740,15 @@ function renderTechSeoResults(data) {
     r.mobile?.metrics?.cls?.status,
     r.mobile?.metrics?.tbt?.status,
   ]).filter(s => s && s !== 'unknown');
-  const cwvOverall = cwvStatuses.every(s => s === 'good') ? 'good'
-    : cwvStatuses.some(s => s === 'poor') ? 'poor' : 'needs-improvement';
-  document.getElementById('techseo-cwv-overall').textContent = { good: '✅', 'needs-improvement': '⚠️', poor: '❌' }[cwvOverall] || '—';
-  document.getElementById('techseo-cwv-label').textContent   = { good: 'All passing', 'needs-improvement': 'Some issues', poor: 'Failing' }[cwvOverall] || '';
+
+  // Guard: if no CWV status data at all (old audit format), show unknown
+  const cwvOverall = !cwvStatuses.length ? 'unknown'
+    : cwvStatuses.every(s => s === 'good') ? 'good'
+    : cwvStatuses.some(s => s === 'poor') ? 'poor'
+    : 'needs-improvement';
+
+  document.getElementById('techseo-cwv-overall').textContent = { good: '✅', 'needs-improvement': '⚠️', poor: '❌', unknown: '—' }[cwvOverall] || '—';
+  document.getElementById('techseo-cwv-label').textContent   = { good: 'All passing', 'needs-improvement': 'Some issues', poor: 'Failing', unknown: 'Re-run audit for CWV data' }[cwvOverall] || '';
 
   // Site health card
   const tc = data.technicalChecks;
@@ -2836,10 +2856,17 @@ function renderTechSeoResults(data) {
 
   if (intlEl) {
     if (!intlResults.length) {
-      intlEl.innerHTML = `<div style="color:var(--text-muted);font-size:13px">${data.status === 'running' ? 'Health checking international pages…' : 'No data yet.'}</div>`;
+      // Old audit format — no intl data. Show placeholder rows from config so user knows what WILL be checked.
+      intlEl.innerHTML = `
+        <div style="background:#fffbeb;border:1px solid #fde68a;border-radius:8px;padding:12px 16px;margin-bottom:12px;font-size:13px;color:#92400e">
+          ⚠️ This audit was run before international health checks were added. <strong>Run a new audit</strong> to see results for all international pages.
+        </div>`;
+      if (intlSummary) intlSummary.textContent = 'Re-run audit to check';
     } else {
       const failing = intlResults.filter(r => r.health?.status !== 'ok' || r.health?.responseTimeMs > 3000 || r.error).length;
-      if (intlSummary) intlSummary.textContent = failing ? `⚠️ ${failing} issue${failing !== 1 ? 's' : ''}` : `✅ All ${intlResults.length} healthy`;
+      if (intlSummary) intlSummary.textContent = failing
+        ? `⚠️ ${failing} issue${failing !== 1 ? 's' : ''} found`
+        : `✅ All ${intlResults.length} pages reachable`;
 
       intlEl.innerHTML = `
         <table style="width:100%;border-collapse:collapse;font-size:13px">
@@ -2854,23 +2881,24 @@ function renderTechSeoResults(data) {
           </thead>
           <tbody>
             ${intlResults.map(r => {
-              const ok       = !r.error && r.health?.status === 'ok' && r.health?.responseTimeMs <= 3000;
-              const slow     = !r.error && r.health?.status === 'ok' && r.health?.responseTimeMs > 3000;
-              const statusIcon = r.error ? '❌' : slow ? '⚠️' : ok ? '✅' : '❌';
-              const rtColor    = r.health?.responseTimeMs > 3000 ? '#dc2626' : r.health?.responseTimeMs > 1500 ? '#d97706' : '#059669';
+              const isOk    = !r.error && r.health?.status === 'ok';
+              const isSlow  = isOk && r.health?.responseTimeMs > 3000;
+              const statusIcon = r.error ? '❌' : isSlow ? '⚠️ Slow' : '✅ OK';
+              const rtMs    = r.health?.responseTimeMs;
+              const rtColor = !rtMs ? '#6b7280' : rtMs > 3000 ? '#dc2626' : rtMs > 1500 ? '#d97706' : '#059669';
               return `
                 <tr style="border-bottom:1px solid var(--border)">
                   <td style="padding:10px 12px;font-weight:500">${esc(r.label)}</td>
                   <td style="padding:10px 12px;font-size:12px;color:var(--text-muted)">
                     <a href="${esc(r.url)}" target="_blank" style="color:var(--text-muted)">${r.url.replace('https://', '')}</a>
                   </td>
-                  <td style="text-align:center;padding:10px 12px">${statusIcon} ${r.health?.httpStatus || (r.error ? 'Error' : '—')}</td>
+                  <td style="text-align:center;padding:10px 12px;font-size:12px;font-weight:600">${statusIcon}</td>
                   <td style="text-align:center;padding:10px 12px;color:${rtColor};font-weight:600">
-                    ${r.health?.responseTimeMs ? r.health.responseTimeMs + 'ms' : '—'}
+                    ${rtMs ? rtMs + 'ms' : r.error ? '<span style="color:#dc2626;font-size:12px">Error</span>' : '—'}
                   </td>
                   <td style="text-align:center;padding:10px 12px">
-                    ${r.mobile ? scoreChip(r.mobile.score) : (r.escalated ? '<span style="color:var(--text-muted);font-size:12px">Running…</span>' : '<span style="color:var(--text-muted);font-size:12px">—</span>')}
-                    ${r.escalated ? '<div style="font-size:10px;color:#d97706;margin-top:2px">escalated</div>' : ''}
+                    ${r.mobile ? scoreChip(r.mobile.score) : (r.escalated ? '<span style="color:#d97706;font-size:12px">Running…</span>' : '<span style="color:var(--text-muted);font-size:12px">—</span>')}
+                    ${r.escalated ? '<div style="font-size:10px;color:#d97706;margin-top:2px">PSI run</div>' : ''}
                   </td>
                 </tr>`;
             }).join('')}
@@ -2921,7 +2949,7 @@ function renderTechDevKanban(brand) {
   kanbanEl.innerHTML = DEV_COLS.map(col => {
     const colTasks = tasks.filter(t => t.status === col.id);
     return `
-      <div style="background:var(--surface);border-radius:10px;padding:14px">
+      <div style="background:var(--bg-surface);border-radius:10px;padding:14px">
         <div style="font-weight:600;font-size:13px;color:${col.color};margin-bottom:12px;display:flex;justify-content:space-between;align-items:center">
           ${col.label}
           <span style="background:var(--border);color:var(--text-muted);padding:2px 7px;border-radius:99px;font-size:11px">${colTasks.length}</span>
@@ -2941,14 +2969,14 @@ function buildTechTaskCard(task, currentStatus) {
   const nextCols = DEV_COLS.filter(c => c.id !== currentStatus);
 
   return `
-    <div style="background:var(--card-bg);border:1px solid var(--border);border-left:3px solid ${sevColor};border-radius:8px;padding:10px;margin-bottom:8px">
+    <div style="background:var(--bg-surface);border:1px solid var(--border);border-left:3px solid ${sevColor};border-radius:8px;padding:10px;margin-bottom:8px">
       <div style="font-weight:600;font-size:12px;margin-bottom:4px;line-height:1.3">${esc(task.title)}</div>
       ${task.url ? `<div style="font-size:11px;color:var(--text-muted);margin-bottom:6px">${task.url.replace('https://', '')}</div>` : ''}
       ${task.mobileScore != null ? `<div style="font-size:11px;margin-bottom:6px">Mobile: ${scoreChip(task.mobileScore)}</div>` : ''}
       <div style="display:flex;gap:6px;flex-wrap:wrap">
         ${nextCols.map(c =>
           `<button onclick="moveTechTask('${esc(task.id)}','${c.id}','${esc(techSeoState.brand)}')"
-            style="font-size:11px;padding:3px 8px;border-radius:6px;border:1px solid var(--border);background:var(--surface);color:var(--text);cursor:pointer">
+            style="font-size:11px;padding:3px 8px;border-radius:6px;border:1px solid var(--border);background:var(--bg-surface);color:var(--text);cursor:pointer">
             → ${c.label}
           </button>`
         ).join('')}
