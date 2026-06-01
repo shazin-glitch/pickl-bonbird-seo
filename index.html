@@ -3437,6 +3437,7 @@ async function loadLocalSeo() {
 }
 
 function renderLocalSeoSummary(locations) {
+  const brand    = localSeoState.brand;
   const total    = locations.length;
   const avgRating = total ? (locations.reduce((s, l) => s + (l.rating || 0), 0) / total).toFixed(1) : '—';
   const unanswered = locations.reduce((s, l) => s + (l.unansweredReviews || 0), 0);
@@ -3447,7 +3448,6 @@ function renderLocalSeoSummary(locations) {
     { icon: '💬', label: 'Unanswered', value: unanswered, color: unanswered > 0 ? '#ef4444' : '#059669', sub: 'reviews need reply' },
     { icon: '🚨', label: 'Needs Attention', value: redLocs, color: redLocs > 0 ? '#ef4444' : '#059669', sub: 'locations flagged red' },
   ];
-  const brand = localSeoState.brand;
   document.getElementById('localseo-summary').innerHTML = cards.map(c => `
     <div class="card" style="text-align:center;padding:16px">
       <div style="font-size:20px;margin-bottom:6px">${c.icon}</div>
