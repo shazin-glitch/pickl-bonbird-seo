@@ -321,6 +321,7 @@
   }
 
   // ── Rankings view ──────────────────────────────────────────────────────────
+  function render(container) {
     injectStyles();
     const rows        = getFilteredRows();
     const competitors = getCompetitorNames();

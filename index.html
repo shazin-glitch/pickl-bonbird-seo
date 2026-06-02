@@ -4181,6 +4181,8 @@ async function triggerLlmRun(brand) {
     if (btn) { btn.disabled = false; btn.textContent = '▶ Run Now'; }
   }
 }
+
+function renderLlmQueryDetails(results, brandName) {
   const mentions = results.filter(r => r.mentioned && r.context);
   if (!mentions.length) return '';
   return `

@@ -736,3 +736,28 @@ Note: the *other* page_creation path (in `meta_rewrites`, when a GSC page has im
 - Added `voiceTopFix` amber warning note to `page_creation` preview (same treatment as `blog_draft`)
 
 **Note on existing queue items**: Any page_creation items already in the queue from before this fix will still show no voice badge (payload was stored empty at creation time). They'll need to be dismissed and regenerated on the next Monday run to get the badge. New items generated after this deploy will show correctly.
+
+---
+
+## Session: June 2026 — v6.9g Critical JS Fix + Full Syntax Audit
+
+### Two missing function declarations (caused complete page failure)
+
+Both issues were the same class of bug: `str_replace` operations that inserted a new function before an existing one accidentally dropped the existing function's declaration line, leaving the function BODY floating at the wrong scope level. A floating function body at IIFE top-level causes a JS SyntaxError at parse time — zero JS runs, page shows "Loading…" forever, no tabs work.
+
+**Bug 1** (`index.html`): `function renderLlmQueryDetails(results, brandName) {` was missing.
+Body was at top-level of script after `triggerLlmRun` closing `}`.
+
+**Bug 2** (`competitor-matrix-ui.js`): `function render(container) {` was missing.
+Body was floating inside the IIFE after `renderHeader` closing `}`. Caused "Unexpected token 'function'" error at `renderSoV` on line 416 because the floating code consumed the `}` that should have closed the IIFE, pushing `renderSoV` outside valid scope.
+
+**Prevention**: Added `node --check` syntax verification step run against all JS files + extracted index.html JS before every package from this session forward. 
+
+### Syntax audit results (all clean after fixes)
+- 34 netlify function `.js` files: ✅ all pass
+- 5 `_lib/*.js` files: ✅ all pass  
+- `js/competitor-matrix-ui.js`: ✅ passes (after render() fix)
+- `index.html` extracted JS: ✅ passes (after renderLlmQueryDetails fix)
+- All redirect targets in netlify.toml: ✅ all function files exist
+- All scheduled function names in netlify.toml: ✅ all function files exist
+- All onclick handlers: ✅ all resolve to defined functions
