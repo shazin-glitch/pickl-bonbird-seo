@@ -145,9 +145,11 @@
       .cm-sov-history-title { font-size:0.8rem; font-weight:600; color:var(--text-muted,#64748b); margin-bottom:12px; }
       .cm-export-btn { padding:5px 14px; border-radius:6px; border:1px solid rgba(255,255,255,0.12); background:rgba(255,255,255,0.05); color:var(--text-secondary,#475569); font-size:0.8rem; cursor:pointer; transition:all 0.15s; }
       .cm-export-btn:hover { border-color:#10b981; color:#10b981; }
-      /* Trend arrows */
-      .cm-trend-up   { color:#10b981; font-size:0.75rem; font-weight:700; }
-      .cm-trend-down { color:#ef4444; font-size:0.75rem; font-weight:700; }
+      /* Queue button */
+      .cm-queue-btn { padding:3px 9px; border-radius:5px; font-size:11px; font-weight:600; border:1px solid rgba(245,158,11,0.3); background:rgba(245,158,11,0.08); color:#d97706; cursor:pointer; white-space:nowrap; transition:all 0.15s; }
+      .cm-queue-btn:hover { background:rgba(245,158,11,0.18); border-color:#f59e0b; }
+      .cm-queue-btn.queued { background:rgba(16,185,129,0.1); border-color:rgba(16,185,129,0.3); color:#059669; cursor:default; }
+      .cm-queue-btn:disabled { opacity:0.5; cursor:not-allowed; }
     `;
     document.head.appendChild(s);
   }
@@ -722,32 +724,46 @@
         if (notRanking.length) {
           html += `<div style="margin-top:4px;margin-bottom:8px;font-size:11px;font-weight:600;text-transform:uppercase;letter-spacing:0.04em;color:#ef4444">🎯 Keywords they rank for that you don't</div>
             <table class="cm-table" style="margin-top:0"><thead><tr>
-              <th>Keyword</th><th>Their Position</th><th>Search Volume</th><th>CPC</th>
+              <th>Keyword</th><th>Their Position</th><th>Search Volume</th><th>CPC</th><th></th>
             </tr></thead><tbody>
             ${notRanking.slice(0,20).map(k => `<tr>
               <td style="font-weight:600">${esc(k.keyword)}</td>
               <td><span class="cm-rank ${k.position <= 3 ? "cm-rank-top3" : k.position <= 10 ? "cm-rank-top10" : "cm-rank-comp"}">#${k.position || "?"}</span></td>
               <td style="color:var(--text-muted)">${k.searchVolume ? k.searchVolume.toLocaleString() : "—"}</td>
               <td style="color:var(--text-muted)">${k.cpc ? "$" + k.cpc.toFixed(2) : "—"}</td>
+              <td><button class="cm-queue-btn" data-keyword="${esc(k.keyword)}" data-brand="${brand}" title="Add to priority queue for Monday">📝 Queue</button></td>
             </tr>`).join("")}
-            ${notRanking.length > 20 ? `<tr><td colspan="4" style="color:var(--text-muted);font-size:12px;padding:6px 14px">+${notRanking.length - 20} more keywords</td></tr>` : ""}
+            ${notRanking.length > 20 ? `<tr><td colspan="5" style="color:var(--text-muted);font-size:12px;padding:6px 14px">+${notRanking.length - 20} more keywords</td></tr>` : ""}
             </tbody></table>`;
         }
 
         html += `</div>`;
       }
     } else {
-      // No ranked_keywords data yet
-      html += `<div style="padding:20px;background:rgba(59,130,246,0.06);border:1px solid rgba(59,130,246,0.2);border-radius:10px;margin-bottom:20px">
-        <div style="font-weight:700;font-size:14px;color:#3b82f6;margin-bottom:8px">🔄 Competitor keyword data not yet fetched</div>
-        <div style="font-size:13px;line-height:1.6">
-          The next Monday run will fetch the top 50 non-branded keywords each competitor ranks for via DataForSEO Labs.
-          These become your direct content briefs — keywords you know work in your category because a competitor already ranks for them.
-        </div>
-        <div style="margin-top:10px;font-size:13px">
-          Click <strong>Refresh Now</strong> in the Rankings tab to run immediately.
-        </div>
-      </div>`;
+      // No ranked_keywords data — check if there's a Labs error
+      const labsErr = brands.map(b => matrixData?.[b]?.labsError).find(Boolean);
+      if (labsErr) {
+        html += `<div style="padding:16px 20px;background:rgba(239,68,68,0.06);border:1px solid rgba(239,68,68,0.2);border-radius:10px;margin-bottom:20px">
+          <div style="font-weight:700;font-size:14px;color:#ef4444;margin-bottom:6px">⚠ DataForSEO Labs error</div>
+          <div style="font-size:13px;line-height:1.6;margin-bottom:8px">${esc(labsErr)}</div>
+          <div style="font-size:12px;color:var(--text-muted)">
+            DataForSEO Labs is a separate product from the SERP API. Check your DataForSEO account at
+            <strong>app.dataforseo.com → API Access</strong> to confirm Labs is enabled.
+            The SERP rankings above will still work without Labs access.
+          </div>
+        </div>`;
+      } else {
+        html += `<div style="padding:20px;background:rgba(59,130,246,0.06);border:1px solid rgba(59,130,246,0.2);border-radius:10px;margin-bottom:20px">
+          <div style="font-weight:700;font-size:14px;color:#3b82f6;margin-bottom:8px">🔄 Competitor keyword data not yet fetched</div>
+          <div style="font-size:13px;line-height:1.6">
+            The next Monday run will fetch the top 50 non-branded keywords each competitor ranks for via DataForSEO Labs.
+            These become your direct content briefs — keywords you know work in your category because a competitor already ranks for them.
+          </div>
+          <div style="margin-top:10px;font-size:13px">
+            Click <strong>Refresh Now</strong> in the Rankings tab to run immediately.
+          </div>
+        </div>`;
+      }
     }
 
     // ── Tracked-keyword gaps (secondary section) ──────────────────────────────
@@ -763,13 +779,14 @@
         html += `<div style="margin-bottom:16px">
           <div style="font-weight:600;font-size:13px;margin-bottom:4px">${esc(comp)} — ${rows.length} keyword${rows.length!==1?"s":""}</div>
           <table class="cm-table" style="margin-top:0"><thead><tr>
-            <th>Keyword</th><th>Their Rank</th><th>Your Rank</th><th>Opportunity</th>
+            <th>Keyword</th><th>Their Rank</th><th>Your Rank</th><th>Opportunity</th><th></th>
           </tr></thead><tbody>
           ${rows.map(r => `<tr>
             <td style="font-weight:500">${esc(r.keyword)}</td>
             <td><span class="cm-rank" style="background:#fee2e2;color:#dc2626;font-weight:700">#${r.competitorRank}</span></td>
             <td><span style="color:#94a3b8;font-size:12px">${r.ourRank ? "#"+r.ourRank : "Not ranking"}</span></td>
             <td><span style="color:${oppColor[r.opportunity]};font-weight:600;font-size:12px">${oppLabel[r.opportunity]}</span></td>
+            <td><button class="cm-queue-btn" data-keyword="${esc(r.keyword)}" data-brand="${r.brand}" title="Add to priority queue">📝 Queue</button></td>
           </tr>`).join("")}
           </tbody></table>
         </div>`;
@@ -782,6 +799,62 @@
     container.querySelectorAll(".cm-filter-btn").forEach(btn => {
       btn.addEventListener("click", () => { currentBrandFilter = btn.dataset.filter; renderGaps(container); });
     });
+    // Queue buttons — add keyword to seed list (scheduler picks up Monday, or trigger manually)
+    container.querySelectorAll(".cm-queue-btn").forEach(btn => {
+      btn.addEventListener("click", () => queueGapKeyword(btn));
+    });
+  }
+
+  async function queueGapKeyword(btn) {
+    const keyword = btn.dataset.keyword;
+    const brand   = btn.dataset.brand || currentBrandFilter;
+    if (!keyword || !brand || brand === "all") return;
+
+    btn.disabled = true;
+    btn.textContent = "Adding…";
+
+    try {
+      // Fetch current seed keywords, add the new one, save back
+      const getRes  = await fetch(`/api/seed-keywords?brand=${brand}`, { credentials: "include" });
+      const current = getRes.ok ? (await getRes.json()).keywords || [] : [];
+
+      if (current.includes(keyword.toLowerCase())) {
+        btn.textContent = "✓ Already queued";
+        btn.classList.add("queued");
+        return;
+      }
+
+      const updated = [...current, keyword.toLowerCase()];
+      const saveRes = await fetch("/api/seed-keywords", {
+        method:  "POST",
+        headers: { "Content-Type": "application/json" },
+        credentials: "include",
+        body: JSON.stringify({ brand, keywords: updated }),
+      });
+
+      if (!saveRes.ok) throw new Error("Save failed");
+
+      btn.textContent = "✓ Queued";
+      btn.classList.add("queued");
+
+      // Show a dismissible tip about triggering now
+      const row = btn.closest("tr");
+      if (row) {
+        const tip = document.createElement("tr");
+        tip.innerHTML = `<td colspan="5" style="padding:6px 14px;background:rgba(16,185,129,0.06);font-size:11px;color:#059669">
+          ✓ <strong>${keyword}</strong> added to Priority Gap seed list for ${brand === "pickl" ? "Pickl" : "Bonbird"}.
+          Runs next Monday 8am Dubai — or go to <strong>Settings & Logs → Run Scheduler</strong> to generate now.
+          <a href="#" onclick="event.preventDefault()" style="color:#059669;text-decoration:underline;margin-left:4px">dismiss</a>
+        </td>`;
+        tip.querySelector("a").addEventListener("click", () => tip.remove());
+        row.insertAdjacentElement("afterend", tip);
+      }
+
+    } catch (e) {
+      btn.textContent = "📝 Queue";
+      btn.disabled = false;
+      console.error("[competitor-matrix] Queue error:", e.message);
+    }
   }
 
   // ── Keywords management view ───────────────────────────────────────────────

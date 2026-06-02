@@ -761,3 +761,122 @@ Body was floating inside the IIFE after `renderHeader` closing `}`. Caused "Unex
 - All redirect targets in netlify.toml: ✅ all function files exist
 - All scheduled function names in netlify.toml: ✅ all function files exist
 - All onclick handlers: ✅ all resolve to defined functions
+
+---
+
+## Session: June 2026 — v6.9h–v6.9k Fixes
+
+### v6.9h — GA4 LLM referral fix
+- Cache invalidation: if cached `ga4Cache:<brand>` is missing `llmBySource` field (old format), treats as stale and re-fetches
+- Added `?refresh=1` param to force cache bypass; loadGa4Report now accepts `forceRefresh` param
+- Added ↻ Refresh link next to property ID in GA4 status line
+- Expanded LLM domain filter: `perplexity`, `chatgpt.com`, `chat.openai.com`, `openai.com`, `claude.ai`, `anthropic.com`, `gemini.google.com`, `bard.google.com`, `copilot.microsoft.com`, `you.com`, `phind.com`, `kagi.com`
+- `llmSourceLabel()` updated for new sources
+
+### v6.9i — LLM mention tracker: model fallbacks + error tracking
+- `queryOpenAI()`: tries `gpt-4o` then `gpt-4o-mini` fallback
+- `queryPerplexity()`: tries `llama-3.1-sonar-small-128k-online` → `sonar-small-online` → `sonar`
+- `queryGemini()`: tries 5 models newest-to-oldest with proper 403/404/429 handling and detailed logging
+- All query functions return `{ text, error }` instead of raw null/string
+- `processBrand()` now tracks `keySet` per LLM and `errorReason` for failed calls
+- Summary now includes `keySet` and `errorReason` fields
+- UI now shows: "⚠ Key not set in Netlify" / "✕ API Error — check Netlify logs" with error detail / working score card
+
+### v6.9j — Gemini model order fix
+- Moved `gemini-1.5-flash` to FIRST in fallback chain (most reliable free-tier model)
+- Added `gemini-1.5-flash-8b` to list
+- Added explicit 404 handling (model not found → continue), 429 handling (rate limit → wait + continue)
+- Added safety block handling: `finishReason: "SAFETY"` returns empty string (not null) so key is still counted as available
+- Added raw response logging for debugging
+
+### v6.9k — Competitor gaps: Labs error visibility + Queue buttons
+**Labs error tracking** (`competitor-matrix-background.js`):
+- `fetchCompetitorRankedKeywords()` now does a preflight test request to detect auth/access errors before running all competitors
+- Returns `{ resultsMap, labsError }` (was: bare `resultsMap`)
+- `labsError` stored in `competitorRankedKeywords:<brand>` blob
+- Read endpoint passes `labsError` through to UI
+
+**Gaps view** (`competitor-matrix-ui.js`):
+- If Labs failed: shows red error banner with the actual error message and link to DataForSEO account
+- If Labs succeeded but empty: shows blue "not yet fetched" state as before
+- `📝 Queue` button on every gap row (both competitor-discovered and tracked-keyword gaps)
+- `queueGapKeyword()`: fetches current seed keywords, adds the gap keyword, saves back to seed list
+- Shows confirmation tip: "Added to Priority Gap seed list — runs Monday 8am or trigger manually in Settings & Logs"
+- Scheduler's existing `getQueuedKeywords()` already prevents re-queuing anything already in the approvals queue
+
+---
+
+## The Nest — Full Vision & Current Gaps
+
+### The Vision (updated June 2026)
+
+The Nest is the **central marketing operations platform for Yolk Brands** — not just an SEO tool. The goal is for every marketing output (content, social posts, SEO pages, review replies, campaign briefs) to flow through The Nest: written/generated with AI assistance, approved by a human, then auto-published to the right destination.
+
+**The full platform vision:**
+- SEO team uses it for content pipeline, keyword strategy, technical health, competitor intelligence
+- Social media team builds the content calendar inside The Nest — posts drafted (AI-assisted in brand voice), approved in The Nest, then auto-pushed to SocialPilot for scheduling
+- Design team tracks asset requests and campaign timelines via The Perch
+- Leadership sees Reports tab — traffic, rankings, AI search presence, market breakdown
+- Eventually covers Southpour, Shadowburg, Shadowbird as additional brands
+
+**The social + SocialPilot integration (Week 5 roadmap):**
+This is NOT a basic social scheduling tool. The design is:
+1. Social media team creates content calendar inside The Nest (posts, captions, visuals, schedule)
+2. All content follows brand voice guidelines and goes through the same approval flow as SEO content
+3. Once approved, posts are auto-pushed to SocialPilot via API for auto-scheduling
+4. The Perch handles campaign tasks, asset requests, and cross-team coordination
+5. The Nest becomes the single source of truth for all marketing activity — replaces Trello, Buffer/Hootsuite, and agency management in one platform
+
+### What the tool covers today ✅
+- Google organic search (text): full automated pipeline — keyword discovery, content creation, meta rewrites, page updates, publishing to WordPress
+- Technical SEO: Core Web Vitals, page speed, sitemap, robots, structured data audits
+- International SEO: 9 markets, hreflang generation
+- Competitor intelligence: SERP rankings, Share of Voice, gap analysis, SERP features
+- AI search presence: LLM mention tracking across Claude, OpenAI, Perplexity, Gemini
+- Google Business Profile: location health, review management (pending API approval)
+- GA4 traffic: organic sessions, LLM referral attribution by source
+- The Perch: full marketing team task management, replacing Trello
+- Brand voice: 1-10 scoring, banned words, real writing examples injected into every prompt
+- Multi-brand, multi-market, role-based access
+
+### Current gaps in the tool 🔧
+
+**SEO layer (not yet covered):**
+- Schema markup auto-implementation — currently generates JSON-LD in AI Studio but doesn't push it to WordPress. Should be a queued item like meta_update.
+- Backlink intelligence — who links to Salt/Shake Shack but not Pickl? DataForSEO backlink API would give this. Direct content PR target list.
+- Citation consistency — NAP (name, address, phone) across Zomato, TripAdvisor, Time Out, What's On, The Entertainer. These aggregators dominate UAE food SERPs and being unlisted or inconsistent hurts rankings.
+- AI Overview visibility tracker — are we appearing in Google's AI-generated answers for top keywords? Weekly automated check.
+- Content repurposing signal — when a blog post is queued, also flag if the same keyword warrants a YouTube video or Instagram reel based on intent.
+
+**Distribution layer (not yet covered):**
+- YouTube SEO — video titles, descriptions, tags, transcript content. YouTube is the second largest search engine and Google owns it. For "best burger Dubai" video content has outsized presence.
+- Social media pipeline → SocialPilot (Week 5). The full vision above.
+- Influencer/media tracking — when Time Out Dubai or What's On publishes about Pickl or Bonbird, the tool should know. Feeds LLM training data and backlink value.
+
+**Off-page authority (not yet covered):**
+- Review platform presence — Zomato, TripAdvisor, Google Reviews aggregate scores affect both traditional rankings and LLM mention likelihood. The GBP module covers Google; Zomato and TripAdvisor need their own monitoring.
+- Press/media mention tracker — PR mentions on Dubai food media (Grubhunt, What's On, Timeout, Gulf News Food) are real SEO signals. Should surface when competitor gets covered but you don't.
+
+### SEO → AI search content strategy (the framework)
+
+For a keyword like "best burger Dubai", the full asset set that maximises presence across ALL surfaces is:
+
+| Asset | Surface | Status |
+|---|---|---|
+| SEO blog post | Google organic, LLM training | ✅ Auto-generated |
+| Location landing page | Google organic (local intent) | ✅ Auto-generated |
+| Meta title + description | Google CTR | ✅ Auto-rewritten |
+| Google Business Profile | Local pack, Maps | ✅ Monitored |
+| Structured data (Restaurant schema) | AI Overviews, rich results | 🔧 Generated but not auto-pushed |
+| Zomato / TripAdvisor listing | SERP occupiers (get listed, not outranked) | 🔧 Not yet monitored |
+| YouTube video | YouTube search, Google video tab | 📅 Roadmap Week 4 |
+| Instagram Reel | Discovery/awareness (not search-intent) | 📅 Roadmap Week 5 |
+| Press/media mention | LLM training data, backlinks | 📅 Roadmap (unscheduled) |
+
+The Monday pipeline handles the top two rows automatically. Everything below is either in progress or on the roadmap. The platform is designed to eventually automate the entire column — not just the SEO layer.
+
+---
+
+## DataForSEO — Note on Labs Access
+`dataforseo_labs/google/ranked_keywords/live` requires Labs product enabled on the DataForSEO account (separate from SERP Standard access). If the Competitor Gaps tab shows a Labs error after Refresh Now, check app.dataforseo.com → API Access. The SERP rankings, Share of Voice, and gap analysis against tracked keywords all continue to work without Labs. Labs only unlocks the "what competitors rank for outside your tracked list" discovery feature.
+

@@ -425,13 +425,43 @@ function calculateSoV(rows, trackedDomains) {
 const LABS_RANKED_KEYWORDS_URL = "https://api.dataforseo.com/v3/dataforseo_labs/google/ranked_keywords/live";
 
 async function fetchCompetitorRankedKeywords(competitors, locationCode, authHeader) {
-  const resultsMap = {}; // domain → [{keyword, searchVolume, position, url, cpc}]
+  const resultsMap = {};
+  let labsError    = null; // store first error for UI display
+
+  // Test the Labs endpoint with the first competitor before running all
+  // This surfaces auth/plan errors without burning through all competitors
+  const firstDomain = competitors[0]?.domain.replace(/^www\./, "");
+  if (firstDomain) {
+    try {
+      const testRes = await fetch(LABS_RANKED_KEYWORDS_URL, {
+        method:  "POST",
+        headers: { Authorization: authHeader, "Content-Type": "application/json" },
+        body: JSON.stringify([{ target: firstDomain, location_code: locationCode, language_code: "en", limit: 1 }]),
+      });
+      const testData = await testRes.json();
+      console.log(`[competitor-matrix] Labs test — HTTP ${testRes.status}, status_code: ${testData.status_code}, msg: ${testData.status_message}`);
+      if (testRes.status === 403 || testData.status_code === 40300) {
+        labsError = "DataForSEO Labs access denied (403) — your account may not have Labs enabled. Contact DataForSEO support.";
+        console.warn("[competitor-matrix]", labsError);
+        return { resultsMap, labsError };
+      }
+      if (testData.status_code === 40100 || testData.status_code === 40101) {
+        labsError = `DataForSEO auth error (${testData.status_code}): ${testData.status_message}`;
+        console.warn("[competitor-matrix]", labsError);
+        return { resultsMap, labsError };
+      }
+    } catch (e) {
+      labsError = `Network error reaching DataForSEO Labs: ${e.message}`;
+      console.warn("[competitor-matrix]", labsError);
+      return { resultsMap, labsError };
+    }
+  }
 
   for (const comp of competitors) {
     const domain     = comp.domain.replace(/^www\./, "");
     const brandTerms = getBrandFilters(domain);
 
-    console.log(`[competitor-matrix] Fetching ranked keywords for ${domain} (filtering: ${brandTerms.slice(0,3).join(", ")}…)`);
+    console.log(`[competitor-matrix] Fetching ranked keywords for ${domain}`);
 
     try {
       const res = await fetch(LABS_RANKED_KEYWORDS_URL, {
@@ -443,26 +473,26 @@ async function fetchCompetitorRankedKeywords(competitors, locationCode, authHead
           language_code: "en",
           filters: [["keyword_data.keyword_info.search_volume", ">", 0]],
           order_by: ["keyword_data.keyword_info.search_volume,desc"],
-          limit: 200,  // fetch more, then filter branded terms to get clean top 50
+          limit: 200,
         }]),
       });
 
       if (!res.ok) {
         console.warn(`[competitor-matrix] Labs HTTP ${res.status} for ${domain}`);
+        if (!labsError) labsError = `HTTP ${res.status} from DataForSEO Labs`;
         resultsMap[domain] = [];
         continue;
       }
 
       const data = await res.json();
       if (data.status_code !== 20000) {
-        console.warn(`[competitor-matrix] Labs API error for ${domain}: ${data.status_message}`);
+        console.warn(`[competitor-matrix] Labs API error for ${domain}: ${data.status_code} — ${data.status_message}`);
+        if (!labsError) labsError = `${data.status_code}: ${data.status_message}`;
         resultsMap[domain] = [];
         continue;
       }
 
       const items = data.tasks?.[0]?.result?.[0]?.items || [];
-
-      // Filter branded terms, take top 50 by search volume
       resultsMap[domain] = items
         .filter(item => {
           const kw = (item.keyword_data?.keyword || "").toLowerCase();
@@ -477,18 +507,17 @@ async function fetchCompetitorRankedKeywords(competitors, locationCode, authHead
           cpc:          item.keyword_data?.keyword_info?.cpc || null,
         }));
 
-      console.log(`[competitor-matrix] ${domain}: ${items.length} total keywords → ${resultsMap[domain].length} non-branded`);
-
-      // Small delay between Labs calls to be kind to the API
+      console.log(`[competitor-matrix] ${domain}: ${items.length} total → ${resultsMap[domain].length} non-branded`);
       await new Promise(r => setTimeout(r, 300));
 
     } catch (e) {
       console.warn(`[competitor-matrix] Labs error for ${domain}: ${e.message}`);
+      if (!labsError) labsError = e.message;
       resultsMap[domain] = [];
     }
   }
 
-  return resultsMap;
+  return { resultsMap, labsError };
 }
 
 function detectMovement(currentRows, previousRows) {
@@ -573,18 +602,24 @@ exports.handler = async () => {
       // Runs after SERP fetch to avoid parallel rate limiting.
       // Labs is a DB query (not live SERP) — no Standard mode equivalent exists.
       let competitorKeywords = {};
+      let labsError          = null;
       try {
         const authHeader = "Basic " + Buffer.from(`${process.env.DATAFORSEO_LOGIN}:${process.env.DATAFORSEO_PASSWORD}`).toString("base64");
-        competitorKeywords = await fetchCompetitorRankedKeywords(config.competitors, config.location_code, authHeader);
+        const result     = await fetchCompetitorRankedKeywords(config.competitors, config.location_code, authHeader);
+        competitorKeywords = result.resultsMap || {};
+        labsError          = result.labsError  || null;
         await store.set(`${RANKED_KEYWORDS_KEY}${brand}`, JSON.stringify({
           brand,
           competitors: competitorKeywords,
+          labsError,
           fetchedAt: new Date().toISOString(),
         })).catch(() => {});
         const totalKws = Object.values(competitorKeywords).reduce((s, arr) => s + arr.length, 0);
-        console.log(`[competitor-matrix] ${brand} competitor keywords: ${totalKws} non-branded keywords across ${Object.keys(competitorKeywords).length} competitors`);
+        console.log(`[competitor-matrix] ${brand} competitor keywords: ${totalKws} across ${Object.keys(competitorKeywords).length} competitors${labsError ? ` | error: ${labsError}` : ""}`);
       } catch (e) {
+        labsError = e.message;
         console.warn(`[competitor-matrix] ${brand} ranked keywords failed: ${e.message}`);
+        await store.set(`${RANKED_KEYWORDS_KEY}${brand}`, JSON.stringify({ brand, competitors: {}, labsError, fetchedAt: new Date().toISOString() })).catch(() => {});
       }
 
       // ── Store main matrix payload ─────────────────────────────────────────

@@ -113,14 +113,17 @@ async function queryPerplexity(query) {
 async function queryGemini(query) {
   const key = process.env.GEMINI_API_KEY;
   if (!key) return { text: null, error: "key_missing" };
-  // Try models newest-first — gemini-1.5-flash was deprecated/renamed in some regions
+
+  // Model list — free tier safe models first, newer ones as bonus
+  // gemini-1.5-flash is the most reliable free-tier model
   const models = [
-    "gemini-2.0-flash",
-    "gemini-2.0-flash-lite",
-    "gemini-1.5-flash-latest",
     "gemini-1.5-flash",
-    "gemini-1.0-pro",
+    "gemini-1.5-flash-8b",
+    "gemini-1.5-pro",
+    "gemini-2.0-flash-lite",
+    "gemini-2.0-flash",
   ];
+
   for (const model of models) {
     try {
       const res  = await fetch(
@@ -134,25 +137,61 @@ async function queryGemini(query) {
           }),
         }
       );
+
       const data = await res.json();
-      if (data.error) {
-        console.warn(`[llm-mentions] Gemini ${model}: ${data.error.message}`);
-        // 400 = bad model name (try next) | 403 = bad key (bail)
-        if (res.status === 403 || data.error.code === 403) {
-          return { text: null, error: `api_error: invalid key (${data.error.message})` };
-        }
-        continue; // model not found — try next
+
+      // Auth error — bad key, bail immediately
+      if (res.status === 400 && data.error?.message?.includes("API key")) {
+        return { text: null, error: `api_error: invalid key — ${data.error.message}` };
       }
-      const text = data.candidates?.[0]?.content?.parts?.[0]?.text;
+      if (res.status === 403) {
+        return { text: null, error: `api_error: access denied — ${data.error?.message || "check key permissions"}` };
+      }
+
+      // Model not found or not available — try next
+      if (res.status === 404 || (data.error?.code === 404)) {
+        console.log(`[llm-mentions] Gemini ${model}: not available (404), trying next`);
+        continue;
+      }
+
+      // Rate limit — log and continue (next model may work)
+      if (res.status === 429) {
+        console.warn(`[llm-mentions] Gemini ${model}: rate limited (429), trying next`);
+        await new Promise(r => setTimeout(r, 1000));
+        continue;
+      }
+
+      // Any other API error
+      if (data.error) {
+        console.warn(`[llm-mentions] Gemini ${model}: ${res.status} — ${data.error.message}`);
+        continue;
+      }
+
+      // Extract text — handle safety blocks (candidates exist but no content)
+      const candidate = data.candidates?.[0];
+      if (!candidate) {
+        console.warn(`[llm-mentions] Gemini ${model}: no candidates in response`);
+        continue;
+      }
+      if (candidate.finishReason === "SAFETY") {
+        console.warn(`[llm-mentions] Gemini ${model}: safety block — returning empty`);
+        return { text: "", error: null }; // key works, just blocked this query
+      }
+
+      const text = candidate.content?.parts?.[0]?.text;
       if (text) {
-        console.log(`[llm-mentions] Gemini using model: ${model}`);
+        console.log(`[llm-mentions] Gemini: using ${model} ✓`);
         return { text, error: null };
       }
+
+      console.warn(`[llm-mentions] Gemini ${model}: empty text in response, raw:`, JSON.stringify(data).slice(0, 200));
+
     } catch (e) {
-      console.warn(`[llm-mentions] Gemini ${model} error: ${e.message}`);
+      console.warn(`[llm-mentions] Gemini ${model} network error: ${e.message}`);
     }
   }
-  return { text: null, error: "api_error: no working model found" };
+
+  return { text: null, error: "api_error: no working model found — check Netlify logs for per-model details" };
 }
 
 // ── Check brand mention ───────────────────────────────────────────────────────

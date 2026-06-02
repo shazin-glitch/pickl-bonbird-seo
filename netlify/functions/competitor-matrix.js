@@ -39,6 +39,7 @@ exports.handler = async (event) => {
         sovHistory:      Array.isArray(sovHistory) ? sovHistory : [],
         autoDetected:    autoDetected?.domains || [],
         rankedKeywords:  rankedKeywords?.competitors || {},
+        labsError:       rankedKeywords?.labsError   || null,
       };
     }
     return { statusCode: 200, headers: CORS, body: JSON.stringify(result) };
