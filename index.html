@@ -353,7 +353,7 @@
           <div class="section-desc">Review, edit, or reject AI-generated optimizations before they go live.</div>
         </div>
         <div style="display:flex;gap:8px;align-items:center">
-          <button class="btn btn-outline" onclick="dismissVisible(this)" style="font-size:12px;color:#ef4444;border-color:#ef4444" title="Dismiss all currently visible items">🗑 Dismiss Visible</button>
+          <button class="btn btn-outline" onclick="dismissVisible(this)" style="font-size:12px;color:#ef4444;border-color:#ef4444" title="Dismiss all currently visible items. With no filters active, this clears the entire queue.">🗑 Dismiss Visible</button>
           <button class="btn btn-primary" onclick="runAuditNow(this)">
             <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="23 4 23 10 17 10"/><path d="M20.49 15a9 9 0 1 1-2.12-9.36L23 10"/></svg>
             Run Audit Now
@@ -1783,16 +1783,34 @@ function buildVoiceScoreBadge(score) {
 
 function buildContextBar(item) {
   const p = item.payload || {};
-  const keyword    = p.targetKeyword || p.keyword || null;
-  const pos        = p.currentPos || p.currentPosition || null;
+  const keyword     = p.targetKeyword || p.keyword || p.focusKeyword || null;
+  const pos         = p.currentPos || p.currentPosition || null;
   const impressions = p.impressions ? Number(p.impressions).toLocaleString() : null;
-  const url        = p.url || null;
-  const market     = p.locationTag || item.locationTag || null;
+  const url         = p.url || null;
+  const ctrGap      = p.ctrGap ? parseFloat(p.ctrGap) : null;
+  const isSeed      = p.isSeedKeyword || (item.payload?.keywordTier === 'Priority Gap' && !pos);
+  const isMeta      = item.type === 'meta_update';
 
-  if (!keyword && !pos && !impressions) return '';
+  if (!keyword && !pos && !impressions && !isSeed) return '';
 
   const posColor = pos <= 10 ? '#059669' : pos <= 20 ? '#d97706' : '#6366f1';
-  const target   = pos ? (pos <= 10 ? 'Maintain top 10' : pos <= 20 ? '→ Top 10' : pos <= 35 ? '→ Top 20' : '→ Top 35') : null;
+
+  // For meta_update: show CTR opportunity instead of goal
+  // For others: show tier goal (Top 10, Top 20 etc.)
+  let thirdCell = '';
+  if (isMeta && ctrGap) {
+    thirdCell = `<div style="padding:8px 12px;border-right:1px solid var(--border)">
+      <div style="font-size:10px;font-weight:700;color:var(--text-muted);text-transform:uppercase;letter-spacing:0.4px;margin-bottom:2px">CTR Gap</div>
+      <div style="font-size:14px;font-weight:700;color:#d97706">+${ctrGap}%</div>
+      <div style="font-size:10px;color:var(--text-muted)">below expected</div>
+    </div>`;
+  } else if (!isMeta && pos) {
+    const target = pos <= 10 ? 'Maintain top 10' : pos <= 20 ? '→ Top 10' : pos <= 35 ? '→ Top 20' : '→ Top 35';
+    thirdCell = `<div style="padding:8px 12px;border-right:1px solid var(--border)">
+      <div style="font-size:10px;font-weight:700;color:var(--text-muted);text-transform:uppercase;letter-spacing:0.4px;margin-bottom:2px">Goal</div>
+      <div style="font-size:12px;font-weight:600;color:#059669">${target}</div>
+    </div>`;
+  }
 
   return `
     <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(100px,1fr));gap:0;background:var(--bg-base);border-radius:8px;margin-bottom:12px;overflow:hidden;border:1px solid var(--border)">
@@ -1800,14 +1818,16 @@ function buildContextBar(item) {
         <div style="font-size:10px;font-weight:700;color:var(--text-muted);text-transform:uppercase;letter-spacing:0.4px;margin-bottom:2px">Keyword</div>
         <div style="font-size:12px;font-weight:600;color:var(--text-main)">"${esc(keyword)}"</div>
       </div>` : ''}
+      ${isSeed ? `<div style="padding:8px 12px;border-right:1px solid var(--border)">
+        <div style="font-size:10px;font-weight:700;color:var(--text-muted);text-transform:uppercase;letter-spacing:0.4px;margin-bottom:2px">Status</div>
+        <div style="font-size:12px;font-weight:600;color:#8b5cf6">New keyword</div>
+        <div style="font-size:10px;color:var(--text-muted)">Not yet in GSC</div>
+      </div>` : ''}
       ${pos ? `<div style="padding:8px 12px;border-right:1px solid var(--border)">
-        <div style="font-size:10px;font-weight:700;color:var(--text-muted);text-transform:uppercase;letter-spacing:0.4px;margin-bottom:2px">Position Now</div>
+        <div style="font-size:10px;font-weight:700;color:var(--text-muted);text-transform:uppercase;letter-spacing:0.4px;margin-bottom:2px">${isMeta ? 'Ranking' : 'Position Now'}</div>
         <div style="font-size:16px;font-weight:800;color:${posColor}">${pos}</div>
       </div>` : ''}
-      ${target ? `<div style="padding:8px 12px;border-right:1px solid var(--border)">
-        <div style="font-size:10px;font-weight:700;color:var(--text-muted);text-transform:uppercase;letter-spacing:0.4px;margin-bottom:2px">Goal</div>
-        <div style="font-size:12px;font-weight:600;color:#059669">${target}</div>
-      </div>` : ''}
+      ${thirdCell}
       ${impressions ? `<div style="padding:8px 12px;border-right:1px solid var(--border)">
         <div style="font-size:10px;font-weight:700;color:var(--text-muted);text-transform:uppercase;letter-spacing:0.4px;margin-bottom:2px">Impressions 90d</div>
         <div style="font-size:12px;font-weight:600;color:var(--text-main)">${impressions}</div>
@@ -1977,7 +1997,7 @@ async function dismissVisible(btn) {
     state.activeMFilter !== 'all' ? state.activeMFilter : '',
   ].filter(Boolean).join(' · ') || 'all';
 
-  if (!confirm(`Dismiss ${visible.length} item${visible.length !== 1 ? 's' : ''} (${filterDesc})? They will be requeued on the next scheduler run.`)) return;
+  if (!confirm(`Dismiss ${visible.length} item${visible.length !== 1 ? 's' : ''} (${filterDesc})?\n\nThey will be regenerated fresh on the next Monday scheduler run with improved context data.`)) return;
 
   btn.disabled = true;
   btn.textContent = `Dismissing ${visible.length}…`;
@@ -3509,8 +3529,8 @@ function renderReports(brand, rows, techData, queue) {
     .map(k => ({ keyword: k }));
   const priorityGaps  = seedKws.length;
 
-  // Store for drill-down clicks
-  state.reportOpportunities = { quickWinRows, lowCtrRows, gapRows, avgMobile, brand };
+  // Store for drill-down clicks (avgMobile added below once calculated)
+  state.reportOpportunities = { quickWinRows, lowCtrRows, gapRows, brand };
 
   // ── Content pipeline (last 30 days) ─────────────────────────
   const now     = Date.now();
@@ -3524,6 +3544,8 @@ function renderReports(brand, rows, techData, queue) {
   const tc       = techData?.technicalChecks;
   const scored   = techData?.results?.filter(r => r.mobile?.score != null) || [];
   const avgMobile = scored.length ? Math.round(scored.reduce((s,r) => s + r.mobile.score, 0) / scored.length) : null;
+  // Now avgMobile is available — update reportOpportunities so drill-down page speed card works
+  if (state.reportOpportunities) state.reportOpportunities.avgMobile = avgMobile;
   const anyLcpBad = scored.some(r => r.mobile?.metrics?.lcp?.status === 'poor');
   const gbpConnected = !!state.gbpConnected;
 

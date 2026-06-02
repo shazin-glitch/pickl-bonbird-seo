@@ -401,6 +401,7 @@ Return ONLY valid JSON:
       type: 'page_update',
       brand,
       actor: 'claude (scheduler)',
+      locationTag: '🇦🇪 UAE',
       title: `Quick win: "${r.keyword}" — page content update (pos ${r.position})`,
       reason: parsed.changeRationale || `Rewriting page content to push "${r.keyword}" from pos ${r.position} to top 10`,
       payload: {
@@ -603,6 +604,7 @@ Return ONLY a JSON array, no prose:
       type:  'meta_update',
       brand,
       actor: 'claude (scheduler)',
+      locationTag: '🇦🇪 UAE',
       title: `Meta rewrite: ${finalUrl}`,
       reason: p.rationale || 'Low CTR vs expected for current ranking position',
       payload: {
@@ -616,7 +618,7 @@ Return ONLY a JSON array, no prose:
         wpAction:      'update_meta',
       },
     });
-    items.push({ type: 'meta_update', title: p.title || finalUrl, keyword: p.keyword, position: matched?.position });
+    items.push({ type: 'meta_update', title: p.title || finalUrl, keyword: p.keyword, position: matched?.position, impressions: matched?.impressions });
     queued++;
   }
   return { queued, candidates: validCandidates.length, items };
@@ -769,6 +771,7 @@ Return ONLY valid JSON, no markdown, no fences:
     type: 'blog_draft',
     brand,
     actor: 'claude (scheduler)',
+    locationTag: '🇦🇪 UAE',
     title: `Blog draft: ${parsed.title}`,
     reason: parsed.rationale || `Content gap for "${parsed.targetKeyword}"`,
     payload: {
@@ -786,8 +789,9 @@ Return ONLY valid JSON, no markdown, no fences:
       keywordTier:     tier.tier,
       tierColor:       tier.color,
       tierEmoji:       tier.emoji,
-      currentPos:      pickedCandidate?.position,
-      impressions:     pickedCandidate?.impressions,
+      currentPos:      pickedCandidate?.position    || null,
+      impressions:     pickedCandidate?.impressions  || null,
+      isSeedKeyword:   !pickedCandidate?.position, // true when from seed list — no GSC data yet
     },
   });
   return { queued: 1, candidates: candidates.length, items: [{ type: 'blog_draft', title: parsed.title, keyword: parsed.targetKeyword, position: pickedCandidate?.position, voiceScore: voiceCheck.score, tier: tier.tier }] };
@@ -862,6 +866,7 @@ Return ONLY a JSON object:
       actor: 'claude (scheduler)',
       title: `New page: ${parsed.title}`,
       reason: parsed.rationale || `New landing page for "${r.keyword}" (${r.impressions} impressions, pos ${r.position})`,
+      locationTag: '🇦🇪 UAE',
       payload: {
         title:         parsed.title,
         description:   parsed.description,
@@ -871,7 +876,8 @@ Return ONLY a JSON object:
         excerpt:       parsed.excerpt,
         body:          parsed.body,
         pageType:      parsed.pageType || 'location',
-        // These map to wordpress.js create_page
+        currentPos:    r.position,
+        impressions:   r.impressions,
         wpAction:      'create_page',
       },
     });

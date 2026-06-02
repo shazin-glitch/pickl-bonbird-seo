@@ -412,3 +412,19 @@ Top 10 Keywords card now shows: `X non-branded · Y branded · Z in top 3`
 Performance Summary text includes the split.
 Logic: BRAND_TERMS filter (`pickl`/`bonbird`) applied to top10 count — same filter used for traffic value.
 Non-branded top 10 count is the real SEO growth metric — branded rankings are natural, non-branded is earned.
+
+### Context Bar — Full Field Map (all item types)
+- **page_update**: keyword, position, goal, impressions, page URL — all stored ✅
+- **meta_update**: keyword, ranking, CTR gap, impressions, page URL — all stored ✅
+- **blog_draft (GSC keyword)**: keyword, position, goal, impressions — stored ✅
+- **blog_draft (seed keyword)**: keyword, "New keyword — not yet in GSC" label — correct, no GSC data exists
+- **page_creation**: keyword, position, impressions — fixed (was missing currentPos/impressions)
+- All main scheduler items now tagged `locationTag: '🇦🇪 UAE'` — was untagged before
+
+### Clearing the Queue
+"Dismiss Visible" button in Approvals Queue header — with all filters set to "All", dismisses every pending item. Items regenerate fresh on the next Monday scheduler run.
+To trigger a manual run: Netlify dashboard → Functions → scheduler-background → Trigger function.
+
+### Bug Fix — Reports Tab Empty (June 2026)
+`state.reportOpportunities = { ..., avgMobile, ... }` was referencing `avgMobile` before it was declared with `const` later in the same function. JavaScript `const` does not hoist — threw a silent ReferenceError that killed `loadReports()` entirely, leaving all cards empty.
+Fix: split into two assignments — set reportOpportunities without avgMobile early, then patch it in after avgMobile is calculated.
