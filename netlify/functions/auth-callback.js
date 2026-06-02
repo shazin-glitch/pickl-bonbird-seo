@@ -34,6 +34,7 @@ exports.handler = async (event) => {
   const redirectUri  = 'https://yolkseo.netlify.app/api/auth/callback';
   const isLoginFlow  = state === 'login';
   const isGbpFlow    = state === 'gbp';
+  const isGa4Flow    = state === 'ga4';
 
   const store = getStore({
     name:   'seo-tool',
@@ -147,6 +148,20 @@ exports.handler = async (event) => {
       return {
         statusCode: 302,
         headers: { Location: '/?gbp_connected=1' },
+        body: '',
+      };
+
+    } else if (isGa4Flow) {
+      // ── GA4 FLOW: save tokens to Blobs ────────────────────────────────────
+      await store.set('ga4Tokens', JSON.stringify({
+        access_token:  tokens.access_token,
+        refresh_token: tokens.refresh_token || null,
+        expires_at:    Date.now() + (tokens.expires_in || 3600) * 1000,
+      }));
+
+      return {
+        statusCode: 302,
+        headers: { Location: '/?ga4_connected=1' },
         body: '',
       };
 

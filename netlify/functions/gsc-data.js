@@ -84,7 +84,7 @@ exports.handler = async (event) => {
       keyword: row.keys[0],
       clicks: row.clicks,
       impressions: row.impressions,
-      ctr: Math.round(row.ctr * 1000) / 10,
+      ctr: row.ctr,  // decimal 0-1 as returned by GSC API — do NOT pre-multiply
       position: Math.round(row.position * 10) / 10
     }));
 

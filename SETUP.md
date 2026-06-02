@@ -428,3 +428,142 @@ To trigger a manual run: Netlify dashboard → Functions → scheduler-backgroun
 ### Bug Fix — Reports Tab Empty (June 2026)
 `state.reportOpportunities = { ..., avgMobile, ... }` was referencing `avgMobile` before it was declared with `const` later in the same function. JavaScript `const` does not hoist — threw a silent ReferenceError that killed `loadReports()` entirely, leaving all cards empty.
 Fix: split into two assignments — set reportOpportunities without avgMobile early, then patch it in after avgMobile is calculated.
+
+### Competitor Matrix — Full Rebuild (June 2026)
+
+**Bug fixed:** `getCompetitorNames()` was merging all brand competitors regardless of brand filter. Bonbird competitors (Raising Cane's, Jailbird etc.) were showing as columns when viewing Pickl. Fixed: only shows competitors for the active brand filter.
+
+**Keywords rebuilt:** DEFAULT_KEYWORDS replaced entirely.
+- Removed: ~20 "near me" variants (DataForSEO SERP API can't resolve hyper-local queries), ~20 franchise keywords (wrong tool for this), product-specific menu items
+- Added: competitive category keywords where multiple brands compete — "best burger in dubai", "smash burger dubai", "burgers jbr dubai", etc.
+- These are the keywords where Salt/High Joint/Raising Cane's will actually appear in results
+
+**Gap Analysis view added:** New "🎯 Gaps" tab in the competitor matrix.
+- Shows keywords where any competitor ranks top 20 but we don't appear
+- Grouped by competitor: "Salt is ranking for X keywords you don't"
+- Sorted by competitor rank ascending (their strongest = our biggest gap = hardest to beat but highest priority)
+- Opportunity level: 🔴 High (comp ranks 1-5) / 🟡 Medium (6-10) / ⚪ Low (11-20)
+
+**Competitor Gaps in Reports tab:**
+- New section between Opportunities and Performance Summary
+- Shows top 5 gaps with competitor name, their ranking, your ranking
+- "View full analysis →" links to Gaps tab in Analytics
+
+**Note:** Keyword changes only take effect after next DataForSEO run (Monday or manual refresh in competitor matrix).
+
+---
+
+## Competitor Matrix — Planned Rebuild (Next Priority)
+
+Current version is functional but not best-in-class. Full rebuild planned across two sessions.
+
+### What's wrong with current version
+- We track a fixed keyword list WE chose. Real competitor intelligence runs the other way — start from the competitor's domain, find what THEY rank for, then find gaps.
+- No Share of Voice — "who ranks where" without context of who's winning overall
+- Unknown competitors (e.g. Hammer Burgers) never surface because they're not hardcoded
+- No SERP feature tracking (local pack, featured snippets, AI Overviews)
+- No trend direction per competitor
+
+### Pass 1 — Better Data (1 session)
+**DataForSEO endpoints to use:**
+- `ranked_keywords` per competitor domain — pull their top 50 organic keywords
+- Find intersection with our GSC keywords → real gaps, not just keyword-list gaps
+- `domain_intersection` — keywords where both we and a competitor rank, showing head-to-head
+- Save all top-10 SERP results (already fetched, currently discarded) → auto-detect unknown competitors
+
+**Auto-detection logic:**
+- Every domain appearing top 10 across 3+ tracked keywords that isn't in competitor list → surfaced as "You should track this"
+- Filter out: aggregators (Zomato, TripAdvisor, Talabat, TimeOut), social media, directories
+- Shows: "Hammer Burgers (hammerburgers.ae) ranks top 10 for 8 of your target keywords — not tracked. Add?"
+
+**Share of Voice:**
+- For each tracked keyword: which brand ranks and at what position
+- Weight by estimated impressions → total visibility % per brand
+- Pickl 12% · Salt 31% · High Joint 8% · Untracked 49%
+- Track weekly → shows if we're gaining or losing ground
+
+### Pass 2 — Better Presentation (1 session)
+- Share of Voice chart over time (line chart, one line per brand)
+- Competitor content cluster view (their topic coverage vs ours)
+- SERP features per keyword (who owns local pack, featured snippet, AI Overview)
+- Trend direction arrows per competitor (rising fast vs stagnant)
+- Competitor keyword list export for content planning
+
+---
+
+## CEO Request — Website Visits Tracking Per Market
+
+**What was asked:** Dashboard showing website visits over a 12-month period, broken down by UAE + each international market.
+
+**Why GA4 is required:**
+GSC only shows search impressions and clicks — not actual website sessions or users. Real visit data requires GA4 (Google Analytics 4) connected to both WordPress sites. GA4 must be installed on eatpickl.com and bonbirdchicken.com first (developer task) before The Nest can pull this data.
+
+**What to build once GA4 is connected:**
+
+New section in Reports tab (or dedicated Analytics tab sub-section) showing:
+- Total sessions per month over last 12 months — line chart
+- Breakdown by market: UAE / Bahrain / KSA / Qatar / Egypt / Jordan / Oman (Pickl) and UAE / Oman / Pakistan / Qatar (Bonbird)
+- Market detection: filter by URL path (/bh/, /ksa/, /qatar/, /egypt/, /pickl-jordan/, /oman/, /pakistan/) + country geo
+- Organic search sessions vs all sessions (isolate SEO-driven traffic)
+- YoY comparison when 13+ months of data available
+
+**GA4 API approach:**
+- Google Analytics Data API v1 (separate from GSC OAuth — needs ga.readonly scope)
+- Add to same OAuth app (pickl-seo project) as new scope
+- New Netlify function: `ga4-data.js`
+- Cache in Blobs: `ga4Cache:<brand>` — 24hr TTL
+- New Blobs key: `ga4Tokens` (separate from gscTokens)
+
+**Developer prerequisite:**
+GA4 tracking must be installed on both WordPress sites before building this. If not installed, all data will be zero. Confirm GA4 measurement ID exists for both brands before starting the build.
+
+---
+
+## LLM Tracking — Two Separate Features
+
+This is TWO distinct things that are often confused. Both valuable, different implementation paths.
+
+### Feature 1 — LLM Referral Traffic (GA4-dependent)
+**What it is:** Visitors who came to eatpickl.com or bonbirdchicken.com FROM an LLM (ChatGPT, Perplexity, Claude, Gemini etc. gave your URL and someone clicked it).
+
+**Why GA4 is required:** This is standard referral traffic tracking. GA4 shows source/medium per session. Filter for: perplexity.ai · chatgpt.com · claude.ai · copilot.microsoft.com · gemini.google.com · bing.com/chat
+
+**What to build:** In the website visits dashboard, add an "LLM Traffic" row — sessions from LLM referrers over last 12 months. Will likely be near-zero initially but this is the trend to watch as AI search grows. "Dark traffic" (direct/none) may also contain LLM users who copy-pasted URLs — hard to attribute.
+
+**Cost:** Zero — uses same GA4 API.
+
+### Feature 2 — LLM Mention Tracker (independent of GA4)
+**What it is:** Does ChatGPT / Perplexity / Claude mention Pickl or Bonbird when someone asks "best burger in Dubai"? This has nothing to do with website traffic — it's brand presence inside AI responses.
+
+**Why this is separate:** LLMs don't send referral data. You can't see inside ChatGPT's responses from GA4. The only way to track this is to ASK the LLMs directly and record what they say.
+
+**How to build:**
+- Weekly automated function (`llm-mentions-background.js`) runs Monday alongside scheduler
+- Sends 10-15 test queries to multiple LLMs via their APIs: "best burger in dubai", "smash burger dubai", "best chicken in dubai", "halal burger restaurant dubai" etc.
+- Records whether brand name appears in response, what context, which LLMs
+- Stores results as `llmMentions:<brand>:<YYYY-MM-DD>` in Blobs
+- New section in Reports: "AI Search Presence" — Pickl mentioned in 3/4 LLMs for "best burger dubai" this week
+
+**APIs needed:**
+- Anthropic API (already have) — Claude mentions
+- OpenAI API — ChatGPT mentions (separate key, ~$0.001/query)
+- Perplexity API — most important for search, ~$0.001/query
+- Cost: ~$0.05/week for all queries. Negligible.
+
+**Why this matters more than LLM traffic right now:**
+LLM traffic from direct links is tiny today. But LLM MENTIONS affect what millions of people are told when they ask AI assistants for restaurant recommendations. If Perplexity says "best burger in Dubai is at Salt" every week, that's a problem — regardless of whether anyone clicks through to your website.
+
+**Build order:** LLM Mention Tracker can be built NOW (independent). LLM Traffic Tracker requires GA4 first.
+
+---
+
+### CTR Formula Bug (noted June 2026)
+CTR is stored in gscCache as a decimal (0-1) from the GSC API. But in some code paths it may be pre-multiplied to a percentage (0-100) before storage. The display formula `(v * 100).toFixed(1) + '%'` then double-multiplies → 23.7% shows as 2370%.
+Fix applied: normalising formatter `fmtCtr` now checks `v > 1` — if already a percentage, uses as-is; if decimal, multiplies by 100. All three CTR display locations updated.
+TODO next session: trace where the pre-multiplication is happening in fetchGscDirect or CPC enrichment and standardise storage to always be decimal (0-1).
+
+### CPC Enrichment — All Non-Branded Keywords
+Increased from top 150 to all non-branded keywords (up to 700 per DataForSEO task limit).
+Cost impact: ~$0.025/week for 500 keywords. Negligible.
+Traffic value card label: "DataForSEO CPC × 3.67" when data available, "AED 5/click (no CPC data yet)" when not.
+Note: AED 5 fallback only applies to keywords where DataForSEO has no CPC data — this becomes increasingly rare as enrichment covers all non-branded keywords.

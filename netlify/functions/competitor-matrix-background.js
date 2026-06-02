@@ -1,19 +1,31 @@
 // netlify/functions/competitor-matrix-background.js
 // Netlify Background Function — weekly SERP refresh for both brands.
 //
-// Schedule: Monday 4:00am UTC = Monday 8:00am Dubai time (UTC+4)
-// Set in netlify.toml:
-//   [functions."competitor-matrix-background"]
-//     schedule = "0 4 * * 1"
+// Pass 1 additions (June 2026):
+//   - Saves ALL top-20 domains per keyword (not just tracked competitors)
+//   - Auto-detects unknown competitors (3+ appearances, not aggregator/social)
+//   - Calculates Share of Voice (CTR-weighted) per domain per keyword set
+//   - Stores weekly SoV snapshots for trend charting
+//   - Captures SERP features (featured snippet, local pack, PAA, video) per keyword
 //
-// Can also be triggered manually:
-//   GET /.netlify/functions/competitor-matrix-background
+// Schedule: Monday 4:00am UTC = Monday 8:00am Dubai time (UTC+4)
 
 const { getStore } = require("@netlify/blobs");
 
 const CACHE_KEY_PREFIX      = "competitorMatrix:";
 const COMPETITOR_KEY_PREFIX = "competitorConfig:";
 const KEYWORD_KEY_PREFIX    = "keywordConfig:";
+const AUTO_DETECT_KEY       = "autoDetectedCompetitors:";
+const SOV_HISTORY_KEY       = "sovHistory:";
+
+// Domains to ignore for auto-detection — aggregators, social, directories
+const AGGREGATOR_DOMAINS = new Set([
+  "zomato.com","tripadvisor.com","talabat.com","timeout.com","timeoutdubai.com",
+  "whatson.ae","theentertainer.com","deliveroo.ae","noonfood.com","careem.com",
+  "google.com","facebook.com","instagram.com","twitter.com","youtube.com",
+  "tiktok.com","linkedin.com","yelp.com","foursquare.com","maps.google.com",
+  "openrice.com","hungerstation.com","noon.com","amazon.ae","wikipedia.org",
+]);
 
 const DEFAULT_COMPETITORS = {
   pickl: [
@@ -23,57 +35,51 @@ const DEFAULT_COMPETITORS = {
     { name: "Five Guys",   domain: "fiveguys.ae"    },
   ],
   bonbird: [
-    { name: "Raising Cane's",     domain: "raisingcanes.com"      },
-    { name: "Jailbird",           domain: "jailbirddubai.com"     },
-    { name: "Dave's Hot Chicken", domain: "daveshotchicken.com"   },
-    { name: "Toit",               domain: "toitchicken.com"       },
-    { name: "Nash Hot Chicken",   domain: "nashhotchicken.com"    },
-    { name: "Peppers",            domain: "peppersuae.com"        },
-    { name: "Jollibee",           domain: "jollibee.com.ph"       },
-    { name: "KFC",                domain: "kfc.com"               },
-    { name: "Popeyes",            domain: "popeyes.com"           },
+    { name: "Raising Cane's",     domain: "raisingcanes.com"    },
+    { name: "Jailbird",           domain: "jailbirddubai.com"   },
+    { name: "Dave's Hot Chicken", domain: "daveshotchicken.com" },
+    { name: "Toit",               domain: "toitchicken.com"     },
+    { name: "Nash Hot Chicken",   domain: "nashhotchicken.com"  },
+    { name: "Peppers",            domain: "peppersuae.com"      },
+    { name: "Jollibee",           domain: "jollibee.com.ph"     },
+    { name: "KFC",                domain: "kfc.com"             },
+    { name: "Popeyes",            domain: "popeyes.com"         },
   ],
 };
 
 const DEFAULT_KEYWORDS = {
   pickl: [
-    "hot dog", "french fries", "cheese burger", "hot dog sandwich", "chicken tender",
-    "chicken sando", "chocolate shake", "hot dog dubai", "spicy fries", "strawberry shake",
-    "chocolate milk shake", "plant based burger", "beef hot dog", "double cheese burger",
-    "messy fries", "fries dubai", "spicy french fries", "parmesan fries", "vanilla shake",
-    "crispy chicken tender", "cheese slice burger", "buffalo chicken sando",
-    "american cheese burger", "hot dog in dubai", "caramel shake", "crispy chicken sando",
-    "plant based burger dubai", "bbq cheese burger", "cheese melt burger",
-    "messy fries near me", "ice cream sando", "bacon cheese burger", "melt burger dubai",
-    "smash burger dubai", "smash burger abu dhabi", "best burger in dubai",
-    "best burger in abu dhabi", "best burger in sharjah", "best burger abu dhabi",
-    "best burger in uae", "best burgers near me dubai", "best fries in dubai",
-    "best chicken burger in dubai", "best fast food dubai", "burger restaurant near me",
-    "burger places near me", "burger shop near me", "burger delivery dubai marina",
-    "burger restaurant city walk dubai", "burgers jbr dubai", "loaded fries near me",
-    "hot dog near me", "best hot dog in dubai", "chicken sandwich dubai",
-    "franchise business", "franchise in uae", "franchise dubai", "franchise in dubai",
-    "franchise business in dubai", "franchise opportunities dubai", "franchise business in uae",
-    "restaurant franchise", "restaurant franchise opportunities", "restaurant franchise in dubai",
-    "how to franchise a restaurant", "fast food franchise in dubai", "fast food franchise",
+    "best burger in dubai","best burger in abu dhabi","best burger in uae",
+    "best burger in sharjah","smash burger dubai","smash burger abu dhabi",
+    "burger restaurant dubai","burger restaurant abu dhabi",
+    "american burger dubai","halal burger dubai",
+    "cheese burger dubai","double burger dubai","plant based burger dubai",
+    "best fast food dubai","fast food restaurant dubai",
+    "best chicken burger in dubai","chicken sandwich dubai",
+    "best fries in dubai","loaded fries dubai","fries dubai",
+    "burgers jbr dubai","burgers marina dubai","burger city walk dubai",
+    "burger mall of emirates","burgers downtown dubai",
+    "burger abu dhabi","burger yas mall abu dhabi",
+    "burger delivery dubai","best burger delivery dubai",
+    "burger delivery abu dhabi",
+    "best lunch dubai","best dinner dubai","casual dining dubai",
+    "hot dog dubai","best hot dog in dubai",
   ],
   bonbird: [
-    "crispy chicken", "broasted chicken", "fried chicken", "chicken strips", "chicken tenders",
-    "chicken fingers", "chicken tender", "tender chicken", "strips chicken", "chicken strip",
-    "chicken finger", "chicken wrap", "chicken tortilla wrap", "crispy chicken wrap",
-    "buffalo chicken wrap", "tortilla wraps", "rice bowl", "chicken rice bowl",
-    "chicken burger", "crispy chicken burger", "breaded chicken burger",
-    "fried chicken burger", "crunchy chicken burger", "crispy chicken menu",
-    "crispy chicken dubai menu", "best chicken abu dhabi", "best fried chicken in dubai",
-    "best burger in dubai", "burger near me", "best burger in abu dhabi",
-    "burger restaurant near me", "best chicken burger dubai", "crispy chicken abu dhabi",
-    "crispy chicken near me", "broasted chicken near me", "fried chicken near me",
-    "crispy chicken dubai", "best chicken near me", "fried chicken dubai",
-    "crispy chicken uae", "broasted chicken sharjah", "fried chicken abu dhabi",
-    "fried chicken delivery dubai", "korean chicken burger dubai", "chicken rice bowl dubai",
-    "franchise business", "franchise in uae", "franchise dubai", "franchise in dubai",
-    "franchise business in dubai", "franchise opportunities dubai",
-    "restaurant franchise in dubai", "fast food franchise in dubai", "fried chicken franchise",
+    "best fried chicken in dubai","best fried chicken in abu dhabi",
+    "fried chicken dubai","crispy chicken dubai","crispy chicken abu dhabi",
+    "best crispy chicken dubai","best chicken restaurant dubai",
+    "broasted chicken dubai","korean fried chicken dubai",
+    "nashville hot chicken dubai","southern fried chicken dubai",
+    "crispy chicken burger dubai","best chicken burger dubai",
+    "chicken tender dubai","chicken strips dubai",
+    "chicken wrap dubai","crispy chicken wrap dubai",
+    "chicken rice bowl dubai","chicken combo dubai",
+    "fried chicken marina dubai","fried chicken jbr",
+    "crispy chicken abu dhabi","fried chicken delivery dubai",
+    "fried chicken delivery abu dhabi","best fried chicken delivery dubai",
+    "best fast food dubai","fast food abu dhabi",
+    "halal fried chicken dubai","chicken restaurant dubai",
   ],
 };
 
@@ -82,7 +88,15 @@ const BRAND_SITE = {
   bonbird: "https://bonbirdchicken.com/",
 };
 
-// Load competitors and keywords from Blobs, fall back to defaults
+// CTR estimate by position (used for Share of Voice weighting)
+function estimatedCtr(position) {
+  if (!position || position < 1) return 0;
+  const ctrs = [0, 0.30, 0.18, 0.12, 0.09, 0.07, 0.05, 0.04, 0.03, 0.025, 0.02];
+  if (position <= 10) return ctrs[position] || 0.02;
+  if (position <= 20) return 0.01;
+  return 0.005;
+}
+
 async function loadBrandConfig(store, brand) {
   let competitors = DEFAULT_COMPETITORS[brand];
   let keywords    = DEFAULT_KEYWORDS[brand];
@@ -98,7 +112,7 @@ async function loadBrandConfig(store, brand) {
   } catch { /* use default */ }
 
   return {
-    siteUrl:       BRAND_SITE[brand],
+    siteUrl:        BRAND_SITE[brand],
     competitors,
     targetKeywords: keywords,
     location_code:  21191,
@@ -106,17 +120,13 @@ async function loadBrandConfig(store, brand) {
   };
 }
 
-// ─── DataForSEO Standard mode — batch task_post → poll task_get ──────────────
-// Standard mode: $0.0006/keyword vs Live $0.002/keyword — 3x cheaper
-// Batches up to 100 keywords per POST, polls until all tasks complete.
-// No per-keyword timeouts — DataForSEO handles queuing server-side.
-
-const DATAFORSEO_POST_URL    = "https://api.dataforseo.com/v3/serp/google/organic/task_post";
-const DATAFORSEO_GET_URL     = "https://api.dataforseo.com/v3/serp/google/organic/task_get/advanced";
-const BATCH_SIZE             = 100;   // max tasks per POST call
-const POLL_INTERVAL_MS       = 5000;  // check task status every 5 seconds
-const POLL_MAX_ATTEMPTS      = 120;   // up to 10 minutes of polling
-const TASK_TAG_PREFIX        = "yolkseo_"; // helps identify our tasks
+// ── DataForSEO Standard mode ─────────────────────────────────────────────────
+const DATAFORSEO_POST_URL = "https://api.dataforseo.com/v3/serp/google/organic/task_post";
+const DATAFORSEO_GET_URL  = "https://api.dataforseo.com/v3/serp/google/organic/task_get/advanced";
+const BATCH_SIZE          = 100;
+const POLL_INTERVAL_MS    = 5000;
+const POLL_MAX_ATTEMPTS   = 120;
+const TASK_TAG_PREFIX     = "yolkseo_";
 
 async function fetchSerpRankings(brand, config) {
   const login    = process.env.DATAFORSEO_LOGIN;
@@ -127,14 +137,13 @@ async function fetchSerpRankings(brand, config) {
   const keywords   = config.targetKeywords;
   const ourDomain  = new URL(config.siteUrl).hostname.replace(/^www\./, "");
 
-  console.log(`[competitor-matrix-background] ${brand} — posting ${keywords.length} keywords in Standard mode`);
+  console.log(`[competitor-matrix] ${brand} — posting ${keywords.length} keywords`);
 
   // ── Step 1: POST all keywords in batches ──────────────────────────────────
   const taskIds = [];
 
   for (let i = 0; i < keywords.length; i += BATCH_SIZE) {
     const batch = keywords.slice(i, i + BATCH_SIZE);
-
     const tasks = batch.map(kw => ({
       keyword:       kw,
       location_code: config.location_code,
@@ -150,47 +159,30 @@ async function fetchSerpRankings(brand, config) {
       headers: { Authorization: authHeader, "Content-Type": "application/json" },
       body:    JSON.stringify(tasks),
     });
-
     if (!res.ok) throw new Error(`task_post HTTP ${res.status}`);
-
     const data = await res.json();
-    if (data.status_code !== 20000) {
-      throw new Error(`task_post API error ${data.status_code}: ${data.status_message}`);
-    }
+    if (data.status_code !== 20000) throw new Error(`task_post error ${data.status_code}: ${data.status_message}`);
 
     for (const task of data.tasks || []) {
-      if (task.id) {
-        taskIds.push(task.id);
-      } else {
-        console.warn(`[competitor-matrix-background] ${brand} — task without ID: ${JSON.stringify(task).slice(0, 100)}`);
-      }
+      if (task.id) taskIds.push(task.id);
     }
-
-    console.log(`[competitor-matrix-background] ${brand} — batch ${Math.floor(i / BATCH_SIZE) + 1} posted, ${taskIds.length} tasks queued so far`);
   }
 
-  console.log(`[competitor-matrix-background] ${brand} — all ${taskIds.length} tasks posted, polling for results…`);
+  console.log(`[competitor-matrix] ${brand} — ${taskIds.length} tasks posted, polling…`);
 
   // ── Step 2: Poll until all tasks complete ─────────────────────────────────
-  const results    = {}; // taskId → result items
-  let   pending    = new Set(taskIds);
-  let   attempts   = 0;
+  const results  = {};
+  let   pending  = new Set(taskIds);
+  let   attempts = 0;
 
   while (pending.size > 0 && attempts < POLL_MAX_ATTEMPTS) {
     attempts++;
     await new Promise(r => setTimeout(r, POLL_INTERVAL_MS));
 
-    // Check pending tasks in batches of 50
-    const toCheck = [...pending].slice(0, 50);
-
-    for (const taskId of toCheck) {
+    for (const taskId of [...pending].slice(0, 50)) {
       try {
-        const res = await fetch(`${DATAFORSEO_GET_URL}/${taskId}`, {
-          headers: { Authorization: authHeader },
-        });
-
+        const res  = await fetch(`${DATAFORSEO_GET_URL}/${taskId}`, { headers: { Authorization: authHeader } });
         if (!res.ok) continue;
-
         const data = await res.json();
         if (data.status_code !== 20000) continue;
 
@@ -199,56 +191,109 @@ async function fetchSerpRankings(brand, config) {
             results[taskId] = {
               keyword:     task.data?.keyword || "",
               items:       task.result?.[0]?.items || [],
-              keywordInfo: task.result?.[0]?.keyword_info || null, // CPC, search volume from DataForSEO
+              keywordInfo: task.result?.[0]?.keyword_info || null,
             };
             pending.delete(taskId);
           } else if (task.status_code === 40501 || task.status_code === 40601) {
-            // Task failed permanently — skip it
-            console.warn(`[competitor-matrix-background] ${brand} — task ${taskId} failed: ${task.status_message}`);
             pending.delete(taskId);
           }
-          // status 20100 = task in queue — keep polling
         }
       } catch (e) {
-        console.warn(`[competitor-matrix-background] ${brand} — poll error for ${taskId}: ${e.message}`);
+        console.warn(`[competitor-matrix] poll error ${taskId}: ${e.message}`);
       }
     }
 
-    if (attempts % 6 === 0) { // log every 30s
-      console.log(`[competitor-matrix-background] ${brand} — polling… ${pending.size} tasks remaining (attempt ${attempts})`);
+    if (attempts % 6 === 0) {
+      console.log(`[competitor-matrix] ${brand} — ${pending.size} tasks remaining (attempt ${attempts})`);
     }
   }
 
   if (pending.size > 0) {
-    console.warn(`[competitor-matrix-background] ${brand} — ${pending.size} tasks still pending after max polls, proceeding with partial results`);
+    console.warn(`[competitor-matrix] ${brand} — ${pending.size} tasks pending after max polls, proceeding`);
   }
 
-  console.log(`[competitor-matrix-background] ${brand} — got results for ${Object.keys(results).length}/${taskIds.length} tasks`);
-
-  // ── Step 3: Parse results into rows ──────────────────────────────────────
+  // ── Step 3: Parse results ─────────────────────────────────────────────────
   const rows = [];
+
+  // Domain frequency tracking for auto-detection (top 10 appearances)
+  const domainFrequency = {}; // domain → { count, sampleKeywords[], firstPos }
 
   for (const { keyword, items, keywordInfo } of Object.values(results)) {
     let ourRank = null;
-    for (const item of items) {
-      if (item.type !== "organic") continue;
-      const itemDomain = (item.domain || "").replace(/^www\./, "");
-      if (itemDomain === ourDomain || itemDomain.includes(ourDomain)) {
-        ourRank = item.rank_absolute;
-        break;
-      }
-    }
-
     const competitorRanks = {};
-    for (const comp of config.competitors) {
-      const compDomain = comp.domain.replace(/^www\./, "");
-      competitorRanks[comp.name] = null;
-      for (const item of items) {
-        if (item.type !== "organic") continue;
-        const itemDomain = (item.domain || "").replace(/^www\./, "");
-        if (itemDomain === compDomain || itemDomain.includes(compDomain)) {
-          competitorRanks[comp.name] = item.rank_absolute;
-          break;
+    for (const comp of config.competitors) competitorRanks[comp.name] = null;
+
+    // All organic domains in top 20 (for SoV + auto-detection)
+    const topDomains = [];
+
+    // SERP features present
+    const serpFeatures = {
+      featuredSnippet: null,  // domain that owns it, or true if present
+      localPack:       false,
+      peopleAlsoAsk:   false,
+      video:           false,
+      aiOverview:      false,
+    };
+
+    for (const item of items) {
+      const rank       = item.rank_absolute;
+      const itemDomain = (item.domain || "").replace(/^www\./, "");
+
+      // ── SERP feature detection ────────────────────────────────────────────
+      if (item.type === "featured_snippet") {
+        serpFeatures.featuredSnippet = itemDomain || true;
+        continue;
+      }
+      if (item.type === "local_pack") {
+        serpFeatures.localPack = true;
+        continue;
+      }
+      if (item.type === "people_also_ask") {
+        serpFeatures.peopleAlsoAsk = true;
+        continue;
+      }
+      if (item.type === "video") {
+        serpFeatures.video = true;
+        continue;
+      }
+      if (item.type === "answer_box" || (item.type === "organic" && item.title?.includes("AI Overview"))) {
+        serpFeatures.aiOverview = true;
+        continue;
+      }
+
+      if (item.type !== "organic") continue;
+
+      // ── Our rank ──────────────────────────────────────────────────────────
+      if (ourRank === null && (itemDomain === ourDomain || itemDomain.includes(ourDomain))) {
+        ourRank = rank;
+      }
+
+      // ── Competitor ranks ──────────────────────────────────────────────────
+      for (const comp of config.competitors) {
+        if (competitorRanks[comp.name] === null) {
+          const compDomain = comp.domain.replace(/^www\./, "");
+          if (itemDomain === compDomain || itemDomain.includes(compDomain)) {
+            competitorRanks[comp.name] = rank;
+          }
+        }
+      }
+
+      // ── Top domains (top 20 organic only, for SoV + auto-detection) ───────
+      if (rank <= 20) {
+        topDomains.push({ domain: itemDomain, rank });
+
+        // Track domain frequency for auto-detection
+        if (rank <= 10 && itemDomain && itemDomain !== ourDomain) {
+          if (!domainFrequency[itemDomain]) {
+            domainFrequency[itemDomain] = { count: 0, sampleKeywords: [], bestRank: rank };
+          }
+          domainFrequency[itemDomain].count++;
+          if (domainFrequency[itemDomain].sampleKeywords.length < 3) {
+            domainFrequency[itemDomain].sampleKeywords.push(keyword);
+          }
+          if (rank < domainFrequency[itemDomain].bestRank) {
+            domainFrequency[itemDomain].bestRank = rank;
+          }
         }
       }
     }
@@ -259,51 +304,104 @@ async function fetchSerpRankings(brand, config) {
       ourRank,
       ourDomain,
       competitorRanks,
-      cpc_usd:      keywordInfo?.cpc      ?? null, // real Google Ads CPC (USD) from DataForSEO SERP result
+      topDomains,
+      serpFeatures,
+      cpc_usd:      keywordInfo?.cpc          ?? null,
       searchVolume: keywordInfo?.search_volume ?? null,
       fetchedAt: new Date().toISOString(),
     });
   }
 
-  return rows;
+  return { rows, domainFrequency };
 }
 
-// ─── Load keywords — blob config first, hardcoded fallback ───────────────────
+// ── Auto-detect unknown competitors ──────────────────────────────────────────
+function buildAutoDetected(domainFrequency, knownCompetitors, ourDomain) {
+  const knownDomains = new Set([
+    ourDomain,
+    ...knownCompetitors.map(c => c.domain.replace(/^www\./, "")),
+  ]);
+
+  return Object.entries(domainFrequency)
+    .filter(([domain, data]) => {
+      if (knownDomains.has(domain)) return false;
+      if (AGGREGATOR_DOMAINS.has(domain)) return false;
+      // Check any aggregator subdomain
+      for (const agg of AGGREGATOR_DOMAINS) {
+        if (domain.endsWith("." + agg) || domain.includes(agg)) return false;
+      }
+      return data.count >= 3; // appears in 3+ keyword SERPs
+    })
+    .map(([domain, data]) => ({
+      domain,
+      appearances:     data.count,
+      bestRank:        data.bestRank,
+      sampleKeywords:  data.sampleKeywords,
+      firstSeenAt:     new Date().toISOString(),
+    }))
+    .sort((a, b) => b.appearances - a.appearances)
+    .slice(0, 20); // top 20 unknown domains
+}
+
+// ── Calculate Share of Voice ──────────────────────────────────────────────────
+function calculateSoV(rows, trackedDomains) {
+  const domainScores = {};
+
+  for (const row of rows) {
+    for (const { domain, rank } of row.topDomains || []) {
+      if (!domainScores[domain]) domainScores[domain] = 0;
+      domainScores[domain] += estimatedCtr(rank);
+    }
+  }
+
+  const totalScore = Object.values(domainScores).reduce((a, b) => a + b, 0);
+  if (!totalScore) return {};
+
+  // Return SoV for tracked domains only (+ unknown top 5)
+  const allEntries = Object.entries(domainScores)
+    .map(([domain, score]) => ({
+      domain,
+      sov: Math.round((score / totalScore) * 1000) / 10, // percentage to 1dp
+      score,
+    }))
+    .sort((a, b) => b.score - a.score);
+
+  // Tracked domains
+  const result = {};
+  for (const { domain, sov } of allEntries) {
+    if (trackedDomains.has(domain) || allEntries.indexOf(allEntries.find(e => e.domain === domain)) < 10) {
+      result[domain] = sov;
+    }
+  }
+  return result;
+}
 
 function detectMovement(currentRows, previousRows) {
   if (!previousRows || !previousRows.length) return currentRows;
-
   const prevMap = {};
   for (const row of previousRows) prevMap[row.keyword] = row.ourRank;
 
-  return currentRows.map((row) => {
+  return currentRows.map(row => {
     const prev = prevMap[row.keyword];
     let movement = "new";
     let movementDelta = null;
 
     if (prev !== undefined) {
-      if (row.ourRank === null && prev === null) {
-        movement = "not_ranking";
-      } else if (row.ourRank === null && prev !== null) {
-        movement = "dropped_out";
-      } else if (row.ourRank !== null && prev === null) {
-        movement = "entered";
-      } else {
-        movementDelta = prev - row.ourRank; // positive = improved (lower rank number)
+      if (row.ourRank === null && prev === null)        { movement = "not_ranking"; }
+      else if (row.ourRank === null && prev !== null)   { movement = "dropped_out"; }
+      else if (row.ourRank !== null && prev === null)   { movement = "entered"; }
+      else {
+        movementDelta = prev - row.ourRank; // positive = improved
         movement = movementDelta > 0 ? "up" : movementDelta < 0 ? "down" : "stable";
       }
     }
-
     return { ...row, movement, movementDelta };
   });
 }
 
-// ─── Main handler ─────────────────────────────────────────────────────────────
+// ── Main handler ──────────────────────────────────────────────────────────────
 exports.handler = async () => {
-  console.log(
-    `[competitor-matrix-background] Starting — ${new Date().toISOString()}`,
-    "(Monday 4am UTC = 8am Dubai time)"
-  );
+  console.log(`[competitor-matrix] Starting — ${new Date().toISOString()}`);
 
   const store = getStore({
     name:   "seo-tool",
@@ -314,52 +412,75 @@ exports.handler = async () => {
   const results = {};
   const errors  = {};
 
-  // Process both brands in parallel — halves total runtime from ~18min to ~9min
   async function processBrand(brand) {
     try {
-      console.log(`[competitor-matrix-background] Fetching ${brand}...`);
+      console.log(`[competitor-matrix] Processing ${brand}…`);
 
       let previousRows = [];
       try {
         const prev = await store.get(`${CACHE_KEY_PREFIX}${brand}`, { type: "json" });
         previousRows = prev?.rows || [];
-      } catch {
-        // no previous data — first run
-      }
+      } catch { /* first run */ }
 
-      const config  = await loadBrandConfig(store, brand);
-      const rawRows = await fetchSerpRankings(brand, config);
-      const rows    = detectMovement(rawRows, previousRows);
+      const config          = await loadBrandConfig(store, brand);
+      const { rows: rawRows, domainFrequency } = await fetchSerpRankings(brand, config);
+      const rows            = detectMovement(rawRows, previousRows);
+      const ourDomain       = new URL(config.siteUrl).hostname.replace(/^www\./, "");
 
+      // ── Auto-detected competitors ─────────────────────────────────────────
+      const autoDetected = buildAutoDetected(domainFrequency, config.competitors, ourDomain);
+      await store.set(`${AUTO_DETECT_KEY}${brand}`, JSON.stringify({
+        brand,
+        domains:   autoDetected,
+        updatedAt: new Date().toISOString(),
+      })).catch(() => {});
+
+      // ── Share of Voice calculation ────────────────────────────────────────
+      const trackedDomains = new Set([
+        ourDomain,
+        ...config.competitors.map(c => c.domain.replace(/^www\./, "")),
+      ]);
+      const sovCurrent = calculateSoV(rows, trackedDomains);
+
+      // ── SoV history (rolling 12 weeks) ────────────────────────────────────
+      let sovHistory = [];
+      try {
+        const hist = await store.get(`${SOV_HISTORY_KEY}${brand}`, { type: "json" });
+        sovHistory = Array.isArray(hist) ? hist : [];
+      } catch { /* empty */ }
+
+      const todayStr = new Date().toISOString().split("T")[0];
+      sovHistory.push({ date: todayStr, sov: sovCurrent });
+      if (sovHistory.length > 12) sovHistory = sovHistory.slice(-12); // keep last 12
+      await store.set(`${SOV_HISTORY_KEY}${brand}`, JSON.stringify(sovHistory)).catch(() => {});
+
+      // ── Store main matrix payload ─────────────────────────────────────────
       const payload = {
         brand,
         rows,
-        competitors:  config.competitors.map((c) => c.name),
+        competitors:  config.competitors.map(c => c.name),
+        sovCurrent,
+        ourDomain,
         fetchedAt:    new Date().toISOString(),
         keywordCount: rows.length,
         schedule:     "Monday 04:00 UTC / 08:00 Dubai",
       };
 
       await store.set(`${CACHE_KEY_PREFIX}${brand}`, JSON.stringify(payload));
-      results[brand] = { success: true, keywordCount: rows.length };
-      console.log(`[competitor-matrix-background] ${brand} done — ${rows.length} keywords`);
+      results[brand] = { success: true, keywordCount: rows.length, autoDetected: autoDetected.length };
+      console.log(`[competitor-matrix] ${brand} done — ${rows.length} keywords, ${autoDetected.length} unknown competitors found`);
 
     } catch (err) {
-      console.error(`[competitor-matrix-background] ${brand} failed:`, err.message);
+      console.error(`[competitor-matrix] ${brand} failed:`, err.message);
       errors[brand] = err.message;
     }
   }
 
   await Promise.all(["pickl", "bonbird"].map(processBrand));
-
-  console.log("[competitor-matrix-background] Complete.", { results, errors });
+  console.log("[competitor-matrix] Complete.", { results, errors });
 
   return {
     statusCode: 200,
-    body: JSON.stringify({
-      results,
-      errors,
-      completedAt: new Date().toISOString(),
-    }),
+    body: JSON.stringify({ results, errors, completedAt: new Date().toISOString() }),
   };
 };

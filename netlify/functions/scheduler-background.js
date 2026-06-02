@@ -236,11 +236,12 @@ async function enrichGscWithCpc(brand, rows, brandConfig) {
   const BRAND_TERMS = brand === 'pickl' ? ['pickl'] : ['bonbird'];
   const AED_PER_USD = 3.67;
 
-  // Top 150 non-branded keywords by clicks — enough to cover virtually all traffic value
+  // All non-branded keywords — DataForSEO Keywords Data API accepts up to 700 per task
+  // Cost: ~$0.05 per 1,000 keywords. Enriching 500 keywords costs $0.025. Negligible.
   const toEnrich = rows
     .filter(r => r.keyword && !BRAND_TERMS.some(t => r.keyword.toLowerCase().includes(t)))
     .sort((a, b) => (b.clicks || 0) - (a.clicks || 0))
-    .slice(0, 150)
+    .slice(0, 700) // DataForSEO hard limit per task — batch if ever exceeded
     .map(r => r.keyword);
 
   if (!toEnrich.length) return;
@@ -459,13 +460,13 @@ async function runMetaRewrites(brand, _rows, dryRun, forceRun, brandCtx, brandPr
     }
   }
 
-  const expected     = pos => Math.max(0.5, 30 / pos);
+  const expected     = pos => Math.max(0.005, 0.30 / pos);  // decimal: pos1=0.30, pos5=0.06, pos10=0.03
   const alreadyQueued = await getQueuedKeywords(brand);
 
   const candidates = Object.values(pageMap)
     .filter(r => r.position <= 20 && r.impressions >= 100)
     .map(r => ({ ...r, ctrGap: expected(r.position) - r.ctr }))
-    .filter(r => r.ctrGap > 1.5)
+    .filter(r => r.ctrGap > 0.015)   // gap > 1.5 percentage points (decimal scale)
     .filter(r => forceRun || !alreadyQueued.has(r.keyword.toLowerCase().trim()))
     .sort((a, b) => b.ctrGap - a.ctrGap)
     .slice(0, forceRun ? 6 : 4);
@@ -578,7 +579,7 @@ RULES — non-negotiable:
 - Do NOT invent or change the URL — use the exact URL provided for each page
 
 PAGES TO REWRITE:
-${validCandidates.map((r, i) => `${i+1}. URL: "${r.page}" | Keyword: "${r.keyword}" | Position: ${r.position} | CTR: ${r.ctr}% | ${r.impressions} impressions`).join('\n')}
+${validCandidates.map((r, i) => `${i+1}. URL: "${r.page}" | Keyword: "${r.keyword}" | Position: ${r.position} | CTR: ${(r.ctr * 100).toFixed(1)}% | ${r.impressions} impressions`).join('\n')}
 
 VOICE CHECK before returning:
 □ Does each title sound like it could only be ${brandName}?

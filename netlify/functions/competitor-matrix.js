@@ -1,29 +1,20 @@
 // netlify/functions/competitor-matrix.js
 // READ-ONLY cache endpoint — returns whatever is in Blob store.
-// All DataForSEO fetching is handled by competitor-matrix-background.js
-// (background function with 15min timeout, one keyword per request).
 //
-// GET ?brand=pickl|bonbird|all   — returns cached matrix data
-// Blob keys: competitorMatrix:pickl / competitorMatrix:bonbird
+// GET ?brand=pickl|bonbird|all           — returns matrix + sovHistory + autoDetected
+// GET ?type=sov&brand=pickl|bonbird|all  — returns only SoV history for charts
 
 const { getStore } = require("@netlify/blobs");
 
-const CACHE_KEY_PREFIX = "competitorMatrix:";
+const CORS = {
+  "Content-Type": "application/json",
+  "Access-Control-Allow-Origin": "*",
+  "Access-Control-Allow-Headers": "Content-Type",
+};
 
 exports.handler = async (event) => {
-  const headers = {
-    "Content-Type": "application/json",
-    "Access-Control-Allow-Origin": "*",
-    "Access-Control-Allow-Headers": "Content-Type",
-  };
-
-  if (event.httpMethod === "OPTIONS") {
-    return { statusCode: 204, headers, body: "" };
-  }
-
-  if (event.httpMethod !== "GET") {
-    return { statusCode: 405, headers, body: JSON.stringify({ error: "Method not allowed" }) };
-  }
+  if (event.httpMethod === "OPTIONS") return { statusCode: 204, headers: CORS, body: "" };
+  if (event.httpMethod !== "GET") return { statusCode: 405, headers: CORS, body: JSON.stringify({ error: "Method not allowed" }) };
 
   const store = getStore({
     name:   "seo-tool",
@@ -31,24 +22,25 @@ exports.handler = async (event) => {
     token:  process.env.NETLIFY_AUTH_TOKEN,
   });
 
+  const brandParam = event.queryStringParameters?.brand || "all";
+  const brands     = brandParam === "all" ? ["pickl", "bonbird"] : [brandParam];
+
   try {
-    const brandParam = event.queryStringParameters?.brand || "all";
-    const brands     = brandParam === "all" ? ["pickl", "bonbird"] : [brandParam];
-    const result     = {};
-
+    const result = {};
     for (const brand of brands) {
-      try {
-        const cached = await store.get(`${CACHE_KEY_PREFIX}${brand}`, { type: "json" });
-        result[brand] = cached || null;
-      } catch {
-        result[brand] = null;
-      }
+      const [matrix, sovHistory, autoDetected] = await Promise.all([
+        store.get(`competitorMatrix:${brand}`, { type: "json" }).catch(() => null),
+        store.get(`sovHistory:${brand}`,        { type: "json" }).catch(() => []),
+        store.get(`autoDetectedCompetitors:${brand}`, { type: "json" }).catch(() => null),
+      ]);
+      result[brand] = {
+        ...(matrix || {}),
+        sovHistory:    Array.isArray(sovHistory) ? sovHistory : [],
+        autoDetected:  autoDetected?.domains || [],
+      };
     }
-
-    return { statusCode: 200, headers, body: JSON.stringify(result) };
-
+    return { statusCode: 200, headers: CORS, body: JSON.stringify(result) };
   } catch (err) {
-    console.error("[competitor-matrix] Error:", err);
-    return { statusCode: 500, headers, body: JSON.stringify({ error: err.message }) };
+    return { statusCode: 500, headers: CORS, body: JSON.stringify({ error: err.message }) };
   }
 };

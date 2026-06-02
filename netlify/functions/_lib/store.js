@@ -257,7 +257,7 @@ async function fetchGscDirect(siteUrl) {
     keyword:     row.keys[0],
     clicks:      row.clicks,
     impressions: row.impressions,
-    ctr:         Math.round(row.ctr * 1000) / 10,
+    ctr:         row.ctr,  // decimal 0-1 — display code multiplies by 100
     position:    Math.round(row.position * 10) / 10,
   }));
 
@@ -340,7 +340,7 @@ async function fetchGscWithPages(siteUrl) {
     page:        row.keys[1],   // actual URL Google is ranking for this keyword
     clicks:      row.clicks,
     impressions: row.impressions,
-    ctr:         Math.round(row.ctr * 1000) / 10,
+    ctr:         row.ctr,  // decimal 0-1 — display code multiplies by 100
     position:    Math.round(row.position * 10) / 10,
   }));
 

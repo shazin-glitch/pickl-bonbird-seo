@@ -1,589 +1,378 @@
-// competitor-matrix-ui.js
-// Drop this file into your project (e.g. /js/competitor-matrix-ui.js)
-// Then add <script src="/js/competitor-matrix-ui.js"></script> BEFORE closing </body>
-// in your main HTML — it self-initialises when the Analytics tab is active.
-//
-// It replaces the static "Competitor Matrix (SERP API)" section entirely.
+// competitor-matrix-ui.js  — Pass 2 rebuild (June 2026)
+// Views: Rankings · Share of Voice · 🎯 Gaps · Manage Keywords · Manage Competitors
 
 (function () {
   "use strict";
 
-  // ── Config ──────────────────────────────────────────────────────────────
   const FUNCTION_URL          = "/.netlify/functions/competitor-matrix";
   const BACKGROUND_URL        = "/.netlify/functions/competitor-matrix-background";
   const KEYWORD_CONFIG_URL    = "/.netlify/functions/keyword-config";
   const COMPETITOR_CONFIG_URL = "/.netlify/functions/competitor-config";
-  const POLL_INTERVAL_MS    = 30000;
-  const POLL_MAX_ATTEMPTS   = 20;
+  const POLL_INTERVAL_MS      = 30000;
+  const POLL_MAX_ATTEMPTS     = 20;
 
-  // Brand colours matching your existing palette
   const BRAND_COLORS = {
-    pickl: { primary: "#f59e0b", label: "Pickl" },
+    pickl:   { primary: "#f59e0b", label: "Pickl" },
     bonbird: { primary: "#ef4444", label: "Bonbird" },
   };
 
-  const COMPETITOR_COLORS = {
-    Salt: "#6366f1",
-    "High Joint": "#10b981",
-    "Shake Shack": "#f97316",
-    "Five Guys": "#dc2626",
-  };
-
-  // ── State ────────────────────────────────────────────────────────────────
+  // ── State ──────────────────────────────────────────────────────────────────
   let currentBrandFilter = "all";
-  let matrixData      = null; // { pickl: {...}, bonbird: {...} }
-  let keywordData     = null; // { pickl: { keywords: [] }, bonbird: { keywords: [] } }
-  let competitorData  = null; // { pickl: { competitors: [] }, bonbird: { competitors: [] } }
-  let isLoading       = false;
-  let currentView     = "matrix"; // "matrix" | "keywords" | "competitors"
-  let pollTimer       = null;
+  let matrixData         = null;
+  let keywordData        = null;
+  let competitorData     = null;
+  let isLoading          = false;
+  let currentView        = "matrix";
+  let pollTimer          = null;
+  let pollAttempts       = 0;
 
-  // ── Inject CSS ───────────────────────────────────────────────────────────
+  // ── CSS ────────────────────────────────────────────────────────────────────
   function injectStyles() {
     if (document.getElementById("cm-styles")) return;
-    const style = document.createElement("style");
-    style.id = "cm-styles";
-    style.textContent = `
-      #competitor-matrix-live {
-        margin-top: 24px;
-      }
-      .cm-header {
-        display: flex;
-        align-items: center;
-        justify-content: space-between;
-        margin-bottom: 16px;
-        flex-wrap: wrap;
-        gap: 12px;
-      }
-      .cm-title {
-        font-size: 1.1rem;
-        font-weight: 700;
-        color: var(--text-primary, #1e293b);
-        display: flex;
-        align-items: center;
-        gap: 8px;
-      }
-      .cm-badge {
-        font-size: 0.65rem;
-        font-weight: 600;
-        background: #10b981;
-        color: #fff;
-        padding: 2px 7px;
-        border-radius: 99px;
-        letter-spacing: 0.05em;
-        text-transform: uppercase;
-      }
-      .cm-controls {
-        display: flex;
-        gap: 8px;
-        align-items: center;
-        flex-wrap: wrap;
-      }
-      .cm-filter-btn {
-        padding: 5px 14px;
-        border-radius: 6px;
-        border: 1px solid rgba(255,255,255,0.12);
-        background: rgba(255,255,255,0.05);
-        color: var(--text-secondary, #475569);
-        font-size: 0.8rem;
-        cursor: pointer;
-        transition: all 0.15s;
-      }
-      .cm-filter-btn.active {
-        background: rgba(245,158,11,0.15);
-        border-color: #f59e0b;
-        color: #f59e0b;
-        font-weight: 600;
-      }
-      .cm-refresh-btn {
-        padding: 5px 14px;
-        border-radius: 6px;
-        border: 1px solid rgba(255,255,255,0.12);
-        background: rgba(255,255,255,0.05);
-        color: var(--text-secondary, #475569);
-        font-size: 0.8rem;
-        cursor: pointer;
-        display: flex;
-        align-items: center;
-        gap: 6px;
-        transition: all 0.15s;
-      }
-      .cm-refresh-btn:hover { border-color: #60a5fa; color: #60a5fa; }
-      .cm-refresh-btn.spinning svg { animation: cm-spin 1s linear infinite; }
-      @keyframes cm-spin { to { transform: rotate(360deg); } }
-
-      .cm-meta {
-        font-size: 0.75rem;
-        color: var(--text-muted, #64748b);
-        margin-bottom: 12px;
-      }
-
-      .cm-table-wrap {
-        overflow-x: auto;
-        border-radius: 10px;
-        border: 1px solid rgba(255,255,255,0.07);
-      }
-      .cm-table {
-        width: 100%;
-        border-collapse: collapse;
-        font-size: 0.82rem;
-        min-width: 640px;
-      }
-      .cm-table th {
-        background: rgba(255,255,255,0.04);
-        color: var(--text-muted, #64748b);
-        font-weight: 600;
-        font-size: 0.72rem;
-        text-transform: uppercase;
-        letter-spacing: 0.05em;
-        padding: 10px 14px;
-        text-align: left;
-        white-space: nowrap;
-        border-bottom: 1px solid rgba(255,255,255,0.06);
-      }
-      .cm-table td {
-        padding: 10px 14px;
-        border-bottom: 1px solid rgba(255,255,255,0.04);
-        color: var(--text-primary, #1e293b);
-        vertical-align: middle;
-      }
-      .cm-table tr:last-child td { border-bottom: none; }
-      .cm-table tr:hover td { background: rgba(255,255,255,0.02); }
-
-      .cm-keyword { font-weight: 500; }
-      .cm-brand-dot {
-        display: inline-block;
-        width: 8px; height: 8px;
-        border-radius: 50%;
-        margin-right: 6px;
-      }
-
-      .cm-rank {
-        display: inline-flex;
-        align-items: center;
-        justify-content: center;
-        min-width: 32px;
-        height: 24px;
-        border-radius: 5px;
-        font-weight: 700;
-        font-size: 0.78rem;
-        padding: 0 6px;
-      }
-      .cm-rank-our {
-        background: rgba(245,158,11,0.15);
-        color: #f59e0b;
-        border: 1px solid rgba(245,158,11,0.3);
-      }
-      .cm-rank-our.bonbird-rank {
-        background: rgba(239,68,68,0.15);
-        color: #ef4444;
-        border-color: rgba(239,68,68,0.3);
-      }
-      .cm-rank-comp {
-        background: rgba(255,255,255,0.05);
-        color: var(--text-secondary, #475569);
-        border: 1px solid rgba(255,255,255,0.08);
-      }
-      .cm-rank-none {
-        color: var(--text-muted, #475569);
-        font-size: 0.7rem;
-        font-style: italic;
-      }
-      .cm-rank-top3 {
-        background: rgba(16,185,129,0.15) !important;
-        color: #10b981 !important;
-        border-color: rgba(16,185,129,0.3) !important;
-      }
-      .cm-rank-top10 {
-        background: rgba(245,158,11,0.1) !important;
-        color: #d97706 !important;
-        border-color: rgba(245,158,11,0.2) !important;
-      }
-      .cm-rank-low {
-        background: rgba(239,68,68,0.08) !important;
-        color: #f87171 !important;
-        border-color: rgba(239,68,68,0.15) !important;
-      }
-
-      .cm-movement {
-        font-size: 0.78rem;
-        font-weight: 600;
-        white-space: nowrap;
-      }
-      .cm-movement.up   { color: #10b981; }
-      .cm-movement.down { color: #ef4444; }
-      .cm-movement.stable { color: #64748b; }
-      .cm-movement.new, .cm-movement.entered { color: #60a5fa; }
-      .cm-movement.dropped_out { color: #f87171; }
-      .cm-movement.not_ranking { color: #475569; }
-
-      .cm-empty {
-        text-align: center;
-        padding: 40px 20px;
-        color: var(--text-muted, #64748b);
-        font-size: 0.85rem;
-      }
-      .cm-error {
-        background: rgba(239,68,68,0.08);
-        border: 1px solid rgba(239,68,68,0.2);
-        border-radius: 8px;
-        padding: 14px 18px;
-        color: #f87171;
-        font-size: 0.85rem;
-      }
-      .cm-loading {
-        text-align: center;
-        padding: 40px 20px;
-        color: var(--text-muted, #64748b);
-        font-size: 0.85rem;
-      }
-      .cm-loading-spinner {
-        display: inline-block;
-        width: 20px; height: 20px;
-        border: 2px solid rgba(245,158,11,0.2);
-        border-top-color: #f59e0b;
-        border-radius: 50%;
-        animation: cm-spin 0.8s linear infinite;
-        margin-bottom: 10px;
-      }
-
-      .cm-legend {
-        display: flex;
-        gap: 16px;
-        flex-wrap: wrap;
-        margin-top: 12px;
-        font-size: 0.72rem;
-        color: var(--text-muted, #64748b);
-      }
-      .cm-legend-item { display: flex; align-items: center; gap: 5px; }
-      .cm-legend-dot {
-        width: 8px; height: 8px;
-        border-radius: 50%;
-        flex-shrink: 0;
-      }
-
-      .cm-summary-cards {
-        display: grid;
-        grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
-        gap: 12px;
-        margin-bottom: 20px;
-      }
-      .cm-summary-card {
-        background: rgba(255,255,255,0.03);
-        border: 1px solid rgba(255,255,255,0.07);
-        border-radius: 10px;
-        padding: 14px 16px;
-      }
-      .cm-summary-card-label {
-        font-size: 0.7rem;
-        text-transform: uppercase;
-        letter-spacing: 0.05em;
-        color: var(--text-muted, #64748b);
-        margin-bottom: 6px;
-      }
-      .cm-summary-card-value {
-        font-size: 1.5rem;
-        font-weight: 700;
-        color: var(--text-primary, #1e293b);
-      }
-      .cm-summary-card-sub {
-        font-size: 0.72rem;
-        color: var(--text-muted, #64748b);
-        margin-top: 2px;
-      }
-
-      /* ── View toggle ── */
-      .cm-view-toggle { display: flex; gap: 6px; }
-      .cm-view-btn {
-        padding: 5px 12px; border-radius: 6px; font-size: 0.78rem; font-weight: 500;
-        border: 1px solid rgba(0,0,0,0.15); background: transparent;
-        color: var(--text-secondary, #475569); cursor: pointer; transition: all 0.15s;
-      }
-      .cm-view-btn.active {
-        background: #1e293b; color: #fff; border-color: #1e293b;
-      }
-
-      /* ── Keyword management ── */
-      .cm-kw-section { margin-bottom: 24px; }
-      .cm-kw-section-title {
-        font-size: 0.8rem; font-weight: 700; text-transform: uppercase;
-        letter-spacing: 0.05em; color: var(--text-muted, #64748b);
-        margin-bottom: 10px; display: flex; align-items: center; gap: 8px;
-      }
-      .cm-kw-count {
-        background: rgba(0,0,0,0.07); border-radius: 10px;
-        padding: 1px 7px; font-size: 0.72rem; font-weight: 600;
-      }
-      .cm-kw-grid {
-        display: flex; flex-wrap: wrap; gap: 6px;
-      }
-      .cm-kw-tag {
-        display: inline-flex; align-items: center; gap: 5px;
-        background: rgba(0,0,0,0.05); border: 1px solid rgba(0,0,0,0.1);
-        border-radius: 20px; padding: 4px 10px 4px 12px;
-        font-size: 0.78rem; color: var(--text-primary, #1e293b);
-      }
-      .cm-kw-tag-delete {
-        background: none; border: none; cursor: pointer; padding: 0;
-        color: #94a3b8; font-size: 1rem; line-height: 1;
-        display: flex; align-items: center; transition: color 0.15s;
-      }
-      .cm-kw-tag-delete:hover { color: #ef4444; }
-      .cm-kw-add-row {
-        display: flex; gap: 8px; margin-top: 14px;
-      }
-      .cm-kw-add-input {
-        flex: 1; padding: 7px 12px; border-radius: 7px; font-size: 0.82rem;
-        border: 1px solid rgba(0,0,0,0.15); outline: none;
-        color: var(--text-primary, #1e293b); background: #fff;
-      }
-      .cm-kw-add-input:focus { border-color: #3b82f6; box-shadow: 0 0 0 3px rgba(59,130,246,0.1); }
-      .cm-kw-add-btn {
-        padding: 7px 16px; border-radius: 7px; font-size: 0.82rem; font-weight: 600;
-        background: #1e293b; color: #fff; border: none; cursor: pointer; transition: background 0.15s;
-      }
-      .cm-kw-add-btn:hover { background: #0f172a; }
-      .cm-kw-add-btn:disabled { opacity: 0.5; cursor: not-allowed; }
-      .cm-kw-save-bar {
-        margin-top: 16px; padding: 12px 16px; background: #fffbeb;
-        border: 1px solid #fcd34d; border-radius: 8px;
-        display: flex; align-items: center; justify-content: space-between; gap: 12px;
-        font-size: 0.82rem; color: #92400e;
-      }
-      .cm-kw-save-btn {
-        padding: 6px 16px; border-radius: 6px; font-size: 0.82rem; font-weight: 600;
-        background: #f59e0b; color: #fff; border: none; cursor: pointer;
-      }
-      .cm-kw-save-btn:disabled { opacity: 0.5; cursor: not-allowed; }
-
-      /* ── Confirmation modal ── */
-      .cm-modal-overlay {
-        position: fixed; inset: 0; background: rgba(0,0,0,0.45);
-        display: flex; align-items: center; justify-content: center;
-        z-index: 9999; animation: cm-fade-in 0.15s ease;
-      }
-      @keyframes cm-fade-in { from { opacity: 0; } to { opacity: 1; } }
-      .cm-modal {
-        background: #fff; border-radius: 12px; padding: 24px 28px;
-        max-width: 400px; width: 90%; box-shadow: 0 20px 60px rgba(0,0,0,0.2);
-        animation: cm-slide-up 0.15s ease;
-      }
-      @keyframes cm-slide-up { from { transform: translateY(8px); opacity: 0; } to { transform: translateY(0); opacity: 1; } }
-      .cm-modal-title { font-size: 1rem; font-weight: 700; color: #1e293b; margin-bottom: 8px; }
-      .cm-modal-body { font-size: 0.85rem; color: #475569; margin-bottom: 20px; line-height: 1.5; }
-      .cm-modal-keyword {
-        display: inline-block; background: #f1f5f9; border-radius: 5px;
-        padding: 2px 8px; font-weight: 600; color: #1e293b; font-size: 0.82rem;
-      }
-      .cm-modal-actions { display: flex; gap: 10px; justify-content: flex-end; }
-      .cm-modal-cancel {
-        padding: 8px 16px; border-radius: 7px; font-size: 0.82rem; font-weight: 500;
-        border: 1px solid rgba(0,0,0,0.15); background: #fff; color: #475569; cursor: pointer;
-      }
-      .cm-modal-confirm {
-        padding: 8px 16px; border-radius: 7px; font-size: 0.82rem; font-weight: 600;
-        border: none; background: #ef4444; color: #fff; cursor: pointer;
-      }
-      .cm-modal-confirm:hover { background: #dc2626; }
-
-      /* ── Polling status ── */
-      .cm-poll-status {
-        font-size: 0.75rem; color: #3b82f6; margin-top: 4px; text-align: center;
-      }
+    const s = document.createElement("style");
+    s.id = "cm-styles";
+    s.textContent = `
+      #competitor-matrix-live { margin-top:24px; }
+      .cm-header { display:flex; align-items:flex-start; justify-content:space-between; margin-bottom:16px; flex-wrap:wrap; gap:12px; }
+      .cm-title { font-size:1.1rem; font-weight:700; color:var(--text-primary,#1e293b); display:flex; align-items:center; gap:8px; }
+      .cm-badge { font-size:0.65rem; font-weight:600; background:#10b981; color:#fff; padding:2px 7px; border-radius:99px; letter-spacing:0.05em; text-transform:uppercase; }
+      .cm-controls { display:flex; gap:8px; align-items:center; flex-wrap:wrap; }
+      .cm-filter-btn { padding:5px 14px; border-radius:6px; border:1px solid rgba(255,255,255,0.12); background:rgba(255,255,255,0.05); color:var(--text-secondary,#475569); font-size:0.8rem; cursor:pointer; transition:all 0.15s; }
+      .cm-filter-btn.active { background:rgba(245,158,11,0.15); border-color:#f59e0b; color:#f59e0b; font-weight:600; }
+      .cm-refresh-btn { padding:5px 14px; border-radius:6px; border:1px solid rgba(255,255,255,0.12); background:rgba(255,255,255,0.05); color:var(--text-secondary,#475569); font-size:0.8rem; cursor:pointer; display:flex; align-items:center; gap:6px; transition:all 0.15s; }
+      .cm-refresh-btn:hover { border-color:#60a5fa; color:#60a5fa; }
+      .cm-refresh-btn.spinning svg { animation:cm-spin 1s linear infinite; }
+      @keyframes cm-spin { to { transform:rotate(360deg); } }
+      .cm-meta { font-size:0.75rem; color:var(--text-muted,#64748b); margin-bottom:12px; }
+      .cm-table-wrap { overflow-x:auto; border-radius:10px; border:1px solid rgba(255,255,255,0.07); }
+      .cm-table { width:100%; border-collapse:collapse; font-size:0.82rem; min-width:640px; }
+      .cm-table th { background:rgba(255,255,255,0.04); color:var(--text-muted,#64748b); font-weight:600; font-size:0.72rem; text-transform:uppercase; letter-spacing:0.05em; padding:10px 14px; text-align:left; white-space:nowrap; border-bottom:1px solid rgba(255,255,255,0.06); }
+      .cm-table td { padding:10px 14px; border-bottom:1px solid rgba(255,255,255,0.04); color:var(--text-primary,#1e293b); vertical-align:middle; }
+      .cm-table tr:last-child td { border-bottom:none; }
+      .cm-table tr:hover td { background:rgba(255,255,255,0.02); }
+      .cm-keyword { font-weight:500; }
+      .cm-brand-dot { display:inline-block; width:8px; height:8px; border-radius:50%; margin-right:6px; }
+      .cm-rank { display:inline-flex; align-items:center; justify-content:center; min-width:32px; height:24px; border-radius:5px; font-weight:700; font-size:0.78rem; padding:0 6px; }
+      .cm-rank-our { background:rgba(245,158,11,0.15); color:#f59e0b; border:1px solid rgba(245,158,11,0.3); }
+      .cm-rank-our.bonbird-rank { background:rgba(239,68,68,0.15); color:#ef4444; border-color:rgba(239,68,68,0.3); }
+      .cm-rank-comp { background:rgba(255,255,255,0.05); color:var(--text-secondary,#475569); border:1px solid rgba(255,255,255,0.08); }
+      .cm-rank-none { color:var(--text-muted,#475569); font-size:0.7rem; font-style:italic; }
+      .cm-rank-top3 { background:rgba(16,185,129,0.15)!important; color:#10b981!important; border-color:rgba(16,185,129,0.3)!important; }
+      .cm-rank-top10 { background:rgba(245,158,11,0.1)!important; color:#d97706!important; border-color:rgba(245,158,11,0.2)!important; }
+      .cm-rank-low { background:rgba(239,68,68,0.08)!important; color:#f87171!important; border-color:rgba(239,68,68,0.15)!important; }
+      .cm-movement { font-size:0.78rem; font-weight:600; white-space:nowrap; }
+      .cm-movement.up { color:#10b981; }
+      .cm-movement.down { color:#ef4444; }
+      .cm-movement.stable { color:#64748b; }
+      .cm-movement.new,.cm-movement.entered { color:#60a5fa; }
+      .cm-movement.dropped_out { color:#f87171; }
+      .cm-feature-pill { display:inline-block; padding:1px 6px; border-radius:4px; font-size:0.66rem; font-weight:600; margin:1px; white-space:nowrap; }
+      .cm-feature-snippet { background:#fef3c7; color:#92400e; }
+      .cm-feature-pack    { background:#dcfce7; color:#166534; }
+      .cm-feature-paa     { background:#ede9fe; color:#5b21b6; }
+      .cm-feature-video   { background:#fee2e2; color:#991b1b; }
+      .cm-feature-ai      { background:#dbeafe; color:#1e40af; }
+      .cm-empty { text-align:center; padding:40px 20px; color:var(--text-muted,#64748b); font-size:0.85rem; }
+      .cm-error { background:rgba(239,68,68,0.08); border:1px solid rgba(239,68,68,0.2); border-radius:8px; padding:14px 18px; color:#f87171; font-size:0.85rem; }
+      .cm-loading { text-align:center; padding:40px 20px; color:var(--text-muted,#64748b); font-size:0.85rem; }
+      .cm-loading-spinner { display:inline-block; width:20px; height:20px; border:2px solid rgba(245,158,11,0.2); border-top-color:#f59e0b; border-radius:50%; animation:cm-spin 0.8s linear infinite; margin-bottom:10px; }
+      .cm-legend { display:flex; gap:16px; flex-wrap:wrap; margin-top:12px; font-size:0.72rem; color:var(--text-muted,#64748b); }
+      .cm-legend-item { display:flex; align-items:center; gap:5px; }
+      .cm-legend-dot { width:8px; height:8px; border-radius:50%; flex-shrink:0; }
+      .cm-summary-cards { display:grid; grid-template-columns:repeat(auto-fit,minmax(160px,1fr)); gap:12px; margin-bottom:20px; }
+      .cm-summary-card { background:rgba(255,255,255,0.03); border:1px solid rgba(255,255,255,0.07); border-radius:10px; padding:14px 16px; }
+      .cm-summary-card-label { font-size:0.7rem; text-transform:uppercase; letter-spacing:0.05em; color:var(--text-muted,#64748b); margin-bottom:6px; }
+      .cm-summary-card-value { font-size:1.5rem; font-weight:700; color:var(--text-primary,#1e293b); }
+      .cm-summary-card-sub { font-size:0.72rem; color:var(--text-muted,#64748b); margin-top:2px; }
+      .cm-view-toggle { display:flex; gap:6px; flex-wrap:wrap; }
+      .cm-view-btn { padding:5px 12px; border-radius:6px; font-size:0.78rem; font-weight:500; border:1px solid rgba(0,0,0,0.15); background:transparent; color:var(--text-secondary,#475569); cursor:pointer; transition:all 0.15s; }
+      .cm-view-btn.active { background:#1e293b; color:#fff; border-color:#1e293b; }
+      .cm-alert-banner { background:#fffbeb; border:1px solid #fcd34d; border-radius:8px; padding:12px 16px; margin-bottom:16px; font-size:0.82rem; color:#92400e; }
+      .cm-alert-banner strong { color:#78350f; }
+      .cm-alert-domain { display:inline-block; background:#fef3c7; border:1px solid #fbbf24; border-radius:4px; padding:1px 7px; font-size:0.75rem; font-weight:600; margin:2px; cursor:pointer; }
+      .cm-alert-domain:hover { background:#fde68a; }
+      .cm-kw-section { margin-bottom:24px; }
+      .cm-kw-section-title { font-size:0.8rem; font-weight:700; text-transform:uppercase; letter-spacing:0.05em; color:var(--text-muted,#64748b); margin-bottom:10px; display:flex; align-items:center; gap:8px; }
+      .cm-kw-count { background:rgba(0,0,0,0.07); border-radius:10px; padding:1px 7px; font-size:0.72rem; font-weight:600; }
+      .cm-kw-grid { display:flex; flex-wrap:wrap; gap:6px; }
+      .cm-kw-tag { display:inline-flex; align-items:center; gap:5px; background:rgba(0,0,0,0.05); border:1px solid rgba(0,0,0,0.1); border-radius:20px; padding:4px 10px 4px 12px; font-size:0.78rem; color:var(--text-primary,#1e293b); }
+      .cm-kw-tag-delete { background:none; border:none; cursor:pointer; padding:0; color:#94a3b8; font-size:1rem; line-height:1; display:flex; align-items:center; transition:color 0.15s; }
+      .cm-kw-tag-delete:hover { color:#ef4444; }
+      .cm-kw-add-row { display:flex; gap:8px; margin-top:14px; }
+      .cm-kw-add-input { flex:1; padding:7px 12px; border-radius:7px; font-size:0.82rem; border:1px solid rgba(0,0,0,0.15); outline:none; color:var(--text-primary,#1e293b); background:#fff; }
+      .cm-kw-add-input:focus { border-color:#3b82f6; box-shadow:0 0 0 3px rgba(59,130,246,0.1); }
+      .cm-kw-add-btn { padding:7px 16px; border-radius:7px; font-size:0.82rem; font-weight:600; background:#1e293b; color:#fff; border:none; cursor:pointer; }
+      .cm-kw-save-bar { margin-top:16px; padding:12px 16px; background:#fffbeb; border:1px solid #fcd34d; border-radius:8px; display:flex; align-items:center; justify-content:space-between; gap:12px; font-size:0.82rem; color:#92400e; }
+      .cm-kw-save-btn { padding:6px 16px; border-radius:6px; font-size:0.82rem; font-weight:600; background:#f59e0b; color:#fff; border:none; cursor:pointer; }
+      .cm-modal-overlay { position:fixed; inset:0; background:rgba(0,0,0,0.45); display:flex; align-items:center; justify-content:center; z-index:9999; }
+      .cm-modal { background:#fff; border-radius:12px; padding:24px 28px; max-width:400px; width:90%; box-shadow:0 20px 60px rgba(0,0,0,0.2); }
+      .cm-modal-title { font-size:1rem; font-weight:700; color:#1e293b; margin-bottom:8px; }
+      .cm-modal-body { font-size:0.85rem; color:#475569; margin-bottom:20px; line-height:1.5; }
+      .cm-modal-keyword { display:inline-block; background:#f1f5f9; border-radius:5px; padding:2px 8px; font-weight:600; color:#1e293b; }
+      .cm-modal-actions { display:flex; gap:10px; justify-content:flex-end; }
+      .cm-modal-cancel { padding:8px 16px; border-radius:7px; font-size:0.82rem; border:1px solid rgba(0,0,0,0.15); background:#fff; color:#475569; cursor:pointer; }
+      .cm-modal-confirm { padding:8px 16px; border-radius:7px; font-size:0.82rem; font-weight:600; border:none; background:#ef4444; color:#fff; cursor:pointer; }
+      .cm-poll-status { font-size:0.75rem; color:#3b82f6; margin-top:4px; text-align:center; }
+      /* Share of Voice chart */
+      .cm-sov-chart-wrap { background:rgba(255,255,255,0.03); border:1px solid rgba(255,255,255,0.07); border-radius:10px; padding:20px; margin-bottom:20px; }
+      .cm-sov-chart-title { font-size:0.85rem; font-weight:700; margin-bottom:16px; color:var(--text-primary,#1e293b); }
+      .cm-sov-bars { display:flex; flex-direction:column; gap:8px; }
+      .cm-sov-bar-row { display:flex; align-items:center; gap:10px; }
+      .cm-sov-bar-label { width:140px; font-size:0.78rem; font-weight:500; text-align:right; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; color:var(--text-secondary,#475569); flex-shrink:0; }
+      .cm-sov-bar-track { flex:1; background:rgba(255,255,255,0.06); border-radius:4px; height:20px; position:relative; }
+      .cm-sov-bar-fill { height:100%; border-radius:4px; transition:width 0.6s ease; display:flex; align-items:center; justify-content:flex-end; padding-right:6px; }
+      .cm-sov-bar-pct { font-size:0.7rem; font-weight:700; color:#fff; white-space:nowrap; }
+      .cm-sov-history-chart { margin-top:20px; }
+      .cm-sov-history-title { font-size:0.8rem; font-weight:600; color:var(--text-muted,#64748b); margin-bottom:12px; }
+      .cm-export-btn { padding:5px 14px; border-radius:6px; border:1px solid rgba(255,255,255,0.12); background:rgba(255,255,255,0.05); color:var(--text-secondary,#475569); font-size:0.8rem; cursor:pointer; transition:all 0.15s; }
+      .cm-export-btn:hover { border-color:#10b981; color:#10b981; }
+      /* Trend arrows */
+      .cm-trend-up   { color:#10b981; font-size:0.75rem; font-weight:700; }
+      .cm-trend-down { color:#ef4444; font-size:0.75rem; font-weight:700; }
     `;
-    document.head.appendChild(style);
+    document.head.appendChild(s);
   }
 
-  // ── Render helpers ───────────────────────────────────────────────────────
+  // ── Helpers ────────────────────────────────────────────────────────────────
   function rankBadge(rank, brandClass = "") {
-    if (rank === null || rank === undefined) {
-      return '<span class="cm-rank-none">—</span>';
-    }
+    if (rank == null) return '<span class="cm-rank-none">—</span>';
     let cls = "cm-rank";
     if (brandClass) cls += " " + brandClass;
-    else {
-      if (rank <= 3) cls += " cm-rank-top3";
-      else if (rank <= 10) cls += " cm-rank-top10";
-      else if (rank > 20) cls += " cm-rank-low";
-      else cls += " cm-rank-comp";
-    }
+    else if (rank <= 3)  cls += " cm-rank-top3";
+    else if (rank <= 10) cls += " cm-rank-top10";
+    else if (rank > 20)  cls += " cm-rank-low";
+    else                 cls += " cm-rank-comp";
     return `<span class="${cls}">#${rank}</span>`;
   }
 
   function movementBadge(row) {
     if (!row.movement || row.movement === "new") return "";
     const map = {
-      up: `▲ +${row.movementDelta}`,
-      down: `▼ ${row.movementDelta}`,
-      stable: "→ Stable",
-      entered: "● Entered top 30",
-      dropped_out: "✕ Left top 30",
-      not_ranking: "",
+      up:          `▲ +${row.movementDelta}`,
+      down:        `▼ ${row.movementDelta}`,
+      stable:      "→ Stable",
+      entered:     "● Entered",
+      dropped_out: "✕ Left",
     };
     const text = map[row.movement] || "";
     if (!text) return "";
     return `<span class="cm-movement ${row.movement}">${text}</span>`;
   }
 
-  function formatDate(iso) {
-    if (!iso) return "never";
-    const d = new Date(iso);
-    return d.toLocaleDateString("en-GB", {
-      day: "numeric",
-      month: "short",
-      year: "numeric",
-      hour: "2-digit",
-      minute: "2-digit",
-    });
+  function serpFeaturePills(features) {
+    if (!features) return "";
+    const pills = [];
+    if (features.featuredSnippet) pills.push(`<span class="cm-feature-pill cm-feature-snippet">⭐ Snippet${typeof features.featuredSnippet === "string" ? " · " + features.featuredSnippet.split(".")[0] : ""}</span>`);
+    if (features.localPack)       pills.push('<span class="cm-feature-pill cm-feature-pack">📍 Local Pack</span>');
+    if (features.peopleAlsoAsk)   pills.push('<span class="cm-feature-pill cm-feature-paa">💬 PAA</span>');
+    if (features.video)           pills.push('<span class="cm-feature-pill cm-feature-video">▶ Video</span>');
+    if (features.aiOverview)      pills.push('<span class="cm-feature-pill cm-feature-ai">🤖 AI</span>');
+    return pills.join("");
   }
 
-  // ── Flatten rows from both brands ────────────────────────────────────────
+  function formatDate(iso) {
+    if (!iso) return "never";
+    return new Date(iso).toLocaleDateString("en-GB", { day:"numeric", month:"short", year:"numeric", hour:"2-digit", minute:"2-digit" });
+  }
+
+  function esc(s) { return String(s).replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;").replace(/"/g,"&quot;"); }
+
+  // ── Data helpers ───────────────────────────────────────────────────────────
   function getFilteredRows() {
     if (!matrixData) return [];
-    const brands =
-      currentBrandFilter === "all"
-        ? ["pickl", "bonbird"]
-        : [currentBrandFilter];
-    const rows = [];
-    for (const brand of brands) {
-      if (matrixData[brand]?.rows) {
-        rows.push(...matrixData[brand].rows.map((r) => ({ ...r, brand })));
-      }
-    }
-    return rows;
+    const brands = currentBrandFilter === "all" ? ["pickl","bonbird"] : [currentBrandFilter];
+    return brands.flatMap(b => (matrixData[b]?.rows || []).map(r => ({ ...r, brand: b })));
   }
 
   function getCompetitorNames() {
     const names = new Set();
-    if (matrixData?.pickl?.competitors)
-      matrixData.pickl.competitors.forEach((n) => names.add(n));
-    if (matrixData?.bonbird?.competitors)
-      matrixData.bonbird.competitors.forEach((n) => names.add(n));
+    const brands = currentBrandFilter === "all" ? ["pickl","bonbird"] : [currentBrandFilter];
+    for (const b of brands) {
+      (matrixData?.[b]?.competitors || []).forEach(n => names.add(n));
+    }
     return [...names];
   }
 
-  // ── Summary stats ────────────────────────────────────────────────────────
   function computeSummary(rows) {
-    const top10 = rows.filter((r) => r.ourRank !== null && r.ourRank <= 10).length;
-    const top3 = rows.filter((r) => r.ourRank !== null && r.ourRank <= 3).length;
-    const improved = rows.filter((r) => r.movement === "up").length;
-    const declined = rows.filter((r) => r.movement === "down").length;
-    return { top10, top3, improved, declined, total: rows.length };
+    return {
+      top10:    rows.filter(r => r.ourRank != null && r.ourRank <= 10).length,
+      top3:     rows.filter(r => r.ourRank != null && r.ourRank <= 3).length,
+      improved: rows.filter(r => r.movement === "up").length,
+      declined: rows.filter(r => r.movement === "down").length,
+      total:    rows.length,
+    };
   }
 
-  // ── Main render ──────────────────────────────────────────────────────────
+  function getAutoDetectedAlerts() {
+    const brands = currentBrandFilter === "all" ? ["pickl","bonbird"] : [currentBrandFilter];
+    return brands.flatMap(b => (matrixData?.[b]?.autoDetected || []).slice(0, 5).map(d => ({ ...d, brand: b })));
+  }
+
+  function getSovData() {
+    const brands = currentBrandFilter === "all" ? ["pickl","bonbird"] : [currentBrandFilter];
+    if (brands.length === 1) {
+      return matrixData?.[brands[0]]?.sovCurrent || {};
+    }
+    // Merge SoV across brands (average)
+    const combined = {};
+    let count = 0;
+    for (const b of brands) {
+      const sov = matrixData?.[b]?.sovCurrent || {};
+      for (const [domain, pct] of Object.entries(sov)) {
+        combined[domain] = (combined[domain] || 0) + pct;
+        count++;
+      }
+    }
+    return combined;
+  }
+
+  // ── Competitor trend: avg position movement across all tracked keywords ────
+  function computeCompetitorTrends(rows, competitors) {
+    const trends = {};
+    for (const comp of competitors) {
+      const moved = rows.filter(r => r.movement && r.competitorRanks?.[comp] != null);
+      if (!moved.length) { trends[comp] = null; continue; }
+      // We don't have prev competitor position directly, use our movement as proxy
+      const ups   = rows.filter(r => r.competitorRanks?.[comp] != null && r.competitorRanks[comp] <= 5).length;
+      const total = rows.filter(r => r.competitorRanks?.[comp] != null).length;
+      trends[comp] = total > 0 ? Math.round((ups / total) * 100) : null;
+    }
+    return trends;
+  }
+
+  // ── View toggle HTML ───────────────────────────────────────────────────────
+  function viewToggleHtml(active) {
+    const views = [
+      { key:"matrix", label:"Rankings" },
+      { key:"sov",    label:"📊 Share of Voice" },
+      { key:"gaps",   label:"🎯 Gaps" },
+      { key:"keywords",    label:"Manage Keywords" },
+      { key:"competitors", label:"Manage Competitors" },
+    ];
+    return `<div class="cm-view-toggle">${views.map(v =>
+      `<button class="cm-view-btn ${active === v.key ? "active" : ""}" data-view="${v.key}">${v.label}</button>`
+    ).join("")}</div>`;
+  }
+
+  function brandFilterHtml() {
+    return `
+      <button class="cm-filter-btn ${currentBrandFilter === "all"     ? "active" : ""}" data-filter="all">All</button>
+      <button class="cm-filter-btn ${currentBrandFilter === "pickl"   ? "active" : ""}" data-filter="pickl">Pickl</button>
+      <button class="cm-filter-btn ${currentBrandFilter === "bonbird" ? "active" : ""}" data-filter="bonbird">Bonbird</button>`;
+  }
+
+  // ── Unknown competitor alert banner ───────────────────────────────────────
+  function renderAlertBanner(container) {
+    const alerts = getAutoDetectedAlerts();
+    if (!alerts.length) return "";
+    const brands = currentBrandFilter === "all" ? ["pickl","bonbird"] : [currentBrandFilter];
+    const items  = alerts.slice(0, 8);
+    return `
+      <div class="cm-alert-banner">
+        <strong>🔍 ${alerts.length} unknown competitor${alerts.length !== 1 ? "s" : ""} detected</strong> — appearing in 3+ of your tracked keywords but not on your list:
+        <div style="margin-top:8px;display:flex;flex-wrap:wrap;gap:4px">
+          ${items.map(d => `<span class="cm-alert-domain" title="${d.appearances} appearances · ${d.sampleKeywords?.join(", ") || ""}" data-domain="${esc(d.domain)}" data-brand="${d.brand}">${esc(d.domain)} <small style="opacity:.7">(${d.appearances})</small></span>`).join("")}
+          ${alerts.length > 8 ? `<span style="font-size:0.75rem;color:#92400e;padding:2px 4px">+${alerts.length - 8} more</span>` : ""}
+        </div>
+        <div style="font-size:0.75rem;margin-top:6px;opacity:0.7">Click a domain to add it to your competitor tracking list.</div>
+      </div>`;
+  }
+
+  // ── Rankings view ──────────────────────────────────────────────────────────
   function render(container) {
     injectStyles();
-
-    const rows = getFilteredRows();
+    const rows        = getFilteredRows();
     const competitors = getCompetitorNames();
-    const summary = computeSummary(rows);
-    const lastFetched =
-      matrixData?.pickl?.fetchedAt || matrixData?.bonbird?.fetchedAt;
+    const summary     = computeSummary(rows);
+    const lastFetched = matrixData?.pickl?.fetchedAt || matrixData?.bonbird?.fetchedAt;
+    const sovData     = getSovData();
+    const ourBrand    = currentBrandFilter !== "all" ? currentBrandFilter : "pickl";
+    const ourDomain   = matrixData?.[ourBrand]?.ourDomain || "";
+    const ourSoV      = ourDomain ? (sovData[ourDomain] || 0).toFixed(1) : "—";
 
     let html = `
       <div class="cm-header">
-        <div class="cm-title">
-          Competitor Matrix
-          <span class="cm-badge">Live SERP</span>
-        </div>
+        <div class="cm-title">Competitor Matrix <span class="cm-badge">Live SERP</span></div>
         <div class="cm-controls">
-          <div class="cm-view-toggle">
-            <button class="cm-view-btn ${currentView === "matrix" ? "active" : ""}" data-view="matrix">Rankings</button>
-            <button class="cm-view-btn ${currentView === "keywords" ? "active" : ""}" data-view="keywords">Manage Keywords</button>
-            <button class="cm-view-btn ${currentView === "competitors" ? "active" : ""}" data-view="competitors">Manage Competitors</button>
-          </div>
-          ${currentView === "matrix" ? `
-          <button class="cm-filter-btn ${currentBrandFilter === "all" ? "active" : ""}" data-filter="all">All Brands</button>
-          <button class="cm-filter-btn ${currentBrandFilter === "pickl" ? "active" : ""}" data-filter="pickl">Pickl</button>
-          <button class="cm-filter-btn ${currentBrandFilter === "bonbird" ? "active" : ""}" data-filter="bonbird">Bonbird</button>
+          ${viewToggleHtml("matrix")}
+          ${brandFilterHtml()}
           <button class="cm-refresh-btn ${isLoading ? "spinning" : ""}" id="cm-refresh-btn">
-            <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
-              <polyline points="23 4 23 10 17 10"/><polyline points="1 20 1 14 7 14"/>
-              <path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15"/>
-            </svg>
+            <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="23 4 23 10 17 10"/><polyline points="1 20 1 14 7 14"/><path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15"/></svg>
             ${isLoading ? "Fetching…" : "Refresh Now"}
-          </button>` : ""}
+          </button>
+          <button class="cm-export-btn" id="cm-export-btn" title="Export CSV">⬇ CSV</button>
         </div>
       </div>`;
 
-    if (lastFetched) {
-      html += `<div class="cm-meta">Last updated: ${formatDate(lastFetched)} · Data via DataForSEO · UAE (EN) · Desktop</div>`;
-    }
+    if (lastFetched) html += `<div class="cm-meta">Last updated: ${formatDate(lastFetched)} · DataForSEO · UAE (EN) · Desktop</div>`;
+
+    html += renderAlertBanner(container);
 
     // Summary cards
     if (rows.length > 0) {
-      html += `
-        <div class="cm-summary-cards">
-          <div class="cm-summary-card">
-            <div class="cm-summary-card-label">Top 10 Rankings</div>
-            <div class="cm-summary-card-value">${summary.top10}</div>
-            <div class="cm-summary-card-sub">of ${summary.total} tracked keywords</div>
-          </div>
-          <div class="cm-summary-card">
-            <div class="cm-summary-card-label">Top 3 Rankings</div>
-            <div class="cm-summary-card-value">${summary.top3}</div>
-            <div class="cm-summary-card-sub">page 1, position 1–3</div>
-          </div>
-          <div class="cm-summary-card">
-            <div class="cm-summary-card-label">Improved</div>
-            <div class="cm-summary-card-value" style="color:#10b981">↑ ${summary.improved}</div>
-            <div class="cm-summary-card-sub">vs last snapshot</div>
-          </div>
-          <div class="cm-summary-card">
-            <div class="cm-summary-card-label">Declined</div>
-            <div class="cm-summary-card-value" style="color:#ef4444">↓ ${summary.declined}</div>
-            <div class="cm-summary-card-sub">vs last snapshot</div>
-          </div>
-        </div>`;
+      html += `<div class="cm-summary-cards">
+        <div class="cm-summary-card">
+          <div class="cm-summary-card-label">Top 10 Rankings</div>
+          <div class="cm-summary-card-value">${summary.top10}</div>
+          <div class="cm-summary-card-sub">of ${summary.total} tracked keywords</div>
+        </div>
+        <div class="cm-summary-card">
+          <div class="cm-summary-card-label">Top 3 Rankings</div>
+          <div class="cm-summary-card-value">${summary.top3}</div>
+          <div class="cm-summary-card-sub">positions 1–3</div>
+        </div>
+        <div class="cm-summary-card">
+          <div class="cm-summary-card-label">Share of Voice</div>
+          <div class="cm-summary-card-value" style="color:#f59e0b">${ourSoV}%</div>
+          <div class="cm-summary-card-sub">of tracked keyword visibility</div>
+        </div>
+        <div class="cm-summary-card">
+          <div class="cm-summary-card-label">Improved</div>
+          <div class="cm-summary-card-value" style="color:#10b981">↑ ${summary.improved}</div>
+          <div class="cm-summary-card-sub">vs last snapshot</div>
+        </div>
+        <div class="cm-summary-card">
+          <div class="cm-summary-card-label">Declined</div>
+          <div class="cm-summary-card-value" style="color:#ef4444">↓ ${summary.declined}</div>
+          <div class="cm-summary-card-sub">vs last snapshot</div>
+        </div>
+      </div>`;
     }
 
     // Table
     html += `<div class="cm-table-wrap"><table class="cm-table">
       <thead><tr>
-        <th>Keyword</th>
-        <th>Brand</th>
-        <th>Our Rank</th>
-        ${competitors.map((c) => `<th>${c}</th>`).join("")}
-        <th>Movement</th>
-      </tr></thead>
-      <tbody>`;
+        <th>Keyword</th><th>Brand</th><th>Our Rank</th>
+        ${competitors.map(c => `<th>${esc(c)}</th>`).join("")}
+        <th>SERP Features</th><th>Movement</th>
+      </tr></thead><tbody>`;
 
-    if (rows.length === 0) {
-      const colspan = 4 + competitors.length;
-      html += `<tr><td colspan="${colspan}" class="cm-empty">
-        No data yet. Click <strong>Refresh Now</strong> to fetch live rankings from DataForSEO.
-      </td></tr>`;
+    if (!rows.length) {
+      html += `<tr><td colspan="${5 + competitors.length}" class="cm-empty">No data. Click <strong>Refresh Now</strong> to fetch from DataForSEO.</td></tr>`;
     } else {
       for (const row of rows) {
-        const brandColor = BRAND_COLORS[row.brand]?.primary || "#f59e0b";
-        const ourRankClass =
-          row.brand === "bonbird" ? "cm-rank bonbird-rank" : "cm-rank cm-rank-our";
-        const ourRankHtml =
-          row.ourRank !== null
-            ? `<span class="${ourRankClass}">#${row.ourRank}</span>`
-            : '<span class="cm-rank-none">—</span>';
-
+        const brandColor   = BRAND_COLORS[row.brand]?.primary || "#f59e0b";
+        const ourRankClass = row.brand === "bonbird" ? "cm-rank bonbird-rank" : "cm-rank cm-rank-our";
+        const ourRankHtml  = row.ourRank != null
+          ? `<span class="${ourRankClass}">#${row.ourRank}</span>`
+          : '<span class="cm-rank-none">—</span>';
         html += `<tr>
-          <td class="cm-keyword">${row.keyword}</td>
+          <td class="cm-keyword">${esc(row.keyword)}</td>
           <td><span class="cm-brand-dot" style="background:${brandColor}"></span>${BRAND_COLORS[row.brand]?.label || row.brand}</td>
           <td>${ourRankHtml}</td>
-          ${competitors
-            .map((c) => `<td>${rankBadge(row.competitorRanks?.[c])}</td>`)
-            .join("")}
+          ${competitors.map(c => `<td>${rankBadge(row.competitorRanks?.[c])}</td>`).join("")}
+          <td>${serpFeaturePills(row.serpFeatures)}</td>
           <td>${movementBadge(row)}</td>
         </tr>`;
       }
     }
 
     html += `</tbody></table></div>`;
-
-    // Legend
     html += `<div class="cm-legend">
       <span class="cm-legend-item"><span class="cm-legend-dot" style="background:#10b981"></span>#1–3</span>
       <span class="cm-legend-item"><span class="cm-legend-dot" style="background:#d97706"></span>#4–10</span>
-      <span class="cm-legend-item"><span class="cm-legend-dot" style="background:#64748b"></span>#11–100</span>
-      <span class="cm-legend-item"><span class="cm-legend-dot" style="background:#f87171"></span>#100+</span>
+      <span class="cm-legend-item"><span class="cm-legend-dot" style="background:#64748b"></span>#11–20</span>
+      <span class="cm-legend-item"><span class="cm-legend-dot" style="background:#f87171"></span>#21+</span>
       <span style="margin-left:auto">UAE · English · Desktop · Source: DataForSEO</span>
     </div>`;
 
@@ -591,303 +380,514 @@
     bindMatrixEvents(container);
   }
 
-  function renderKeywords(container) {
+  // ── Share of Voice view ────────────────────────────────────────────────────
+  function renderSoV(container) {
     injectStyles();
+    const sovData     = getSovData();
+    const lastFetched = matrixData?.pickl?.fetchedAt || matrixData?.bonbird?.fetchedAt;
 
-    const brands = ["pickl", "bonbird"];
-    const pendingChanges = {}; // track unsaved changes per brand
+    // Build sorted entries
+    const sorted = Object.entries(sovData)
+      .filter(([,v]) => v > 0)
+      .sort(([,a],[,b]) => b - a)
+      .slice(0, 15);
+
+    // Domain → display name mapping
+    const domainLabel = {};
+    for (const b of ["pickl","bonbird"]) {
+      if (matrixData?.[b]) {
+        const od = matrixData[b].ourDomain;
+        if (od) domainLabel[od] = BRAND_COLORS[b]?.label + " (us)";
+        for (const comp of matrixData[b].competitors || []) {
+          // competitor config stored as names in matrix, need domain match via autoDetected
+        }
+      }
+    }
+
+    // Colour palette for bars
+    const barColors = [
+      "#f59e0b","#ef4444","#6366f1","#10b981","#f97316",
+      "#8b5cf6","#06b6d4","#ec4899","#84cc16","#14b8a6",
+    ];
+
+    // History for trend lines
+    const brands      = currentBrandFilter === "all" ? ["pickl","bonbird"] : [currentBrandFilter];
+    const historyData = brands.flatMap(b => (matrixData?.[b]?.sovHistory || []).map(h => ({ ...h, brand: b })));
 
     let html = `
       <div class="cm-header">
-        <div class="cm-title">
-          Competitor Matrix
-          <span class="cm-badge">Live SERP</span>
-        </div>
+        <div class="cm-title">📊 Share of Voice <span class="cm-badge">CTR-Weighted</span></div>
         <div class="cm-controls">
-          <div class="cm-view-toggle">
-            <button class="cm-view-btn" data-view="matrix">Rankings</button>
-            <button class="cm-view-btn active" data-view="keywords">Manage Keywords</button>
-            <button class="cm-view-btn" data-view="competitors">Manage Competitors</button>
-          </div>
+          ${viewToggleHtml("sov")}
+          ${brandFilterHtml()}
         </div>
-      </div>
-      <div style="padding: 20px 0">`;
+      </div>`;
 
-    for (const brand of brands) {
-      const keywords = keywordData?.[brand]?.keywords || [];
-      const color    = BRAND_COLORS[brand].primary;
-      const label    = BRAND_COLORS[brand].label;
+    if (lastFetched) html += `<div class="cm-meta">Last updated: ${formatDate(lastFetched)} · % of estimated total clicks across tracked keywords</div>`;
 
-      html += `
-        <div class="cm-kw-section" data-brand="${brand}">
-          <div class="cm-kw-section-title">
-            <span style="width:10px;height:10px;border-radius:50%;background:${color};display:inline-block"></span>
-            ${label}
-            <span class="cm-kw-count" id="cm-kw-count-${brand}">${keywords.length}</span>
-          </div>
-          <div class="cm-kw-grid" id="cm-kw-grid-${brand}">
-            ${keywords.map((kw) => `
-              <span class="cm-kw-tag" data-kw="${kw.replace(/"/g, '&quot;')}" data-brand="${brand}">
-                ${kw}
-                <button class="cm-kw-tag-delete" data-kw="${kw.replace(/"/g, '&quot;')}" data-brand="${brand}" title="Remove keyword">×</button>
-              </span>`).join("")}
-          </div>
-          <div class="cm-kw-add-row">
-            <input class="cm-kw-add-input" id="cm-kw-input-${brand}" type="text" placeholder="Add keyword e.g. crispy chicken abu dhabi" />
-            <button class="cm-kw-add-btn" id="cm-kw-add-${brand}" data-brand="${brand}">Add</button>
-          </div>
-          <div id="cm-kw-savebar-${brand}" style="display:none" class="cm-kw-save-bar">
-            <span>⚠ Unsaved changes — click Save to update keyword tracking</span>
-            <button class="cm-kw-save-btn" id="cm-kw-save-${brand}" data-brand="${brand}">Save Changes</button>
+    html += `<p style="font-size:0.82rem;color:var(--text-muted,#64748b);margin-bottom:16px;line-height:1.5">
+      Share of Voice shows who captures the most estimated clicks across all your tracked keywords.
+      Calculated using CTR curve (position 1 = 30%, position 5 = 7%, etc.) weighted across keyword set.
+      Only domains appearing in top 20 are included.
+    </p>`;
+
+    if (!sorted.length) {
+      html += `<div class="cm-empty">No SoV data yet. Run a <strong>Refresh Now</strong> to calculate Share of Voice.</div>`;
+    } else {
+      html += `<div class="cm-sov-chart-wrap">
+        <div class="cm-sov-chart-title">Current Share of Voice — Top Domains</div>
+        <div class="cm-sov-bars">`;
+
+      sorted.forEach(([domain, pct], i) => {
+        const label = domainLabel[domain] || domain;
+        const color = barColors[i % barColors.length];
+        const width = Math.max(2, Math.min(100, pct));
+        html += `<div class="cm-sov-bar-row">
+          <div class="cm-sov-bar-label" title="${esc(domain)}">${esc(label)}</div>
+          <div class="cm-sov-bar-track">
+            <div class="cm-sov-bar-fill" style="width:${width}%;background:${color}">
+              <span class="cm-sov-bar-pct">${pct.toFixed(1)}%</span>
+            </div>
           </div>
         </div>`;
+      });
+
+      html += `</div></div>`;
+
+      // SoV history line chart (SVG)
+      if (historyData.length > 1) {
+        html += renderSovHistoryChart(historyData, sorted, barColors);
+      }
     }
 
+    container.innerHTML = html;
+    bindViewToggle(container);
+    container.querySelectorAll(".cm-filter-btn").forEach(btn => {
+      btn.addEventListener("click", () => { currentBrandFilter = btn.dataset.filter; renderSoV(container); });
+    });
+  }
+
+  function renderSovHistoryChart(historyData, topDomains, barColors) {
+    // Group by date
+    const dateMap = {};
+    for (const h of historyData) {
+      if (!dateMap[h.date]) dateMap[h.date] = {};
+      Object.assign(dateMap[h.date], h.sov || {});
+    }
+    const dates = Object.keys(dateMap).sort();
+    if (dates.length < 2) return "";
+
+    const W = 600, H = 220, PAD = { t:20, r:20, b:40, l:50 };
+    const cw = W - PAD.l - PAD.r;
+    const ch = H - PAD.t - PAD.b;
+    const xStep = cw / Math.max(dates.length - 1, 1);
+
+    // Only chart top 5 domains
+    const chartDomains = topDomains.slice(0, 5).map(([d]) => d);
+
+    // Find y-max
+    const yMax = Math.min(100, Math.max(20,
+      Math.ceil(Math.max(...chartDomains.flatMap(d => dates.map(dt => dateMap[dt]?.[d] || 0))) / 5) * 5 + 5
+    ));
+
+    function x(i) { return PAD.l + i * xStep; }
+    function y(v) { return PAD.t + ch - (v / yMax) * ch; }
+
+    let lines = "";
+    let legend = "";
+    chartDomains.forEach((domain, di) => {
+      const color  = barColors[di % barColors.length];
+      const points = dates.map((dt, i) => `${x(i).toFixed(1)},${y(dateMap[dt]?.[domain] || 0).toFixed(1)}`).join(" ");
+      lines += `<polyline points="${points}" fill="none" stroke="${color}" stroke-width="2" stroke-linejoin="round"/>`;
+      dates.forEach((dt, i) => {
+        const v = dateMap[dt]?.[domain] || 0;
+        if (v > 0) lines += `<circle cx="${x(i).toFixed(1)}" cy="${y(v).toFixed(1)}" r="3" fill="${color}"/>`;
+      });
+      legend += `<span style="display:inline-flex;align-items:center;gap:5px;font-size:0.72rem;color:#475569">
+        <span style="width:12px;height:3px;background:${color};border-radius:2px;display:inline-block"></span>
+        ${esc(domain.split(".")[0])}
+      </span>`;
+    });
+
+    // Y axis ticks
+    let yTicks = "";
+    for (let v = 0; v <= yMax; v += (yMax > 30 ? 10 : 5)) {
+      const yy = y(v).toFixed(1);
+      yTicks += `<line x1="${PAD.l}" y1="${yy}" x2="${W - PAD.r}" y2="${yy}" stroke="rgba(255,255,255,0.06)" stroke-width="1"/>`;
+      yTicks += `<text x="${PAD.l - 6}" y="${yy}" text-anchor="end" fill="#64748b" font-size="10" dominant-baseline="middle">${v}%</text>`;
+    }
+
+    // X axis labels (abbreviated dates)
+    let xLabels = "";
+    dates.forEach((dt, i) => {
+      const short = new Date(dt).toLocaleDateString("en-GB", { month:"short", day:"numeric" });
+      xLabels += `<text x="${x(i).toFixed(1)}" y="${H - 8}" text-anchor="middle" fill="#64748b" font-size="9">${short}</text>`;
+    });
+
+    return `<div class="cm-sov-history-chart">
+      <div class="cm-sov-history-title">Share of Voice Trend (last ${dates.length} weeks)</div>
+      <svg viewBox="0 0 ${W} ${H}" style="width:100%;max-width:${W}px;overflow:visible;display:block">
+        ${yTicks}${lines}${xLabels}
+      </svg>
+      <div style="display:flex;gap:12px;flex-wrap:wrap;margin-top:8px">${legend}</div>
+    </div>`;
+  }
+
+  // ── Gaps view ──────────────────────────────────────────────────────────────
+  function renderGaps(container) {
+    injectStyles();
+    const brands      = currentBrandFilter === "all" ? ["pickl","bonbird"] : [currentBrandFilter];
+    const competitors = getCompetitorNames();
+
+    const gapRows = [];
+    for (const brand of brands) {
+      for (const row of (matrixData?.[brand]?.rows || [])) {
+        if (row.ourRank != null && row.ourRank <= 30) continue;
+        for (const [comp, rank] of Object.entries(row.competitorRanks || {})) {
+          if (rank && rank <= 20) {
+            gapRows.push({
+              keyword: row.keyword, brand, competitor: comp,
+              competitorRank: rank, ourRank: row.ourRank,
+              opportunity: rank <= 5 ? "high" : rank <= 10 ? "medium" : "low",
+            });
+          }
+        }
+      }
+    }
+    gapRows.sort((a, b) => a.competitorRank - b.competitorRank);
+
+    const byComp = {};
+    for (const row of gapRows) {
+      if (!byComp[row.competitor]) byComp[row.competitor] = [];
+      byComp[row.competitor].push(row);
+    }
+
+    const oppColor = { high:"#ef4444", medium:"#f59e0b", low:"#6b7280" };
+    const oppLabel = { high:"🔴 High", medium:"🟡 Medium", low:"⚪ Low" };
+
+    let html = `
+      <div class="cm-header">
+        <div>
+          <div class="cm-title">🎯 Competitor Gaps</div>
+          <p style="font-size:0.78rem;color:var(--text-muted,#64748b);margin:4px 0 0">Keywords where competitors rank top 20 but you don't appear. These are your content targets.</p>
+        </div>
+        <div class="cm-controls">
+          ${viewToggleHtml("gaps")}
+          ${brandFilterHtml()}
+        </div>
+      </div>`;
+
+    if (!gapRows.length) {
+      html += `<div class="cm-empty" style="padding:48px">
+        <div style="font-size:32px;margin-bottom:12px">🎯</div>
+        <div style="font-weight:600;margin-bottom:8px">No gaps found</div>
+        <div style="color:#64748b;font-size:13px">Either you rank for everything tracked, or no competitor ranks top 20.<br>Add more competitive keywords via Manage Keywords.</div>
+      </div>`;
+    } else {
+      html += `<div class="cm-summary-cards">
+        <div class="cm-summary-card">
+          <div class="cm-summary-card-label">Total Gaps</div>
+          <div class="cm-summary-card-value" style="color:#ef4444">${gapRows.length}</div>
+          <div class="cm-summary-card-sub">keywords to target</div>
+        </div>
+        <div class="cm-summary-card">
+          <div class="cm-summary-card-label">High Priority</div>
+          <div class="cm-summary-card-value" style="color:#ef4444">${gapRows.filter(r => r.opportunity === "high").length}</div>
+          <div class="cm-summary-card-sub">competitor ranks 1–5</div>
+        </div>
+        <div class="cm-summary-card">
+          <div class="cm-summary-card-label">Competitors Ahead</div>
+          <div class="cm-summary-card-value">${Object.keys(byComp).length}</div>
+          <div class="cm-summary-card-sub">with keywords you don't rank</div>
+        </div>
+      </div>`;
+
+      for (const [comp, rows] of Object.entries(byComp)) {
+        html += `<div style="margin-bottom:24px">
+          <div style="font-weight:700;font-size:14px;padding:10px 0 8px;border-bottom:2px solid #e2e8f0;margin-bottom:0;display:flex;justify-content:space-between;align-items:center">
+            <span>${esc(comp)} — ${rows.length} keyword${rows.length!==1?"s":""} you don't rank for</span>
+            <span style="font-size:12px;color:#64748b;font-weight:400">Their rank → Your rank</span>
+          </div>
+          <table class="cm-table" style="margin-top:0"><thead><tr>
+            <th>Keyword</th><th>Brand</th><th>${esc(comp)}'s Rank</th><th>Your Rank</th><th>Opportunity</th>
+          </tr></thead><tbody>
+          ${rows.map(r => {
+            const bc = BRAND_COLORS[r.brand]?.primary || "#f59e0b";
+            return `<tr>
+              <td style="font-weight:500">${esc(r.keyword)}</td>
+              <td><span class="cm-brand-dot" style="background:${bc}"></span>${BRAND_COLORS[r.brand]?.label || r.brand}</td>
+              <td><span class="cm-rank" style="background:#fee2e2;color:#dc2626;font-weight:700">#${r.competitorRank}</span></td>
+              <td><span style="color:#94a3b8;font-size:12px">${r.ourRank ? "#"+r.ourRank : "Not ranking"}</span></td>
+              <td><span style="color:${oppColor[r.opportunity]};font-weight:600;font-size:12px">${oppLabel[r.opportunity]}</span></td>
+            </tr>`;
+          }).join("")}
+          </tbody></table>
+        </div>`;
+      }
+    }
+
+    container.innerHTML = html;
+    bindViewToggle(container);
+    container.querySelectorAll(".cm-filter-btn").forEach(btn => {
+      btn.addEventListener("click", () => { currentBrandFilter = btn.dataset.filter; renderGaps(container); });
+    });
+  }
+
+  // ── Keywords management view ───────────────────────────────────────────────
+  function renderKeywords(container) {
+    injectStyles();
+    let html = `
+      <div class="cm-header">
+        <div class="cm-title">Competitor Matrix <span class="cm-badge">Live SERP</span></div>
+        <div class="cm-controls">${viewToggleHtml("keywords")}</div>
+      </div><div style="padding:20px 0">`;
+
+    for (const brand of ["pickl","bonbird"]) {
+      const keywords = keywordData?.[brand]?.keywords || [];
+      const color    = BRAND_COLORS[brand].primary;
+      html += `<div class="cm-kw-section" data-brand="${brand}">
+        <div class="cm-kw-section-title">
+          <span style="width:10px;height:10px;border-radius:50%;background:${color};display:inline-block"></span>
+          ${BRAND_COLORS[brand].label} <span class="cm-kw-count" id="cm-kw-count-${brand}">${keywords.length}</span>
+        </div>
+        <div class="cm-kw-grid" id="cm-kw-grid-${brand}">
+          ${keywords.map(kw => `<span class="cm-kw-tag" data-kw="${esc(kw)}" data-brand="${brand}">${esc(kw)}<button class="cm-kw-tag-delete" data-kw="${esc(kw)}" data-brand="${brand}">×</button></span>`).join("")}
+        </div>
+        <div class="cm-kw-add-row">
+          <input class="cm-kw-add-input" id="cm-kw-input-${brand}" type="text" placeholder="Add keyword e.g. crispy chicken abu dhabi"/>
+          <button class="cm-kw-add-btn" id="cm-kw-add-${brand}" data-brand="${brand}">Add</button>
+        </div>
+        <div id="cm-kw-savebar-${brand}" style="display:none" class="cm-kw-save-bar">
+          <span>⚠ Unsaved changes — click Save to update</span>
+          <button class="cm-kw-save-btn" id="cm-kw-save-${brand}" data-brand="${brand}">Save Changes</button>
+        </div>
+      </div>`;
+    }
     html += `</div>`;
     container.innerHTML = html;
     bindKeywordEvents(container);
   }
 
-  function bindMatrixEvents(container) {
-    container.querySelectorAll(".cm-filter-btn").forEach((btn) => {
-      btn.addEventListener("click", () => {
-        currentBrandFilter = btn.dataset.filter;
-        render(container);
-      });
-    });
+  // ── Competitors management view ────────────────────────────────────────────
+  function renderCompetitors(container) {
+    injectStyles();
+    let html = `
+      <div class="cm-header">
+        <div class="cm-title">Competitor Matrix <span class="cm-badge">Live SERP</span></div>
+        <div class="cm-controls">${viewToggleHtml("competitors")}</div>
+      </div>
+      <div style="padding:20px 0">
+        <p style="font-size:13px;color:#64748b;margin-bottom:20px">Add or remove tracked competitors. Changes apply on next Refresh Now.</p>`;
 
-    container.querySelectorAll(".cm-view-btn").forEach((btn) => {
-      btn.addEventListener("click", () => {
-        currentView = btn.dataset.view;
-        if (currentView === "keywords") renderKeywords(container); else if (currentView === "competitors") renderCompetitors(container); else render(container);
-      });
-    });
-
-    const refreshBtn = container.querySelector("#cm-refresh-btn");
-    if (refreshBtn) {
-      refreshBtn.addEventListener("click", () => loadData(container, true));
+    for (const brand of ["pickl","bonbird"]) {
+      const competitors = competitorData?.[brand]?.competitors || [];
+      html += `<div class="cm-kw-section" data-brand="${brand}" style="margin-bottom:24px">
+        <div class="cm-kw-section-title">
+          <span style="width:10px;height:10px;border-radius:50%;background:${BRAND_COLORS[brand].primary};display:inline-block"></span>
+          ${BRAND_COLORS[brand].label} Competitors <span class="cm-kw-count" id="cm-comp-count-${brand}">${competitors.length}</span>
+        </div>
+        <div class="cm-comp-grid" id="cm-comp-grid-${brand}">
+          ${competitors.map(c => `<span class="cm-kw-tag">
+            <span>${esc(c.name)}</span><span style="font-size:10px;color:#94a3b8">${esc(c.domain)}</span>
+            <button class="cm-kw-tag-delete cm-comp-delete" data-comp="${esc(c.name)}" data-brand="${brand}">×</button>
+          </span>`).join("")}
+        </div>
+        <div class="cm-kw-add-row" style="flex-wrap:wrap">
+          <input class="cm-kw-add-input" id="cm-comp-name-${brand}" type="text" placeholder="Name e.g. Jailbird" style="flex:1;min-width:130px"/>
+          <input class="cm-kw-add-input" id="cm-comp-domain-${brand}" type="text" placeholder="Domain e.g. jailbirddubai.com" style="flex:1;min-width:170px"/>
+          <button class="cm-kw-add-btn" id="cm-comp-add-${brand}" data-brand="${brand}">Add</button>
+        </div>
+        <div id="cm-comp-savebar-${brand}" style="display:none" class="cm-kw-save-bar">
+          <span>⚠ Unsaved changes — click Save to update</span>
+          <button class="cm-kw-save-btn" id="cm-comp-save-${brand}" data-brand="${brand}">Save Changes</button>
+        </div>
+      </div>`;
     }
+    html += `</div>`;
+    container.innerHTML = html;
+    bindCompetitorEvents(container);
+  }
+
+  // ── Event binding ──────────────────────────────────────────────────────────
+  function bindViewToggle(container) {
+    container.querySelectorAll(".cm-view-btn").forEach(btn => {
+      btn.addEventListener("click", () => switchView(container, btn.dataset.view));
+    });
+  }
+
+  function switchView(container, view) {
+    currentView = view;
+    if      (view === "sov")         renderSoV(container);
+    else if (view === "gaps")        renderGaps(container);
+    else if (view === "keywords")    renderKeywords(container);
+    else if (view === "competitors") renderCompetitors(container);
+    else                             render(container);
+  }
+
+  function bindMatrixEvents(container) {
+    bindViewToggle(container);
+    container.querySelectorAll(".cm-filter-btn").forEach(btn => {
+      btn.addEventListener("click", () => { currentBrandFilter = btn.dataset.filter; render(container); });
+    });
+    const refreshBtn = container.querySelector("#cm-refresh-btn");
+    if (refreshBtn) refreshBtn.addEventListener("click", () => loadData(container, true));
+
+    const exportBtn = container.querySelector("#cm-export-btn");
+    if (exportBtn) exportBtn.addEventListener("click", () => exportCsv());
+
+    // Alert banner domain click → add to competitor
+    container.querySelectorAll(".cm-alert-domain").forEach(el => {
+      el.addEventListener("click", () => {
+        const domain = el.dataset.domain;
+        const brand  = el.dataset.brand || currentBrandFilter;
+        const name   = domain.split(".")[0].replace(/-/g," ").replace(/\b\w/g,c=>c.toUpperCase());
+        if (confirm(`Add "${domain}" as a competitor for ${BRAND_COLORS[brand]?.label || brand}?\n\nDisplay name will be "${name}". You can edit this in Manage Competitors.`)) {
+          addCompetitorFromAlert(brand, name, domain);
+        }
+      });
+    });
+  }
+
+  async function addCompetitorFromAlert(brand, name, domain) {
+    try {
+      const existing = competitorData?.[brand]?.competitors || [];
+      if (existing.some(c => c.domain === domain)) return;
+      const updated = [...existing, { name, domain }];
+      const res = await fetch(COMPETITOR_CONFIG_URL, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ brand, competitors: updated }),
+      });
+      if (res.ok) {
+        if (!competitorData) competitorData = {};
+        competitorData[brand] = { competitors: updated };
+        alert(`✓ "${name}" added to ${BRAND_COLORS[brand]?.label || brand} competitors. They'll appear in the matrix on next Refresh Now.`);
+        render(document.getElementById("competitor-matrix-live"));
+      }
+    } catch (e) { alert("Failed to add: " + e.message); }
+  }
+
+  function exportCsv() {
+    const rows = getFilteredRows();
+    const competitors = getCompetitorNames();
+    const headers = ["Keyword","Brand","Our Rank",...competitors,"Movement","Search Volume","CPC (USD)"];
+    const csvRows = [headers.join(",")];
+    for (const row of rows) {
+      csvRows.push([
+        `"${row.keyword}"`,
+        row.brand,
+        row.ourRank ?? "",
+        ...competitors.map(c => row.competitorRanks?.[c] ?? ""),
+        row.movement || "",
+        row.searchVolume ?? "",
+        row.cpc_usd ?? "",
+      ].join(","));
+    }
+    const blob = new Blob([csvRows.join("\n")], { type: "text/csv" });
+    const a = document.createElement("a");
+    a.href = URL.createObjectURL(blob);
+    a.download = `competitor-matrix-${new Date().toISOString().split("T")[0]}.csv`;
+    a.click();
   }
 
   function bindKeywordEvents(container) {
-    // View toggle
-    container.querySelectorAll(".cm-view-btn").forEach((btn) => {
-      btn.addEventListener("click", () => {
-        currentView = btn.dataset.view;
-        if (currentView === "keywords") renderKeywords(container); else if (currentView === "competitors") renderCompetitors(container); else render(container);
-      });
-    });
-
-    // Per-brand keyword state (local copy for editing)
+    bindViewToggle(container);
     const localKeywords = {
       pickl:   [...(keywordData?.pickl?.keywords   || [])],
       bonbird: [...(keywordData?.bonbird?.keywords || [])],
     };
 
-    function markUnsaved(brand) {
-      const bar = container.querySelector(`#cm-kw-savebar-${brand}`);
-      if (bar) bar.style.display = "flex";
-    }
+    function markUnsaved(brand) { const b = container.querySelector(`#cm-kw-savebar-${brand}`); if (b) b.style.display = "flex"; }
 
     function updateGrid(brand) {
-      const grid = container.querySelector(`#cm-kw-grid-${brand}`);
+      const grid  = container.querySelector(`#cm-kw-grid-${brand}`);
       const count = container.querySelector(`#cm-kw-count-${brand}`);
       if (!grid) return;
-      grid.innerHTML = localKeywords[brand].map((kw) => `
-        <span class="cm-kw-tag" data-kw="${kw.replace(/"/g, '&quot;')}" data-brand="${brand}">
-          ${kw}
-          <button class="cm-kw-tag-delete" data-kw="${kw.replace(/"/g, '&quot;')}" data-brand="${brand}" title="Remove keyword">×</button>
-        </span>`).join("");
+      grid.innerHTML = localKeywords[brand].map(kw =>
+        `<span class="cm-kw-tag">${esc(kw)}<button class="cm-kw-tag-delete" data-kw="${esc(kw)}" data-brand="${brand}">×</button></span>`
+      ).join("");
       if (count) count.textContent = localKeywords[brand].length;
-      // Re-bind delete buttons
-      grid.querySelectorAll(".cm-kw-tag-delete").forEach((btn) => {
-        btn.addEventListener("click", () => handleDelete(btn.dataset.brand, btn.dataset.kw));
+      grid.querySelectorAll(".cm-kw-tag-delete").forEach(btn => {
+        btn.addEventListener("click", () => showDeleteModal(btn.dataset.kw, () => {
+          localKeywords[brand] = localKeywords[brand].filter(k => k !== btn.dataset.kw);
+          updateGrid(brand); markUnsaved(brand);
+        }));
       });
     }
 
-    function handleDelete(brand, kw) {
-      showDeleteModal(kw, () => {
-        localKeywords[brand] = localKeywords[brand].filter((k) => k !== kw);
-        updateGrid(brand);
-        markUnsaved(brand);
-      });
-    }
-
-    // Delete buttons
-    container.querySelectorAll(".cm-kw-tag-delete").forEach((btn) => {
-      btn.addEventListener("click", () => handleDelete(btn.dataset.brand, btn.dataset.kw));
+    container.querySelectorAll(".cm-kw-tag-delete").forEach(btn => {
+      btn.addEventListener("click", () => showDeleteModal(btn.dataset.kw, () => {
+        localKeywords[btn.dataset.brand] = localKeywords[btn.dataset.brand].filter(k => k !== btn.dataset.kw);
+        updateGrid(btn.dataset.brand); markUnsaved(btn.dataset.brand);
+      }));
     });
 
-    // Add buttons
-    ["pickl", "bonbird"].forEach((brand) => {
-      const input  = container.querySelector(`#cm-kw-input-${brand}`);
-      const addBtn = container.querySelector(`#cm-kw-add-${brand}`);
+    for (const brand of ["pickl","bonbird"]) {
+      const input   = container.querySelector(`#cm-kw-input-${brand}`);
+      const addBtn  = container.querySelector(`#cm-kw-add-${brand}`);
       const saveBtn = container.querySelector(`#cm-kw-save-${brand}`);
 
       if (addBtn && input) {
         const doAdd = () => {
           const val = input.value.trim().toLowerCase();
           if (!val) return;
-          if (localKeywords[brand].includes(val)) {
-            input.style.borderColor = "#ef4444";
-            setTimeout(() => (input.style.borderColor = ""), 1500);
-            return;
-          }
-          localKeywords[brand].push(val);
-          input.value = "";
-          updateGrid(brand);
-          markUnsaved(brand);
+          if (localKeywords[brand].includes(val)) { input.style.borderColor = "#ef4444"; setTimeout(() => input.style.borderColor = "", 1500); return; }
+          localKeywords[brand].push(val); input.value = ""; updateGrid(brand); markUnsaved(brand);
         };
         addBtn.addEventListener("click", doAdd);
-        input.addEventListener("keydown", (e) => { if (e.key === "Enter") doAdd(); });
+        input.addEventListener("keydown", e => { if (e.key === "Enter") doAdd(); });
       }
 
       if (saveBtn) {
         saveBtn.addEventListener("click", async () => {
-          saveBtn.disabled = true;
-          saveBtn.textContent = "Saving…";
+          saveBtn.disabled = true; saveBtn.textContent = "Saving…";
           try {
-            const res = await fetch(KEYWORD_CONFIG_URL, {
-              method: "POST",
-              headers: { "Content-Type": "application/json" },
-              body: JSON.stringify({ brand, keywords: localKeywords[brand] }),
-            });
+            const res = await fetch(KEYWORD_CONFIG_URL, { method:"POST", headers:{"Content-Type":"application/json"}, body:JSON.stringify({ brand, keywords: localKeywords[brand] }) });
             if (!res.ok) throw new Error("Save failed");
-            // Update local keywordData
             if (!keywordData) keywordData = {};
             keywordData[brand] = { keywords: localKeywords[brand] };
             const bar = container.querySelector(`#cm-kw-savebar-${brand}`);
-            if (bar) {
-              bar.style.background = "#f0fdf4";
-              bar.style.borderColor = "#86efac";
-              bar.querySelector("span").style.color = "#166534";
-              bar.querySelector("span").textContent = "✓ Saved! Refresh rankings to apply.";
-              saveBtn.style.background = "#22c55e";
-              saveBtn.textContent = "Saved ✓";
-            }
-          } catch {
-            saveBtn.disabled = false;
-            saveBtn.textContent = "Save Changes";
-            alert("Failed to save. Please try again.");
-          }
+            if (bar) { bar.style.background="#f0fdf4"; bar.style.borderColor="#86efac"; bar.querySelector("span").style.color="#166534"; bar.querySelector("span").textContent="✓ Saved! Refresh rankings to apply."; saveBtn.style.background="#22c55e"; saveBtn.textContent="Saved ✓"; }
+          } catch { saveBtn.disabled = false; saveBtn.textContent = "Save Changes"; alert("Failed to save."); }
         });
       }
-    });
-  }
-
-  // ── Competitors view ─────────────────────────────────────────────────────
-  function renderCompetitors(container) {
-    injectStyles();
-
-    const brands = ["pickl", "bonbird"];
-
-    let html = `
-      <div class="cm-header">
-        <div class="cm-title">
-          Competitor Matrix
-          <span class="cm-badge">Live SERP</span>
-        </div>
-        <div class="cm-controls">
-          <div class="cm-view-toggle">
-            <button class="cm-view-btn" data-view="matrix">Rankings</button>
-            <button class="cm-view-btn" data-view="keywords">Manage Keywords</button>
-            <button class="cm-view-btn active" data-view="competitors">Manage Competitors</button>
-          </div>
-        </div>
-      </div>
-      <div style="padding:20px 0">
-        <p style="font-size:13px;color:#64748b;margin-bottom:20px">
-          Add or remove tracked competitors per brand. Changes apply on the next weekly refresh or manual Refresh Now.
-        </p>`;
-
-    for (const brand of brands) {
-      const competitors = competitorData?.[brand]?.competitors || [];
-      const color       = BRAND_COLORS[brand].primary;
-      const label       = BRAND_COLORS[brand].label;
-
-      html += `
-        <div class="cm-kw-section" data-brand="${brand}" style="margin-bottom:24px">
-          <div class="cm-kw-section-title">
-            <span style="width:10px;height:10px;border-radius:50%;background:${color};display:inline-block"></span>
-            ${label} Competitors
-            <span class="cm-kw-count" id="cm-comp-count-${brand}">${competitors.length}</span>
-          </div>
-          <div class="cm-comp-grid" id="cm-comp-grid-${brand}">
-            ${competitors.map(c => `
-              <span class="cm-kw-tag" data-comp="${c.name.replace(/"/g, '&quot;')}" data-domain="${c.domain}" data-brand="${brand}" style="display:inline-flex;align-items:center;gap:6px">
-                <span>${c.name}</span>
-                <span style="font-size:10px;color:#94a3b8">${c.domain}</span>
-                <button class="cm-kw-tag-delete cm-comp-delete" data-comp="${c.name.replace(/"/g, '&quot;')}" data-brand="${brand}" title="Remove competitor">×</button>
-              </span>`).join("")}
-          </div>
-          <div class="cm-kw-add-row" style="margin-top:12px;gap:8px;flex-wrap:wrap">
-            <input class="cm-kw-add-input" id="cm-comp-name-${brand}" type="text" placeholder="Competitor name e.g. Jailbird" style="flex:1;min-width:140px" />
-            <input class="cm-kw-add-input" id="cm-comp-domain-${brand}" type="text" placeholder="Domain e.g. jailbirddubai.com" style="flex:1;min-width:180px" />
-            <button class="cm-kw-add-btn" id="cm-comp-add-${brand}" data-brand="${brand}">Add</button>
-          </div>
-          <div id="cm-comp-savebar-${brand}" style="display:none" class="cm-kw-save-bar">
-            <span>⚠ Unsaved changes — click Save to update competitor tracking</span>
-            <button class="cm-kw-save-btn" id="cm-comp-save-${brand}" data-brand="${brand}">Save Changes</button>
-          </div>
-        </div>`;
     }
-
-    html += `</div>`;
-    container.innerHTML = html;
-    bindCompetitorEvents(container);
   }
 
   function bindCompetitorEvents(container) {
-    // View toggle
-    container.querySelectorAll(".cm-view-btn").forEach((btn) => {
-      btn.addEventListener("click", () => {
-        currentView = btn.dataset.view;
-        if (currentView === "keywords") renderKeywords(container);
-        else if (currentView === "competitors") renderCompetitors(container);
-        else render(container);
-      });
-    });
-
+    bindViewToggle(container);
     const localComps = {
       pickl:   [...(competitorData?.pickl?.competitors   || [])],
       bonbird: [...(competitorData?.bonbird?.competitors || [])],
     };
 
-    function markUnsaved(brand) {
-      const bar = container.querySelector(`#cm-comp-savebar-${brand}`);
-      if (bar) bar.style.display = "flex";
-    }
+    function markUnsaved(brand) { const b = container.querySelector(`#cm-comp-savebar-${brand}`); if (b) b.style.display = "flex"; }
 
     function updateGrid(brand) {
       const grid  = container.querySelector(`#cm-comp-grid-${brand}`);
       const count = container.querySelector(`#cm-comp-count-${brand}`);
       if (!grid) return;
-      grid.innerHTML = localComps[brand].map(c => `
-        <span class="cm-kw-tag" style="display:inline-flex;align-items:center;gap:6px">
-          <span>${c.name}</span>
-          <span style="font-size:10px;color:#94a3b8">${c.domain}</span>
-          <button class="cm-kw-tag-delete cm-comp-delete" data-comp="${c.name.replace(/"/g, '&quot;')}" data-brand="${brand}" title="Remove competitor">×</button>
-        </span>`).join("");
+      grid.innerHTML = localComps[brand].map(c => `<span class="cm-kw-tag">
+        <span>${esc(c.name)}</span><span style="font-size:10px;color:#94a3b8">${esc(c.domain)}</span>
+        <button class="cm-kw-tag-delete cm-comp-delete" data-comp="${esc(c.name)}" data-brand="${brand}">×</button>
+      </span>`).join("");
       if (count) count.textContent = localComps[brand].length;
       grid.querySelectorAll(".cm-comp-delete").forEach(btn => {
-        btn.addEventListener("click", () => handleDelete(btn.dataset.brand, btn.dataset.comp));
+        btn.addEventListener("click", () => showDeleteModal(btn.dataset.comp, () => {
+          localComps[brand] = localComps[brand].filter(c => c.name !== btn.dataset.comp);
+          updateGrid(brand); markUnsaved(brand);
+        }));
       });
     }
 
-    function handleDelete(brand, name) {
-      showDeleteModal(name, () => {
-        localComps[brand] = localComps[brand].filter(c => c.name !== name);
-        updateGrid(brand);
-        markUnsaved(brand);
-      });
-    }
-
-    // Initial delete bindings
     container.querySelectorAll(".cm-comp-delete").forEach(btn => {
-      btn.addEventListener("click", () => handleDelete(btn.dataset.brand, btn.dataset.comp));
+      btn.addEventListener("click", () => showDeleteModal(btn.dataset.comp, () => {
+        localComps[btn.dataset.brand] = localComps[btn.dataset.brand].filter(c => c.name !== btn.dataset.comp);
+        updateGrid(btn.dataset.brand); markUnsaved(btn.dataset.brand);
+      }));
     });
 
-    ["pickl", "bonbird"].forEach(brand => {
+    for (const brand of ["pickl","bonbird"]) {
       const nameInput   = container.querySelector(`#cm-comp-name-${brand}`);
       const domainInput = container.querySelector(`#cm-comp-domain-${brand}`);
       const addBtn      = container.querySelector(`#cm-comp-add-${brand}`);
@@ -896,23 +896,13 @@
       if (addBtn) {
         const doAdd = () => {
           const name   = (nameInput?.value || "").trim();
-          const domain = (domainInput?.value || "").trim().toLowerCase()
-            .replace(/^https?:\/\//, "").replace(/^www\./, "").replace(/\/$/, "");
-          if (!name || !domain) {
-            if (!name && nameInput)   { nameInput.style.borderColor   = "#ef4444"; setTimeout(() => (nameInput.style.borderColor   = ""), 1500); }
-            if (!domain && domainInput) { domainInput.style.borderColor = "#ef4444"; setTimeout(() => (domainInput.style.borderColor = ""), 1500); }
-            return;
-          }
-          if (localComps[brand].some(c => c.domain === domain)) {
-            domainInput.style.borderColor = "#ef4444";
-            setTimeout(() => (domainInput.style.borderColor = ""), 1500);
-            return;
-          }
+          const domain = (domainInput?.value || "").trim().toLowerCase().replace(/^https?:\/\//,"").replace(/^www\./,"").replace(/\/$/,"");
+          if (!name || !domain) return;
+          if (localComps[brand].some(c => c.domain === domain)) { domainInput.style.borderColor="#ef4444"; setTimeout(()=>domainInput.style.borderColor="",1500); return; }
           localComps[brand].push({ name, domain });
           if (nameInput)   nameInput.value   = "";
           if (domainInput) domainInput.value = "";
-          updateGrid(brand);
-          markUnsaved(brand);
+          updateGrid(brand); markUnsaved(brand);
         };
         addBtn.addEventListener("click", doAdd);
         domainInput?.addEventListener("keydown", e => { if (e.key === "Enter") doAdd(); });
@@ -920,308 +910,113 @@
 
       if (saveBtn) {
         saveBtn.addEventListener("click", async () => {
-          saveBtn.disabled = true;
-          saveBtn.textContent = "Saving…";
+          saveBtn.disabled = true; saveBtn.textContent = "Saving…";
           try {
-            const res = await fetch(COMPETITOR_CONFIG_URL, {
-              method: "POST",
-              headers: { "Content-Type": "application/json" },
-              body: JSON.stringify({ brand, competitors: localComps[brand] }),
-            });
+            const res = await fetch(COMPETITOR_CONFIG_URL, { method:"POST", headers:{"Content-Type":"application/json"}, body:JSON.stringify({ brand, competitors: localComps[brand] }) });
             if (!res.ok) throw new Error("Save failed");
             if (!competitorData) competitorData = {};
             competitorData[brand] = { competitors: localComps[brand] };
             const bar = container.querySelector(`#cm-comp-savebar-${brand}`);
-            if (bar) {
-              bar.style.background = "#f0fdf4";
-              bar.style.borderColor = "#86efac";
-              bar.querySelector("span").style.color = "#166534";
-              bar.querySelector("span").textContent = "✓ Saved! Changes apply on next Refresh Now.";
-              saveBtn.style.background = "#22c55e";
-              saveBtn.textContent = "Saved ✓";
-            }
-          } catch {
-            saveBtn.disabled = false;
-            saveBtn.textContent = "Save Changes";
-            alert("Failed to save. Please try again.");
-          }
+            if (bar) { bar.style.background="#f0fdf4"; bar.style.borderColor="#86efac"; bar.querySelector("span").style.color="#166534"; bar.querySelector("span").textContent="✓ Saved! Changes apply on next Refresh Now."; saveBtn.style.background="#22c55e"; saveBtn.textContent="Saved ✓"; }
+          } catch { saveBtn.disabled = false; saveBtn.textContent = "Save Changes"; alert("Failed to save."); }
         });
       }
-    });
+    }
   }
 
   function showDeleteModal(keyword, onConfirm) {
     const overlay = document.createElement("div");
     overlay.className = "cm-modal-overlay";
-    overlay.innerHTML = `
-      <div class="cm-modal">
-        <div class="cm-modal-title">Remove keyword?</div>
-        <div class="cm-modal-body">
-          You're about to stop tracking <span class="cm-modal-keyword">${keyword}</span>.<br><br>
-          This will remove it from the next refresh. Historical data already fetched won't be affected.
-        </div>
-        <div class="cm-modal-actions">
-          <button class="cm-modal-cancel">Cancel</button>
-          <button class="cm-modal-confirm">Yes, remove it</button>
-        </div>
-      </div>`;
-
+    overlay.innerHTML = `<div class="cm-modal">
+      <div class="cm-modal-title">Remove?</div>
+      <div class="cm-modal-body">You're about to stop tracking <span class="cm-modal-keyword">${esc(keyword)}</span>. Historical data already fetched won't be affected.</div>
+      <div class="cm-modal-actions">
+        <button class="cm-modal-cancel">Cancel</button>
+        <button class="cm-modal-confirm">Yes, remove it</button>
+      </div>
+    </div>`;
     document.body.appendChild(overlay);
-
     overlay.querySelector(".cm-modal-cancel").addEventListener("click", () => overlay.remove());
-    overlay.querySelector(".cm-modal-confirm").addEventListener("click", () => {
-      overlay.remove();
-      onConfirm();
-    });
-    overlay.addEventListener("click", (e) => { if (e.target === overlay) overlay.remove(); });
+    overlay.querySelector(".cm-modal-confirm").addEventListener("click", () => { overlay.remove(); onConfirm(); });
+    overlay.addEventListener("click", e => { if (e.target === overlay) overlay.remove(); });
   }
 
-
-  // ── Data loading ─────────────────────────────────────────────────────────
+  // ── Data loading ───────────────────────────────────────────────────────────
   async function loadKeywordConfig() {
-    try {
-      const res = await fetch(`${KEYWORD_CONFIG_URL}?brand=all`);
-      if (res.ok) keywordData = await res.json();
-    } catch {
-      // non-fatal
-    }
+    try { const r = await fetch(`${KEYWORD_CONFIG_URL}?brand=all`); if (r.ok) keywordData = await r.json(); } catch {}
   }
-
   async function loadCompetitorConfig() {
-    try {
-      const res = await fetch(`${COMPETITOR_CONFIG_URL}?brand=all`);
-      if (res.ok) competitorData = await res.json();
-    } catch {
-      // non-fatal — competitor management shows defaults
-    }
+    try { const r = await fetch(`${COMPETITOR_CONFIG_URL}?brand=all`); if (r.ok) competitorData = await r.json(); } catch {}
   }
 
   async function loadData(container, forceRefresh = false) {
     if (isLoading) return;
-    isLoading = true;
+    isLoading    = true;
+    pollAttempts = 0;
 
     if (pollTimer) { clearInterval(pollTimer); pollTimer = null; }
 
     if (forceRefresh) {
-      container.innerHTML = `
-        <div class="cm-loading">
-          <div class="cm-loading-spinner"></div>
-          <div>Refresh triggered — fetching live rankings from DataForSEO…</div>
-          <div class="cm-poll-status" id="cm-poll-status">Starting background job…</div>
-        </div>`;
-
+      container.innerHTML = `<div class="cm-loading"><div class="cm-loading-spinner"></div><div>Refresh triggered — fetching live rankings…</div><div class="cm-poll-status" id="cm-poll-status">Starting background job…</div></div>`;
       try { await fetch(BACKGROUND_URL, { method: "GET" }); } catch { /* 202 is fine */ }
 
-      // Record exact trigger time — both brands must have fetchedAt AFTER this
       const triggerTime = Date.now();
-
       pollTimer = setInterval(async () => {
-        attempts++;
+        pollAttempts++;
         const statusEl = document.getElementById("cm-poll-status");
-        if (statusEl) statusEl.textContent = `Checking for results… (${attempts * 30}s)`;
+        if (statusEl) statusEl.textContent = `Checking for results… (${pollAttempts * 30}s)`;
 
         try {
-          const res = await fetch(`${FUNCTION_URL}?brand=all`);
+          const res  = await fetch(`${FUNCTION_URL}?brand=all`);
           if (!res.ok) return;
           const data = await res.json();
-
           const picklFresh   = data?.pickl?.rows?.length   && new Date(data.pickl.fetchedAt).getTime()   > triggerTime;
           const bonbirdFresh = data?.bonbird?.rows?.length && new Date(data.bonbird.fetchedAt).getTime() > triggerTime;
 
           if (picklFresh && bonbirdFresh) {
             clearInterval(pollTimer); pollTimer = null;
-            matrixData = data;
-            isLoading = false;
-            currentView = "matrix";
-            render(container);
-          } else {
-            // Show progress so user knows it's working
-            if (statusEl) {
-              const done = [picklFresh && "Pickl ✓", bonbirdFresh && "Bonbird ✓"].filter(Boolean);
-              statusEl.textContent = done.length
-                ? `${done.join(", ")} done — waiting for ${done.length === 1 ? (picklFresh ? "Bonbird" : "Pickl") : ""}… (${attempts * 30}s)`
-                : `Fetching… (${attempts * 30}s)`;
-            }
-            if (attempts >= POLL_MAX_ATTEMPTS) {
-              clearInterval(pollTimer); pollTimer = null;
-              if (data?.pickl?.rows || data?.bonbird?.rows) matrixData = data;
-              isLoading = false;
-              render(container);
-            }
+            matrixData = data; isLoading = false;
+            switchView(container, "matrix");
+          } else if (pollAttempts >= POLL_MAX_ATTEMPTS) {
+            clearInterval(pollTimer); pollTimer = null;
+            if (data?.pickl?.rows || data?.bonbird?.rows) matrixData = data;
+            isLoading = false; switchView(container, "matrix");
           }
         } catch { /* keep polling */ }
       }, POLL_INTERVAL_MS);
 
     } else {
-      container.innerHTML = `
-        <div class="cm-loading">
-          <div class="cm-loading-spinner"></div>
-          <div>Loading competitor matrix…</div>
-        </div>`;
-
+      container.innerHTML = `<div class="cm-loading"><div class="cm-loading-spinner"></div><div>Loading competitor matrix…</div></div>`;
       try {
-        const [matrixRes] = await Promise.all([
-          fetch(`${FUNCTION_URL}?brand=all`),
-          loadKeywordConfig(),
-          loadCompetitorConfig(),
-        ]);
-
-        if (!matrixRes.ok) {
-          const err = await matrixRes.json().catch(() => ({ error: matrixRes.statusText }));
-          throw new Error(err.error || `HTTP ${matrixRes.status}`);
-        }
+        const [matrixRes] = await Promise.all([fetch(`${FUNCTION_URL}?brand=all`), loadKeywordConfig(), loadCompetitorConfig()]);
+        if (!matrixRes.ok) throw new Error(`HTTP ${matrixRes.status}`);
         matrixData = await matrixRes.json();
       } catch (err) {
-        console.error("[competitor-matrix-ui] Load error:", err);
-        container.innerHTML = `
-          <div class="cm-error">
-            <strong>Failed to load competitor rankings:</strong> ${err.message}<br>
-            <span style="font-size:0.75rem;opacity:0.7">Check your DataForSEO credentials in Netlify environment variables.</span>
-          </div>`;
-        isLoading = false;
-        return;
+        container.innerHTML = `<div class="cm-error"><strong>Failed to load:</strong> ${esc(err.message)}</div>`;
+        isLoading = false; return;
       }
-
       isLoading = false;
-      if (currentView === "keywords") renderKeywords(container); else if (currentView === "competitors") renderCompetitors(container); else render(container);
+      switchView(container, currentView);
     }
   }
 
-
-  // ── Init: find and replace the static section ────────────────────────────
+  // ── Init ───────────────────────────────────────────────────────────────────
   function init() {
     injectStyles();
-
-    // Try to find the existing static competitor matrix section
-    // Looks for the tab button "Competitor Matrix (SERP API)" or a known heading
-    let targetContainer = document.getElementById("competitor-matrix-live");
-
-    if (!targetContainer) {
-      // Try to find existing static table by heading text
-      const allHeadings = document.querySelectorAll("h2, h3, h4, .section-title, .tab-label");
-      for (const h of allHeadings) {
-        if (h.textContent.includes("Competitor Matrix")) {
-          // Get the nearest parent section/div and replace its content
-          const parent =
-            h.closest("section") ||
-            h.closest(".analytics-section") ||
-            h.closest(".card") ||
-            h.parentElement;
-          if (parent) {
-            parent.id = "competitor-matrix-live";
-            targetContainer = parent;
-            break;
-          }
-        }
-      }
+    let container = document.getElementById("competitor-matrix-live");
+    if (!container) {
+      const analyticsTab = document.getElementById("analytics") || document.querySelector('[data-tab="analytics"]');
+      if (analyticsTab) { const d = document.createElement("div"); d.id = "competitor-matrix-live"; analyticsTab.appendChild(d); container = d; }
     }
-
-    if (!targetContainer) {
-      // Fallback: find by the static table content
-      const tables = document.querySelectorAll("table");
-      for (const table of tables) {
-        if (
-          table.innerHTML.includes("smash burger dubai") ||
-          table.innerHTML.includes("Pickl Rank") ||
-          table.innerHTML.includes("Salt Rank")
-        ) {
-          const parent =
-            table.closest(".card") ||
-            table.closest("section") ||
-            table.parentElement;
-          if (parent) {
-            parent.id = "competitor-matrix-live";
-            targetContainer = parent;
-            break;
-          }
-        }
-      }
-    }
-
-    if (!targetContainer) {
-      // Last resort: append after the GSC rankings table
-      const analyticsTab = document.getElementById("analytics") ||
-        document.querySelector('[data-tab="analytics"]') ||
-        document.querySelector(".analytics-tab");
-
-      if (analyticsTab) {
-        const newDiv = document.createElement("div");
-        newDiv.id = "competitor-matrix-live";
-        analyticsTab.appendChild(newDiv);
-        targetContainer = newDiv;
-      }
-    }
-
-    if (!targetContainer) {
-      console.warn("[competitor-matrix-ui] Could not find Analytics tab container. Check your HTML structure.");
-      return;
-    }
-
-    loadData(targetContainer, false);
+    if (!container) { console.warn("[competitor-matrix-ui] Container not found"); return; }
+    loadData(container, false);
   }
 
-  // ── Watch for tab switches ───────────────────────────────────────────────
-  // Initialise immediately if Analytics tab is visible, otherwise wait
-  function waitForAnalyticsTab() {
-    // Check if already on analytics tab
-    const analyticsPanel =
-      document.getElementById("analytics") ||
-      document.querySelector('[role="tabpanel"][data-tab="analytics"]');
+  if (document.readyState === "loading") document.addEventListener("DOMContentLoaded", init);
+  else init();
 
-    if (analyticsPanel && analyticsPanel.style.display !== "none" &&
-        !analyticsPanel.hidden) {
-      init();
-      return;
-    }
-
-    // Watch for tab click events
-    const tabButtons = document.querySelectorAll(
-      '[data-tab], .tab-btn, .nav-tab, button[onclick]'
-    );
-    tabButtons.forEach((btn) => {
-      const isAnalyticsTab =
-        btn.dataset.tab === "analytics" ||
-        btn.textContent.includes("Analytics");
-
-      if (isAnalyticsTab) {
-        btn.addEventListener("click", () => {
-          // Small delay to let the tab panel show
-          setTimeout(init, 50);
-        });
-      }
-    });
-
-    // Also use MutationObserver as fallback
-    const observer = new MutationObserver(() => {
-      const panel =
-        document.getElementById("analytics") ||
-        document.querySelector('[data-tab="analytics"]');
-      if (panel && getComputedStyle(panel).display !== "none") {
-        init();
-        observer.disconnect();
-      }
-    });
-    observer.observe(document.body, { attributes: true, subtree: true });
-  }
-
-  // ── Bootstrap ────────────────────────────────────────────────────────────
-  if (document.readyState === "loading") {
-    document.addEventListener("DOMContentLoaded", waitForAnalyticsTab);
-  } else {
-    waitForAnalyticsTab();
-  }
-
-  // Expose globally for manual trigger and for switchAnalyticsView hook
   window.competitorMatrix = {
-    // Called by switchAnalyticsView when comp tab is clicked
-    init: () => {
-      const c = document.getElementById("competitor-matrix-live");
-      if (c && !matrixData) loadData(c, false); // only load if not already loaded
-    },
-    // Force a fresh DataForSEO pull from browser console
-    reload: () => {
-      const c = document.getElementById("competitor-matrix-live");
-      if (c) loadData(c, true);
-    },
+    init: () => { const c = document.getElementById("competitor-matrix-live"); if (c && !matrixData) loadData(c, false); },
+    reload: () => { const c = document.getElementById("competitor-matrix-live"); if (c) loadData(c, true); },
   };
 })();

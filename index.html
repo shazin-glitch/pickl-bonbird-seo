@@ -515,6 +515,32 @@
           <div id="report-opportunities" style="display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));gap:12px"></div>
         </div>
 
+        <!-- Row 5: Competitor Gaps -->
+        <div class="card" style="margin-bottom:24px">
+          <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:16px">
+            <div style="font-weight:600;font-size:14px">⚔️ Competitor Gaps</div>
+            <a onclick="switchView('analytics');setTimeout(()=>{document.querySelector('[data-view=gaps]')?.click()},400)" style="font-size:12px;color:var(--primary);cursor:pointer">View full analysis →</a>
+          </div>
+          <div id="report-competitor-gaps"></div>
+        </div>
+
+        <!-- Row 6: GA4 Website Traffic -->
+        <div class="card" style="margin-bottom:24px" id="report-ga4-section">
+          <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:4px">
+            <div style="font-weight:600;font-size:14px">🌍 Website Traffic (GA4)</div>
+            <div id="report-ga4-status" style="font-size:11px;color:var(--text-muted)"></div>
+          </div>
+          <div style="font-size:12px;color:var(--text-muted);margin-bottom:16px">Organic sessions from Google Search · requires GA4 installed on WordPress</div>
+          <div id="report-ga4"></div>
+        </div>
+
+        <!-- Row 7: AI Search Presence (LLM Mentions) -->
+        <div class="card" style="margin-bottom:24px">
+          <div style="font-weight:600;font-size:14px;margin-bottom:4px">🤖 AI Search Presence</div>
+          <div style="font-size:12px;color:var(--text-muted);margin-bottom:16px">Does ChatGPT, Perplexity, Claude or Gemini mention you when recommending restaurants?</div>
+          <div id="report-llm-mentions"></div>
+        </div>
+
         <!-- Performance Summary -->
         <div class="card" style="background:linear-gradient(135deg,#1e293b,#0f172a);border-color:#334155">
           <div style="font-weight:600;font-size:14px;margin-bottom:16px;color:#f1f5f9">📋 Performance Summary</div>
@@ -878,6 +904,12 @@
             <label class="form-label">Google Business Profile</label>
             <button class="btn btn-outline" style="width:100%;justify-content:center" id="gbp-connect-btn" onclick="connectGbp()">Connect Google Business Profile</button>
             <div id="gbp-connect-status" style="font-size:12px;color:var(--text-muted);margin-top:4px"></div>
+          </div>
+          <div class="form-group">
+            <label class="form-label">Google Analytics 4</label>
+            <button class="btn btn-outline" style="width:100%;justify-content:center" id="ga4-connect-btn" onclick="connectGa4()">Connect Google Analytics 4</button>
+            <div id="ga4-connect-status" style="font-size:12px;color:var(--text-muted);margin-top:4px"></div>
+            <div style="font-size:11px;color:var(--text-muted);margin-top:6px">⚠ Requires GA4 tracking installed on WordPress first. Env vars needed: <code>GA4_PROPERTY_ID_PICKL</code>, <code>GA4_PROPERTY_ID_BONBIRD</code></div>
           </div>
         </div>
 
@@ -1310,6 +1342,14 @@ const TYPE_TAGS = {
     switchView('localseo');
   }
 
+  // Handle GA4 OAuth redirect
+  if (urlParams.get('ga4_connected') === '1') {
+    window.history.replaceState({}, '', '/');
+    showToast('✅ Google Analytics 4 connected! Open Reports to see traffic data.', 'success');
+    state.ga4Connected = true;
+    checkGa4Connection();
+  }
+
   // Set dashboard metrics to ready state immediately — update when GSC loads
   document.getElementById('metric-pickl-trend').innerHTML = '<span style="color:var(--text-muted)">Open Analytics tab to load</span>';
   document.getElementById('metric-bonbird-trend').innerHTML = '<span style="color:var(--text-muted)">Open Analytics tab to load</span>';
@@ -1363,7 +1403,7 @@ function switchView(target) {
   if (target === 'reports')       loadReports();
   if (target === 'techseo')       { loadTechnicalSeo(); loadTechDevKanban(techSeoState.brand); }
   if (target === 'localseo')      loadLocalSeo();
-  if (target === 'settings')      { renderAuditLog(); loadBrandCtx(); loadBrandExamples(); loadSlackWebhook(); checkGbpConnection(); if (state.userRole === 'admin') { document.getElementById('users-panel').style.display = ''; loadUsersPanel(); } }
+  if (target === 'settings')      { renderAuditLog(); loadBrandCtx(); loadBrandExamples(); loadSlackWebhook(); checkGbpConnection(); checkGa4Connection(); if (state.userRole === 'admin') { document.getElementById('users-panel').style.display = ''; loadUsersPanel(); } }
   if (target === 'international') loadIntlDashboard();
   if (target === 'howto')         loadHowItWorks();
 }
@@ -1528,7 +1568,7 @@ function renderGscTable() {
       <td><span class="rank-badge ${posClass}">#${r.position}</span></td>
       <td>${r.clicks.toLocaleString()}</td>
       <td>${r.impressions.toLocaleString()}</td>
-      <td>${r.ctr}%</td>
+      <td>${r.ctr != null ? (r.ctr * 100).toFixed(1) + '%' : '—'}</td>
       <td>${r.position < 10 ? '<span class="trend-up">▲</span>' : r.position > 20 ? '<span class="trend-down">▼</span>' : '→'}</td>
     </tr>`;
   }).join('');
@@ -3469,13 +3509,19 @@ async function loadReports() {
     techData = await fetch(`/api/technical-seo?brand=${brand}`, { credentials: 'include' }).then(r => r.json());
   } catch {}
 
+  // Load competitor matrix for gap analysis
+  let matrixData = null;
+  try {
+    matrixData = await fetch(`/api/competitor-matrix?brand=${brand}`, { credentials: 'include' }).then(r => r.json());
+  } catch {}
+
   // Load approvals for pipeline data
   const allQueue = state.queue || [];
 
-  renderReports(brand, gscRows, techData, allQueue);
+  renderReports(brand, gscRows, techData, allQueue, matrixData);
 }
 
-function renderReports(brand, rows, techData, queue) {
+function renderReports(brand, rows, techData, queue, matrixData) {
   document.getElementById('report-loading').style.display = 'none';
   document.getElementById('report-content').style.display = '';
 
@@ -3519,7 +3565,7 @@ function renderReports(brand, rows, techData, queue) {
     .sort((a, b) => (b.impressions || 0) - (a.impressions || 0));
   const quickWins     = quickWinRows.length;
 
-  const lowCtrRows    = rows.filter(r => r.position <= 10 && r.impressions >= 100 && r.ctr < (30 / r.position))
+  const lowCtrRows    = rows.filter(r => r.position <= 10 && r.impressions >= 100 && r.ctr < (0.30 / r.position))
     .sort((a, b) => (b.impressions || 0) - (a.impressions || 0));
   const lowCtr        = lowCtrRows.length;
 
@@ -3548,6 +3594,7 @@ function renderReports(brand, rows, techData, queue) {
   if (state.reportOpportunities) state.reportOpportunities.avgMobile = avgMobile;
   const anyLcpBad = scored.some(r => r.mobile?.metrics?.lcp?.status === 'poor');
   const gbpConnected = !!state.gbpConnected;
+  const ga4Connected = !!state.ga4Connected;
 
   const readinessChecks = [
     { label: 'HTTPS enforced',         pass: true,                              note: 'Domain uses HTTPS' },
@@ -3556,6 +3603,7 @@ function renderReports(brand, rows, techData, queue) {
     { label: 'Mobile page speed',      pass: avgMobile !== null && avgMobile >= 70, note: avgMobile ? `${avgMobile}/100 mobile avg${avgMobile < 70 ? ' — below Google threshold' : ''}` : 'Run Technical SEO audit first' },
     { label: 'LCP under 2.5s',         pass: !anyLcpBad && avgMobile !== null, note: anyLcpBad ? 'Pages failing LCP — blocks AI Overview eligibility' : avgMobile ? 'Passing' : 'Run audit to check' },
     { label: 'Google Business Profile', pass: gbpConnected, note: gbpConnected ? 'Connected — location data syncing' : 'Not yet integrated — critical for local restaurant search' },
+    { label: 'Google Analytics 4',     pass: ga4Connected, note: ga4Connected ? 'Connected — traffic data available' : 'Not connected — install GA4 on WordPress, then connect in Settings' },
   ];
   const readinessScore = readinessChecks.filter(c => c.pass).length;
 
@@ -3566,7 +3614,7 @@ function renderReports(brand, rows, techData, queue) {
     { label: 'Top 10 Keywords', value: top10.toLocaleString(), sub: `${top10NonBranded} non-branded · ${top10Branded} branded · ${top3} in top 3`, color: '#059669', icon: '🏆' },
     { label: 'Impressions (90d)', value: totalImpressions.toLocaleString(), sub: `${rows.length} total keywords · GSC`, color: '#3b82f6', icon: '👁️' },
     { label: 'Clicks (90d)',      value: totalClicks.toLocaleString(), sub: `${((totalClicks/Math.max(totalImpressions,1))*100).toFixed(1)}% avg CTR · GSC`, color: '#8b5cf6', icon: '👆' },
-    { label: 'Traffic Value',     value: 'AED ' + trafficValue.toLocaleString('en', {minimumFractionDigits:0}), sub: hasCpcData ? `Non-branded · DataForSEO CPC` : `Non-branded · AED 5/click est.`, color: '#d97706', icon: '💰' },
+    { label: 'Traffic Value',     value: 'AED ' + trafficValue.toLocaleString('en', {minimumFractionDigits:0}), sub: hasCpcData ? `Non-branded · DataForSEO CPC × 3.67` : `Non-branded · AED 5/click (no CPC data yet)`, color: '#d97706', icon: '💰' },
   ].map(m => `
     <div class="card" style="text-align:center;padding:20px 16px">
       <div style="font-size:24px;margin-bottom:8px">${m.icon}</div>
@@ -3633,7 +3681,7 @@ function renderReports(brand, rows, techData, queue) {
             <td style="text-align:center;padding:8px"><span style="background:${posColor}20;color:${posColor};padding:2px 8px;border-radius:12px;font-weight:700;font-size:12px">${Math.round(r.position)}</span></td>
             <td style="text-align:right;padding:8px;color:var(--text-muted)">${(r.impressions||0).toLocaleString()}</td>
             <td style="text-align:right;padding:8px;color:var(--text-muted)">${(r.clicks||0).toLocaleString()}</td>
-            <td style="text-align:right;padding:8px;color:var(--text-muted)">${r.ctr || '0'}%</td>
+            <td style="text-align:right;padding:8px;color:var(--text-muted)">${r.ctr != null ? (r.ctr * 100).toFixed(1) + '%' : '—'}</td>
           </tr>`;
         }).join('')}
       </tbody>
@@ -3685,6 +3733,52 @@ function renderReports(brand, rows, techData, queue) {
     document.getElementById('report-opportunities').after(panel);
   }
 
+  // ── Competitor Gaps ──────────────────────────────────────────
+  const gapsEl = document.getElementById('report-competitor-gaps');
+  if (gapsEl) {
+    const matrixRows = matrixData?.rows || [];
+    const gapRows = [];
+    for (const row of matrixRows) {
+      if (row.ourRank !== null && row.ourRank <= 30) continue;
+      for (const [comp, rank] of Object.entries(row.competitorRanks || {})) {
+        if (rank && rank <= 20) {
+          gapRows.push({ keyword: row.keyword, competitor: comp, competitorRank: rank, ourRank: row.ourRank });
+        }
+      }
+    }
+    gapRows.sort((a, b) => a.competitorRank - b.competitorRank);
+    const top5 = gapRows.slice(0, 5);
+
+    if (!matrixRows.length) {
+      gapsEl.innerHTML = `<div style="font-size:13px;color:var(--text-muted);padding:8px 0">No competitor data yet — run the matrix from Analytics & ROI tab to see gaps here.</div>`;
+    } else if (!top5.length) {
+      gapsEl.innerHTML = `<div style="font-size:13px;color:#059669;font-weight:500">✅ No gaps found in tracked keywords — you rank for everything competitors do.</div>`;
+    } else {
+      gapsEl.innerHTML = `
+        <div style="font-size:12px;color:var(--text-muted);margin-bottom:10px">Keywords where competitors rank top 20 and you don't appear — top ${top5.length} by competitor ranking</div>
+        <table style="width:100%;border-collapse:collapse;font-size:13px">
+          <thead>
+            <tr style="border-bottom:2px solid var(--border)">
+              <th style="text-align:left;padding:6px 12px;font-size:11px;color:var(--text-muted);font-weight:700;text-transform:uppercase">Keyword</th>
+              <th style="text-align:left;padding:6px 12px;font-size:11px;color:var(--text-muted);font-weight:700;text-transform:uppercase">Who Ranks</th>
+              <th style="text-align:left;padding:6px 12px;font-size:11px;color:var(--text-muted);font-weight:700;text-transform:uppercase">Their Pos</th>
+              <th style="text-align:left;padding:6px 12px;font-size:11px;color:var(--text-muted);font-weight:700;text-transform:uppercase">Your Pos</th>
+            </tr>
+          </thead>
+          <tbody>
+            ${top5.map((r, i) => `
+              <tr style="border-bottom:1px solid var(--border);background:${i%2?'transparent':'rgba(0,0,0,0.015)'}">
+                <td style="padding:8px 12px;font-weight:600">${esc(r.keyword)}</td>
+                <td style="padding:8px 12px;color:var(--text-muted)">${esc(r.competitor)}</td>
+                <td style="padding:8px 12px"><span style="background:#fee2e2;color:#dc2626;font-weight:700;padding:2px 8px;border-radius:4px;font-size:12px">#${r.competitorRank}</span></td>
+                <td style="padding:8px 12px;font-size:12px;color:#94a3b8">${r.ourRank ? '#'+r.ourRank : 'Not ranking'}</td>
+              </tr>`).join('')}
+          </tbody>
+        </table>
+        ${gapRows.length > 5 ? `<div style="margin-top:10px;font-size:12px;color:var(--text-muted)">+${gapRows.length - 5} more gaps — <a onclick="switchView('analytics');setTimeout(()=>{document.querySelector('[data-view=gaps]')?.click()},400)" style="color:var(--primary);cursor:pointer">view all in Analytics →</a></div>` : ''}`;
+    }
+  }
+
   // Performance Summary
   const talkingPoints = [
     `<strong>What's running:</strong> Every Monday at 8am Dubai, The Nest identifies keyword opportunities, writes ${brandName}-branded content, and queues it for approval. Zero manual effort on content research.`,
@@ -3698,6 +3792,255 @@ function renderReports(brand, rows, techData, queue) {
   ].filter(Boolean);
 
   document.getElementById('report-talking-points').innerHTML = talkingPoints.map(p => `<div style="margin-bottom:12px;padding-left:12px;border-left:2px solid #475569">• ${p}</div>`).join('');
+
+  // Load GA4 and LLM mentions in parallel (non-blocking)
+  loadGa4Report(brand).catch(() => {});
+  loadLlmMentions(brand).catch(() => {});
+}
+
+
+// ═══════════════════════════════════════════════════════════════
+// GA4 WEBSITE TRAFFIC
+// ═══════════════════════════════════════════════════════════════
+
+function connectGa4() {
+  window.location.href = '/api/auth/login?type=ga4';
+}
+
+async function checkGa4Connection() {
+  const btn    = document.getElementById('ga4-connect-btn');
+  const status = document.getElementById('ga4-connect-status');
+  if (!btn || !status) return;
+  try {
+    const data = await fetch('/api/ga4-data?brand=pickl', { credentials: 'include' }).then(r => r.json());
+    if (data.notConnected) {
+      btn.textContent = 'Connect Google Analytics 4';
+      status.textContent = '';
+      state.ga4Connected = false;
+    } else if (data.noPropertyId) {
+      btn.textContent = 'Reconnect GA4';
+      status.textContent = `✓ Auth connected — add ${data.envVar} env var in Netlify to activate`;
+      status.style.color = 'var(--warning, #d97706)';
+      state.ga4Connected = false;
+    } else {
+      btn.textContent = 'Reconnect GA4';
+      status.textContent = `✓ Connected — data syncing`;
+      status.style.color = 'var(--success)';
+      state.ga4Connected = true;
+    }
+  } catch { state.ga4Connected = false; }
+}
+
+async function loadGa4Report(brand) {
+  const el = document.getElementById('report-ga4');
+  if (!el) return;
+
+  el.innerHTML = `<div style="font-size:13px;color:var(--text-muted)">Loading…</div>`;
+
+  try {
+    const data = await fetch(`/api/ga4-data?brand=${brand}`, { credentials: 'include' }).then(r => r.json());
+
+    if (data.notConnected) {
+      el.innerHTML = `
+        <div style="display:flex;align-items:center;gap:16px;padding:12px;background:rgba(255,255,255,0.03);border-radius:8px;border:1px solid rgba(255,255,255,0.07)">
+          <div style="font-size:32px">📊</div>
+          <div>
+            <div style="font-weight:600;font-size:13px;margin-bottom:4px">Google Analytics 4 not connected</div>
+            <div style="font-size:12px;color:var(--text-muted);margin-bottom:8px">Connect GA4 to see organic sessions, market breakdown, and LLM referral traffic.</div>
+            <button class="btn btn-outline" style="font-size:12px;padding:4px 12px" onclick="connectGa4()">Connect GA4</button>
+          </div>
+        </div>`;
+      document.getElementById('report-ga4-status').textContent = 'Not connected';
+      return;
+    }
+
+    if (data.noPropertyId) {
+      el.innerHTML = `<div style="font-size:13px;color:#d97706;padding:8px 0">✓ GA4 OAuth connected. Add <code style="background:rgba(0,0,0,0.1);padding:1px 5px;border-radius:3px">${data.envVar}</code> to Netlify environment variables to activate reporting.</div>`;
+      return;
+    }
+
+    if (data.error) {
+      el.innerHTML = `<div style="font-size:13px;color:#f87171">GA4 error: ${esc(data.error)}</div>`;
+      return;
+    }
+
+    // Render monthly chart + summary
+    const monthly = (data.monthly || []).slice(-12);
+    const maxSessions = Math.max(...monthly.map(m => m.sessions), 1);
+    const totalSessions = data.totalOrganicSessions || 0;
+    const llmTotal = data.llmReferralTotal || 0;
+
+    document.getElementById('report-ga4-status').innerHTML = `<span style="color:var(--success)">✓ GA4 connected</span> · ${esc(data.propertyId)}`;
+
+    const barWidth = 100 / Math.max(monthly.length, 1);
+
+    el.innerHTML = `
+      <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:12px;margin-bottom:16px">
+        <div style="background:rgba(255,255,255,0.03);border:1px solid rgba(255,255,255,0.07);border-radius:8px;padding:12px 14px">
+          <div style="font-size:11px;text-transform:uppercase;letter-spacing:0.05em;color:var(--text-muted);margin-bottom:4px">Organic Sessions (12m)</div>
+          <div style="font-size:1.4rem;font-weight:700">${totalSessions.toLocaleString()}</div>
+        </div>
+        <div style="background:rgba(255,255,255,0.03);border:1px solid rgba(255,255,255,0.07);border-radius:8px;padding:12px 14px">
+          <div style="font-size:11px;text-transform:uppercase;letter-spacing:0.05em;color:var(--text-muted);margin-bottom:4px">LLM Referral Traffic (90d)</div>
+          <div style="font-size:1.4rem;font-weight:700">${llmTotal.toLocaleString()}</div>
+          <div style="font-size:11px;color:var(--text-muted)">from AI assistants</div>
+        </div>
+        <div style="background:rgba(255,255,255,0.03);border:1px solid rgba(255,255,255,0.07);border-radius:8px;padding:12px 14px">
+          <div style="font-size:11px;text-transform:uppercase;letter-spacing:0.05em;color:var(--text-muted);margin-bottom:4px">Markets Tracked</div>
+          <div style="font-size:1.4rem;font-weight:700">${(data.marketPaths || []).length}</div>
+        </div>
+      </div>
+      <div style="margin-bottom:16px">
+        <div style="font-size:12px;font-weight:600;color:var(--text-muted);margin-bottom:8px;text-transform:uppercase;letter-spacing:0.04em">Monthly Organic Sessions — Last 12 Months</div>
+        <div style="display:flex;align-items:flex-end;gap:3px;height:80px">
+          ${monthly.map(m => {
+            const h    = Math.max(4, Math.round((m.sessions / maxSessions) * 76));
+            const yy   = String(m.month).slice(0,4);
+            const mm   = String(m.month).slice(4,6);
+            const label = new Date(yy, parseInt(mm) - 1).toLocaleDateString('en-GB', { month:'short' });
+            return `<div style="flex:1;display:flex;flex-direction:column;align-items:center;gap:2px">
+              <div title="${m.sessions.toLocaleString()} sessions in ${label} ${yy}" style="width:100%;height:${h}px;background:var(--primary,#f59e0b);border-radius:3px 3px 0 0;opacity:0.85"></div>
+              <div style="font-size:9px;color:var(--text-muted);writing-mode:vertical-rl;transform:rotate(180deg);height:28px">${label}</div>
+            </div>`;
+          }).join('')}
+        </div>
+      </div>
+      <div style="font-size:11px;color:var(--text-muted);text-align:right">Source: Google Analytics 4 · Organic Search channel only</div>`;
+
+  } catch (err) {
+    el.innerHTML = `<div style="font-size:13px;color:var(--text-muted)">Failed to load GA4 data: ${esc(err.message)}</div>`;
+  }
+}
+
+
+// ═══════════════════════════════════════════════════════════════
+// LLM MENTION TRACKER
+// ═══════════════════════════════════════════════════════════════
+
+async function loadLlmMentions(brand) {
+  const el = document.getElementById('report-llm-mentions');
+  if (!el) return;
+
+  el.innerHTML = `<div style="font-size:13px;color:var(--text-muted)">Loading…</div>`;
+
+  try {
+    const data  = await fetch(`/api/llm-mentions?brand=${brand}`, { credentials: 'include' }).then(r => r.json());
+    const bData = data[brand] || {};
+    const latest = bData.latest;
+
+    if (!latest) {
+      el.innerHTML = `
+        <div style="padding:16px;background:rgba(255,255,255,0.03);border:1px solid rgba(255,255,255,0.07);border-radius:8px">
+          <div style="font-weight:600;font-size:13px;margin-bottom:6px">No data yet</div>
+          <div style="font-size:12px;color:var(--text-muted);margin-bottom:12px">LLM tracking runs every Monday alongside the content pipeline. Add API keys to see data:</div>
+          <div style="display:flex;flex-wrap:wrap;gap:6px;font-size:11px">
+            <code style="background:rgba(0,0,0,0.08);padding:2px 7px;border-radius:3px">OPENAI_API_KEY</code>
+            <code style="background:rgba(0,0,0,0.08);padding:2px 7px;border-radius:3px">PERPLEXITY_API_KEY</code>
+            <code style="background:rgba(0,0,0,0.08);padding:2px 7px;border-radius:3px">GEMINI_API_KEY</code>
+            <code style="background:rgba(0,0,0,0.08);padding:2px 7px;border-radius:3px">ANTHROPIC_API_KEY ✓</code>
+          </div>
+        </div>`;
+      return;
+    }
+
+    const llms       = ['claude','openai','perplexity','gemini'];
+    const llmLabels  = { claude:'Claude (Anthropic)', openai:'ChatGPT (OpenAI)', perplexity:'Perplexity', gemini:'Gemini (Google)' };
+    const llmEmoji   = { claude:'🤖', openai:'💬', perplexity:'🔍', gemini:'✨' };
+    const summary    = latest.summary || {};
+    const brandName  = brand === 'pickl' ? 'Pickl' : 'Bonbird';
+    const dateStr    = latest.date ? new Date(latest.date).toLocaleDateString('en-GB', { day:'numeric', month:'short', year:'numeric' }) : '';
+
+    el.innerHTML = `
+      <div style="font-size:11px;color:var(--text-muted);margin-bottom:12px">Last checked: ${dateStr} · ${latest.totalQueries || 0} queries sent across ${llms.length} LLMs</div>
+      <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));gap:12px;margin-bottom:16px">
+        ${llms.map(llm => {
+          const d = summary[llm] || {};
+          if (!d.available) return `<div style="background:rgba(255,255,255,0.03);border:1px solid rgba(255,255,255,0.07);border-radius:8px;padding:12px">
+            <div style="font-size:11px;font-weight:600;color:var(--text-muted);margin-bottom:4px">${llmEmoji[llm]} ${llmLabels[llm]}</div>
+            <div style="font-size:12px;color:var(--text-muted);font-style:italic">Not configured</div>
+          </div>`;
+          const pct   = d.pct || 0;
+          const color = pct >= 60 ? '#10b981' : pct >= 30 ? '#f59e0b' : '#ef4444';
+          return `<div style="background:rgba(255,255,255,0.03);border:1px solid rgba(255,255,255,0.07);border-radius:8px;padding:12px">
+            <div style="font-size:11px;font-weight:600;color:var(--text-muted);margin-bottom:6px">${llmEmoji[llm]} ${llmLabels[llm]}</div>
+            <div style="font-size:1.6rem;font-weight:700;color:${color}">${pct}%</div>
+            <div style="font-size:11px;color:var(--text-muted)">${d.mentioned}/${d.total} queries mentioned ${brandName}</div>
+            <div style="margin-top:6px;height:4px;border-radius:2px;background:rgba(255,255,255,0.06)">
+              <div style="height:100%;border-radius:2px;background:${color};width:${pct}%"></div>
+            </div>
+          </div>`;
+        }).join('')}
+      </div>
+      ${renderLlmHistory(bData.history || [], brandName)}
+      ${renderLlmQueryDetails(latest.results || [], brandName)}`;
+
+  } catch (err) {
+    el.innerHTML = `<div style="font-size:13px;color:var(--text-muted)">Failed to load: ${esc(err.message)}</div>`;
+  }
+}
+
+function renderLlmHistory(history, brandName) {
+  if (history.length < 2) return '';
+  const dates   = history.map(h => h.date).slice(-8);
+  const llms    = ['claude','openai','perplexity','gemini'];
+  const colors  = { claude:'#f59e0b', openai:'#10b981', perplexity:'#6366f1', gemini:'#ef4444' };
+
+  const W = 500, H = 120, PL = 30, PT = 10, PB = 30, PR = 10;
+  const cw = W - PL - PR, ch = H - PT - PB;
+  const xStep = cw / Math.max(dates.length - 1, 1);
+
+  function px(i) { return PL + i * xStep; }
+  function py(v) { return PT + ch - (v / 100) * ch; }
+
+  let lines = '';
+  let legend = '';
+  for (const llm of llms) {
+    const color = colors[llm];
+    const hasData = history.some(h => h.summary?.[llm]?.available);
+    if (!hasData) continue;
+    const pts = dates.map((d, i) => {
+      const h = history.find(h => h.date === d);
+      const v = h?.summary?.[llm]?.pct ?? 0;
+      return `${px(i).toFixed(1)},${py(v).toFixed(1)}`;
+    }).join(' ');
+    lines += `<polyline points="${pts}" fill="none" stroke="${color}" stroke-width="2" stroke-linejoin="round" opacity="0.8"/>`;
+    legend += `<span style="display:inline-flex;align-items:center;gap:4px;font-size:11px;color:#475569"><span style="width:12px;height:2px;background:${color};border-radius:1px;display:inline-block"></span>${llm}</span>`;
+  }
+
+  let xLabels = '';
+  dates.forEach((d, i) => {
+    const short = new Date(d).toLocaleDateString('en-GB', { month:'short', day:'numeric' });
+    xLabels += `<text x="${px(i).toFixed(1)}" y="${H - 4}" text-anchor="middle" fill="#64748b" font-size="9">${short}</text>`;
+  });
+
+  return `
+    <div style="margin-bottom:16px">
+      <div style="font-size:11px;font-weight:600;color:var(--text-muted);text-transform:uppercase;letter-spacing:0.04em;margin-bottom:6px">${brandName} LLM Mention Rate — Trend</div>
+      <svg viewBox="0 0 ${W} ${H}" style="width:100%;max-width:${W}px;overflow:visible;display:block">
+        <line x1="${PL}" y1="${PT}" x2="${PL}" y2="${PT+ch}" stroke="rgba(255,255,255,0.1)" stroke-width="1"/>
+        <text x="${PL-4}" y="${py(100).toFixed(1)}" text-anchor="end" fill="#64748b" font-size="9" dominant-baseline="middle">100%</text>
+        <text x="${PL-4}" y="${py(50).toFixed(1)}"  text-anchor="end" fill="#64748b" font-size="9" dominant-baseline="middle">50%</text>
+        <line x1="${PL}" y1="${py(50).toFixed(1)}" x2="${W-PR}" y2="${py(50).toFixed(1)}" stroke="rgba(255,255,255,0.05)" stroke-width="1" stroke-dasharray="4,4"/>
+        ${lines}${xLabels}
+      </svg>
+      <div style="display:flex;gap:10px;flex-wrap:wrap;margin-top:4px">${legend}</div>
+    </div>`;
+}
+
+function renderLlmQueryDetails(results, brandName) {
+  const mentions = results.filter(r => r.mentioned && r.context);
+  if (!mentions.length) return '';
+  return `
+    <div>
+      <div style="font-size:11px;font-weight:600;color:var(--text-muted);text-transform:uppercase;letter-spacing:0.04em;margin-bottom:8px">${brandName} mentioned — Context</div>
+      <div style="display:flex;flex-direction:column;gap:8px">
+        ${mentions.slice(0,5).map(r => `
+          <div style="background:rgba(16,185,129,0.06);border:1px solid rgba(16,185,129,0.15);border-radius:6px;padding:8px 12px">
+            <div style="font-size:11px;color:var(--text-muted);margin-bottom:3px">${esc(r.llm)} · "${esc(r.query)}"</div>
+            <div style="font-size:12px;color:var(--text);font-style:italic">${esc(r.context)}</div>
+          </div>`).join('')}
+      </div>
+    </div>`;
 }
 
 
@@ -3962,9 +4305,13 @@ function toggleOpportunityDrill(key) {
     cols  = ['keyword'];
   }
 
-  const fmtCtr = v => v != null ? (v * 100).toFixed(1) + '%' : '—';
+  // CTR formatter — storage is always decimal (0-1), display multiplies by 100
+  const fmtCtr = v => {
+    if (v == null) return '—';
+    return (v * 100).toFixed(1) + '%';
+  };
   const fmtPos = v => v != null ? Math.round(v * 10) / 10 : '—';
-  const expectedCtr = pos => pos ? (30 / pos).toFixed(1) + '%' : '—';
+  const expectedCtr = pos => pos ? (0.30 / pos * 100).toFixed(1) + '%' : '—';
 
   const colLabels = {
     keyword: 'Keyword', position: 'Position', impressions: 'Impressions (90d)',
