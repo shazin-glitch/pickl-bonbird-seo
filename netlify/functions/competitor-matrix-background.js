@@ -8,15 +8,21 @@
 //   - Stores weekly SoV snapshots for trend charting
 //   - Captures SERP features (featured snippet, local pack, PAA, video) per keyword
 //
+// Pass 2 additions (June 2026):
+//   - Fetches top 50 NON-BRANDED ranked keywords per competitor via DataForSEO Labs
+//   - Uses domain_brand_filters to strip out branded search terms before selecting top 50
+//   - Stores in competitorRankedKeywords:<brand> — drives real gap + content strategy
+//
 // Schedule: Monday 4:00am UTC = Monday 8:00am Dubai time (UTC+4)
 
 const { getStore } = require("@netlify/blobs");
 
-const CACHE_KEY_PREFIX      = "competitorMatrix:";
-const COMPETITOR_KEY_PREFIX = "competitorConfig:";
-const KEYWORD_KEY_PREFIX    = "keywordConfig:";
-const AUTO_DETECT_KEY       = "autoDetectedCompetitors:";
-const SOV_HISTORY_KEY       = "sovHistory:";
+const CACHE_KEY_PREFIX           = "competitorMatrix:";
+const COMPETITOR_KEY_PREFIX      = "competitorConfig:";
+const KEYWORD_KEY_PREFIX         = "keywordConfig:";
+const AUTO_DETECT_KEY            = "autoDetectedCompetitors:";
+const SOV_HISTORY_KEY            = "sovHistory:";
+const RANKED_KEYWORDS_KEY        = "competitorRankedKeywords:";
 
 // Domains to ignore for auto-detection — aggregators, social, directories
 const AGGREGATOR_DOMAINS = new Set([
@@ -26,6 +32,42 @@ const AGGREGATOR_DOMAINS = new Set([
   "tiktok.com","linkedin.com","yelp.com","foursquare.com","maps.google.com",
   "openrice.com","hungerstation.com","noon.com","amazon.ae","wikipedia.org",
 ]);
+
+// ── Brand name filter map ─────────────────────────────────────────────────────
+// Per competitor domain: all branded search terms to EXCLUDE before selecting top 50.
+// Rule: include brand name, common misspellings, concatenated versions (no space),
+// abbreviations. When in doubt, exclude — false exclusion costs nothing.
+const BRAND_KEYWORD_FILTERS = {
+  // Pickl competitors
+  "saltuae.com":          ["salt", "saltt", "salt burger", "salt uae", "salt restaurant", "salt dubai", "salt burgers"],
+  "highjoint.co":         ["high joint", "highjoint", "the high joint", "high joint dubai"],
+  "shakeshack.com":       ["shake shack", "shakeshack", "shack burger", "shake shack dubai", "shake shack abu dhabi", "theshack"],
+  "fiveguys.ae":          ["five guys", "fiveguys", "5 guys", "five guys dubai", "five guys uae"],
+  // Bonbird competitors
+  "raisingcanes.com":     ["raising cane", "raising canes", "raisingcanes", "cane's", "canes chicken", "raising cane's", "cane's chicken"],
+  "jailbirddubai.com":    ["jailbird", "jail bird", "jailbird dubai", "jailbird chicken"],
+  "daveshotchicken.com":  ["daves hot chicken", "dave's hot chicken", "daveshotchicken", "dhc", "dave hot chicken", "daves chicken"],
+  "toitchicken.com":      ["toit", "toit chicken", "toit dubai"],
+  "nashhotchicken.com":   ["nash hot chicken", "nashhotchicken", "nash chicken", "nash dubai", "nash hot"],
+  "peppersuae.com":       ["peppers", "peppers uae", "peppers chicken", "peppers dubai"],
+  "jollibee.com.ph":      ["jollibee", "jolibee", "jollibee dubai", "jollibee uae"],
+  "kfc.com":              ["kfc", "kentucky fried chicken", "kentucky chicken", "kfc dubai", "kfc uae", "kfc abu dhabi"],
+  "popeyes.com":          ["popeyes", "popeye", "popeyes chicken", "popeyes dubai", "popeyes uae"],
+};
+
+// Get brand filter terms for a domain — falls back to extracting from domain name
+function getBrandFilters(domain) {
+  const clean = domain.replace(/^www\./, "");
+  if (BRAND_KEYWORD_FILTERS[clean]) return BRAND_KEYWORD_FILTERS[clean];
+  // Generic fallback: strip TLD, split on dots/hyphens
+  const base = clean.split(".")[0].replace(/-/g, " ");
+  return [base];
+}
+
+function isBrandedKeyword(keyword, brandTerms) {
+  const lower = keyword.toLowerCase();
+  return brandTerms.some(term => lower.includes(term.toLowerCase()));
+}
 
 const DEFAULT_COMPETITORS = {
   pickl: [
@@ -376,6 +418,79 @@ function calculateSoV(rows, trackedDomains) {
   return result;
 }
 
+// ── DataForSEO Labs — competitor ranked keywords ──────────────────────────────
+// Uses dataforseo_labs/google/ranked_keywords/live (Labs DB query, not live SERP).
+// Returns top 50 NON-BRANDED organic keywords by search volume.
+// Cost: ~$0.005/domain. All 13 competitors ≈ $0.065/run.
+const LABS_RANKED_KEYWORDS_URL = "https://api.dataforseo.com/v3/dataforseo_labs/google/ranked_keywords/live";
+
+async function fetchCompetitorRankedKeywords(competitors, locationCode, authHeader) {
+  const resultsMap = {}; // domain → [{keyword, searchVolume, position, url, cpc}]
+
+  for (const comp of competitors) {
+    const domain     = comp.domain.replace(/^www\./, "");
+    const brandTerms = getBrandFilters(domain);
+
+    console.log(`[competitor-matrix] Fetching ranked keywords for ${domain} (filtering: ${brandTerms.slice(0,3).join(", ")}…)`);
+
+    try {
+      const res = await fetch(LABS_RANKED_KEYWORDS_URL, {
+        method:  "POST",
+        headers: { Authorization: authHeader, "Content-Type": "application/json" },
+        body: JSON.stringify([{
+          target:        domain,
+          location_code: locationCode,
+          language_code: "en",
+          filters: [["keyword_data.keyword_info.search_volume", ">", 0]],
+          order_by: ["keyword_data.keyword_info.search_volume,desc"],
+          limit: 200,  // fetch more, then filter branded terms to get clean top 50
+        }]),
+      });
+
+      if (!res.ok) {
+        console.warn(`[competitor-matrix] Labs HTTP ${res.status} for ${domain}`);
+        resultsMap[domain] = [];
+        continue;
+      }
+
+      const data = await res.json();
+      if (data.status_code !== 20000) {
+        console.warn(`[competitor-matrix] Labs API error for ${domain}: ${data.status_message}`);
+        resultsMap[domain] = [];
+        continue;
+      }
+
+      const items = data.tasks?.[0]?.result?.[0]?.items || [];
+
+      // Filter branded terms, take top 50 by search volume
+      resultsMap[domain] = items
+        .filter(item => {
+          const kw = (item.keyword_data?.keyword || "").toLowerCase();
+          return kw.length > 0 && !isBrandedKeyword(kw, brandTerms);
+        })
+        .slice(0, 50)
+        .map(item => ({
+          keyword:      item.keyword_data?.keyword,
+          searchVolume: item.keyword_data?.keyword_info?.search_volume || 0,
+          position:     item.ranked_serp_element?.serp_item?.rank_absolute || null,
+          url:          item.ranked_serp_element?.serp_item?.url || null,
+          cpc:          item.keyword_data?.keyword_info?.cpc || null,
+        }));
+
+      console.log(`[competitor-matrix] ${domain}: ${items.length} total keywords → ${resultsMap[domain].length} non-branded`);
+
+      // Small delay between Labs calls to be kind to the API
+      await new Promise(r => setTimeout(r, 300));
+
+    } catch (e) {
+      console.warn(`[competitor-matrix] Labs error for ${domain}: ${e.message}`);
+      resultsMap[domain] = [];
+    }
+  }
+
+  return resultsMap;
+}
+
 function detectMovement(currentRows, previousRows) {
   if (!previousRows || !previousRows.length) return currentRows;
   const prevMap = {};
@@ -453,6 +568,24 @@ exports.handler = async () => {
       sovHistory.push({ date: todayStr, sov: sovCurrent });
       if (sovHistory.length > 12) sovHistory = sovHistory.slice(-12); // keep last 12
       await store.set(`${SOV_HISTORY_KEY}${brand}`, JSON.stringify(sovHistory)).catch(() => {});
+
+      // ── Competitor ranked keywords (non-branded top 50 via DataForSEO Labs) ──
+      // Runs after SERP fetch to avoid parallel rate limiting.
+      // Labs is a DB query (not live SERP) — no Standard mode equivalent exists.
+      let competitorKeywords = {};
+      try {
+        const authHeader = "Basic " + Buffer.from(`${process.env.DATAFORSEO_LOGIN}:${process.env.DATAFORSEO_PASSWORD}`).toString("base64");
+        competitorKeywords = await fetchCompetitorRankedKeywords(config.competitors, config.location_code, authHeader);
+        await store.set(`${RANKED_KEYWORDS_KEY}${brand}`, JSON.stringify({
+          brand,
+          competitors: competitorKeywords,
+          fetchedAt: new Date().toISOString(),
+        })).catch(() => {});
+        const totalKws = Object.values(competitorKeywords).reduce((s, arr) => s + arr.length, 0);
+        console.log(`[competitor-matrix] ${brand} competitor keywords: ${totalKws} non-branded keywords across ${Object.keys(competitorKeywords).length} competitors`);
+      } catch (e) {
+        console.warn(`[competitor-matrix] ${brand} ranked keywords failed: ${e.message}`);
+      }
 
       // ── Store main matrix payload ─────────────────────────────────────────
       const payload = {

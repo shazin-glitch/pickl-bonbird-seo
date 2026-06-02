@@ -28,15 +28,17 @@ exports.handler = async (event) => {
   try {
     const result = {};
     for (const brand of brands) {
-      const [matrix, sovHistory, autoDetected] = await Promise.all([
-        store.get(`competitorMatrix:${brand}`, { type: "json" }).catch(() => null),
-        store.get(`sovHistory:${brand}`,        { type: "json" }).catch(() => []),
-        store.get(`autoDetectedCompetitors:${brand}`, { type: "json" }).catch(() => null),
+      const [matrix, sovHistory, autoDetected, rankedKeywords] = await Promise.all([
+        store.get(`competitorMatrix:${brand}`,            { type: "json" }).catch(() => null),
+        store.get(`sovHistory:${brand}`,                  { type: "json" }).catch(() => []),
+        store.get(`autoDetectedCompetitors:${brand}`,     { type: "json" }).catch(() => null),
+        store.get(`competitorRankedKeywords:${brand}`,    { type: "json" }).catch(() => null),
       ]);
       result[brand] = {
         ...(matrix || {}),
-        sovHistory:    Array.isArray(sovHistory) ? sovHistory : [],
-        autoDetected:  autoDetected?.domains || [],
+        sovHistory:      Array.isArray(sovHistory) ? sovHistory : [],
+        autoDetected:    autoDetected?.domains || [],
+        rankedKeywords:  rankedKeywords?.competitors || {},
       };
     }
     return { statusCode: 200, headers: CORS, body: JSON.stringify(result) };

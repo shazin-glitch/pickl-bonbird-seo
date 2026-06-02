@@ -30,6 +30,31 @@ function getKeywordTier(position) {
   return { tier: 'Long Term', color: '#6366f1', emoji: '🎯' };
 }
 
+// ── Market detection — infers location tag from page URL ──────────────────────
+// Checks URL path patterns for each brand's international markets.
+// Falls back to UAE (home market) if no pattern matches.
+function getLocationTag(url, brand) {
+  if (!url) return '🇦🇪 UAE';
+  const lower = url.toLowerCase();
+
+  if (brand === 'pickl' || lower.includes('eatpickl')) {
+    if (lower.includes('/bh/')  || lower.includes('/bh?')  || lower.endsWith('/bh')  || lower.includes('bh.eatpickl'))  return '🇧🇭 Bahrain';
+    if (lower.includes('/ksa/') || lower.includes('/ksa?') || lower.endsWith('/ksa') || lower.includes('ksa.eatpickl')) return '🇸🇦 Saudi Arabia';
+    if (lower.includes('/qatar/') || lower.endsWith('/qatar') || lower.includes('qatar.eatpickl'))                      return '🇶🇦 Qatar';
+    if (lower.includes('/egypt/') || lower.endsWith('/egypt') || lower.includes('egypt.eatpickl'))                      return '🇪🇬 Egypt';
+    if (lower.includes('/pickl-jordan') || lower.includes('jordan.eatpickl'))                                           return '🇯🇴 Jordan';
+    if (lower.includes('/oman/') || lower.endsWith('/oman') || lower.includes('oman.eatpickl'))                         return '🇴🇲 Oman';
+  }
+
+  if (brand === 'bonbird' || lower.includes('bonbird')) {
+    if (lower.includes('/oman/') || lower.endsWith('/oman') || lower.includes('oman.bonbird'))         return '🇴🇲 Oman';
+    if (lower.includes('/pakistan/') || lower.endsWith('/pakistan') || lower.includes('pak.bonbird'))  return '🇵🇰 Pakistan';
+    if (lower.includes('/qatar/') || lower.endsWith('/qatar') || lower.includes('qatar.bonbird'))      return '🇶🇦 Qatar';
+  }
+
+  return '🇦🇪 UAE';
+}
+
 // Keywords already queued this week — don't re-queue the same ones
 async function getQueuedKeywords(brand) {
   const pending = await listApprovals({ brand, limit: 200 });
@@ -402,8 +427,7 @@ Return ONLY valid JSON:
       type: 'page_update',
       brand,
       actor: 'claude (scheduler)',
-      locationTag: '🇦🇪 UAE',
-      title: `Quick win: "${r.keyword}" — page content update (pos ${r.position})`,
+      locationTag: getLocationTag(parsed.url || r.page, brand),
       reason: parsed.changeRationale || `Rewriting page content to push "${r.keyword}" from pos ${r.position} to top 10`,
       payload: {
         url:           parsed.url,
@@ -605,8 +629,7 @@ Return ONLY a JSON array, no prose:
       type:  'meta_update',
       brand,
       actor: 'claude (scheduler)',
-      locationTag: '🇦🇪 UAE',
-      title: `Meta rewrite: ${finalUrl}`,
+      locationTag: getLocationTag(finalUrl, brand),
       reason: p.rationale || 'Low CTR vs expected for current ranking position',
       payload: {
         url:           finalUrl,
@@ -861,13 +884,23 @@ Return ONLY a JSON object:
     if (!parsed || !parsed.body || !parsed.title) continue;
     if (dryRun) { queued++; continue; }
 
+    // Voice quality gate — same as blog_draft and page_update
+    const voiceCheck = await runBrandVoiceCheck(parsed.body, brandCtx, (p, o) => callClaude(p, o))
+      .catch(() => ({ score: 6, verdict: 'PASS', issues: [], topFix: null }));
+    console.log(`[page_creation] "${r.keyword}" — voice score: ${voiceCheck.score}/10 (${voiceCheck.verdict})`);
+    if (voiceCheck.score < 5) {
+      console.warn(`[page_creation] Score ${voiceCheck.score}/10 too low — not queued`);
+      continue;
+    }
+
+    const tier = getKeywordTier(r.position);
     await createApproval({
-      type: 'page_creation',
+      type:  'page_creation',
       brand,
       actor: 'claude (scheduler)',
       title: `New page: ${parsed.title}`,
       reason: parsed.rationale || `New landing page for "${r.keyword}" (${r.impressions} impressions, pos ${r.position})`,
-      locationTag: '🇦🇪 UAE',
+      locationTag: getLocationTag(r.page, brand),
       payload: {
         title:         parsed.title,
         description:   parsed.description,
@@ -880,9 +913,15 @@ Return ONLY a JSON object:
         currentPos:    r.position,
         impressions:   r.impressions,
         wpAction:      'create_page',
+        voiceScore:    voiceCheck.score,
+        voiceIssues:   voiceCheck.issues,
+        voiceTopFix:   voiceCheck.topFix,
+        keywordTier:   tier.tier,
+        tierColor:     tier.color,
+        tierEmoji:     tier.emoji,
       },
     });
-    items.push({ type: 'page_creation', title: parsed.title, keyword: r.keyword, position: r.position });
+    items.push({ type: 'page_creation', title: parsed.title, keyword: r.keyword, position: r.position, voiceScore: voiceCheck.score });
     queued++;
   }
   return { queued, candidates: candidates.length, items };

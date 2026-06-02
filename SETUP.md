@@ -567,3 +567,172 @@ Increased from top 150 to all non-branded keywords (up to 700 per DataForSEO tas
 Cost impact: ~$0.025/week for 500 keywords. Negligible.
 Traffic value card label: "DataForSEO CPC × 3.67" when data available, "AED 5/click (no CPC data yet)" when not.
 Note: AED 5 fallback only applies to keywords where DataForSEO has no CPC data — this becomes increasingly rare as enrichment covers all non-branded keywords.
+
+---
+
+## Session: June 2026 — v6.9 Build + Bug Fixes
+
+### Changes Made
+
+#### CTR Bug — FULLY FIXED ✅
+Storage standardised to decimal (0-1) throughout:
+- `gsc-data.js` line 87: `ctr: row.ctr` (was `Math.round(row.ctr * 1000) / 10`)
+- `store.js` fetchGscDirect + fetchGscWithPages: same fix
+- `scheduler-background.js`: `expected()` = `0.30 / pos`, `ctrGap > 0.015`
+- `index.html`: `fmtCtr` always `* 100`, `lowCtrRows` filter uses `0.30 / r.position`
+
+#### Market Tagging Bug — FIXED ✅
+`locationTag` was hardcoded as `'🇦🇪 UAE'` at 4 places in `scheduler-background.js`.
+Added `getLocationTag(url, brand)` function. Now detects: Bahrain (/bh/), KSA (/ksa/), Qatar (/qatar/), Egypt (/egypt), Jordan (/pickl-jordan/), Oman (/oman/), Pakistan (/pakistan/).
+- `quick_wins`: uses `parsed.url || r.page`
+- `meta_rewrites`: uses `finalUrl`
+- `page_creation`: uses `r.page`
+- `blog_draft`: stays UAE (new blog posts always created for main brand site)
+
+#### Competitor Matrix Pass 1 ✅ (competitor-matrix-background.js — full rewrite)
+New data per keyword row: `topDomains` (all organic top-20), `serpFeatures` (featured_snippet, localPack, peopleAlsoAsk, video, aiOverview)
+New Blobs: `autoDetectedCompetitors:<brand>`, `sovHistory:<brand>` (rolling 12 weeks)
+`sovCurrent` stored in `competitorMatrix:<brand>` — CTR-weighted Share of Voice per domain
+`competitor-matrix.js` updated to return sovHistory + autoDetected in one fetch
+
+#### Competitor Matrix Pass 2 ✅ (competitor-matrix-ui.js — full rewrite)
+**Layout bug fixed**: replaced `justify-content:space-between` header with `cm-toolbar` (view toggle always left-aligned, actions right via `margin-left:auto`). All 5 views use `renderHeader()` helper.
+Views: Rankings · 📊 Share of Voice · 🎯 Gaps · Manage Keywords · Manage Competitors
+- Rankings: SERP feature pills, unknown competitor alert banner, Export CSV button, SoV summary card
+- Share of Voice: horizontal bar chart + SVG 12-week trend line chart
+- Gaps: honest "no gaps" messaging with next steps, expanded explanation
+
+#### LLM Mention Tracker ✅
+New: `netlify/functions/llm-mentions-background.js` (schedule: Monday 4am UTC)
+New: `netlify/functions/llm-mentions.js` (`/api/llm-mentions`)
+Queries 4 LLMs × 6 prompts per brand: Claude, OpenAI GPT-4o, Perplexity, Gemini
+**"Run Now" button added** — manual trigger with 30s polling, shows today's data when ready
+Blobs: `llmMentions:<brand>:<YYYY-MM-DD>`, `llmMentionsHistory:<brand>` (12 weeks)
+
+#### GA4 Integration ✅
+New: `netlify/functions/ga4-data.js` — 3 GA4 reports: monthly sessions, country breakdown, LLM referral traffic
+Auth: `auth-login.js` + `auth-callback.js` updated for `?type=ga4` → stores `ga4Tokens`
+**GA4 error "API not enabled"**: User must visit URL in error message to enable Analytics Data API in Google Cloud Console — one-time setup.
+Reports tab: "🌍 Website Traffic (GA4)" section with 12-month bar chart + 3 summary cards
+Settings tab: GA4 connect button, status indicator, env var instructions
+AI Readiness Score: GA4 now included as 7th check
+
+#### How It Works — Full rewrite ✅
+All 10 features documented: Approvals Queue, Analytics & ROI, Reports, Technical SEO, Local SEO, International SEO, AI Content Studio, The Perch, LLM Mentions, Competitor Matrix. Updated keyword tier explanations, approval type descriptions, and new "why it matters" sections for LLM tracking and competitor matrix strategy.
+
+### New Blobs Keys (this session)
+| Key | Contents |
+|---|---|
+| `autoDetectedCompetitors:<brand>` | Domains appearing 3+ times in tracked keyword SERPs, not in competitor list |
+| `sovHistory:<brand>` | Rolling 12-week SoV snapshots (array, max 12 items) |
+| `llmMentions:<brand>:<YYYY-MM-DD>` | Weekly LLM mention results |
+| `llmMentionsHistory:<brand>` | Rolling 12-week LLM mention history |
+| `ga4Tokens` | GA4 OAuth tokens (access_token, refresh_token, expires_at) |
+| `ga4Cache:<brand>` | GA4 report cache (24hr TTL) |
+
+### Required Env Vars (new this session)
+| Variable | Purpose | Status |
+|---|---|---|
+| `OPENAI_API_KEY` | LLM mention tracking | Add in Netlify |
+| `PERPLEXITY_API_KEY` | LLM mention tracking | Add in Netlify |
+| `GEMINI_API_KEY` | Google AI Studio — LLM tracking | Add in Netlify |
+| `GA4_PROPERTY_ID_PICKL` | GA4 property for eatpickl.com | Add in Netlify |
+| `GA4_PROPERTY_ID_BONBIRD` | GA4 property for bonbirdchicken.com | Add in Netlify |
+
+### GA4 One-Time Setup Needed
+1. User must enable "Google Analytics Data API" in Google Cloud Console at the URL shown in the error message
+2. Developer must install GA4 tracking snippet on both WordPress sites (get Measurement IDs from GA4 admin)
+3. Then connect via Settings → Connect Google Analytics 4
+
+### Competitor Gaps — Why Only 4 Gaps
+The competitor matrix tracks a curated list of ~30-35 competitive head terms. If you rank for most of them, gaps will be few. This is actually good news — it means the tracked keywords are well-covered. To find more gaps:
+- Add 50-100 more keywords in Analytics → Competitor Matrix → Manage Keywords (aim for 100+ per brand)
+- Add competitor-driven keywords you know they rank for to the Seed List in How It Works
+- The auto-detected competitor alert banner surfaces new competitor domains to track
+
+---
+
+## Session: June 2026 — v6.9c Competitor Intelligence Fixes
+
+### Two targeted fixes only (per user instruction)
+
+#### Fix 1: Competitor Ranked Keywords (Non-Branded Top 50) ✅
+`competitor-matrix-background.js`:
+- Added `BRAND_KEYWORD_FILTERS` map — per domain: full list of brand terms to exclude (names, misspellings, concatenated versions, abbreviations) for all 13 tracked competitors
+- Added `fetchCompetitorRankedKeywords(competitors, locationCode, authHeader)` using **DataForSEO Labs** `dataforseo_labs/google/ranked_keywords/live`
+  - Note: Labs DB query only — no Standard mode equivalent exists for ranked_keywords. Cost ≈ $0.005/domain × 13 competitors = $0.065/run
+  - Fetches 200 keywords per competitor, filters branded terms, returns top 50 by search_volume
+- Stored in new Blob: `competitorRankedKeywords:<brand>` — `{ brand, competitors: { domain: [{keyword, searchVolume, position, url, cpc}] }, fetchedAt }`
+- `competitor-matrix.js` read endpoint now fetches and returns `rankedKeywords` field
+
+`competitor-matrix-ui.js` Gaps view:
+- **Primary section**: "What competitors rank for that you don't" — shows ranked_keywords data grouped by competitor, sorted by search volume, with position + volume + CPC per keyword. Flags keywords not in your current GSC. Shows "not yet fetched" state before first run.
+- **Secondary section**: "Within tracked keywords" — the original gap analysis remains below
+
+#### Fix 2: Share of Voice — Two-tier split ✅
+`competitor-matrix-ui.js` SoV view:
+- Added `SERP_OCCUPIER_TERMS` array (tripadvisor, zomato, timeout, youtube, instagram, facebook, talabat, deliveroo, noon, careem, whats-on, whatson, thenational, gulfnews, khaleejtimes, visitdubai, dubizzle, yelp, foursquare, openrice + more)
+- Added `isSerpOccupier(domain)` function
+- Direct competitors chart shows restaurant brands only — these are your actual competitive SoV
+- SERP Landscape section (collapsible, collapsed by default) shows aggregators/media with explanation: "Strategy is to get LISTED on these, not outrank them"
+
+#### New Blobs Key
+`competitorRankedKeywords:<brand>` — competitors' top 50 non-branded keywords, drives gap analysis
+
+---
+
+## Session: June 2026 — v6.9d Reports Polish
+
+### Three targeted fixes
+
+#### GA4 LLM Referral Traffic — per-source breakdown + chart overlay ✅
+`ga4-data.js`:
+- `llmMonthly` now stores per-source per month: `{ YYYYMM: { Perplexity: N, ChatGPT: N, Claude: N, Gemini: N, Copilot: N, total: N } }`
+- `llmBySource` added: 90-day totals per AI source (used for the breakdown bars)
+- `llmGrandTotal` replaces old `llmTotal.sessions`
+- `llmSourceLabel()` maps raw session source strings to clean labels
+
+`index.html` — `loadGa4Report()`:
+- Monthly chart now shows **both** organic sessions (amber bars) and AI referral (purple bar within each column)
+- Legend explains the two data series; hover tooltips show exact numbers per month
+- Per-source breakdown bar chart shows Perplexity / ChatGPT / Claude / Gemini / Copilot / Bing AI sessions with horizontal bars + session counts
+- Summary cards: 2 cards (Organic Sessions, AI Referral) replacing 3 — cleaner layout
+
+#### Position Distribution — branded vs non-branded split ✅
+`index.html` — `loadReports()`:
+- `bands` now includes `nonBrand` and `branded` counts per position range (using existing `nonBrandedRows` / `brandedRows` already in scope)
+- Each bar is now two-layer: full-opacity bottom = non-branded (earned), reduced-opacity top = branded (brand searches)
+- Legend below explains the two layers
+- Per-band breakdown text: "1–3: 12 non-brand + 4 branded" 
+- Footer totals row shows overall non-branded vs branded split
+- `bandDefs` extracted as separate constant; `bands` computed from it with `.range()` filter
+
+#### SETUP.md ✅
+Updated with all sessions: CTR fix, market tagging, Competitor Matrix Pass 1+2, LLM tracker, GA4, How It Works rewrite, layout fix, market tagging fix, Run Now button, competitor ranked keywords, SoV tier split, GA4 LLM breakdown, position distribution split.
+
+### Data structures changed
+`llmReferralMonthly` in `ga4Cache:<brand>` — was `{ YYYYMM: totalSessions }`, now `{ YYYYMM: { Perplexity: N, …, total: N } }`. Cache invalidates after 24h so old format won't persist.
+
+---
+
+## Session: June 2026 — v6.9e Voice Score Bug Fix
+
+### Bug: New Page (page_creation) showed no brand voice score badge
+
+**Root cause** — two problems in `runPageCreation` in `scheduler-background.js`:
+
+1. `runBrandVoiceCheck` was never called — no voice score was generated for page_creation items coming from the location/service keyword path
+2. The `createApproval` call was missing the `payload: {}` wrapper key — all fields (`excerpt`, `body`, `pageType`, `currentPos`, `impressions`, `wpAction`) were passed at the top level of the call, but `createApproval` in `store.js` stores `input.payload || {}`. Since `input.payload` was `undefined`, it stored an empty payload. The badge reads `item.payload?.voiceScore` → `undefined` → rendered nothing.
+
+Note: the *other* page_creation path (in `meta_rewrites`, when a GSC page has impressions but no content) was correct — it has both the voice check and proper `payload: {}` wrapper. Only `runPageCreation` was broken.
+
+**Fix** (`scheduler-background.js`):
+- Added `runBrandVoiceCheck` call after `extractJson` — same as blog_draft and page_update
+- Added score < 5 rejection gate (consistency with other types)
+- Fixed `createApproval` to use proper `payload: {}` wrapper with ALL fields: `title`, `description`, `targetKeyword`, `slug`, `pageHeading`, `excerpt`, `body`, `pageType`, `currentPos`, `impressions`, `wpAction`, `voiceScore`, `voiceIssues`, `voiceTopFix`, `keywordTier`, `tierColor`, `tierEmoji`
+- Updated `items.push` to include `voiceScore` for scheduler logs
+
+**Fix** (`index.html` — `buildPreview`):
+- Added `voiceTopFix` amber warning note to `page_creation` preview (same treatment as `blog_draft`)
+
+**Note on existing queue items**: Any page_creation items already in the queue from before this fix will still show no voice badge (payload was stored empty at creation time). They'll need to be dismissed and regenerated on the next Monday run to get the badge. New items generated after this deploy will show correctly.

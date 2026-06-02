@@ -16,6 +16,22 @@
     bonbird: { primary: "#ef4444", label: "Bonbird" },
   };
 
+  // ── SERP Occupier detection ────────────────────────────────────────────────
+  // These are aggregators, review sites, media, delivery platforms.
+  // They belong in a separate "SERP Landscape" section — not in the competitor SoV chart.
+  // Strategy vs them is: get LISTED, not outranked.
+  const SERP_OCCUPIER_TERMS = [
+    "tripadvisor","zomato","timeout","timeoutdubai","youtube","instagram","facebook",
+    "talabat","deliveroo","noon","careem","whats-on","whatson","thenational","gulfnews",
+    "khaleejtimes","visitdubai","dubizzle","yelp","foursquare","openrice","entertainer",
+    "time-out","hungerstation","noonfood","twitter","tiktok","linkedin","google",
+  ];
+
+  function isSerpOccupier(domain) {
+    const lower = (domain || "").toLowerCase();
+    return SERP_OCCUPIER_TERMS.some(term => lower.includes(term));
+  }
+
   // ── State ──────────────────────────────────────────────────────────────────
   let currentBrandFilter = "all";
   let matrixData         = null;
@@ -33,8 +49,11 @@
     s.id = "cm-styles";
     s.textContent = `
       #competitor-matrix-live { margin-top:24px; }
-      .cm-header { display:flex; align-items:flex-start; justify-content:space-between; margin-bottom:16px; flex-wrap:wrap; gap:12px; }
-      .cm-title { font-size:1.1rem; font-weight:700; color:var(--text-primary,#1e293b); display:flex; align-items:center; gap:8px; }
+      /* Main toolbar row — view toggle left, actions right */
+      .cm-toolbar { display:flex; align-items:center; gap:6px; flex-wrap:wrap; margin-bottom:12px; }
+      .cm-toolbar-right { margin-left:auto; display:flex; gap:6px; flex-wrap:wrap; align-items:center; }
+      /* Title row below toolbar */
+      .cm-header { margin-bottom:4px; }
       .cm-badge { font-size:0.65rem; font-weight:600; background:#10b981; color:#fff; padding:2px 7px; border-radius:99px; letter-spacing:0.05em; text-transform:uppercase; }
       .cm-controls { display:flex; gap:8px; align-items:center; flex-wrap:wrap; }
       .cm-filter-btn { padding:5px 14px; border-radius:6px; border:1px solid rgba(255,255,255,0.12); background:rgba(255,255,255,0.05); color:var(--text-secondary,#475569); font-size:0.8rem; cursor:pointer; transition:all 0.15s; }
@@ -278,8 +297,30 @@
       </div>`;
   }
 
+  // ── Consistent toolbar header — view toggle always left, actions right ────────
+  function renderHeader(activeView, opts = {}) {
+    const { title, subtitle, showBrandFilter, showRefresh, showExport } = opts;
+    const rightItems = [];
+    if (showBrandFilter) rightItems.push(brandFilterHtml());
+    if (showRefresh) rightItems.push(`
+      <button class="cm-refresh-btn ${isLoading ? 'spinning' : ''}" id="cm-refresh-btn">
+        <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="23 4 23 10 17 10"/><polyline points="1 20 1 14 7 14"/><path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15"/></svg>
+        ${isLoading ? 'Fetching…' : 'Refresh Now'}
+      </button>`);
+    if (showExport) rightItems.push('<button class="cm-export-btn" id="cm-export-btn">⬇ CSV</button>');
+
+    return `
+      <div class="cm-toolbar">
+        ${viewToggleHtml(activeView)}
+        ${rightItems.length ? `<div class="cm-toolbar-right">${rightItems.join('')}</div>` : ''}
+      </div>
+      ${title || subtitle ? `<div class="cm-header">
+        ${title ? `<div class="cm-title">${title}</div>` : ''}
+        ${subtitle ? `<p style="font-size:0.78rem;color:var(--text-muted,#64748b);margin:2px 0 12px">${subtitle}</p>` : ''}
+      </div>` : ''}`;
+  }
+
   // ── Rankings view ──────────────────────────────────────────────────────────
-  function render(container) {
     injectStyles();
     const rows        = getFilteredRows();
     const competitors = getCompetitorNames();
@@ -290,19 +331,10 @@
     const ourDomain   = matrixData?.[ourBrand]?.ourDomain || "";
     const ourSoV      = ourDomain ? (sovData[ourDomain] || 0).toFixed(1) : "—";
 
-    let html = `
-      <div class="cm-header">
-        <div class="cm-title">Competitor Matrix <span class="cm-badge">Live SERP</span></div>
-        <div class="cm-controls">
-          ${viewToggleHtml("matrix")}
-          ${brandFilterHtml()}
-          <button class="cm-refresh-btn ${isLoading ? "spinning" : ""}" id="cm-refresh-btn">
-            <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="23 4 23 10 17 10"/><polyline points="1 20 1 14 7 14"/><path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15"/></svg>
-            ${isLoading ? "Fetching…" : "Refresh Now"}
-          </button>
-          <button class="cm-export-btn" id="cm-export-btn" title="Export CSV">⬇ CSV</button>
-        </div>
-      </div>`;
+    let html = renderHeader("matrix", {
+      title: `Competitor Matrix <span class="cm-badge">Live SERP</span>`,
+      showBrandFilter: true, showRefresh: true, showExport: true,
+    });
 
     if (lastFetched) html += `<div class="cm-meta">Last updated: ${formatDate(lastFetched)} · DataForSEO · UAE (EN) · Desktop</div>`;
 
@@ -386,11 +418,10 @@
     const sovData     = getSovData();
     const lastFetched = matrixData?.pickl?.fetchedAt || matrixData?.bonbird?.fetchedAt;
 
-    // Build sorted entries
-    const sorted = Object.entries(sovData)
-      .filter(([,v]) => v > 0)
-      .sort(([,a],[,b]) => b - a)
-      .slice(0, 15);
+    // Split into direct competitors vs SERP occupiers
+    const allEntries = Object.entries(sovData).filter(([,v]) => v > 0).sort(([,a],[,b]) => b - a);
+    const directEntries   = allEntries.filter(([domain]) => !isSerpOccupier(domain)).slice(0, 12);
+    const occupierEntries = allEntries.filter(([domain]) => isSerpOccupier(domain)).slice(0, 10);
 
     // Domain → display name mapping
     const domainLabel = {};
@@ -398,47 +429,39 @@
       if (matrixData?.[b]) {
         const od = matrixData[b].ourDomain;
         if (od) domainLabel[od] = BRAND_COLORS[b]?.label + " (us)";
-        for (const comp of matrixData[b].competitors || []) {
-          // competitor config stored as names in matrix, need domain match via autoDetected
-        }
       }
     }
 
-    // Colour palette for bars
     const barColors = [
       "#f59e0b","#ef4444","#6366f1","#10b981","#f97316",
       "#8b5cf6","#06b6d4","#ec4899","#84cc16","#14b8a6",
     ];
 
-    // History for trend lines
     const brands      = currentBrandFilter === "all" ? ["pickl","bonbird"] : [currentBrandFilter];
     const historyData = brands.flatMap(b => (matrixData?.[b]?.sovHistory || []).map(h => ({ ...h, brand: b })));
 
-    let html = `
-      <div class="cm-header">
-        <div class="cm-title">📊 Share of Voice <span class="cm-badge">CTR-Weighted</span></div>
-        <div class="cm-controls">
-          ${viewToggleHtml("sov")}
-          ${brandFilterHtml()}
-        </div>
-      </div>`;
+    let html = renderHeader("sov", {
+      title: `📊 Share of Voice <span class="cm-badge">CTR-Weighted</span>`,
+      showBrandFilter: true,
+    });
 
-    if (lastFetched) html += `<div class="cm-meta">Last updated: ${formatDate(lastFetched)} · % of estimated total clicks across tracked keywords</div>`;
+    if (lastFetched) html += `<div class="cm-meta">Last updated: ${formatDate(lastFetched)} · CTR-weighted % of visibility across tracked keywords</div>`;
 
     html += `<p style="font-size:0.82rem;color:var(--text-muted,#64748b);margin-bottom:16px;line-height:1.5">
-      Share of Voice shows who captures the most estimated clicks across all your tracked keywords.
-      Calculated using CTR curve (position 1 = 30%, position 5 = 7%, etc.) weighted across keyword set.
-      Only domains appearing in top 20 are included.
+      Share of Voice = estimated clicks captured across all tracked keywords. Uses real CTR curve (pos 1 = 30%, pos 5 = 7%, etc.).
+      <strong>Direct competitors only</strong> — aggregators and media sites are separated below because the strategy is different: get listed on them, not outrank them.
     </p>`;
 
-    if (!sorted.length) {
-      html += `<div class="cm-empty">No SoV data yet. Run a <strong>Refresh Now</strong> to calculate Share of Voice.</div>`;
+    if (!directEntries.length) {
+      html += `<div class="cm-empty">No SoV data yet. Click <strong>Refresh Now</strong> to calculate.</div>`;
     } else {
+
+      // ── Direct competitors chart ────────────────────────────────────────────
       html += `<div class="cm-sov-chart-wrap">
-        <div class="cm-sov-chart-title">Current Share of Voice — Top Domains</div>
+        <div class="cm-sov-chart-title">Direct Competitors — Share of Organic Visibility</div>
         <div class="cm-sov-bars">`;
 
-      sorted.forEach(([domain, pct], i) => {
+      directEntries.forEach(([domain, pct], i) => {
         const label = domainLabel[domain] || domain;
         const color = barColors[i % barColors.length];
         const width = Math.max(2, Math.min(100, pct));
@@ -454,9 +477,41 @@
 
       html += `</div></div>`;
 
-      // SoV history line chart (SVG)
       if (historyData.length > 1) {
-        html += renderSovHistoryChart(historyData, sorted, barColors);
+        html += renderSovHistoryChart(historyData, directEntries, barColors);
+      }
+
+      // ── SERP Landscape (collapsible) ────────────────────────────────────────
+      if (occupierEntries.length) {
+        const occupierTotal = occupierEntries.reduce((s,[,v]) => s + v, 0).toFixed(1);
+        html += `
+          <div style="margin-top:24px">
+            <div style="display:flex;align-items:center;gap:10px;cursor:pointer;padding:10px 14px;background:rgba(255,255,255,0.03);border:1px solid rgba(255,255,255,0.07);border-radius:8px;user-select:none" id="cm-landscape-toggle" onclick="this.nextElementSibling.style.display=this.nextElementSibling.style.display==='none'?'block':'none';this.querySelector('.cm-toggle-icon').textContent=this.nextElementSibling.style.display==='none'?'▶':'▼'">
+              <span style="font-size:13px;font-weight:700">🌐 SERP Landscape</span>
+              <span style="font-size:12px;color:var(--text-muted)">${occupierEntries.length} aggregators &amp; media sites · ${occupierTotal}% combined visibility</span>
+              <span class="cm-toggle-icon" style="margin-left:auto;font-size:11px;color:var(--text-muted)">▶</span>
+            </div>
+            <div style="display:none;padding:14px;background:rgba(255,255,255,0.02);border:1px solid rgba(255,255,255,0.06);border-top:none;border-radius:0 0 8px 8px">
+              <p style="font-size:12px;color:var(--text-muted);margin-bottom:12px;line-height:1.5">
+                These sites occupy your SERPs but aren't direct competitors — they're <strong>distribution channels</strong>.
+                The right move is to get your brand listed and reviewed on them (Zomato, TripAdvisor, Time Out), 
+                not to try to outrank them for generic terms.
+              </p>
+              <div class="cm-sov-bars" style="gap:6px">`;
+
+        occupierEntries.forEach(([domain, pct], i) => {
+          const width = Math.max(1, Math.min(100, pct));
+          html += `<div class="cm-sov-bar-row" style="gap:8px">
+            <div class="cm-sov-bar-label" style="width:160px;font-size:0.74rem">${esc(domain)}</div>
+            <div class="cm-sov-bar-track" style="height:16px">
+              <div class="cm-sov-bar-fill" style="width:${width}%;background:#94a3b8">
+                <span class="cm-sov-bar-pct" style="font-size:0.65rem">${pct.toFixed(1)}%</span>
+              </div>
+            </div>
+          </div>`;
+        });
+
+        html += `</div></div></div>`;
       }
     }
 
@@ -539,6 +594,60 @@
     const brands      = currentBrandFilter === "all" ? ["pickl","bonbird"] : [currentBrandFilter];
     const competitors = getCompetitorNames();
 
+    // ── Section A: Competitor-discovered keywords ─────────────────────────────
+    // Keywords from DataForSEO Labs ranked_keywords that competitors rank for.
+    // These are the real content opportunities — keywords that exist outside our tracked list.
+    // Group by competitor → show their top non-branded keywords + search volume.
+    const discoveredByComp = {};
+    let totalDiscovered = 0;
+
+    for (const brand of brands) {
+      const rankedKw = matrixData?.[brand]?.rankedKeywords || {};
+      const ourGscKeywords = new Set((matrixData?.[brand]?.rows || []).map(r => r.keyword?.toLowerCase()));
+
+      for (const [domain, kwList] of Object.entries(rankedKw)) {
+        if (!kwList?.length) continue;
+        // Find competitor display name from config
+        const compName = (matrixData?.[brand]?.competitors || []).find(() => true) || domain;
+        const key = `${brand}::${domain}`;
+        discoveredByComp[key] = {
+          domain, brand,
+          name: compName, // will be overridden below
+          keywords: kwList
+            .filter(k => k.keyword)
+            .map(k => ({
+              ...k,
+              inOurGsc: ourGscKeywords.has(k.keyword.toLowerCase()),
+            })),
+        };
+        totalDiscovered += kwList.length;
+      }
+
+      // Resolve display names by matching domains to competitor config
+      const compConfig = matrixData?.[brand]?.rows?.[0]?.competitorRanks
+        ? Object.keys(matrixData[brand].rows[0].competitorRanks)
+        : [];
+      for (const [domain, kwList] of Object.entries(rankedKw)) {
+        const key = `${brand}::${domain}`;
+        if (discoveredByComp[key]) {
+          // Try to find name from the first row's competitorRanks keys
+          // The names come from config — match via known competitor list
+          const knownComps = [
+            {n:"Salt", d:"saltuae.com"}, {n:"High Joint", d:"highjoint.co"},
+            {n:"Shake Shack", d:"shakeshack.com"}, {n:"Five Guys", d:"fiveguys.ae"},
+            {n:"Raising Cane's", d:"raisingcanes.com"}, {n:"Jailbird", d:"jailbirddubai.com"},
+            {n:"Dave's Hot Chicken", d:"daveshotchicken.com"}, {n:"Toit", d:"toitchicken.com"},
+            {n:"Nash Hot Chicken", d:"nashhotchicken.com"}, {n:"Peppers", d:"peppersuae.com"},
+            {n:"Jollibee", d:"jollibee.com.ph"}, {n:"KFC", d:"kfc.com"}, {n:"Popeyes", d:"popeyes.com"},
+          ];
+          const match = knownComps.find(c => c.d === domain || c.d === domain.replace(/^www\./, ""));
+          if (match) discoveredByComp[key].name = match.n;
+          else discoveredByComp[key].name = domain.split(".")[0];
+        }
+      }
+    }
+
+    // ── Section B: Tracked-keyword gaps ─────────────────────────────────────
     const gapRows = [];
     for (const brand of brands) {
       for (const row of (matrixData?.[brand]?.rows || [])) {
@@ -555,7 +664,6 @@
       }
     }
     gapRows.sort((a, b) => a.competitorRank - b.competitorRank);
-
     const byComp = {};
     for (const row of gapRows) {
       if (!byComp[row.competitor]) byComp[row.competitor] = [];
@@ -565,66 +673,108 @@
     const oppColor = { high:"#ef4444", medium:"#f59e0b", low:"#6b7280" };
     const oppLabel = { high:"🔴 High", medium:"🟡 Medium", low:"⚪ Low" };
 
-    let html = `
-      <div class="cm-header">
-        <div>
-          <div class="cm-title">🎯 Competitor Gaps</div>
-          <p style="font-size:0.78rem;color:var(--text-muted,#64748b);margin:4px 0 0">Keywords where competitors rank top 20 but you don't appear. These are your content targets.</p>
+    let html = renderHeader("gaps", {
+      title: "🎯 Content Strategy — Competitor Gaps",
+      subtitle: "What your competitors rank for that you don't. These are direct content briefs. Ranked by search volume.",
+      showBrandFilter: true,
+    });
+
+    // ── Competitor-discovered keywords (main section) ─────────────────────────
+    if (totalDiscovered > 0) {
+      const newKwCount = Object.values(discoveredByComp).reduce((s, c) =>
+        s + c.keywords.filter(k => !k.inOurGsc).length, 0);
+
+      html += `<div class="cm-summary-cards" style="margin-bottom:20px">
+        <div class="cm-summary-card">
+          <div class="cm-summary-card-label">Competitor Keywords Found</div>
+          <div class="cm-summary-card-value">${totalDiscovered}</div>
+          <div class="cm-summary-card-sub">non-branded, top 50 per competitor</div>
         </div>
-        <div class="cm-controls">
-          ${viewToggleHtml("gaps")}
-          ${brandFilterHtml()}
+        <div class="cm-summary-card">
+          <div class="cm-summary-card-label">You Don't Rank For</div>
+          <div class="cm-summary-card-value" style="color:#ef4444">${newKwCount}</div>
+          <div class="cm-summary-card-sub">not in your current GSC data</div>
+        </div>
+        <div class="cm-summary-card">
+          <div class="cm-summary-card-label">Competitors Analysed</div>
+          <div class="cm-summary-card-value">${Object.keys(discoveredByComp).length}</div>
+          <div class="cm-summary-card-sub">via DataForSEO Labs</div>
         </div>
       </div>`;
+
+      for (const { domain, brand, name, keywords } of Object.values(discoveredByComp)) {
+        const notRanking = keywords.filter(k => !k.inOurGsc);
+        const ranking    = keywords.filter(k => k.inOurGsc);
+        if (!notRanking.length && !ranking.length) continue;
+
+        const brandColor = BRAND_COLORS[brand]?.primary || "#f59e0b";
+        html += `<div style="margin-bottom:24px">
+          <div style="font-weight:700;font-size:14px;padding:10px 0 8px;border-bottom:2px solid rgba(255,255,255,0.1);display:flex;justify-content:space-between;align-items:center;gap:12px">
+            <div style="display:flex;align-items:center;gap:8px">
+              <span class="cm-brand-dot" style="background:${brandColor};width:10px;height:10px"></span>
+              <span>${esc(name)}</span>
+              <span style="font-size:11px;color:var(--text-muted)">${esc(domain)}</span>
+            </div>
+            <span style="font-size:12px;color:var(--text-muted);font-weight:400">${notRanking.length} gaps · ${ranking.length} shared</span>
+          </div>`;
+
+        if (notRanking.length) {
+          html += `<div style="margin-top:4px;margin-bottom:8px;font-size:11px;font-weight:600;text-transform:uppercase;letter-spacing:0.04em;color:#ef4444">🎯 Keywords they rank for that you don't</div>
+            <table class="cm-table" style="margin-top:0"><thead><tr>
+              <th>Keyword</th><th>Their Position</th><th>Search Volume</th><th>CPC</th>
+            </tr></thead><tbody>
+            ${notRanking.slice(0,20).map(k => `<tr>
+              <td style="font-weight:600">${esc(k.keyword)}</td>
+              <td><span class="cm-rank ${k.position <= 3 ? "cm-rank-top3" : k.position <= 10 ? "cm-rank-top10" : "cm-rank-comp"}">#${k.position || "?"}</span></td>
+              <td style="color:var(--text-muted)">${k.searchVolume ? k.searchVolume.toLocaleString() : "—"}</td>
+              <td style="color:var(--text-muted)">${k.cpc ? "$" + k.cpc.toFixed(2) : "—"}</td>
+            </tr>`).join("")}
+            ${notRanking.length > 20 ? `<tr><td colspan="4" style="color:var(--text-muted);font-size:12px;padding:6px 14px">+${notRanking.length - 20} more keywords</td></tr>` : ""}
+            </tbody></table>`;
+        }
+
+        html += `</div>`;
+      }
+    } else {
+      // No ranked_keywords data yet
+      html += `<div style="padding:20px;background:rgba(59,130,246,0.06);border:1px solid rgba(59,130,246,0.2);border-radius:10px;margin-bottom:20px">
+        <div style="font-weight:700;font-size:14px;color:#3b82f6;margin-bottom:8px">🔄 Competitor keyword data not yet fetched</div>
+        <div style="font-size:13px;line-height:1.6">
+          The next Monday run will fetch the top 50 non-branded keywords each competitor ranks for via DataForSEO Labs.
+          These become your direct content briefs — keywords you know work in your category because a competitor already ranks for them.
+        </div>
+        <div style="margin-top:10px;font-size:13px">
+          Click <strong>Refresh Now</strong> in the Rankings tab to run immediately.
+        </div>
+      </div>`;
+    }
+
+    // ── Tracked-keyword gaps (secondary section) ──────────────────────────────
+    html += `<div style="margin-top:8px;padding-top:20px;border-top:1px solid rgba(255,255,255,0.08)">
+      <div style="font-weight:700;font-size:13px;margin-bottom:4px">Within Tracked Keywords</div>
+      <div style="font-size:12px;color:var(--text-muted);margin-bottom:12px">Gaps within your ${getFilteredRows().length}-keyword tracking list — where competitors rank top 20 and you don't appear at all.</div>`;
 
     if (!gapRows.length) {
-      html += `<div class="cm-empty" style="padding:48px">
-        <div style="font-size:32px;margin-bottom:12px">🎯</div>
-        <div style="font-weight:600;margin-bottom:8px">No gaps found</div>
-        <div style="color:#64748b;font-size:13px">Either you rank for everything tracked, or no competitor ranks top 20.<br>Add more competitive keywords via Manage Keywords.</div>
-      </div>`;
+      html += `<div style="font-size:13px;color:#059669;padding:8px 0">✅ You rank for everything in your current tracked keyword set.</div>`;
     } else {
-      html += `<div class="cm-summary-cards">
-        <div class="cm-summary-card">
-          <div class="cm-summary-card-label">Total Gaps</div>
-          <div class="cm-summary-card-value" style="color:#ef4444">${gapRows.length}</div>
-          <div class="cm-summary-card-sub">keywords to target</div>
-        </div>
-        <div class="cm-summary-card">
-          <div class="cm-summary-card-label">High Priority</div>
-          <div class="cm-summary-card-value" style="color:#ef4444">${gapRows.filter(r => r.opportunity === "high").length}</div>
-          <div class="cm-summary-card-sub">competitor ranks 1–5</div>
-        </div>
-        <div class="cm-summary-card">
-          <div class="cm-summary-card-label">Competitors Ahead</div>
-          <div class="cm-summary-card-value">${Object.keys(byComp).length}</div>
-          <div class="cm-summary-card-sub">with keywords you don't rank</div>
-        </div>
-      </div>`;
-
+      html += `<div style="font-size:13px;color:#ef4444;font-weight:600;margin-bottom:12px">${gapRows.length} gap${gapRows.length!==1?"s":""} found across ${Object.keys(byComp).length} competitor${Object.keys(byComp).length!==1?"s":""}</div>`;
       for (const [comp, rows] of Object.entries(byComp)) {
-        html += `<div style="margin-bottom:24px">
-          <div style="font-weight:700;font-size:14px;padding:10px 0 8px;border-bottom:2px solid #e2e8f0;margin-bottom:0;display:flex;justify-content:space-between;align-items:center">
-            <span>${esc(comp)} — ${rows.length} keyword${rows.length!==1?"s":""} you don't rank for</span>
-            <span style="font-size:12px;color:#64748b;font-weight:400">Their rank → Your rank</span>
-          </div>
+        html += `<div style="margin-bottom:16px">
+          <div style="font-weight:600;font-size:13px;margin-bottom:4px">${esc(comp)} — ${rows.length} keyword${rows.length!==1?"s":""}</div>
           <table class="cm-table" style="margin-top:0"><thead><tr>
-            <th>Keyword</th><th>Brand</th><th>${esc(comp)}'s Rank</th><th>Your Rank</th><th>Opportunity</th>
+            <th>Keyword</th><th>Their Rank</th><th>Your Rank</th><th>Opportunity</th>
           </tr></thead><tbody>
-          ${rows.map(r => {
-            const bc = BRAND_COLORS[r.brand]?.primary || "#f59e0b";
-            return `<tr>
-              <td style="font-weight:500">${esc(r.keyword)}</td>
-              <td><span class="cm-brand-dot" style="background:${bc}"></span>${BRAND_COLORS[r.brand]?.label || r.brand}</td>
-              <td><span class="cm-rank" style="background:#fee2e2;color:#dc2626;font-weight:700">#${r.competitorRank}</span></td>
-              <td><span style="color:#94a3b8;font-size:12px">${r.ourRank ? "#"+r.ourRank : "Not ranking"}</span></td>
-              <td><span style="color:${oppColor[r.opportunity]};font-weight:600;font-size:12px">${oppLabel[r.opportunity]}</span></td>
-            </tr>`;
-          }).join("")}
+          ${rows.map(r => `<tr>
+            <td style="font-weight:500">${esc(r.keyword)}</td>
+            <td><span class="cm-rank" style="background:#fee2e2;color:#dc2626;font-weight:700">#${r.competitorRank}</span></td>
+            <td><span style="color:#94a3b8;font-size:12px">${r.ourRank ? "#"+r.ourRank : "Not ranking"}</span></td>
+            <td><span style="color:${oppColor[r.opportunity]};font-weight:600;font-size:12px">${oppLabel[r.opportunity]}</span></td>
+          </tr>`).join("")}
           </tbody></table>
         </div>`;
       }
     }
+    html += `</div>`;
 
     container.innerHTML = html;
     bindViewToggle(container);
@@ -636,11 +786,7 @@
   // ── Keywords management view ───────────────────────────────────────────────
   function renderKeywords(container) {
     injectStyles();
-    let html = `
-      <div class="cm-header">
-        <div class="cm-title">Competitor Matrix <span class="cm-badge">Live SERP</span></div>
-        <div class="cm-controls">${viewToggleHtml("keywords")}</div>
-      </div><div style="padding:20px 0">`;
+    let html = renderHeader("keywords") + `<div style="padding:20px 0">`;
 
     for (const brand of ["pickl","bonbird"]) {
       const keywords = keywordData?.[brand]?.keywords || [];
@@ -671,11 +817,7 @@
   // ── Competitors management view ────────────────────────────────────────────
   function renderCompetitors(container) {
     injectStyles();
-    let html = `
-      <div class="cm-header">
-        <div class="cm-title">Competitor Matrix <span class="cm-badge">Live SERP</span></div>
-        <div class="cm-controls">${viewToggleHtml("competitors")}</div>
-      </div>
+    let html = renderHeader("competitors") + `
       <div style="padding:20px 0">
         <p style="font-size:13px;color:#64748b;margin-bottom:20px">Add or remove tracked competitors. Changes apply on next Refresh Now.</p>`;
 

@@ -190,16 +190,35 @@ exports.handler = async (event) => {
       if (channel.toLowerCase().includes("organic")) countryData[country].organic += sessions;
     }
 
-    // LLM referral traffic
-    const llmMonthly = {};
-    const llmTotal   = { sessions: 0 };
+    // LLM referral traffic — per source per month + per-source totals
+    const llmMonthly   = {};  // { "YYYYMM": { perplexity:N, chatgpt:N, claude:N, gemini:N, copilot:N, total:N } }
+    const llmBySource  = {};  // { "perplexity.ai": totalSessions }
+    let   llmGrandTotal = 0;
+
+    // Map raw source strings to clean labels
+    function llmSourceLabel(src) {
+      const s = (src || "").toLowerCase();
+      if (s.includes("perplexity"))  return "Perplexity";
+      if (s.includes("chatgpt"))     return "ChatGPT";
+      if (s.includes("claude"))      return "Claude";
+      if (s.includes("gemini"))      return "Gemini";
+      if (s.includes("copilot"))     return "Copilot";
+      if (s.includes("bing"))        return "Bing AI";
+      return src; // fallback: raw source
+    }
+
     for (const row of (llmReport.rows || [])) {
       const source   = row.dimensionValues[0].value;
       const month    = row.dimensionValues[1].value;
       const sessions = parseInt(row.metricValues[0].value) || 0;
-      if (!llmMonthly[month]) llmMonthly[month] = 0;
-      llmMonthly[month] += sessions;
-      llmTotal.sessions += sessions;
+      const label    = llmSourceLabel(source);
+
+      if (!llmMonthly[month]) llmMonthly[month] = { total: 0 };
+      llmMonthly[month][label] = (llmMonthly[month][label] || 0) + sessions;
+      llmMonthly[month].total  += sessions;
+
+      llmBySource[label] = (llmBySource[label] || 0) + sessions;
+      llmGrandTotal += sessions;
     }
 
     const result = {
@@ -209,8 +228,9 @@ exports.handler = async (event) => {
       monthly:             monthlyData,
       totalOrganicSessions,
       countryBreakdown:    countryData,
-      llmReferralMonthly:  llmMonthly,
-      llmReferralTotal:    llmTotal.sessions,
+      llmReferralMonthly:  llmMonthly,   // { YYYYMM: { Perplexity: N, ChatGPT: N, …, total: N } }
+      llmBySource,                        // { "Perplexity": totalSessions, … }
+      llmReferralTotal:    llmGrandTotal,
       marketPaths:         Object.keys(markets),
       cachedAt:            Date.now(),
     };

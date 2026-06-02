@@ -1012,20 +1012,68 @@
       <div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:28px">
         <div>
           <div class="section-title">How It Works</div>
-          <div class="section-desc">What the system does, when it runs, and what each item in your queue means.</div>
+          <div class="section-desc">The Nest is a fully automated SEO, content, and AI search intelligence platform for Pickl and Bonbird. Here's exactly what it does and how each piece fits together.</div>
         </div>
         <div id="howto-status" style="font-size:12px;color:var(--text-muted);text-align:right;line-height:1.6"></div>
       </div>
 
       <!-- Scheduler status -->
       <div class="card" style="margin-bottom:20px;border-left:4px solid var(--primary)">
-        <h3 style="font-size:15px;font-weight:700;margin-bottom:16px">⚙️ Scheduler Status</h3>
+        <h3 style="font-size:15px;font-weight:700;margin-bottom:16px">⚙️ Weekly Automation — Monday 8am Dubai</h3>
         <div id="scheduler-status-detail" style="font-size:13px;color:var(--text-muted)">Loading…</div>
+      </div>
+
+      <!-- System map -->
+      <div class="card" style="margin-bottom:20px">
+        <h3 style="font-size:15px;font-weight:700;margin-bottom:16px">🗺️ The Full System</h3>
+        <div style="display:grid;gap:10px">
+
+          <div style="padding:12px 16px;background:rgba(245,158,11,0.06);border-radius:8px;border-left:3px solid #f59e0b">
+            <div style="font-weight:700;font-size:13px;color:#d97706;margin-bottom:4px">📋 Approvals Queue — your weekly to-do</div>
+            <div style="font-size:13px;color:var(--text);line-height:1.6">Every Monday the system analyses GSC data and generates content actions: meta rewrites, page updates, blog drafts, and new pages. Each lands here for review. You see: the keyword, current ranking, what changed, and why. Click Approve & Push to publish to WordPress, or Edit Draft to tweak it first. Nothing goes live without your click.</div>
+          </div>
+
+          <div style="padding:12px 16px;background:rgba(16,185,129,0.06);border-radius:8px;border-left:3px solid #10b981">
+            <div style="font-weight:700;font-size:13px;color:#059669;margin-bottom:4px">📊 Analytics & ROI — rankings + competitor intelligence</div>
+            <div style="font-size:13px;color:var(--text);line-height:1.6">Shows your GSC rankings from Google Search Console — not a third-party estimate, your actual Google data. Also shows the Competitor Matrix: every week DataForSEO checks where your competitors rank for the same keywords. Includes Share of Voice (who captures the most clicks), SERP features (who owns featured snippets and local pack), and unknown competitor detection. Use <strong>Manage Keywords</strong> to add more competitive keywords — the more you track, the more gaps you'll find.</div>
+          </div>
+
+          <div style="padding:12px 16px;background:rgba(99,102,241,0.06);border-radius:8px;border-left:3px solid #6366f1">
+            <div style="font-weight:700;font-size:13px;color:#6366f1;margin-bottom:4px">📈 Reports — weekly scorecard</div>
+            <div style="font-size:13px;color:var(--text);line-height:1.6">Your Monday morning summary. Top 10 count, impressions, clicks, traffic value (real CPC data from DataForSEO × 3.67 for AED), position distribution chart, content pipeline status, competitor gaps snapshot, AI Readiness Score, GA4 website traffic (once connected), and AI Search Presence showing whether ChatGPT, Perplexity, Claude, or Gemini mentions you when recommending restaurants.</div>
+          </div>
+
+          <div style="padding:12px 16px;background:rgba(239,68,68,0.06);border-radius:8px;border-left:3px solid #ef4444">
+            <div style="font-weight:700;font-size:13px;color:#ef4444;margin-bottom:4px">⚡ Technical SEO — site health audit</div>
+            <div style="font-size:13px;color:var(--text);line-height:1.6">Weekly automated audit of both sites. Checks Core Web Vitals (mobile speed, LCP, CLS), meta tag issues, canonical errors, structured data, robots.txt, sitemap, and more. Critical issues are flagged in red and fed into the Reports AI Readiness Score. A page speed below 70/100 blocks Google AI Overview eligibility.</div>
+          </div>
+
+          <div style="padding:12px 16px;background:rgba(239,68,68,0.06);border-radius:8px;border-left:3px solid #dc2626">
+            <div style="font-weight:700;font-size:13px;color:#dc2626;margin-bottom:4px">📍 Local SEO — Google Business Profile</div>
+            <div style="font-size:13px;color:var(--text);line-height:1.6">Monitors all GBP locations for both brands: health scores, missing hours/photos, unanswered reviews. The system drafts review replies in brand voice — approve and publish them directly from here. <em>Requires GBP OAuth connection and Google API approval (separate review process).</em></div>
+          </div>
+
+          <div style="padding:12px 16px;background:rgba(6,182,212,0.06);border-radius:8px;border-left:3px solid #06b6d4">
+            <div style="font-weight:700;font-size:13px;color:#0891b2;margin-bottom:4px">🌍 International SEO — hreflang + market pipelines</div>
+            <div style="font-size:13px;color:var(--text);line-height:1.6">Manages all 6 Pickl markets (UAE, Bahrain, KSA, Qatar, Egypt, Jordan, Oman) and 4 Bonbird markets. Generates correct hreflang tags to prevent duplicate content issues across markets. Each market has its own content pipeline — a separate Monday run targets market-specific keywords.</div>
+          </div>
+
+          <div style="padding:12px 16px;background:rgba(139,92,246,0.06);border-radius:8px;border-left:3px solid #8b5cf6">
+            <div style="font-weight:700;font-size:13px;color:#7c3aed;margin-bottom:4px">✨ AI Content Studio — manual content on demand</div>
+            <div style="font-size:13px;color:var(--text);line-height:1.6">Tools you can run any time: blog post generator, meta tag rewriter, page content updater, review response drafter, schema generator, keyword brief creator. All prompts are pre-loaded with brand context (positioning, voice rules, real copy examples) so output sounds like Pickl or Bonbird, not generic AI.</div>
+          </div>
+
+          <div style="padding:12px 16px;background:rgba(245,158,11,0.06);border-radius:8px;border-left:3px solid #f59e0b">
+            <div style="font-weight:700;font-size:13px;color:#d97706;margin-bottom:4px">🐦 The Perch — task board + weekly goals</div>
+            <div style="font-size:13px;color:var(--text);line-height:1.6">Your SEO task board. Assign priorities, track what's in progress, mark completions. Tasks with due dates trigger a daily 9am Dubai Slack notification (weekdays only) — you'll never miss a Monday priority. Integrated with the weekly automation status.</div>
+          </div>
+
+        </div>
       </div>
 
       <!-- Keyword tiers -->
       <div class="card" style="margin-bottom:20px">
-        <h3 style="font-size:15px;font-weight:700;margin-bottom:8px">🎯 Keyword Tiers — How Keywords Are Targeted</h3>
+        <h3 style="font-size:15px;font-weight:700;margin-bottom:8px">🎯 Keyword Tiers — How Keywords Are Prioritised</h3>
         <p style="font-size:13px;color:var(--text-muted);margin-bottom:16px">Every keyword in your queue is classified by how close it is to ranking. The tier tells you the expected effort and timeline.</p>
         <div style="display:grid;gap:12px">
 
@@ -1036,7 +1084,7 @@
                 <span style="font-weight:700;font-size:13px;color:#059669">Quick Win</span>
                 <span style="font-size:11px;color:var(--text-muted);background:var(--bg-surface);padding:1px 8px;border-radius:99px;border:1px solid var(--border)">Position 11–20</span>
               </div>
-              <div style="font-size:13px;color:var(--text)">You already rank. One strong content update pushes you to page 1. Fastest ROI — expect results in days to weeks.</div>
+              <div style="font-size:13px;color:var(--text)">You already rank on page 2. One strong content update pushes you to page 1. Fastest ROI — expect results in days to weeks.</div>
             </div>
           </div>
 
@@ -1047,7 +1095,7 @@
                 <span style="font-weight:700;font-size:13px;color:#d97706">Short Term</span>
                 <span style="font-size:11px;color:var(--text-muted);background:var(--bg-surface);padding:1px 8px;border-radius:99px;border:1px solid var(--border)">Position 21–35</span>
               </div>
-              <div style="font-size:13px;color:var(--text)">You're ranking weakly. A focused new post or page rewrite builds relevance. Expect results in 4–8 weeks.</div>
+              <div style="font-size:13px;color:var(--text)">Ranking weakly. A focused new post or page rewrite builds relevance. Expect results in 4–8 weeks.</div>
             </div>
           </div>
 
@@ -1067,9 +1115,9 @@
             <div>
               <div style="display:flex;gap:8px;align-items:center;margin-bottom:4px">
                 <span style="font-weight:700;font-size:13px;color:#dc2626">Priority Gap</span>
-                <span style="font-size:11px;color:var(--text-muted);background:var(--bg-surface);padding:1px 8px;border-radius:99px;border:1px solid var(--border)">Seed list — not in GSC</span>
+                <span style="font-size:11px;color:var(--text-muted);background:var(--bg-surface);padding:1px 8px;border-radius:99px;border:1px solid var(--border)">Seed list — not in GSC yet</span>
               </div>
-              <div style="font-size:13px;color:var(--text)">Competitors rank here, you don't appear at all. Manually curated keywords you want to own. Highest strategic value.</div>
+              <div style="font-size:13px;color:var(--text)">Keywords you've manually added to the Seed list that you want to own. No impressions yet — earliest stage. Highest strategic value.</div>
             </div>
           </div>
 
@@ -1080,76 +1128,82 @@
       <div class="card" style="margin-bottom:20px">
         <h3 style="font-size:15px;font-weight:700;margin-bottom:16px">📋 Approval Types — What Each Item Means</h3>
         <div style="display:grid;gap:10px">
-
           <div style="display:flex;gap:12px;align-items:flex-start;padding:10px 12px;border-radius:8px;border:1px solid var(--border)">
             <span style="font-size:11px;font-weight:700;padding:2px 8px;border-radius:4px;background:#05996918;color:#059669;white-space:nowrap;margin-top:1px">META UPDATE</span>
-            <span style="font-size:13px;color:var(--text)">Rewrites the SEO title and meta description for an existing page. Low risk, high CTR impact. Always approve these.</span>
+            <span style="font-size:13px;color:var(--text)">Rewrites the SEO title and meta description for an existing page. Low risk, high CTR impact. Triggered when a page has high impressions but below-expected click-through rate. Always approve these.</span>
           </div>
-
           <div style="display:flex;gap:12px;align-items:flex-start;padding:10px 12px;border-radius:8px;border:1px solid var(--border)">
             <span style="font-size:11px;font-weight:700;padding:2px 8px;border-radius:4px;background:#3b82f618;color:#3b82f6;white-space:nowrap;margin-top:1px">PAGE UPDATE</span>
-            <span style="font-size:13px;color:var(--text)">Rewrites the full content of an existing page to push a ranking keyword into the top 10. Review content before approving.</span>
+            <span style="font-size:13px;color:var(--text)">Rewrites the full content of an existing page to push a Quick Win keyword to page 1. Review content before approving. Check the brand voice score — aim for 7+.</span>
           </div>
-
           <div style="display:flex;gap:12px;align-items:flex-start;padding:10px 12px;border-radius:8px;border:1px solid var(--border)">
             <span style="font-size:11px;font-weight:700;padding:2px 8px;border-radius:4px;background:#8b5cf618;color:#8b5cf6;white-space:nowrap;margin-top:1px">BLOG DRAFT</span>
-            <span style="font-size:13px;color:var(--text)">A brand new blog post targeting a content gap keyword. Check the voice score badge — aim for 7+ before publishing.</span>
+            <span style="font-size:13px;color:var(--text)">A brand new blog post targeting a content gap keyword. Drafted in brand voice, voice-checked, then queued. Check the voice score badge — aim for 7+ before publishing.</span>
           </div>
-
           <div style="display:flex;gap:12px;align-items:flex-start;padding:10px 12px;border-radius:8px;border:1px solid var(--border)">
             <span style="font-size:11px;font-weight:700;padding:2px 8px;border-radius:4px;background:#f59e0b18;color:#f59e0b;white-space:nowrap;margin-top:1px">NEW PAGE</span>
-            <span style="font-size:13px;color:var(--text)">A new landing page for a location or service keyword. Requires your developer to set up the WordPress page parent correctly.</span>
+            <span style="font-size:13px;color:var(--text)">A new landing page for a location or service keyword (e.g. "burger delivery abu dhabi"). The developer sets up the WordPress page, then approves here to publish content.</span>
           </div>
-
-          <div style="display:flex;gap:12px;align-items:flex-start;padding:10px 12px;border-radius:8px;border:1px solid var(--border)">
-            <span style="font-size:11px;font-weight:700;padding:2px 8px;border-radius:4px;background:#06b6d418;color:#06b6d4;white-space:nowrap;margin-top:1px">ON-PAGE EDIT</span>
-            <span style="font-size:13px;color:var(--text)">A specific structural improvement to an existing page — adding a comparison table, fixing a heading, adding internal links.</span>
-          </div>
-
           <div style="display:flex;gap:12px;align-items:flex-start;padding:10px 12px;border-radius:8px;border:1px solid var(--border)">
             <span style="font-size:11px;font-weight:700;padding:2px 8px;border-radius:4px;background:#ec489918;color:#ec4899;white-space:nowrap;margin-top:1px">REVIEW REPLY</span>
-            <span style="font-size:13px;color:var(--text)">A suggested response to a Google review. Drafted in brand voice. Always personalise before publishing.</span>
+            <span style="font-size:13px;color:var(--text)">A suggested response to a Google review — drafted in brand voice. Always personalise with the customer's name or specific comment before publishing.</span>
           </div>
-
         </div>
       </div>
 
       <!-- Voice scoring -->
       <div class="card" style="margin-bottom:20px">
         <h3 style="font-size:15px;font-weight:700;margin-bottom:12px">✦ Brand Voice Scoring</h3>
-        <p style="font-size:13px;color:var(--text-muted);margin-bottom:14px">Every blog draft and page update is scored 1–10 for brand voice accuracy before it reaches your queue. A second Claude pass checks for generic phrases, banned words, AI tells like em dashes, and whether the content could only have been written for Pickl or Bonbird.</p>
+        <p style="font-size:13px;color:var(--text-muted);margin-bottom:14px">Every blog draft and page update is scored 1–10 for brand voice accuracy before it reaches your queue. A second Claude pass checks for generic phrases, banned words, AI tells like em dashes, and whether the content could only have been written for Pickl or Bonbird — not any other restaurant.</p>
         <div style="display:grid;gap:8px">
-
           <div style="display:flex;gap:10px;align-items:center;padding:8px 12px;border-radius:6px;background:#05996908">
             <span style="font-size:12px;font-weight:700;color:#059669;width:36px;flex-shrink:0">9–10</span>
             <span style="font-size:11px;font-weight:700;padding:1px 7px;border-radius:99px;background:#05996918;color:#059669;white-space:nowrap">On Brand</span>
             <span style="font-size:13px;color:var(--text)">Sharp, specific, unmistakably the brand. Approve with confidence.</span>
           </div>
-
           <div style="display:flex;gap:10px;align-items:center;padding:8px 12px;border-radius:6px;background:#05996908">
             <span style="font-size:12px;font-weight:700;color:#059669;width:36px;flex-shrink:0">7–8</span>
             <span style="font-size:11px;font-weight:700;padding:1px 7px;border-radius:99px;background:#05996918;color:#059669;white-space:nowrap">On Brand</span>
             <span style="font-size:13px;color:var(--text)">Mostly strong. Minor generic moments. Fine to approve.</span>
           </div>
-
           <div style="display:flex;gap:10px;align-items:center;padding:8px 12px;border-radius:6px;background:#d9770608">
             <span style="font-size:12px;font-weight:700;color:#d97706;width:36px;flex-shrink:0">5–6</span>
             <span style="font-size:11px;font-weight:700;padding:1px 7px;border-radius:99px;background:#d9770618;color:#d97706;white-space:nowrap">Review Voice</span>
             <span style="font-size:13px;color:var(--text)">Some brand voice but generic in places. Use Rewrite with AI or edit manually.</span>
           </div>
-
-          <div style="display:flex;gap:10px;align-items:center;padding:8px 12px;border-radius:6px;background:#dc262608">
-            <span style="font-size:12px;font-weight:700;color:#dc2626;width:36px;flex-shrink:0">1–4</span>
-            <span style="font-size:11px;font-weight:700;padding:1px 7px;border-radius:99px;background:#dc262618;color:#dc2626;white-space:nowrap">Off Brand</span>
-            <span style="font-size:13px;color:var(--text)">Does not sound like the brand. Rewrite before publishing.</span>
-          </div>
-
           <div style="display:flex;gap:10px;align-items:center;padding:8px 12px;border-radius:6px;background:#dc262608">
             <span style="font-size:12px;font-weight:700;color:#dc2626;width:36px;flex-shrink:0">&lt; 5</span>
             <span style="font-size:11px;font-weight:700;padding:1px 7px;border-radius:99px;background:#dc262618;color:#dc2626;white-space:nowrap">Auto-rejected</span>
-            <span style="font-size:13px;color:var(--text)">Content scored below 5 is never queued. You'll see an error in the scheduler logs.</span>
+            <span style="font-size:13px;color:var(--text)">Scored below 5 — never queued. You'll see an error in Settings &amp; Logs if you run the scheduler manually.</span>
           </div>
+        </div>
+      </div>
 
+      <!-- AI Search Presence explained -->
+      <div class="card" style="margin-bottom:20px">
+        <h3 style="font-size:15px;font-weight:700;margin-bottom:12px">🤖 AI Search Presence — Why This Matters</h3>
+        <p style="font-size:13px;color:var(--text-muted);margin-bottom:12px">Every Monday, The Nest asks ChatGPT, Perplexity, Claude, and Gemini "What are the best burger restaurants in Dubai?" (and 5 other category queries per brand). It records whether your brand is mentioned and builds a weekly trend.</p>
+        <div style="display:grid;gap:8px">
+          <div style="padding:10px 12px;border-radius:6px;background:rgba(255,255,255,0.03);border:1px solid var(--border)">
+            <span style="font-weight:600;font-size:13px">Why LLMs matter:</span>
+            <span style="font-size:13px;color:var(--text)"> Perplexity, ChatGPT, and Gemini are increasingly used for restaurant recommendations — especially by tourists and expats using AI assistants. Not appearing means losing customers before they ever search Google.</span>
+          </div>
+          <div style="padding:10px 12px;border-radius:6px;background:rgba(255,255,255,0.03);border:1px solid var(--border)">
+            <span style="font-weight:600;font-size:13px">How to improve it:</span>
+            <span style="font-size:13px;color:var(--text)"> LLMs train on web content. More blog posts, press mentions, review platforms, and structured data (schema) = more LLM visibility. Content approved through this tool directly contributes to LLM mention rates over time.</span>
+          </div>
+        </div>
+      </div>
+
+      <!-- Competitor matrix explained -->
+      <div class="card" style="margin-bottom:20px">
+        <h3 style="font-size:15px;font-weight:700;margin-bottom:12px">⚔️ Competitor Matrix — How to Use It</h3>
+        <p style="font-size:13px;color:var(--text-muted);margin-bottom:12px">The matrix refreshes every Monday from DataForSEO (real Google SERP data, UAE desktop). Here's how each view is useful:</p>
+        <div style="display:grid;gap:8px">
+          <div style="padding:10px 12px;border-radius:6px;background:rgba(255,255,255,0.03);border:1px solid var(--border)"><strong style="font-size:13px">Rankings:</strong> <span style="font-size:13px;color:var(--text)">Side-by-side position comparison for every tracked keyword. SERP feature pills show who owns featured snippets and local pack. Movement arrows show week-on-week trends. Unknown competitor alerts surface brands appearing in your SERPs that you're not tracking yet.</span></div>
+          <div style="padding:10px 12px;border-radius:6px;background:rgba(255,255,255,0.03);border:1px solid var(--border)"><strong style="font-size:13px">Share of Voice:</strong> <span style="font-size:13px;color:var(--text)">Who captures the most estimated clicks across your keyword category. Calculated using real CTR curves (position 1 = 30%, position 5 = 7%, etc.). More meaningful than simple rank counts. Shows the 12-week trend line so you can see if you're gaining or losing market share.</span></div>
+          <div style="padding:10px 12px;border-radius:6px;background:rgba(255,255,255,0.03);border:1px solid var(--border)"><strong style="font-size:13px">Gaps:</strong> <span style="font-size:13px;color:var(--text)">Keywords where competitors rank top 20 but you don't. "No gaps" means you rank for everything tracked — not that there are no opportunities. Expand the tracking list in Manage Keywords to discover more. Each gap is a direct content brief: create the page, target the keyword, close the gap.</span></div>
+          <div style="padding:10px 12px;border-radius:6px;background:rgba(255,255,255,0.03);border:1px solid var(--border)"><strong style="font-size:13px">Keyword strategy tip:</strong> <span style="font-size:13px;color:var(--text)">The more keywords you track, the more gaps and Share of Voice data you get. Aim for 100+ tracked keywords per brand covering: head terms, location modifiers, intent variants (delivery, near me, best), and format variants (burger, wrap, chicken).</span></div>
         </div>
       </div>
 
@@ -1158,7 +1212,7 @@
         <div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:16px">
           <div>
             <h3 style="font-size:15px;font-weight:700">🚨 Priority Gap Keywords (Seed List)</h3>
-            <p style="font-size:13px;color:var(--text-muted);margin-top:4px">Keywords you want to rank for that don't appear in GSC. The scheduler targets these alongside GSC data every Monday.</p>
+            <p style="font-size:13px;color:var(--text-muted);margin-top:4px">Keywords you want to rank for that don't appear in GSC yet. The scheduler targets these alongside GSC data every Monday. Add anything a competitor ranks for that you don't — these become the highest-priority content briefs.</p>
           </div>
           <select id="seed-brand-selector" class="form-input" style="width:130px;font-family:var(--font-sans)" onchange="loadSeedKeywords()">
             <option value="pickl">Pickl</option>
@@ -1956,7 +2010,8 @@ function buildPreview(item) {
     <div style="margin-top:6px"><strong>Slug:</strong> /${esc(p.slug || '-')}</div>
     <div style="margin-top:6px"><strong>Keyword:</strong> ${esc(p.targetKeyword || '-')}</div>
     <div style="margin-top:6px"><strong>Meta:</strong> ${esc(p.description || '-')}</div>
-    <div style="margin-top:8px;padding:6px 10px;background:#eff6ff;border-radius:6px;font-size:11px;color:#2563eb">Image placeholders included - add real images in WP before publishing</div>
+    ${p.voiceTopFix ? `<div style="margin-top:8px;padding:8px 12px;background:#fef3c7;border-left:3px solid #f59e0b;border-radius:0 6px 6px 0;font-size:12px;color:#92400e"><strong>⚠ Voice note:</strong> ${esc(p.voiceTopFix)}</div>` : ''}
+    <div style="margin-top:8px;padding:6px 10px;background:#eff6ff;border-radius:6px;font-size:11px;color:#2563eb">Image placeholders included — add real images in WordPress before publishing</div>
     <details style="margin-top:8px"><summary style="cursor:pointer;font-size:12px;color:var(--text-muted)">Preview content</summary>
     <div style="margin-top:6px;padding:10px;background:#f8fafc;border-radius:6px;font-size:12px;max-height:200px;overflow-y:auto;white-space:pre-wrap">${esc((p.body||'').slice(0,1200))}${(p.body||'').length>1200?'...':''}</div></details>`;
   return `<div>${esc(item.reason || JSON.stringify(p))}</div>`;
@@ -3550,14 +3605,20 @@ function renderReports(brand, rows, techData, queue, matrixData) {
   );
   const avgPos           = rows.length ? (rows.reduce((s,r) => s + r.position, 0) / rows.length).toFixed(1) : '—';
 
-  // ── Position distribution ────────────────────────────────────
-  const bands = [
-    { label: '1–3',   color: '#059669', count: rows.filter(r => r.position <= 3).length },
-    { label: '4–10',  color: '#3b82f6', count: rows.filter(r => r.position > 3  && r.position <= 10).length },
-    { label: '11–20', color: '#d97706', count: rows.filter(r => r.position > 10 && r.position <= 20).length },
-    { label: '21–50', color: '#f97316', count: rows.filter(r => r.position > 20 && r.position <= 50).length },
-    { label: '51+',   color: '#dc2626', count: rows.filter(r => r.position > 50).length },
+  // ── Position distribution — with branded vs non-branded split ────────────
+  const bandDefs = [
+    { label: '1–3',   color: '#059669', range: r => r.position <= 3 },
+    { label: '4–10',  color: '#3b82f6', range: r => r.position > 3  && r.position <= 10 },
+    { label: '11–20', color: '#d97706', range: r => r.position > 10 && r.position <= 20 },
+    { label: '21–50', color: '#f97316', range: r => r.position > 20 && r.position <= 50 },
+    { label: '51+',   color: '#dc2626', range: r => r.position > 50 },
   ];
+  const bands = bandDefs.map(b => ({
+    ...b,
+    count:    rows.filter(b.range).length,
+    nonBrand: nonBrandedRows.filter(b.range).length,
+    branded:  brandedRows.filter(b.range).length,
+  }));
   const maxCount = Math.max(...bands.map(b => b.count), 1);
 
   // ── Quick Wins & opportunities ───────────────────────────────
@@ -3623,23 +3684,41 @@ function renderReports(brand, rows, techData, queue, matrixData) {
       <div style="font-size:11px;color:var(--text-muted)">${m.sub}</div>
     </div>`).join('');
 
-  // Position distribution chart
+  // Position distribution chart — branded vs non-branded split per band
   document.getElementById('report-position-chart').innerHTML = `
-    <div style="display:flex;align-items:flex-end;gap:12px;height:120px;margin-bottom:16px">
-      ${bands.map(b => `
-        <div style="flex:1;display:flex;flex-direction:column;align-items:center;gap:6px">
-          <div style="font-size:12px;font-weight:700;color:${b.color}">${b.count}</div>
-          <div style="width:100%;background:${b.color};border-radius:4px 4px 0 0;height:${Math.round((b.count/maxCount)*90)}px;min-height:${b.count>0?'4px':'0'};transition:height 0.3s"></div>
-        </div>`).join('')}
+    <div style="display:flex;align-items:flex-end;gap:10px;height:120px;margin-bottom:10px">
+      ${bands.map(b => {
+        const totalH    = Math.round((b.count / maxCount) * 100);
+        const nonBrandH = b.count > 0 ? Math.round((b.nonBrand / b.count) * totalH) : 0;
+        const brandH    = totalH - nonBrandH;
+        return `<div style="flex:1;display:flex;flex-direction:column;align-items:center;gap:4px">
+          <div style="font-size:11px;font-weight:700;color:${b.color}">${b.count}</div>
+          <div style="width:100%;display:flex;flex-direction:column;justify-content:flex-end;height:100px">
+            <div title="${b.nonBrand} non-branded · ${b.branded} branded in ${b.label}" style="width:100%;border-radius:4px 4px 0 0;overflow:hidden;display:flex;flex-direction:column;min-height:${b.count>0?'4px':'0'}">
+              <div style="width:100%;height:${brandH}px;background:${b.color};opacity:0.35" title="${b.branded} branded"></div>
+              <div style="width:100%;height:${nonBrandH}px;background:${b.color}" title="${b.nonBrand} non-branded"></div>
+            </div>
+          </div>
+        </div>`;
+      }).join('')}
     </div>
-    <div style="display:flex;gap:12px">
+    <div style="display:flex;gap:10px;margin-bottom:10px">
       ${bands.map(b => `<div style="flex:1;text-align:center;font-size:11px;color:var(--text-muted);font-weight:600">${b.label}</div>`).join('')}
     </div>
-    <div style="margin-top:16px;padding-top:12px;border-top:1px solid var(--border);display:flex;justify-content:space-between;font-size:12px;color:var(--text-muted)">
-      <span>Avg position: <strong style="color:var(--text)">${avgPos}</strong></span>
-      <span>Total keywords: <strong style="color:var(--text)">${rows.length}</strong></span>
+    <div style="display:flex;gap:16px;font-size:11px;margin-bottom:10px">
+      <span style="display:flex;align-items:center;gap:4px"><span style="width:10px;height:10px;border-radius:2px;background:#3b82f6;display:inline-block"></span> Non-branded (earned)</span>
+      <span style="display:flex;align-items:center;gap:4px"><span style="width:10px;height:10px;border-radius:2px;background:#3b82f6;opacity:0.35;display:inline-block"></span> Branded (brand searches)</span>
     </div>
-    <div style="margin-top:8px;font-size:11px;color:var(--text-muted)">Source: Google Search Console · 90-day window</div>`;
+    <div style="display:flex;flex-wrap:wrap;gap:8px;margin-bottom:12px">
+      ${bands.map(b => b.count > 0 ? `<div style="font-size:11px;color:var(--text-muted)">
+        <strong style="color:${b.color}">${b.label}:</strong> ${b.nonBrand} non-brand + ${b.branded} branded
+      </div>` : '').join('')}
+    </div>
+    <div style="padding-top:10px;border-top:1px solid var(--border);display:flex;justify-content:space-between;font-size:12px;color:var(--text-muted)">
+      <span>Avg position: <strong style="color:var(--text)">${avgPos}</strong></span>
+      <span>Total: <strong style="color:var(--text)">${rows.length}</strong> · Non-branded: <strong style="color:var(--text)">${nonBrandedRows.length}</strong> · Branded: <strong style="color:var(--text)">${brandedRows.length}</strong></span>
+    </div>
+    <div style="margin-top:6px;font-size:11px;color:var(--text-muted)">Source: Google Search Console · 90-day window</div>`;
 
   // AI Search Readiness
   document.getElementById('report-ai-readiness').innerHTML = `
@@ -3864,48 +3943,83 @@ async function loadGa4Report(brand) {
       return;
     }
 
-    // Render monthly chart + summary
-    const monthly = (data.monthly || []).slice(-12);
-    const maxSessions = Math.max(...monthly.map(m => m.sessions), 1);
-    const totalSessions = data.totalOrganicSessions || 0;
-    const llmTotal = data.llmReferralTotal || 0;
+    const monthly        = (data.monthly || []).slice(-12);
+    const totalSessions  = data.totalOrganicSessions || 0;
+    const llmTotal       = data.llmReferralTotal || 0;
+    const llmBySource    = data.llmBySource || {};
+    const llmMonthly     = data.llmReferralMonthly || {};
+    const maxSessions    = Math.max(...monthly.map(m => m.sessions), 1);
+
+    // Build LLM monthly totals aligned to the organic months array
+    const llmMonthlyTotals = monthly.map(m => (llmMonthly[m.month]?.total || 0));
+    const maxLlm = Math.max(...llmMonthlyTotals, 1);
 
     document.getElementById('report-ga4-status').innerHTML = `<span style="color:var(--success)">✓ GA4 connected</span> · ${esc(data.propertyId)}`;
 
-    const barWidth = 100 / Math.max(monthly.length, 1);
+    // Per-source LLM breakdown table
+    const llmSources = Object.entries(llmBySource).sort(([,a],[,b]) => b - a);
+    const llmSourcesHtml = llmSources.length > 0
+      ? `<div style="margin-top:12px">
+          <div style="font-size:11px;font-weight:600;text-transform:uppercase;letter-spacing:0.04em;color:var(--text-muted);margin-bottom:6px">By AI Source (90 days)</div>
+          <div style="display:flex;flex-direction:column;gap:4px">
+            ${llmSources.map(([src, n]) => {
+              const pct  = llmTotal > 0 ? Math.round((n / llmTotal) * 100) : 0;
+              const emoji = src === 'Perplexity' ? '🔍' : src === 'ChatGPT' ? '💬' : src === 'Claude' ? '🤖' : src === 'Gemini' ? '✨' : src === 'Copilot' ? '🪟' : '🔗';
+              return `<div style="display:flex;align-items:center;gap:8px">
+                <span style="font-size:12px;width:90px;flex-shrink:0">${emoji} ${esc(src)}</span>
+                <div style="flex:1;background:rgba(255,255,255,0.06);border-radius:3px;height:14px;position:relative">
+                  <div style="height:100%;border-radius:3px;background:#6366f1;width:${Math.max(2,pct)}%"></div>
+                </div>
+                <span style="font-size:12px;color:var(--text-muted);width:50px;text-align:right">${n.toLocaleString()}</span>
+              </div>`;
+            }).join('')}
+          </div>
+        </div>`
+      : `<div style="font-size:11px;color:var(--text-muted);margin-top:8px">No LLM referral traffic recorded yet — this will grow as AI assistants send more traffic.</div>`;
 
     el.innerHTML = `
-      <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:12px;margin-bottom:16px">
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:16px">
         <div style="background:rgba(255,255,255,0.03);border:1px solid rgba(255,255,255,0.07);border-radius:8px;padding:12px 14px">
           <div style="font-size:11px;text-transform:uppercase;letter-spacing:0.05em;color:var(--text-muted);margin-bottom:4px">Organic Sessions (12m)</div>
           <div style="font-size:1.4rem;font-weight:700">${totalSessions.toLocaleString()}</div>
+          <div style="font-size:11px;color:var(--text-muted)">from Google Search</div>
         </div>
-        <div style="background:rgba(255,255,255,0.03);border:1px solid rgba(255,255,255,0.07);border-radius:8px;padding:12px 14px">
-          <div style="font-size:11px;text-transform:uppercase;letter-spacing:0.05em;color:var(--text-muted);margin-bottom:4px">LLM Referral Traffic (90d)</div>
-          <div style="font-size:1.4rem;font-weight:700">${llmTotal.toLocaleString()}</div>
-          <div style="font-size:11px;color:var(--text-muted)">from AI assistants</div>
-        </div>
-        <div style="background:rgba(255,255,255,0.03);border:1px solid rgba(255,255,255,0.07);border-radius:8px;padding:12px 14px">
-          <div style="font-size:11px;text-transform:uppercase;letter-spacing:0.05em;color:var(--text-muted);margin-bottom:4px">Markets Tracked</div>
-          <div style="font-size:1.4rem;font-weight:700">${(data.marketPaths || []).length}</div>
+        <div style="background:rgba(99,102,241,0.08);border:1px solid rgba(99,102,241,0.2);border-radius:8px;padding:12px 14px">
+          <div style="font-size:11px;text-transform:uppercase;letter-spacing:0.05em;color:#6366f1;margin-bottom:4px">AI Referral Traffic (90d)</div>
+          <div style="font-size:1.4rem;font-weight:700;color:#6366f1">${llmTotal.toLocaleString()}</div>
+          ${llmSourcesHtml}
         </div>
       </div>
+
       <div style="margin-bottom:16px">
-        <div style="font-size:12px;font-weight:600;color:var(--text-muted);margin-bottom:8px;text-transform:uppercase;letter-spacing:0.04em">Monthly Organic Sessions — Last 12 Months</div>
-        <div style="display:flex;align-items:flex-end;gap:3px;height:80px">
-          ${monthly.map(m => {
-            const h    = Math.max(4, Math.round((m.sessions / maxSessions) * 76));
-            const yy   = String(m.month).slice(0,4);
-            const mm   = String(m.month).slice(4,6);
-            const label = new Date(yy, parseInt(mm) - 1).toLocaleDateString('en-GB', { month:'short' });
-            return `<div style="flex:1;display:flex;flex-direction:column;align-items:center;gap:2px">
-              <div title="${m.sessions.toLocaleString()} sessions in ${label} ${yy}" style="width:100%;height:${h}px;background:var(--primary,#f59e0b);border-radius:3px 3px 0 0;opacity:0.85"></div>
+        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px">
+          <div style="font-size:12px;font-weight:600;color:var(--text-muted);text-transform:uppercase;letter-spacing:0.04em">Monthly Sessions — Last 12 Months</div>
+          <div style="display:flex;gap:12px;font-size:11px">
+            <span style="display:flex;align-items:center;gap:4px"><span style="width:10px;height:10px;border-radius:2px;background:var(--primary,#f59e0b);display:inline-block"></span> Organic (GSC)</span>
+            <span style="display:flex;align-items:center;gap:4px"><span style="width:10px;height:10px;border-radius:50%;background:#6366f1;display:inline-block"></span> AI Referral</span>
+          </div>
+        </div>
+        <div style="display:flex;align-items:flex-end;gap:3px;height:90px;position:relative">
+          ${monthly.map((m, i) => {
+            const barH   = Math.max(3, Math.round((m.sessions / maxSessions) * 84));
+            const llmN   = llmMonthlyTotals[i];
+            const llmH   = llmN > 0 ? Math.max(3, Math.round((llmN / maxSessions) * 84)) : 0;
+            const yy     = String(m.month).slice(0,4);
+            const mm     = String(m.month).slice(4,6);
+            const label  = new Date(yy, parseInt(mm) - 1).toLocaleDateString('en-GB', { month:'short' });
+            const llmTip = llmN > 0 ? ` · ${llmN.toLocaleString()} AI referral` : '';
+            return `<div style="flex:1;display:flex;flex-direction:column;align-items:center;gap:2px;position:relative">
+              <div title="${m.sessions.toLocaleString()} organic${llmTip} — ${label} ${yy}" style="width:100%;height:${barH}px;background:var(--primary,#f59e0b);border-radius:3px 3px 0 0;opacity:0.85;position:relative">
+                ${llmH > 0 ? `<div style="position:absolute;bottom:0;left:50%;transform:translateX(-50%);width:4px;height:${llmH}px;background:#6366f1;border-radius:2px 2px 0 0" title="${llmN.toLocaleString()} AI referral sessions"></div>` : ''}
+              </div>
               <div style="font-size:9px;color:var(--text-muted);writing-mode:vertical-rl;transform:rotate(180deg);height:28px">${label}</div>
             </div>`;
           }).join('')}
         </div>
+        <div style="margin-top:8px;font-size:11px;color:var(--text-muted)">Purple bar within each column = AI referral sessions for that month · hover for exact numbers</div>
       </div>
-      <div style="font-size:11px;color:var(--text-muted);text-align:right">Source: Google Analytics 4 · Organic Search channel only</div>`;
+
+      <div style="font-size:11px;color:var(--text-muted);text-align:right">Source: Google Analytics 4 · Organic Search channel + AI referral sources</div>`;
 
   } catch (err) {
     el.innerHTML = `<div style="font-size:13px;color:var(--text-muted)">Failed to load GA4 data: ${esc(err.message)}</div>`;
@@ -3932,13 +4046,15 @@ async function loadLlmMentions(brand) {
       el.innerHTML = `
         <div style="padding:16px;background:rgba(255,255,255,0.03);border:1px solid rgba(255,255,255,0.07);border-radius:8px">
           <div style="font-weight:600;font-size:13px;margin-bottom:6px">No data yet</div>
-          <div style="font-size:12px;color:var(--text-muted);margin-bottom:12px">LLM tracking runs every Monday alongside the content pipeline. Add API keys to see data:</div>
-          <div style="display:flex;flex-wrap:wrap;gap:6px;font-size:11px">
+          <div style="font-size:12px;color:var(--text-muted);margin-bottom:12px">Runs every Monday at 8am Dubai time. You can also trigger it manually. Required env vars (3 already set: ANTHROPIC_API_KEY ✓):</div>
+          <div style="display:flex;flex-wrap:wrap;gap:6px;font-size:11px;margin-bottom:14px">
+            <code style="background:rgba(16,185,129,0.1);color:#059669;padding:2px 7px;border-radius:3px;border:1px solid rgba(16,185,129,0.2)">ANTHROPIC_API_KEY ✓</code>
             <code style="background:rgba(0,0,0,0.08);padding:2px 7px;border-radius:3px">OPENAI_API_KEY</code>
             <code style="background:rgba(0,0,0,0.08);padding:2px 7px;border-radius:3px">PERPLEXITY_API_KEY</code>
             <code style="background:rgba(0,0,0,0.08);padding:2px 7px;border-radius:3px">GEMINI_API_KEY</code>
-            <code style="background:rgba(0,0,0,0.08);padding:2px 7px;border-radius:3px">ANTHROPIC_API_KEY ✓</code>
           </div>
+          <button class="btn btn-outline" style="font-size:12px;padding:5px 14px" id="llm-run-now-btn" onclick="triggerLlmRun('${brand}')">▶ Run Now</button>
+          <div id="llm-run-status" style="font-size:12px;color:var(--text-muted);margin-top:8px"></div>
         </div>`;
       return;
     }
@@ -3951,7 +4067,10 @@ async function loadLlmMentions(brand) {
     const dateStr    = latest.date ? new Date(latest.date).toLocaleDateString('en-GB', { day:'numeric', month:'short', year:'numeric' }) : '';
 
     el.innerHTML = `
-      <div style="font-size:11px;color:var(--text-muted);margin-bottom:12px">Last checked: ${dateStr} · ${latest.totalQueries || 0} queries sent across ${llms.length} LLMs</div>
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px">
+        <div style="font-size:11px;color:var(--text-muted)">Last checked: ${dateStr} · ${latest.totalQueries || 0} queries across ${llms.length} LLMs</div>
+        <button class="btn btn-outline" style="font-size:11px;padding:3px 10px" onclick="triggerLlmRun('${brand}')">↻ Run Now</button>
+      </div>
       <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));gap:12px;margin-bottom:16px">
         ${llms.map(llm => {
           const d = summary[llm] || {};
@@ -4027,7 +4146,41 @@ function renderLlmHistory(history, brandName) {
     </div>`;
 }
 
-function renderLlmQueryDetails(results, brandName) {
+async function triggerLlmRun(brand) {
+  const btn    = document.querySelector('#llm-run-now-btn') || document.querySelector('[onclick*="triggerLlmRun"]');
+  const status = document.getElementById('llm-run-status');
+  if (btn) { btn.disabled = true; btn.textContent = '⏳ Running…'; }
+  if (status) status.textContent = 'Triggering background job — this takes 3-5 minutes…';
+
+  try {
+    // Fire and forget — background function returns 202
+    fetch('/.netlify/functions/llm-mentions-background').catch(() => {});
+
+    // Poll for new data every 30s, up to 10 minutes
+    let attempts = 0;
+    const poll = setInterval(async () => {
+      attempts++;
+      if (status) status.textContent = `Waiting for results… (${attempts * 30}s)`;
+      try {
+        const data = await fetch(`/api/llm-mentions?brand=${brand}`, { credentials: 'include' }).then(r => r.json());
+        const todayStr = new Date().toISOString().split("T")[0];
+        if (data[brand]?.latest?.date === todayStr) {
+          clearInterval(poll);
+          if (status) status.textContent = '✓ Done!';
+          setTimeout(() => loadLlmMentions(brand).catch(() => {}), 300);
+        }
+        if (attempts >= 20) {
+          clearInterval(poll);
+          if (status) status.textContent = 'Still processing — check back in a few minutes.';
+          if (btn) { btn.disabled = false; btn.textContent = '▶ Run Now'; }
+        }
+      } catch { /* keep polling */ }
+    }, 30000);
+  } catch (e) {
+    if (status) status.textContent = 'Error: ' + e.message;
+    if (btn) { btn.disabled = false; btn.textContent = '▶ Run Now'; }
+  }
+}
   const mentions = results.filter(r => r.mentioned && r.context);
   if (!mentions.length) return '';
   return `
