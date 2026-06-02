@@ -14,6 +14,7 @@
 const { getStore } = require('@netlify/blobs');
 const { INTERNATIONAL_MARKETS, getMarketsForBrand, buildMarketPrompt, getWpCredentials, buildPostUrl } = require('./_lib/international-config');
 const { getBrandContext, buildBrandPrompt, runBrandVoiceCheck } = require('./_lib/brand');
+const { fetchGscDirect } = require('./_lib/store');
 
 const ANTHROPIC_API = 'https://api.anthropic.com/v1/messages';
 const MODEL         = 'claude-sonnet-4-20250514';
@@ -214,6 +215,14 @@ async function queueApprovalItem(item) {
         slug:            item.meta?.slug || '',
         targetKeyword:   item.meta?.focusKeyword || '',
         focusKeyword:    item.meta?.focusKeyword || '',
+        // Voice quality score
+        voiceScore:      item.meta?.voiceScore   || null,
+        voiceIssues:     item.meta?.voiceIssues  || [],
+        voiceTopFix:     item.meta?.voiceTopFix  || null,
+        // GSC position data — populated when keyword already has impressions in the market
+        // null for truly new content (no GSC data yet)
+        currentPos:      item.meta?.currentPos   || null,
+        impressions:     item.meta?.impressions   || null,
         // International metadata
         market:          item.market,
         marketLabel:     item.marketLabel,
@@ -275,6 +284,20 @@ async function processMarketLanguage(store, marketKey, market, language, force =
   const queued   = [];
   const errors   = [];
 
+  // Fetch GSC data for this brand to look up existing positions/impressions per keyword
+  // International market pages share the same GSC property as the main site
+  const BRAND_GSC = { pickl: 'https://eatpickl.com/', bonbird: 'https://bonbirdchicken.com/' };
+  let gscMap = {}; // keyword.toLowerCase() → { position, impressions }
+  try {
+    const gscRows = await fetchGscDirect(BRAND_GSC[market.brand] || BRAND_GSC.pickl);
+    for (const row of gscRows) {
+      if (row.keyword) gscMap[row.keyword.toLowerCase()] = { position: row.position, impressions: row.impressions };
+    }
+    console.log(`${tag} — GSC data fetched: ${Object.keys(gscMap).length} keywords`);
+  } catch (e) {
+    console.warn(`${tag} — GSC fetch failed (positions unavailable): ${e.message}`);
+  }
+
   // 1. Blog draft — with keyword deduplication
   try {
     const blog = await generateBlogDraft(market, brandCtx, language);
@@ -292,6 +315,7 @@ async function processMarketLanguage(store, marketKey, market, language, force =
         console.log(`${tag} — blog draft skipped (duplicate keyword: "${blog.focusKeyword}")`);
       } else {
         const wp = getWpCredentials(market);
+        const gscData = gscMap[blog.focusKeyword?.toLowerCase()] || null;
         const id = await queueApprovalItem({
           type:        'blog_draft',
           brand:       market.brand,
@@ -308,6 +332,8 @@ async function processMarketLanguage(store, marketKey, market, language, force =
             voiceScore:      blog.voiceScore,
             voiceIssues:     blog.voiceIssues,
             voiceTopFix:     blog.voiceTopFix,
+            currentPos:      gscData?.position   || null,
+            impressions:     gscData?.impressions || null,
           },
           targetUrl:   buildPostUrl(market, 'blog_draft', blog.slug || 'post', language),
           wpBase:      wp.base,

@@ -3815,7 +3815,7 @@ function renderReports(brand, rows, techData, queue, matrixData) {
   // ── Competitor Gaps ──────────────────────────────────────────
   const gapsEl = document.getElementById('report-competitor-gaps');
   if (gapsEl) {
-    const matrixRows = matrixData?.rows || [];
+    const matrixRows = matrixData?.[brand]?.rows || [];
     const gapRows = [];
     for (const row of matrixRows) {
       if (row.ourRank !== null && row.ourRank <= 30) continue;
@@ -4000,21 +4000,28 @@ async function loadGa4Report(brand, forceRefresh = false) {
             <span style="display:flex;align-items:center;gap:4px"><span style="width:10px;height:10px;border-radius:50%;background:#6366f1;display:inline-block"></span> AI Referral</span>
           </div>
         </div>
-        <div style="display:flex;align-items:flex-end;gap:3px;height:90px;position:relative">
+        <div style="display:flex;align-items:flex-end;gap:3px;height:80px">
           ${monthly.map((m, i) => {
-            const barH   = Math.max(3, Math.round((m.sessions / maxSessions) * 84));
+            const barH   = Math.max(3, Math.round((m.sessions / maxSessions) * 80));
             const llmN   = llmMonthlyTotals[i];
-            const llmH   = llmN > 0 ? Math.max(3, Math.round((llmN / maxSessions) * 84)) : 0;
+            const llmH   = llmN > 0 ? Math.max(3, Math.round((llmN / maxSessions) * 80)) : 0;
             const yy     = String(m.month).slice(0,4);
             const mm     = String(m.month).slice(4,6);
             const label  = new Date(yy, parseInt(mm) - 1).toLocaleDateString('en-GB', { month:'short' });
             const llmTip = llmN > 0 ? ` · ${llmN.toLocaleString()} AI referral` : '';
-            return `<div style="flex:1;display:flex;flex-direction:column;align-items:center;gap:2px;position:relative">
-              <div title="${m.sessions.toLocaleString()} organic${llmTip} — ${label} ${yy}" style="width:100%;height:${barH}px;background:var(--primary,#f59e0b);border-radius:3px 3px 0 0;opacity:0.85;position:relative">
+            return `<div style="flex:1;display:flex;flex-direction:column;align-items:center;justify-content:flex-end;height:100%">
+              <div title="${m.sessions.toLocaleString()} organic${llmTip} — ${label} ${yy}" style="width:100%;height:${barH}px;background:var(--primary,#f59e0b);border-radius:3px 3px 0 0;opacity:0.85;position:relative;flex-shrink:0">
                 ${llmH > 0 ? `<div style="position:absolute;bottom:0;left:50%;transform:translateX(-50%);width:4px;height:${llmH}px;background:#6366f1;border-radius:2px 2px 0 0" title="${llmN.toLocaleString()} AI referral sessions"></div>` : ''}
               </div>
-              <div style="font-size:9px;color:var(--text-muted);writing-mode:vertical-rl;transform:rotate(180deg);height:28px">${label}</div>
             </div>`;
+          }).join('')}
+        </div>
+        <div style="display:flex;gap:3px;margin-top:4px">
+          ${monthly.map(m => {
+            const yy    = String(m.month).slice(0,4);
+            const mm    = String(m.month).slice(4,6);
+            const label = new Date(yy, parseInt(mm) - 1).toLocaleDateString('en-GB', { month:'short' });
+            return `<div style="flex:1;text-align:center;font-size:9px;color:var(--text-muted);overflow:hidden">${label}</div>`;
           }).join('')}
         </div>
         <div style="margin-top:8px;font-size:11px;color:var(--text-muted)">Purple bar within each column = AI referral sessions for that month · hover for exact numbers</div>
