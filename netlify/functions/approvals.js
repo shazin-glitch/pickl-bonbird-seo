@@ -252,8 +252,12 @@ async function handleApprove(body, actor, edited) {
 
   const pushResult = await pushItem(Object.assign({}, item, { payload }));
   const final = await patchItem(id, {
-    status: pushResult.ok ? 'pushed' : 'failed',
-    pushResult: Object.assign({ at: Date.now() }, pushResult),
+    status:           pushResult.ok ? 'pushed' : 'failed',
+    pushResult:       Object.assign({ at: Date.now() }, pushResult),
+    // Tracking fields — used by Monday scheduler to measure ranking movement
+    trackingKeyword:  pushResult.ok ? (payload.targetKeyword || payload.keyword || null) : null,
+    positionAtPublish: pushResult.ok ? (payload.currentPos || payload.currentPosition || null) : null,
+    publishedAt:      pushResult.ok ? Date.now() : null,
   }, {
     at: Date.now(), actor: 'system',
     action: pushResult.ok ? 'pushed' : 'push_failed',
@@ -348,6 +352,10 @@ async function handlePublishItem(body, actor) {
   await patchItem(id, {
     status: 'published',
     publishResult: { at: Date.now(), ref: data.ref, message: data.message },
+    // Tracking fields — position at time of publish, for Monday movement tracking
+    trackingKeyword:   item.trackingKeyword   || item.payload?.targetKeyword || null,
+    positionAtPublish: item.positionAtPublish || item.payload?.currentPos    || null,
+    publishedAt:       Date.now(),
   }, { at: Date.now(), actor, action: 'published', note: data.message || `Published at ${data.ref}` });
 
   return ok({ item: await getItem(id), publishResult: data });

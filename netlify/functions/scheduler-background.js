@@ -16,6 +16,7 @@ const {
   ok, bad, preflight, parseBody,
 } = require('./_lib/store');
 const { getBrandContext, buildBrandPrompt, runBrandVoiceCheck, getBrandExamples } = require('./_lib/brand');
+const { getStore } = require('@netlify/blobs');
 
 // ── Keyword tier classification ────────────────────────────────────────────────
 // Quick Win:    pos 11-20  — already ranking, one update = page 1. Fastest ROI.
@@ -73,6 +74,11 @@ exports.handler = async (event) => {
       // Runs silently — failure doesn't block content generation
       await enrichGscWithCpc(brand, gscRows, BRANDS[brand]).catch(e =>
         console.warn(`[scheduler] CPC enrichment failed for ${brand} (non-critical):`, e.message)
+      );
+
+      // Track published items — update position movement for everything published in last 8 weeks
+      await trackPublishedItems(brand, gscRows).catch(e =>
+        console.warn(`[scheduler] Tracking update failed for ${brand} (non-critical):`, e.message)
       );
 
       // Background mode: run ALL requested jobs, no timeout concern
@@ -161,7 +167,63 @@ async function fetchGscRows(siteUrl) {
   }
 }
 
-// ── CPC enrichment — DataForSEO Keywords Data API ────────────────────────────
+// ── Track published items — update position movement ─────────────────────────
+// Runs every Monday after GSC fetch. For each item published in last 8 weeks,
+// finds current GSC position for the target keyword and updates the item with
+// positionLatest + positionDelta so the Published & Tracking tab shows movement.
+async function trackPublishedItems(brand, gscRows) {
+  const s     = getStore({ name: 'seo-tool', siteID: process.env.NETLIFY_SITE_ID, token: process.env.NETLIFY_AUTH_TOKEN });
+  const EIGHT_WEEKS = 8 * 7 * 24 * 60 * 60 * 1000;
+  const cutoff = Date.now() - EIGHT_WEEKS;
+
+  // Build keyword → position map from current GSC data
+  const kwPosMap = {};
+  const kwClicksMap = {};
+  for (const row of gscRows) {
+    if (row.keyword) {
+      kwPosMap[row.keyword.toLowerCase()]    = row.position;
+      kwClicksMap[row.keyword.toLowerCase()] = row.clicks || 0;
+    }
+  }
+
+  // Get all approval items for this brand with status pushed/published
+  const indexRaw = await s.get('approvals:index', { type: 'json' }).catch(() => null);
+  const index    = Array.isArray(indexRaw) ? indexRaw : [];
+
+  let tracked = 0;
+  for (const id of index) {
+    try {
+      const item = await s.get(`approvals:item:${id}`, { type: 'json' }).catch(() => null);
+      if (!item) continue;
+      if (item.brand !== brand) continue;
+      if (!['pushed', 'published'].includes(item.status)) continue;
+      if (!item.trackingKeyword) continue;
+      if (item.publishedAt && item.publishedAt < cutoff) continue; // older than 8 weeks
+
+      const kw      = item.trackingKeyword.toLowerCase();
+      const posNow  = kwPosMap[kw] ? Math.round(kwPosMap[kw] * 10) / 10 : null;
+      const clicks  = kwClicksMap[kw] || null;
+
+      if (!posNow) continue; // keyword not in GSC data this week
+
+      const delta = item.positionAtPublish && posNow
+        ? Math.round((item.positionAtPublish - posNow) * 10) / 10
+        : null;
+
+      // Update item with latest tracking data
+      await s.set(`approvals:item:${id}`, JSON.stringify({
+        ...item,
+        positionLatest:  posNow,
+        positionDelta:   delta,
+        clicksLatest:    clicks,
+        lastTrackedAt:   Date.now(),
+      }));
+      tracked++;
+    } catch { /* skip individual failures */ }
+  }
+
+  console.log(`[scheduler] Tracking updated for ${brand}: ${tracked} items`);
+}
 // Fetches real Google Ads CPC for the top non-branded GSC keywords.
 // Cost: ~$0.05 per 1,000 keywords (≈ $0.008/week for 150 keywords).
 // Results merged back into gscCache so the Reports tab picks them up automatically.
@@ -232,7 +294,6 @@ async function enrichGscWithCpc(brand, rows, brandConfig) {
 
   // Merge CPC into gscCache rows and re-save cache
   // The Reports tab reads from gscCache — this way CPC is available immediately
-  const { getStore } = require('@netlify/blobs');
   const s = getStore({ name: 'seo-tool', siteID: process.env.NETLIFY_SITE_ID, token: process.env.NETLIFY_AUTH_TOKEN });
 
   const cacheKey = 'gscCache:' + brandConfig.gsc;

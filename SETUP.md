@@ -136,115 +136,57 @@ The Nest is Yolk Brands' central marketing operations platform. It started as an
 
 ---
 
-## Next Up
+## Roadmap — 6 Weeks
 
-### 1. Activate Reviews once Google approves
-GBP API access application submitted June 2026. Once approved, remove the stub return in gbp-reviews.js and the review queue activates automatically. No other code changes needed.
-
-### 2. GBP API Access (apply immediately if not done)
-Google Cloud Console → enable Business Profile API → start OAuth. Some accounts take days. Start the clock now.
-
-### 2. Hreflang for 9 International Markets
-Currently Pickl has 6 international URL paths and Bonbird has 3. Without hreflang tags, Google may treat them as duplicate content and suppress them. Auto-generate the full hreflang block for every market, queue as `page_update` items.
-
-### 3. Google Business Profile Integration 🔴 CRITICAL FOR RESTAURANTS
-GBP is more important than the website for local restaurant search. "Smash burger near me" surfaces GBP listings before organic results.
-
-**What to build:**
-- Connect Google Business Profile API (separate OAuth from GSC)
-- Pull listing data for all Pickl + Bonbird locations
-- Monitor: review volume, star rating, unanswered Q&As, photo freshness, missing info
-- Auto-queue: review responses (brand voice checked before queuing)
-- Show GBP health score per location in a new Local SEO tab
-- AI Search Readiness Score goes green when GBP is connected
-
-### 4. Google Reviews Management
-GMB API → auto-queue review responses → brand voice check → admin approves → publishes reply via GMB API.
+**How we work:** Each session = one or two features. Upload zip, say "read SETUP.md, build X". Deploy. Test. Next session.
 
 ---
 
-## Month 2 — Local SEO + Off-Page
+### Week 1 (now)
+- **GBP Reviews activate** — remove stub in gbp-reviews.js once Google API approval lands (applied, pending)
+- **Hreflang** — click Generate Hreflang in International SEO tab, approve items, implement via Yoast
+- **Ranking movement** — Monday's snapshot will be #2, week-on-week deltas start showing
 
-### Backlink Monitoring
-DataForSEO backlink API. Weekly check:
-- Domain authority for eatpickl.com and bonbirdchicken.com
-- New links gained, links lost
-- Competitor backlink comparison (who's linking to Salt that isn't linking to Pickl?)
-- Unlinked brand mentions = link building opportunities
+### Week 2
+- **Backlink monitoring** — DataForSEO backlink API: domain authority, new/lost links, competitor backlink gaps
+- **Citation tracker** — NAP consistency check across Zomato, TripAdvisor, Time Out Dubai, What's On, The Entertainer
+- **Google Reviews management** — live once GBP API approved: review replies in brand voice, approve → publish
 
-### Citation Tracker
-Are Pickl and Bonbird listed consistently on Zomato, TripAdvisor, Time Out Dubai, What's On, The Entertainer? NAP (Name, Address, Phone) consistency check. Missing/inconsistent citations flagged as action items.
+### Week 3
+- **GA4 integration** — real sessions + revenue from organic search in AED (requires GA4 tracking on WP first)
+- **AI Overview visibility tracker** — weekly check: are we appearing in Google's AI results for top 20 keywords
+- **Deep competitor audit** — enter any competitor URL, get their top keywords, traffic estimate, backlink count
 
-### Deep Competitor URL Audit
-Enter any competitor URL → get: their top keywords, estimated traffic, backlink count, page speed scores, GSC keyword overlap vs your site.
+### Week 4
+- **YouTube SEO module** — keyword research, video content briefs, video schema markup
+- **Email digest** — weekly Monday summary email: what was queued, approved, published, top 3 targets
+- **CEO PDF report** — monthly one-page export: ranking gains, content published, traffic value, ROI
 
----
+### Week 5
+- **Social media workflow → SocialPilot** — AI-assisted brand-voiced captions, approval workflow, auto-publish
+- **Content calendar view** — all approved + scheduled content across SEO, social, design in one calendar
+- **Delivery platform SEO** — Talabat, Deliveroo, Noon Food keyword optimisation (UAE-specific)
 
-## Month 3 — Content Channels + Analytics
-
-### YouTube SEO Module
-YouTube is the second largest search engine. Food content ranks in Google results AND in AI Overviews.
-- YouTube keyword research for food/restaurant queries
-- Video content brief generator
-- Video schema markup generator
-- Channel performance tracker if YouTube API connected
-
-### GA4 Integration + Revenue Attribution
-- Connect GA4 (requires tracking set up on WP first)
-- Real sessions, conversions, revenue from organic search
-- Replaces estimated traffic value with real AED numbers
-- True ROI: "Our SEO drove X sessions worth AED Y"
-
-### AI Overview Visibility Tracker
-- Weekly check: for top 20 keywords, does AI Overview appear?
-- Are we cited in it?
-- This is the new frontier of SEO visibility
-
-### Week-on-Week Ranking Movement
-- By now we have 4+ weekly snapshots
-- Show: keywords that moved up/down, by how much
-- Which published content moved the needle
-
----
-
-## Month 4+ — Full Marketing Operations
-
-### Social Media Workflow → SocialPilot
-- Social post creation with AI assist (brand-voiced captions)
-- Approval workflow (same as content approvals)
-- SocialPilot auto-publish on approval
-- Platform-specific formatting (Instagram vs Twitter/X vs LinkedIn)
-
-### Content Calendar View
-Calendar view across all content types. SEO blog posts, social content, design requests — one view. Makes The Perch an editorial calendar.
-
-### Email Digest (Resend)
-Weekly summary email: what Claude queued, what was approved, what's live, top 3 SEO targets. CEO-level digest.
-
-### Brand Voice Interview
-8-question guided interview → auto-populates brand context fields. Captures founder voice directly.
-
-### Delivery Platform SEO (UAE-specific)
-Talabat, Deliveroo, Noon Food, Careem Food are search engines. Keyword optimization for delivery platform listings, review management, photo quality.
-
-### Multi-Brand Expansion
-One config object = new brand onboarded. Southpour, Shadowburg, Shadowbird into full SEO pipeline.
-
-### CEO Dashboard + PDF Report
-Monthly one-page PDF: top ranking gains, content published, competitor movements, traffic value, ROI. Exportable for board presentations.
+### Week 6
+- **Multi-brand expansion** — Southpour, Shadowburg, Shadowbird into full SEO pipeline
+- **Brand voice interview** — 8-question guided interview auto-populates brand context
+- **Arabic content layer** — Arabic prompt layer for GCC markets, RTL handling
 
 ---
 
 ## What This Means for the CEO Meeting
 
 **What we've built (talk to this):**
-> "We've built The Nest — our internal marketing operations platform. The SEO engine runs every Monday automatically: it identifies our weakest keyword opportunities, writes improved content in Pickl and Bonbird's exact brand voice, and queues it for approval. The brand voice system uses real Pickl and Bonbird writing as examples, not just rules. The international pipeline covers 9 markets. We have technical SEO monitoring, a competitor intelligence engine, and The Perch — a Trello replacement for the whole marketing department."
+> "We've built The Nest — our internal marketing operations platform. The SEO engine runs every Monday automatically: it identifies our weakest keyword opportunities, writes improved content in Pickl and Bonbird's exact brand voice using real examples of how each brand actually writes, and queues it for approval. Nothing publishes without a human decision. The international pipeline covers 9 markets. We have technical SEO monitoring, competitor intelligence tracking, and The Perch — a Trello replacement for the whole marketing department. The whole thing cost less than one month of agency fees to build and runs permanently."
 
 **What we're showing today:**
-> "Here's our current SEO performance: [open Reports tab — traffic value in AED, position distribution, top keywords, Quick Wins waiting]. The traffic value figure uses real Google Ads CPC data per keyword — not an estimate. Here's our AI Search Readiness Score against Google's own criteria — and here's exactly what's holding us back [page speed, GBP]. Here's the content pipeline this month — [X] items queued, [Y] approved, [Z] live."
+> "Here's our current SEO performance: [open Reports tab — traffic value in AED, position distribution, top keywords, Quick Wins waiting]. The traffic value is calculated using real Google Ads CPC data per keyword — not a flat estimate. Here's our AI Search Readiness Score against Google's own criteria — and here's exactly what's blocking us [page speed]. Here's the content pipeline this month — [X] items queued, [Y] approved, [Z] live."
 
-**What's coming:**
-> "This week: hreflang for all 9 international markets, GBP integration (biggest local SEO gap for a restaurant brand). Month 2 is Google Reviews management and backlink monitoring. Month 3 is YouTube SEO and GA4 revenue attribution — real AED numbers on every SEO improvement."
+**Competitor intelligence (what it actually does):**
+> "We track where Salt, Shake Shack, Raising Cane's and others rank for the same keywords we target. That data lives in the Analytics tab — it shows side by side where they are vs where we are. We use it to prioritise our seed keywords and content targets."
+
+**What's next (6 weeks):**
+> "This week: GBP reviews go live once Google approves our API access (applied). Hreflang for 9 international markets — prevents Google treating our market pages as duplicate content. By week 3: real revenue attribution via GA4, AI Overview visibility tracking. By week 6: social media workflow, content calendar, YouTube SEO."
 
 **The honest truth on page speed:**
 > "Pickl's homepage scores 40/100 on mobile. LCP is 9.4 seconds against Google's 2.5-second threshold. This is directly limiting our eligibility for AI Overviews — the fastest-growing traffic source on Google. This is a developer fix, not a content fix. It needs to be prioritised immediately."
@@ -418,6 +360,12 @@ From Google's official AI Optimization Guide (June 2026):
 - Performance Summary updated to reflect actual build state
 - GBP data fix: Account Management API used for listing locations (was using wrong API)
 - Removed duplicate updateUserRole function
+- Approval cards: context bar showing keyword, current position, goal, impressions, page URL
+- Published & Tracking tab in Approvals Queue — tracks position movement after publish (updated every Monday)
+- trackPublishedItems() in scheduler — updates positionLatest/positionDelta/lastTrackedAt for all published items
+- Opportunities cards in Reports now clickable — drill-down table of keywords per category
+- Top 10 Keywords card shows branded vs non-branded split
+- Performance Summary includes branded/non-branded breakdown
 - Multi-brand checkboxes: users can be assigned to any combination of brands
 - brands[] array stored in userProfile, backward compat with old single brand string
 - Bonbird menu URL fixed: /uae-menu/ (was /menu/)
@@ -432,4 +380,35 @@ From Google's official AI Optimization Guide (June 2026):
 
 ---
 
-*Last updated: June 2026 — Multi-brand checkboxes. Bonbird menu URL fixed. Taco Bird excluded from audits. Claude model → sonnet-4-6. Developer role. Add User modal. Last Login. GBP data fix. Local SEO, hreflang, CPC enrichment, Slack Block Kit, brand voice examples — all done.*
+*Last updated: June 2026 — Approval context bars. Published & Tracking tab. Opportunity drill-downs. Branded/non-branded split. Multi-brand checkboxes. Bonbird menu URL fixed. Taco Bird excluded from audits. Claude model → sonnet-4-6. Developer role. Add User modal. Last Login. GBP data fix. Local SEO, hreflang, CPC enrichment, Slack Block Kit, brand voice examples — all done.*
+
+## Approval Card Context & Tracking
+
+### Context Bar (on every pending card)
+Every approval card now shows a context strip before the content:
+- **Keyword** — the exact search query being targeted
+- **Position Now** — current ranking (orange if 11-20, green if top 10, purple if deeper)
+- **Goal** — what tier we're targeting (Top 10, Top 20, etc.)
+- **Impressions 90d** — how many times Google showed this keyword
+- **Page** — the URL being updated/created
+
+### Published & Tracking Tab
+In the Approvals Queue, "📈 Published & Tracking" pill shows all pushed/published items with:
+- Keyword targeted + page URL
+- Position at time of publish (stored on approve/publish)
+- Position now (updated every Monday by scheduler)
+- Movement delta: ↑5 positions / → No movement / ↓2 positions
+- Tracking runs for 8 weeks after publish date
+
+### How Tracking Works
+1. Item approved/published → `trackingKeyword`, `positionAtPublish`, `publishedAt` stored on item
+2. Every Monday scheduler calls `trackPublishedItems(brand, gscRows)`
+3. For each published item within 8 weeks, looks up current GSC position for `trackingKeyword`
+4. Updates item with `positionLatest`, `positionDelta`, `lastTrackedAt`
+5. Published & Tracking tab reads this directly — no separate API needed
+
+### Reports — Branded vs Non-Branded Split (added June 2026)
+Top 10 Keywords card now shows: `X non-branded · Y branded · Z in top 3`
+Performance Summary text includes the split.
+Logic: BRAND_TERMS filter (`pickl`/`bonbird`) applied to top10 count — same filter used for traffic value.
+Non-branded top 10 count is the real SEO growth metric — branded rankings are natural, non-branded is earned.

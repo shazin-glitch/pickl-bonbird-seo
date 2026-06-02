@@ -369,6 +369,7 @@
         <div class="pill" data-qfilter="review_response" onclick="filterQueue(this)">Review Replies</div>
         <div class="pill" data-qfilter="page_creation" onclick="filterQueue(this)">New Pages</div>
         <div class="pill" data-qfilter="page_update" onclick="filterQueue(this)">Page Updates</div>
+        <div class="pill" data-qfilter="published" onclick="filterQueue(this)" style="margin-left:8px;border-left:1px solid var(--border);padding-left:12px">📈 Published & Tracking</div>
       </div>
 
       <!-- Brand filter -->
@@ -1600,7 +1601,11 @@ function filterQueue(pill) {
   document.querySelectorAll('#queue-pills .pill').forEach(p => p.classList.remove('active'));
   pill.classList.add('active');
   state.activeQFilter = pill.dataset.qfilter;
-  renderQueue();
+  if (state.activeQFilter === 'published') {
+    loadPublishedTracking();
+  } else {
+    renderQueue();
+  }
 }
 
 function renderQueue() {
@@ -1619,6 +1624,7 @@ function renderQueue() {
 
   document.querySelectorAll('#queue-pills .pill').forEach(p => {
     const f = p.dataset.qfilter;
+    if (f === 'published') return; // don't count published in pending queue
     const count = f === 'all' ? baseItems.length : baseItems.filter(i => i.type === f).length;
     const label = p.textContent.replace(/ \(\d+\)/, '');
     p.textContent = count > 0 ? `${label} (${count})` : label;
@@ -1634,6 +1640,92 @@ function renderQueue() {
   }
 
   list.innerHTML = items.map(item => buildActionCard(item)).join('');
+}
+
+// ── Published & Tracking ─────────────────────────────────────────────────────
+async function loadPublishedTracking() {
+  const list = document.getElementById('queue-list');
+  list.innerHTML = '<div style="padding:32px;text-align:center;color:var(--text-muted)">Loading published items…</div>';
+
+  try {
+    const brandFilter = state.activeBFilter !== 'all' ? `&brand=${state.activeBFilter}` : '';
+    const data = await apiGet(`/api/approvals?status=pushed${brandFilter}&limit=100`);
+    const items = (data.items || []).filter(i => i.trackingKeyword || i.payload?.targetKeyword);
+
+    if (!items.length) {
+      list.innerHTML = `<div class="empty-state">
+        <div class="empty-state-icon">📈</div>
+        <h3>No published items yet</h3>
+        <p>Approve items from the queue and publish them to WordPress. They'll appear here with ranking movement tracked every Monday.</p>
+      </div>`;
+      return;
+    }
+
+    list.innerHTML = items.sort((a, b) => (b.publishedAt || 0) - (a.publishedAt || 0))
+      .map(item => buildTrackingCard(item)).join('');
+  } catch (e) {
+    list.innerHTML = `<div style="padding:32px;text-align:center;color:var(--text-muted)">Failed to load: ${e.message}</div>`;
+  }
+}
+
+function buildTrackingCard(item) {
+  const p = item.payload || {};
+  const keyword     = item.trackingKeyword || p.targetKeyword || '—';
+  const posAtPublish = item.positionAtPublish || p.currentPos || null;
+  const posNow      = item.positionLatest || null;
+  const delta       = (posAtPublish && posNow) ? posAtPublish - posNow : null; // positive = improved
+  const lastTracked = item.lastTrackedAt ? new Date(item.lastTrackedAt).toLocaleDateString('en-GB', { day: 'numeric', month: 'short' }) : null;
+  const publishedDate = item.publishedAt
+    ? new Date(item.publishedAt).toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' })
+    : item.approvedAt
+    ? new Date(item.approvedAt).toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' })
+    : '—';
+
+  const brandColor = item.brand === 'pickl' ? '#DF0070' : '#C5161A';
+  const brandLabel = item.brand === 'pickl' ? '🟡 Pickl' : '🔴 Bonbird';
+
+  // Movement indicator
+  let movementHtml = '';
+  if (delta !== null) {
+    const improved = delta > 0;
+    const flat     = delta === 0;
+    const color    = improved ? '#059669' : flat ? '#d97706' : '#dc2626';
+    const icon     = improved ? '↑' : flat ? '→' : '↓';
+    const label    = improved ? `${icon}${delta} positions` : flat ? 'No movement yet' : `${icon}${Math.abs(delta)} positions`;
+    movementHtml = `
+      <div style="display:flex;align-items:center;gap:8px;padding:10px 14px;border-radius:8px;background:${improved ? '#f0fdf4' : flat ? '#fffbeb' : '#fef2f2'}">
+        <div style="font-size:24px;font-weight:800;color:${color};line-height:1">${icon}${Math.abs(delta)}</div>
+        <div>
+          <div style="font-weight:600;font-size:13px;color:${color}">${label}</div>
+          <div style="font-size:11px;color:var(--text-muted)">pos ${posAtPublish} → pos ${posNow}${lastTracked ? ` · checked ${lastTracked}` : ''}</div>
+        </div>
+      </div>`;
+  } else if (posAtPublish) {
+    movementHtml = `
+      <div style="padding:10px 14px;border-radius:8px;background:var(--bg-base)">
+        <div style="font-size:13px;color:var(--text-muted)">Position when published: <strong style="color:var(--text-main)">${posAtPublish}</strong></div>
+        <div style="font-size:11px;color:var(--text-muted);margin-top:2px">Tracking begins next Monday — check back then</div>
+      </div>`;
+  } else {
+    movementHtml = `<div style="font-size:12px;color:var(--text-muted);padding:8px 0">No position data — tracking begins Monday</div>`;
+  }
+
+  return `
+    <div class="card" style="border-left:4px solid ${brandColor};margin-bottom:12px">
+      <div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:12px">
+        <div>
+          <div style="font-weight:600;font-size:14px;margin-bottom:4px">${esc(item.title || keyword)}</div>
+          <div style="font-size:12px;color:var(--text-muted)">${brandLabel} · ${esc(item.type?.replace('_',' ') || '')} · Published ${publishedDate}</div>
+        </div>
+        ${buildTierBadge(p)}
+      </div>
+      <div style="background:var(--bg-base);border-radius:8px;padding:10px 14px;margin-bottom:12px;display:flex;gap:20px;flex-wrap:wrap;font-size:12px">
+        <div><span style="color:var(--text-muted)">Keyword:</span> <strong>"${esc(keyword)}"</strong></div>
+        ${p.url ? `<div><span style="color:var(--text-muted)">Page:</span> <strong>${esc(p.url)}</strong></div>` : ''}
+        ${p.impressions ? `<div><span style="color:var(--text-muted)">Impressions:</span> <strong>${Number(p.impressions).toLocaleString()}</strong></div>` : ''}
+      </div>
+      ${movementHtml}
+    </div>`;
 }
 
 function filterBrand(pill) {
@@ -1689,6 +1781,44 @@ function buildVoiceScoreBadge(score) {
   return `<span title="${tip}" style="font-size:11px;font-weight:700;padding:2px 8px;border-radius:99px;background:${col}18;color:${col};border:1px solid ${col}40;cursor:help">✦ ${s}/10 ${lbl}</span>`;
 }
 
+function buildContextBar(item) {
+  const p = item.payload || {};
+  const keyword    = p.targetKeyword || p.keyword || null;
+  const pos        = p.currentPos || p.currentPosition || null;
+  const impressions = p.impressions ? Number(p.impressions).toLocaleString() : null;
+  const url        = p.url || null;
+  const market     = p.locationTag || item.locationTag || null;
+
+  if (!keyword && !pos && !impressions) return '';
+
+  const posColor = pos <= 10 ? '#059669' : pos <= 20 ? '#d97706' : '#6366f1';
+  const target   = pos ? (pos <= 10 ? 'Maintain top 10' : pos <= 20 ? '→ Top 10' : pos <= 35 ? '→ Top 20' : '→ Top 35') : null;
+
+  return `
+    <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(100px,1fr));gap:0;background:var(--bg-base);border-radius:8px;margin-bottom:12px;overflow:hidden;border:1px solid var(--border)">
+      ${keyword ? `<div style="padding:8px 12px;border-right:1px solid var(--border)">
+        <div style="font-size:10px;font-weight:700;color:var(--text-muted);text-transform:uppercase;letter-spacing:0.4px;margin-bottom:2px">Keyword</div>
+        <div style="font-size:12px;font-weight:600;color:var(--text-main)">"${esc(keyword)}"</div>
+      </div>` : ''}
+      ${pos ? `<div style="padding:8px 12px;border-right:1px solid var(--border)">
+        <div style="font-size:10px;font-weight:700;color:var(--text-muted);text-transform:uppercase;letter-spacing:0.4px;margin-bottom:2px">Position Now</div>
+        <div style="font-size:16px;font-weight:800;color:${posColor}">${pos}</div>
+      </div>` : ''}
+      ${target ? `<div style="padding:8px 12px;border-right:1px solid var(--border)">
+        <div style="font-size:10px;font-weight:700;color:var(--text-muted);text-transform:uppercase;letter-spacing:0.4px;margin-bottom:2px">Goal</div>
+        <div style="font-size:12px;font-weight:600;color:#059669">${target}</div>
+      </div>` : ''}
+      ${impressions ? `<div style="padding:8px 12px;border-right:1px solid var(--border)">
+        <div style="font-size:10px;font-weight:700;color:var(--text-muted);text-transform:uppercase;letter-spacing:0.4px;margin-bottom:2px">Impressions 90d</div>
+        <div style="font-size:12px;font-weight:600;color:var(--text-main)">${impressions}</div>
+      </div>` : ''}
+      ${url ? `<div style="padding:8px 12px">
+        <div style="font-size:10px;font-weight:700;color:var(--text-muted);text-transform:uppercase;letter-spacing:0.4px;margin-bottom:2px">Page</div>
+        <div style="font-size:11px;color:var(--text-muted);word-break:break-all">${esc(url)}</div>
+      </div>` : ''}
+    </div>`;
+}
+
 function buildActionCard(item) {
   const brandColor  = item.brand === 'pickl' ? '#DF0070' : '#C5161A';
   const tagClass    = TYPE_TAGS[item.type] || 'tag-blue';
@@ -1716,7 +1846,7 @@ function buildActionCard(item) {
         ${tagHtml}
       </div>
     </div>
-    <div class="card-body">${preview}</div>
+    <div class="card-body">${buildContextBar(item)}${preview}</div>
     <div class="card-actions">
       <div class="action-group-left">
         <button class="btn btn-primary" onclick="approveItem('${esc(item.id)}', this)">
@@ -3342,6 +3472,9 @@ function renderReports(brand, rows, techData, queue) {
   const BRAND_TERMS      = brand === 'pickl' ? ['pickl', 'pickle restaurant'] : ['bonbird', 'bon bird'];
   const AED_PER_USD      = 3.67;
   const nonBrandedRows   = rows.filter(r => !BRAND_TERMS.some(t => r.keyword?.toLowerCase().includes(t)));
+  const brandedRows      = rows.filter(r =>  BRAND_TERMS.some(t => r.keyword?.toLowerCase().includes(t)));
+  const top10NonBranded  = nonBrandedRows.filter(r => r.position <= 10).length;
+  const top10Branded     = brandedRows.filter(r => r.position <= 10).length;
   const hasCpcData       = nonBrandedRows.some(r => r.cpc_usd != null || r.cpc_aed != null);
   const trafficValue     = Math.round(
     nonBrandedRows.reduce((s, r) => {
@@ -3362,9 +3495,22 @@ function renderReports(brand, rows, techData, queue) {
   const maxCount = Math.max(...bands.map(b => b.count), 1);
 
   // ── Quick Wins & opportunities ───────────────────────────────
-  const quickWins    = rows.filter(r => r.position >= 11 && r.position <= 20).length;
-  const priorityGaps = (state.seedKeywords?.[brand] || []).length;
-  const lowCtr       = rows.filter(r => r.position <= 10 && r.impressions >= 100 && r.ctr < (30 / r.position)).length;
+  const quickWinRows  = rows.filter(r => r.position >= 11 && r.position <= 20)
+    .sort((a, b) => (b.impressions || 0) - (a.impressions || 0));
+  const quickWins     = quickWinRows.length;
+
+  const lowCtrRows    = rows.filter(r => r.position <= 10 && r.impressions >= 100 && r.ctr < (30 / r.position))
+    .sort((a, b) => (b.impressions || 0) - (a.impressions || 0));
+  const lowCtr        = lowCtrRows.length;
+
+  const seedKws       = state.seedKeywords?.[brand] || [];
+  const gscKeywords   = new Set(rows.map(r => r.keyword?.toLowerCase()));
+  const gapRows       = seedKws.filter(k => !gscKeywords.has(k.toLowerCase()))
+    .map(k => ({ keyword: k }));
+  const priorityGaps  = seedKws.length;
+
+  // Store for drill-down clicks
+  state.reportOpportunities = { quickWinRows, lowCtrRows, gapRows, avgMobile, brand };
 
   // ── Content pipeline (last 30 days) ─────────────────────────
   const now     = Date.now();
@@ -3395,7 +3541,7 @@ function renderReports(brand, rows, techData, queue) {
 
   // Metric cards
   document.getElementById('report-metrics').innerHTML = [
-    { label: 'Top 10 Keywords', value: top10.toLocaleString(), sub: `${top3} in top 3 · GSC 90 days`, color: '#059669', icon: '🏆' },
+    { label: 'Top 10 Keywords', value: top10.toLocaleString(), sub: `${top10NonBranded} non-branded · ${top10Branded} branded · ${top3} in top 3`, color: '#059669', icon: '🏆' },
     { label: 'Impressions (90d)', value: totalImpressions.toLocaleString(), sub: `${rows.length} total keywords · GSC`, color: '#3b82f6', icon: '👁️' },
     { label: 'Clicks (90d)',      value: totalClicks.toLocaleString(), sub: `${((totalClicks/Math.max(totalImpressions,1))*100).toFixed(1)}% avg CTR · GSC`, color: '#8b5cf6', icon: '👆' },
     { label: 'Traffic Value',     value: 'AED ' + trafficValue.toLocaleString('en', {minimumFractionDigits:0}), sub: hasCpcData ? `Non-branded · DataForSEO CPC` : `Non-branded · AED 5/click est.`, color: '#d97706', icon: '💰' },
@@ -3494,24 +3640,33 @@ function renderReports(brand, rows, techData, queue) {
 
   // Opportunities
   document.getElementById('report-opportunities').innerHTML = [
-    { emoji: '⚡', label: 'Quick Wins', value: quickWins, desc: 'Keywords at pos 11-20 ready to push to page 1', color: '#059669', bg: '#ecfdf5' },
-    { emoji: '📉', label: 'Low CTR', value: lowCtr, desc: 'Page 1 keywords with below-expected click-through rate', color: '#d97706', bg: '#fffbeb' },
-    { emoji: '🚨', label: 'Priority Gaps', value: priorityGaps, desc: 'Seed keywords with no Google presence yet', color: '#dc2626', bg: '#fef2f2' },
-    { emoji: '🐢', label: 'Page Speed', value: avgMobile ? `${avgMobile}/100` : '—', desc: avgMobile && avgMobile < 70 ? 'Mobile score below 70 — impacting AI Overview eligibility' : 'Mobile performance score', color: avgMobile && avgMobile >= 70 ? '#059669' : '#dc2626', bg: avgMobile && avgMobile >= 70 ? '#ecfdf5' : '#fef2f2' },
+    { key: 'quickwins', emoji: '⚡', label: 'Quick Wins', value: quickWins, desc: 'Keywords at pos 11-20 ready to push to page 1', color: '#059669', bg: '#ecfdf5' },
+    { key: 'lowctr',    emoji: '📉', label: 'Low CTR',    value: lowCtr,    desc: 'Page 1 keywords with below-expected click-through rate', color: '#d97706', bg: '#fffbeb' },
+    { key: 'gaps',      emoji: '🚨', label: 'Priority Gaps', value: priorityGaps, desc: 'Seed keywords with no Google presence yet', color: '#dc2626', bg: '#fef2f2' },
+    { key: 'speed',     emoji: '🐢', label: 'Page Speed', value: avgMobile ? `${avgMobile}/100` : '—', desc: avgMobile && avgMobile < 70 ? 'Mobile score below 70 — impacting AI Overview eligibility' : 'Mobile performance score', color: avgMobile && avgMobile >= 70 ? '#059669' : '#dc2626', bg: avgMobile && avgMobile >= 70 ? '#ecfdf5' : '#fef2f2' },
   ].map(o => `
-    <div style="background:${o.bg};border-radius:10px;padding:16px">
+    <div style="background:${o.bg};border-radius:10px;padding:16px;cursor:${o.key !== 'speed' ? 'pointer' : 'default'};transition:box-shadow 0.15s" onclick="${o.key !== 'speed' ? `toggleOpportunityDrill('${o.key}')` : ''}" onmouseover="this.style.boxShadow='0 4px 12px rgba(0,0,0,0.08)'" onmouseout="this.style.boxShadow=''">
       <div style="display:flex;align-items:center;gap:8px;margin-bottom:8px">
         <span style="font-size:20px">${o.emoji}</span>
         <span style="font-weight:700;font-size:22px;color:${o.color}">${o.value}</span>
       </div>
       <div style="font-weight:600;font-size:13px;color:${o.color};margin-bottom:4px">${o.label}</div>
       <div style="font-size:12px;color:#64748b">${o.desc}</div>
+      ${o.key !== 'speed' && o.value > 0 ? `<div style="font-size:11px;color:${o.color};margin-top:8px;font-weight:600">View keywords →</div>` : ''}
     </div>`).join('');
+
+  // Drill-down panel (injected after the grid on click)
+  if (!document.getElementById('opp-drill-panel')) {
+    const panel = document.createElement('div');
+    panel.id = 'opp-drill-panel';
+    panel.style.display = 'none';
+    document.getElementById('report-opportunities').after(panel);
+  }
 
   // Performance Summary
   const talkingPoints = [
     `<strong>What's running:</strong> Every Monday at 8am Dubai, The Nest identifies keyword opportunities, writes ${brandName}-branded content, and queues it for approval. Zero manual effort on content research.`,
-    `<strong>Current performance:</strong> ${top10.toLocaleString()} keywords in the top 10, generating ${totalClicks.toLocaleString()} organic clicks in the last 90 days. Estimated non-branded traffic value: <strong>AED ${trafficValue.toLocaleString()}/month</strong> in paid ad equivalent (${hasCpcData ? 'real Google Ads CPC via DataForSEO' : 'AED 5/click UAE restaurant estimate'}, branded keywords excluded).`,
+    `<strong>Current performance:</strong> ${top10.toLocaleString()} keywords in the top 10 (${top10NonBranded} non-branded · ${top10Branded} branded), generating ${totalClicks.toLocaleString()} organic clicks in the last 90 days. Estimated non-branded traffic value: <strong>AED ${trafficValue.toLocaleString()}/month</strong> in paid ad equivalent (${hasCpcData ? 'real Google Ads CPC via DataForSEO' : 'AED 5/click UAE restaurant estimate'}, branded keywords excluded).`,
     quickWins > 0 ? `<strong>Immediate opportunity:</strong> ${quickWins} keywords at position 11-20 right now — one content update away from page 1. The tool targets these every Monday automatically.` : '',
     avgMobile && avgMobile < 70 ? `<strong>⚠️ Critical blocker:</strong> ${brandName}'s mobile page speed scores ${avgMobile}/100. Google's threshold is 70+ for AI Overview eligibility — this is actively blocking us from appearing in AI-generated search results. Developer fix required urgently.` : '',
     `<strong>Brand voice:</strong> Real ${brandName} writing examples are now injected into every AI content prompt. The AI writes from actual ${brandName} copy, not just rules.`,
@@ -3757,9 +3912,76 @@ async function generateHreflang() {
   }
 }
 
-// ═══════════════════════════════════════════════════════════════
-// TECHNICAL SEO
-// ═══════════════════════════════════════════════════════════════
+function toggleOpportunityDrill(key) {
+  const panel = document.getElementById('opp-drill-panel');
+  if (!panel) return;
+  if (panel.dataset.key === key && panel.style.display !== 'none') {
+    panel.style.display = 'none';
+    panel.dataset.key = '';
+    return;
+  }
+  panel.dataset.key = key;
+  panel.style.display = '';
+
+  const d = state.reportOpportunities || {};
+  let title = '', rows = [], cols = [];
+
+  if (key === 'quickwins') {
+    title = '⚡ Quick Win Keywords — pos 11-20';
+    rows  = d.quickWinRows || [];
+    cols  = ['keyword', 'position', 'impressions', 'clicks', 'ctr'];
+  } else if (key === 'lowctr') {
+    title = '📉 Low CTR Keywords — page 1 underperformers';
+    rows  = d.lowCtrRows || [];
+    cols  = ['keyword', 'position', 'impressions', 'clicks', 'ctr', 'expectedCtr'];
+  } else if (key === 'gaps') {
+    title = '🚨 Priority Gap Keywords — seed list with no Google presence yet';
+    rows  = d.gapRows || [];
+    cols  = ['keyword'];
+  }
+
+  const fmtCtr = v => v != null ? (v * 100).toFixed(1) + '%' : '—';
+  const fmtPos = v => v != null ? Math.round(v * 10) / 10 : '—';
+  const expectedCtr = pos => pos ? (30 / pos).toFixed(1) + '%' : '—';
+
+  const colLabels = {
+    keyword: 'Keyword', position: 'Position', impressions: 'Impressions (90d)',
+    clicks: 'Clicks', ctr: 'CTR', expectedCtr: 'Expected CTR'
+  };
+
+  if (!rows.length) {
+    panel.innerHTML = `<div style="padding:16px;color:var(--text-muted);font-size:13px">No keywords in this category right now.</div>`;
+    return;
+  }
+
+  panel.innerHTML = `
+    <div style="margin-top:16px;background:var(--bg-surface);border-radius:10px;border:1px solid var(--border);overflow:hidden">
+      <div style="padding:14px 16px;border-bottom:1px solid var(--border);display:flex;justify-content:space-between;align-items:center">
+        <div style="font-weight:600;font-size:14px">${title} <span style="font-size:13px;color:var(--text-muted);font-weight:400">(${rows.length} keywords)</span></div>
+        <button onclick="document.getElementById('opp-drill-panel').style.display='none'" style="background:none;border:none;font-size:16px;color:var(--text-muted);cursor:pointer">✕</button>
+      </div>
+      <div style="overflow-x:auto;max-height:360px;overflow-y:auto">
+        <table style="width:100%;border-collapse:collapse;font-size:13px">
+          <thead style="position:sticky;top:0;background:var(--bg-surface)">
+            <tr style="border-bottom:1px solid var(--border)">
+              ${cols.map(c => `<th style="text-align:left;padding:8px 14px;font-size:11px;font-weight:700;color:var(--text-muted);text-transform:uppercase;letter-spacing:0.4px;white-space:nowrap">${colLabels[c]}</th>`).join('')}
+            </tr>
+          </thead>
+          <tbody>
+            ${rows.map((r, i) => `
+              <tr style="border-bottom:1px solid var(--border);background:${i % 2 ? 'transparent' : 'rgba(0,0,0,0.015)'}">
+                <td style="padding:8px 14px;font-weight:500;color:var(--text-main)">${esc(r.keyword || '—')}</td>
+                ${cols.includes('position')    ? `<td style="padding:8px 14px;font-weight:700;color:${r.position <= 10 ? '#059669' : '#d97706'}">${fmtPos(r.position)}</td>` : ''}
+                ${cols.includes('impressions') ? `<td style="padding:8px 14px;color:var(--text-muted)">${r.impressions ? Number(r.impressions).toLocaleString() : '—'}</td>` : ''}
+                ${cols.includes('clicks')      ? `<td style="padding:8px 14px;color:var(--text-muted)">${r.clicks ? Number(r.clicks).toLocaleString() : '—'}</td>` : ''}
+                ${cols.includes('ctr')         ? `<td style="padding:8px 14px;color:var(--text-muted)">${fmtCtr(r.ctr)}</td>` : ''}
+                ${cols.includes('expectedCtr') ? `<td style="padding:8px 14px;color:#d97706;font-weight:600">${expectedCtr(r.position)} <span style="font-size:11px;color:var(--text-muted);font-weight:400">expected</span></td>` : ''}
+              </tr>`).join('')}
+          </tbody>
+        </table>
+      </div>
+    </div>`;
+}
 
 const techSeoState = { brand: 'pickl', pollTimer: null };
 
