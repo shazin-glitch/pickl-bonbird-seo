@@ -3910,14 +3910,15 @@ async function checkGa4Connection() {
   } catch { state.ga4Connected = false; }
 }
 
-async function loadGa4Report(brand) {
+async function loadGa4Report(brand, forceRefresh = false) {
   const el = document.getElementById('report-ga4');
   if (!el) return;
 
   el.innerHTML = `<div style="font-size:13px;color:var(--text-muted)">Loading…</div>`;
 
   try {
-    const data = await fetch(`/api/ga4-data?brand=${brand}`, { credentials: 'include' }).then(r => r.json());
+    const url = `/api/ga4-data?brand=${brand}${forceRefresh ? '&refresh=1' : ''}`;
+    const data = await fetch(url, { credentials: 'include' }).then(r => r.json());
 
     if (data.notConnected) {
       el.innerHTML = `
@@ -3954,7 +3955,7 @@ async function loadGa4Report(brand) {
     const llmMonthlyTotals = monthly.map(m => (llmMonthly[m.month]?.total || 0));
     const maxLlm = Math.max(...llmMonthlyTotals, 1);
 
-    document.getElementById('report-ga4-status').innerHTML = `<span style="color:var(--success)">✓ GA4 connected</span> · ${esc(data.propertyId)}`;
+    document.getElementById('report-ga4-status').innerHTML = `<span style="color:var(--success)">✓ GA4 connected</span> · ${esc(data.propertyId)} · <a href="#" onclick="loadGa4Report('${brand}', true);return false" style="color:var(--text-muted);font-size:10px">↻ Refresh</a>`;
 
     // Per-source LLM breakdown table
     const llmSources = Object.entries(llmBySource).sort(([,a],[,b]) => b - a);
@@ -3975,7 +3976,7 @@ async function loadGa4Report(brand) {
             }).join('')}
           </div>
         </div>`
-      : `<div style="font-size:11px;color:var(--text-muted);margin-top:8px">No LLM referral traffic recorded yet — this will grow as AI assistants send more traffic.</div>`;
+      : `<div style="font-size:11px;color:var(--text-muted);margin-top:8px">No AI referral sessions detected in last 90 days. LLMs may send traffic classified as "Direct" — use ↻ Refresh to re-fetch.</div>`;
 
     el.innerHTML = `
       <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:16px">
@@ -4074,10 +4075,20 @@ async function loadLlmMentions(brand) {
       <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));gap:12px;margin-bottom:16px">
         ${llms.map(llm => {
           const d = summary[llm] || {};
-          if (!d.available) return `<div style="background:rgba(255,255,255,0.03);border:1px solid rgba(255,255,255,0.07);border-radius:8px;padding:12px">
-            <div style="font-size:11px;font-weight:600;color:var(--text-muted);margin-bottom:4px">${llmEmoji[llm]} ${llmLabels[llm]}</div>
-            <div style="font-size:12px;color:var(--text-muted);font-style:italic">Not configured</div>
-          </div>`;
+          if (!d.available) {
+            const isKeyMissing  = !d.keySet;
+            const isApiError    = d.keySet && d.errorReason && d.errorReason.startsWith('api_error');
+            const statusMsg     = isKeyMissing
+              ? `<span style="color:#d97706">⚠ Key not set in Netlify</span>`
+              : isApiError
+              ? `<span style="color:#ef4444">✕ API error — check Netlify logs</span>`
+              : `<span style="color:var(--text-muted)">Not configured</span>`;
+            return `<div style="background:rgba(255,255,255,0.03);border:1px solid rgba(255,255,255,0.07);border-radius:8px;padding:12px">
+              <div style="font-size:11px;font-weight:600;color:var(--text-muted);margin-bottom:4px">${llmEmoji[llm]} ${llmLabels[llm]}</div>
+              <div style="font-size:12px;margin-top:2px">${statusMsg}</div>
+              ${d.errorReason && d.errorReason.startsWith('api_error') ? `<div style="font-size:10px;color:var(--text-muted);margin-top:3px;font-style:italic">${esc(d.errorReason)}</div>` : ''}
+            </div>`;
+          }
           const pct   = d.pct || 0;
           const color = pct >= 60 ? '#10b981' : pct >= 30 ? '#f59e0b' : '#ef4444';
           return `<div style="background:rgba(255,255,255,0.03);border:1px solid rgba(255,255,255,0.07);border-radius:8px;padding:12px">

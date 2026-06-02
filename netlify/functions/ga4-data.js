@@ -97,7 +97,8 @@ exports.handler = async (event) => {
     return { statusCode: 405, headers: CORS, body: JSON.stringify({ error: "Method not allowed" }) };
   }
 
-  const brand = event.queryStringParameters?.brand || "pickl";
+  const brand   = event.queryStringParameters?.brand || "pickl";
+  const refresh = event.queryStringParameters?.refresh === "1";
 
   // Check tokens
   let tokens;
@@ -113,14 +114,19 @@ exports.handler = async (event) => {
     return { statusCode: 200, headers: CORS, body: JSON.stringify({ noPropertyId: true, envVar: propKey }) };
   }
 
-  // Check cache
+  // Check cache — invalidate if: forced refresh, older than 24h, OR missing llmBySource field (format v6.9d+)
   const cacheKey = `ga4Cache:${brand}`;
-  try {
-    const cached = await store.get(cacheKey, { type: "json" });
-    if (cached?.cachedAt && (Date.now() - cached.cachedAt) < CACHE_TTL_MS) {
-      return { statusCode: 200, headers: CORS, body: JSON.stringify(cached) };
-    }
-  } catch {}
+  if (!refresh) {
+    try {
+      const cached = await store.get(cacheKey, { type: "json" });
+      const cacheValid = cached?.cachedAt && (Date.now() - cached.cachedAt) < CACHE_TTL_MS;
+      const hasNewFormat = cached?.llmBySource !== undefined; // v6.9d+ field
+      if (cacheValid && hasNewFormat) {
+        return { statusCode: 200, headers: CORS, body: JSON.stringify(cached) };
+      }
+      // Cache is stale or old format — fall through to fresh fetch
+    } catch {}
+  }
 
   try {
     const accessToken = await refreshTokenIfNeeded(tokens, store);
@@ -154,7 +160,21 @@ exports.handler = async (event) => {
     });
 
     // ── Report 3: LLM referral traffic (last 90 days) ─────────────────────────
-    const llmDomains = ["perplexity.ai","chatgpt.com","claude.ai","gemini.google.com","copilot.microsoft.com","bing.com"];
+    // GA4 sessionSource uses the referring domain. Common real-world values:
+    //   perplexity.ai → "perplexity.ai"
+    //   ChatGPT       → "chatgpt.com" OR "chat.openai.com" (both used)
+    //   Claude        → "claude.ai"
+    //   Gemini        → "gemini.google.com" (may also appear as "google.com" — hard to distinguish)
+    //   Copilot       → "copilot.microsoft.com" OR "bing.com"
+    //   You.com       → "you.com"
+    const llmDomains = [
+      "perplexity.ai", "perplexity",
+      "chatgpt.com", "chat.openai.com", "openai.com",
+      "claude.ai", "anthropic.com",
+      "gemini.google.com", "bard.google.com",
+      "copilot.microsoft.com", "copilot",
+      "you.com", "phind.com", "kagi.com",
+    ];
     const llmReport  = await runReport(propId, accessToken, {
       dateRanges: [{ startDate: ninetyDays.toISOString().split("T")[0], endDate }],
       dimensions: [{ name: "sessionSource" }, { name: "yearMonth" }],
@@ -198,13 +218,19 @@ exports.handler = async (event) => {
     // Map raw source strings to clean labels
     function llmSourceLabel(src) {
       const s = (src || "").toLowerCase();
-      if (s.includes("perplexity"))  return "Perplexity";
-      if (s.includes("chatgpt"))     return "ChatGPT";
-      if (s.includes("claude"))      return "Claude";
-      if (s.includes("gemini"))      return "Gemini";
-      if (s.includes("copilot"))     return "Copilot";
-      if (s.includes("bing"))        return "Bing AI";
-      return src; // fallback: raw source
+      if (s.includes("perplexity"))    return "Perplexity";
+      if (s.includes("chatgpt"))       return "ChatGPT";
+      if (s.includes("openai"))        return "ChatGPT";
+      if (s.includes("claude"))        return "Claude";
+      if (s.includes("anthropic"))     return "Claude";
+      if (s.includes("gemini"))        return "Gemini";
+      if (s.includes("bard"))          return "Gemini";
+      if (s.includes("copilot"))       return "Copilot";
+      if (s.includes("you.com"))       return "You.com";
+      if (s.includes("phind"))         return "Phind";
+      if (s.includes("kagi"))          return "Kagi";
+      if (s.includes("bing"))          return "Bing AI";
+      return src;
     }
 
     for (const row of (llmReport.rows || [])) {
