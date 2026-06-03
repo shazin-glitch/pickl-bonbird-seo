@@ -50,9 +50,12 @@ function parseSection(text, section) {
 }
 
 // ── Generate blog draft for a market+language ─────────────────────────────────
-async function generateBlogDraft(market, brandCtx, language) {
+async function generateBlogDraft(market, brandCtx, language, usedKeywords = new Set()) {
   const keywords = market.seedKeywords[language] || market.seedKeywords['en'];
-  const primaryKw = keywords[0];
+  // Rotate through keywords — skip ones used in this run
+  const available = keywords.filter(k => !usedKeywords.has(k));
+  const primaryKw = available[0] || keywords[0];
+  usedKeywords.add(primaryKw);
   const isArabic  = language === 'ar';
   const marketCtx = buildMarketPrompt(market, buildBrandPrompt(brandCtx), language);
 
@@ -298,11 +301,43 @@ async function processMarketLanguage(store, marketKey, market, language, force =
     console.warn(`${tag} — GSC fetch failed (positions unavailable): ${e.message}`);
   }
 
-  // 1. Blog draft — with keyword deduplication
-  try {
-    const blog = await generateBlogDraft(market, brandCtx, language);
-    if (blog.title && blog.content) {
-      // Check for duplicate keyword already pending in queue
+  // Fuzzy GSC keyword lookup — exact match first, then market-term match, then word-overlap
+  function findGscData(gscMap, focusKeyword, marketKey) {
+    if (!gscMap || !focusKeyword) return null;
+    const lower = focusKeyword.toLowerCase();
+    // 1. Exact match
+    if (gscMap[lower]) return gscMap[lower];
+    // 2. Keywords containing the market country/city name
+    const marketTerm = (marketKey || '').split('_')[1] || ''; // e.g. 'pakistan', 'oman'
+    if (marketTerm) {
+      const marketMatch = Object.entries(gscMap)
+        .filter(([kw]) => kw.includes(marketTerm))
+        .sort(([,a],[,b]) => (b.impressions||0) - (a.impressions||0));
+      if (marketMatch.length) return marketMatch[0][1];
+    }
+    // 3. Word overlap — at least 2 meaningful words in common
+    const kwWords = lower.split(' ').filter(w => w.length > 3);
+    if (kwWords.length >= 2) {
+      const overlapping = Object.entries(gscMap)
+        .map(([kw, data]) => ({ kw, data, overlap: kwWords.filter(w => kw.includes(w)).length }))
+        .filter(x => x.overlap >= 2)
+        .sort((a, b) => b.data.impressions - a.data.impressions);
+      if (overlapping.length) return overlapping[0].data;
+    }
+    return null;
+  }
+
+  // ── Generate multiple blog drafts per market (up to 3, keyword-rotated) ──────
+  const MAX_BLOGS_PER_MARKET = 3;
+  const usedKeywords = new Set();
+  let blogsQueued = 0;
+
+  while (blogsQueued < MAX_BLOGS_PER_MARKET) {
+    try {
+      const blog = await generateBlogDraft(market, brandCtx, language, usedKeywords);
+      if (!blog.title || !blog.content) break;
+
+      // Check for duplicate keyword already pending
       const siteUrl = process.env.URL || 'https://yolkseo.netlify.app';
       const existing = await fetch(`${siteUrl}/.netlify/functions/approvals?status=pending&brand=${market.brand}&type=blog_draft&limit=200`)
         .then(r => r.json()).catch(() => ({ items: [] }));
@@ -313,42 +348,47 @@ async function processMarketLanguage(store, marketKey, market, language, force =
       );
       if (isDuplicate) {
         console.log(`${tag} — blog draft skipped (duplicate keyword: "${blog.focusKeyword}")`);
-      } else {
-        const wp = getWpCredentials(market);
-        const gscData = gscMap[blog.focusKeyword?.toLowerCase()] || null;
-        const id = await queueApprovalItem({
-          type:        'blog_draft',
-          brand:       market.brand,
-          market:      market.marketKey,
-          marketLabel: market.label,
-          language,
-          title:       blog.title,
-          content:     blog.content,
-          meta: {
-            metaTitle:       blog.title,
-            metaDescription: blog.metaDescription,
-            slug:            blog.slug,
-            focusKeyword:    blog.focusKeyword,
-            voiceScore:      blog.voiceScore,
-            voiceIssues:     blog.voiceIssues,
-            voiceTopFix:     blog.voiceTopFix,
-            currentPos:      gscData?.position   || null,
-            impressions:     gscData?.impressions || null,
-          },
-          targetUrl:   buildPostUrl(market, 'blog_draft', blog.slug || 'post', language),
-          wpBase:      wp.base,
-          wpUser:      wp.user,
-          wpPass:      wp.pass,
-          wpParent:    market.wpMarketParent,
-          notes: `International SEO — ${market.label} ${language.toUpperCase()} blog post. Target keyword: ${blog.focusKeyword}`,
-        });
-        queued.push({ type: 'blog_draft', id });
-        console.log(`${tag} — blog draft queued: ${id}`);
-      } // end dedup check
+        blogsQueued++; // count it to avoid infinite loop
+        continue;
+      }
+
+      const wp      = getWpCredentials(market);
+      const gscData = findGscData(gscMap, blog.focusKeyword, market.marketKey);
+      const id = await queueApprovalItem({
+        type:        'blog_draft',
+        brand:       market.brand,
+        market:      market.marketKey,
+        marketLabel: market.label,
+        language,
+        title:       blog.title,
+        content:     blog.content,
+        meta: {
+          metaTitle:       blog.title,
+          metaDescription: blog.metaDescription,
+          slug:            blog.slug,
+          focusKeyword:    blog.focusKeyword,
+          voiceScore:      blog.voiceScore,
+          voiceIssues:     blog.voiceIssues,
+          voiceTopFix:     blog.voiceTopFix,
+          currentPos:      gscData?.position   || null,
+          impressions:     gscData?.impressions || null,
+          gscKeyword:      gscData ? (Object.keys(gscMap).find(k => gscMap[k] === gscData) || null) : null,
+        },
+        targetUrl:   buildPostUrl(market, 'blog_draft', blog.slug || 'post', language),
+        wpBase:      wp.base,
+        wpUser:      wp.user,
+        wpPass:      wp.pass,
+        wpParent:    market.wpMarketParent,
+        notes: `International SEO — ${market.label} ${language.toUpperCase()} blog post ${blogsQueued + 1}/${MAX_BLOGS_PER_MARKET}. Target keyword: ${blog.focusKeyword}`,
+      });
+      queued.push({ type: 'blog_draft', id });
+      console.log(`${tag} — blog draft ${blogsQueued + 1}/${MAX_BLOGS_PER_MARKET} queued: ${id}`);
+      blogsQueued++;
+    } catch (e) {
+      console.error(`${tag} — blog draft ${blogsQueued + 1} failed:`, e.message);
+      errors.push({ type: 'blog_draft', error: e.message });
+      break;
     }
-  } catch (e) {
-    console.error(`${tag} — blog draft failed:`, e.message);
-    errors.push({ type: 'blog_draft', error: e.message });
   }
 
   // 2. Meta update for market landing page

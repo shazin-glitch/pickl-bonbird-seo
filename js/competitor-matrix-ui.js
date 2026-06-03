@@ -482,6 +482,8 @@
 
       if (historyData.length > 1) {
         html += renderSovHistoryChart(historyData, directEntries, barColors);
+      } else if (historyData.length === 1) {
+        html += `<div style="font-size:12px;color:var(--text-muted);padding:10px 0;font-style:italic">📅 First data point recorded ${new Date(historyData[0].date).toLocaleDateString('en-GB', {day:'numeric',month:'short'})}. Trend line will appear after next Monday's run.</div>`;
       }
 
       // ── SERP Landscape (collapsible) ────────────────────────────────────────
@@ -1166,11 +1168,11 @@
   }
 
   async function loadData(container, forceRefresh = false) {
-    if (isLoading) return;
+    // Always clear any existing poll first — prevents orphaned polls on tab switch
+    if (pollTimer) { clearInterval(pollTimer); pollTimer = null; }
+    if (isLoading && !forceRefresh) return;
     isLoading    = true;
     pollAttempts = 0;
-
-    if (pollTimer) { clearInterval(pollTimer); pollTimer = null; }
 
     if (forceRefresh) {
       container.innerHTML = `<div class="cm-loading"><div class="cm-loading-spinner"></div><div>Refresh triggered — fetching live rankings…</div><div class="cm-poll-status" id="cm-poll-status">Starting background job…</div></div>`;

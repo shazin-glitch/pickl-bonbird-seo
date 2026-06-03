@@ -638,7 +638,7 @@ Return ONLY a JSON array, no prose:
         targetKeyword: p.targetKeyword || p.keyword,
         currentPos:    matched?.position,
         impressions:   matched?.impressions,
-        ctrGap:        matched?.ctrGap?.toFixed(1),
+        ctrGap:        matched?.ctrGap != null ? (matched.ctrGap * 100).toFixed(1) : null,
         wpAction:      'update_meta',
       },
     });

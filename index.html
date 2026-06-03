@@ -1387,6 +1387,16 @@ const TYPE_TAGS = {
   const urlParams = new URLSearchParams(window.location.search);
   const urlTab = urlParams.get('tab');
   if (urlTab) { window.history.replaceState({}, '', '/'); switchView(urlTab); }
+  else {
+    // Restore last active tab from localStorage (so refresh doesn't always go to Perch)
+    try {
+      const saved = localStorage.getItem('nestActiveTab');
+      if (saved && saved !== 'perch') switchView(saved);
+    } catch {}
+  }
+
+  // Check GA4 connection on every page load so AI Readiness Score is accurate
+  checkGa4Connection().catch(() => {});
 
   // Handle GBP OAuth redirect
   if (urlParams.get('gbp_connected') === '1') {
@@ -1451,8 +1461,10 @@ function switchView(target) {
   document.querySelectorAll('.nav-item').forEach(n => n.classList.toggle('active', n.dataset.target === target));
   document.querySelectorAll('.page-view').forEach(v => v.classList.toggle('active', v.id === 'view-' + target));
   document.getElementById('top-title').textContent = VIEW_TITLES[target] || target;
+  try { localStorage.setItem('nestActiveTab', target); } catch {} // persist across refreshes
   if (target === 'perch')         loadPerch();
   else                            closePerchPanel();
+  if (target === 'dashboard')     loadDashboardIfNeeded();
   if (target === 'analytics')     loadGscIfNeeded();
   if (target === 'reports')       loadReports();
   if (target === 'techseo')       { loadTechnicalSeo(); loadTechDevKanban(techSeoState.brand); }
@@ -1460,6 +1472,14 @@ function switchView(target) {
   if (target === 'settings')      { renderAuditLog(); loadBrandCtx(); loadBrandExamples(); loadSlackWebhook(); checkGbpConnection(); checkGa4Connection(); if (state.userRole === 'admin') { document.getElementById('users-panel').style.display = ''; loadUsersPanel(); } }
   if (target === 'international') loadIntlDashboard();
   if (target === 'howto')         loadHowItWorks();
+}
+
+// ═══════════════════════════════════════════════════════════════
+// GSC CONNECTION
+// ═══════════════════════════════════════════════════════════════
+function loadDashboardIfNeeded() {
+  // Dashboard shows GSC metrics — load them if not already loaded
+  if (!state.gscLoaded) loadGscIfNeeded();
 }
 
 // ═══════════════════════════════════════════════════════════════
@@ -1925,6 +1945,7 @@ function buildContextBar(item) {
       ${impressions ? `<div style="padding:8px 12px;border-right:1px solid var(--border)">
         <div style="font-size:10px;font-weight:700;color:var(--text-muted);text-transform:uppercase;letter-spacing:0.4px;margin-bottom:2px">Impressions 90d</div>
         <div style="font-size:12px;font-weight:600;color:var(--text-main)">${impressions}</div>
+        ${p.gscKeyword && p.gscKeyword !== keyword ? `<div style="font-size:9px;color:var(--text-muted)">via "${esc(p.gscKeyword)}"</div>` : ''}
       </div>` : ''}
       ${url ? `<div style="padding:8px 12px">
         <div style="font-size:10px;font-weight:700;color:var(--text-muted);text-transform:uppercase;letter-spacing:0.4px;margin-bottom:2px">Page</div>
@@ -1966,9 +1987,9 @@ function buildActionCard(item) {
         <button class="btn btn-primary" onclick="approveItem('${esc(item.id)}', this)">
           ${['page_creation','page_update','blog_draft'].includes(item.type) ? 'Approve → WP Draft' : 'Approve &amp; Push'}
         </button>
-        ${['page_creation','page_update','blog_draft'].includes(item.type) ? `<button class="btn btn-primary" style="background:#059669" onclick="publishItem('${esc(item.id)}', this)">Approve &amp; Publish</button>` : ''}
         <button class="btn btn-outline" onclick="editItem('${esc(item.id)}')">Edit Draft</button>
         <button class="btn btn-danger-outline" onclick="rejectItem('${esc(item.id)}', this)">Rewrite with AI</button>
+        ${['page_creation','page_update','blog_draft'].includes(item.type) ? `<span style="display:inline-flex;align-items:center;margin-left:8px;padding-left:8px;border-left:1px solid var(--border)"><button class="btn" style="background:#059669;color:#fff;font-size:12px" onclick="publishItem('${esc(item.id)}', this)" title="Publishes live to WordPress immediately">🚀 Publish Live</button></span>` : ''}
       </div>
       <button class="btn btn-ghost" title="Discard without using API credits" onclick="dismissItem('${esc(item.id)}', this)">
         <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/></svg>
@@ -2004,6 +2025,7 @@ function buildPreview(item) {
     <div style="margin-top:6px"><strong>Keyword:</strong> ${esc(p.targetKeyword || '-')}</div>
     <div style="margin-top:6px"><strong>New Title:</strong> ${esc(p.title || '-')}</div>
     <div style="margin-top:6px"><strong>New Meta:</strong> ${esc(p.description || '-')}</div>
+    ${p.voiceTopFix ? `<div style="margin-top:8px;padding:8px 12px;background:#fef3c7;border-left:3px solid #f59e0b;border-radius:0 6px 6px 0;font-size:12px;color:#92400e"><strong>⚠ Voice note:</strong> ${esc(p.voiceTopFix)}</div>` : ''}
     ${p.body ? `<div style="margin-top:10px"><button class="btn btn-outline" style="font-size:12px" onclick="previewContent('${esc(item.id)}')">📄 Read Full Content (~${Math.round(p.body.replace(/<[^>]+>/g,'').length/5)} words)</button></div>` : ''}`;
   if (item.type === 'page_creation') return `
     <div><strong>New Page:</strong> ${esc(p.title || '-')}</div>
@@ -2115,42 +2137,96 @@ async function dismissVisible(btn) {
 
 // ─── REJECT / REWRITE ───────────────────────────────────────────
 async function rejectItem(id, btn) {
-  const feedback = window.prompt('What should Claude fix? (This will requeue a revised version)');
-  if (!feedback || !feedback.trim()) return;
-  btn.disabled = true; btn.textContent = 'Rewriting…';
-  try {
-    await apiPost('/api/approvals', { action: 'reject', id, feedback, actor: state.actor });
-    showToast('Rejected. Revised version queued.', 'success');
-    await loadQueue();
-  } catch (e) {
-    showToast('Error: ' + e.message, 'error');
-    btn.disabled = false; btn.textContent = 'Rewrite with AI';
-  }
+  // Show a proper modal instead of window.prompt()
+  const item = state.queue.find(i => i.id === id);
+  const overlay = document.createElement('div');
+  overlay.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,0.5);display:flex;align-items:center;justify-content:center;z-index:9999';
+  overlay.innerHTML = `<div style="background:var(--bg-surface);border-radius:12px;padding:24px 28px;max-width:440px;width:90%;box-shadow:0 20px 60px rgba(0,0,0,0.3)">
+    <div style="font-size:15px;font-weight:700;margin-bottom:8px">Rewrite with AI</div>
+    <div style="font-size:13px;color:var(--text-muted);margin-bottom:16px">What should Claude fix? Be specific — e.g. "Make the opening more punchy" or "Add more UAE-specific local references"</div>
+    <textarea id="rewrite-feedback" rows="4" class="form-input" style="width:100%;font-family:var(--font-sans);font-size:13px;resize:vertical;margin-bottom:16px" placeholder="e.g. The opening is too generic. Lead with the smell of the smash, not a question. Also mention City Walk by name."></textarea>
+    <div style="display:flex;gap:10px;justify-content:flex-end">
+      <button class="btn btn-outline" id="rewrite-cancel">Cancel</button>
+      <button class="btn btn-primary" id="rewrite-confirm">Rewrite</button>
+    </div>
+  </div>`;
+  document.body.appendChild(overlay);
+  document.getElementById('rewrite-feedback').focus();
+
+  await new Promise(resolve => {
+    document.getElementById('rewrite-cancel').onclick = () => { overlay.remove(); resolve(false); };
+    overlay.onclick = e => { if (e.target === overlay) { overlay.remove(); resolve(false); } };
+    document.getElementById('rewrite-confirm').onclick = async () => {
+      const feedback = document.getElementById('rewrite-feedback').value.trim();
+      if (!feedback) { document.getElementById('rewrite-feedback').style.borderColor = '#ef4444'; return; }
+      overlay.remove();
+      btn.disabled = true; btn.textContent = 'Rewriting…';
+      try {
+        await apiPost('/api/approvals', { action: 'reject', id, feedback, actor: state.actor });
+        showToast('Rejected — revised version queued ✓', 'success');
+        await loadQueue();
+      } catch (e) {
+        showToast('Error: ' + e.message, 'error');
+        btn.disabled = false; btn.textContent = 'Rewrite with AI';
+      }
+      resolve(true);
+    };
+  });
 }
 
 // ─── EDIT ────────────────────────────────────────────────────────
 function editItem(id) {
   const item = state.queue.find(i => i.id === id);
   if (!item) return;
-  // Open the AI studio modal as an editor
-  const payload = JSON.stringify(item.payload || {}, null, 2);
-  openToolRaw('Edit Draft — ' + (item.title || item.type),
-    'Edit the payload JSON below, then click Save & Approve.',
-    `<textarea id="edit-payload" rows="12" style="width:100%;font-family:monospace;font-size:12px">${esc(payload)}</textarea>`,
+  const p = item.payload || {};
+
+  // Build form fields based on type — no raw JSON
+  const fields = [];
+  if (['blog_draft','page_creation','page_update'].includes(item.type)) {
+    fields.push(`<div class="form-group"><label class="form-label">Title</label><input type="text" id="edit-title" class="form-input" value="${esc(p.title || p.metaTitle || '')}" style="font-family:var(--font-sans)"></div>`);
+    fields.push(`<div class="form-group"><label class="form-label">Meta Description</label><input type="text" id="edit-meta" class="form-input" value="${esc(p.metaDescription || p.description || '')}" style="font-family:var(--font-sans)"></div>`);
+    if (p.targetKeyword !== undefined) fields.push(`<div class="form-group"><label class="form-label">Target Keyword</label><input type="text" id="edit-keyword" class="form-input" value="${esc(p.targetKeyword || '')}" style="font-family:var(--font-sans)"></div>`);
+    if (p.body !== undefined) fields.push(`<div class="form-group"><label class="form-label">Content</label><textarea id="edit-body" rows="12" class="form-input" style="font-family:var(--font-sans);font-size:13px;resize:vertical">${esc(p.body || '')}</textarea></div>`);
+    if (p.slug !== undefined) fields.push(`<div class="form-group"><label class="form-label">Slug</label><input type="text" id="edit-slug" class="form-input" value="${esc(p.slug || '')}" style="font-family:var(--font-sans)"></div>`);
+  } else if (item.type === 'meta_update') {
+    fields.push(`<div class="form-group"><label class="form-label">New Title</label><input type="text" id="edit-title" class="form-input" value="${esc(p.metaTitle || p.title || '')}" style="font-family:var(--font-sans)"></div>`);
+    fields.push(`<div class="form-group"><label class="form-label">New Meta Description</label><textarea id="edit-meta" rows="3" class="form-input" style="font-family:var(--font-sans);resize:vertical">${esc(p.metaDescription || p.description || '')}</textarea></div>`);
+  } else {
+    fields.push(`<div class="form-group"><label class="form-label">Content</label><textarea id="edit-body" rows="10" class="form-input" style="font-family:var(--font-sans);font-size:13px;resize:vertical">${esc(JSON.stringify(p, null, 2))}</textarea></div>`);
+  }
+
+  openToolRaw(
+    'Edit — ' + (item.title || item.type),
+    'Edit and save. "Save & Approve as Draft" pushes to WordPress as a draft.',
+    fields.join(''),
     async () => {
-      const raw = document.getElementById('edit-payload').value;
-      let parsed;
-      try { parsed = JSON.parse(raw); } catch (e) { showToast('Invalid JSON', 'error'); return false; }
-      await apiPost('/api/approvals', { action: 'edit_approve', id, payload: parsed, actor: state.actor });
-      showToast('Saved & pushed ✓', 'success');
+      const updated = { ...p };
+      const title   = document.getElementById('edit-title')?.value;
+      const meta    = document.getElementById('edit-meta')?.value;
+      const keyword = document.getElementById('edit-keyword')?.value;
+      const body    = document.getElementById('edit-body')?.value;
+      const slug    = document.getElementById('edit-slug')?.value;
+      if (title   !== undefined && title   !== null) { updated.title = title; updated.metaTitle = title; }
+      if (meta    !== undefined && meta    !== null) { updated.metaDescription = meta; updated.description = meta; }
+      if (keyword !== undefined && keyword !== null) updated.targetKeyword = keyword;
+      if (body    !== undefined && body    !== null) updated.body = body;
+      if (slug    !== undefined && slug    !== null) updated.slug = slug;
+      await apiPost('/api/approvals', { action: 'edit_approve', id, payload: updated, actor: state.actor });
+      showToast('Saved & pushed as WP draft ✓', 'success');
       await loadQueue();
       return true;
-    }, 'Save & Approve');
+    },
+    'Save & Approve as Draft'
+  );
 }
 
 function removeCardFromQueue(id) {
   state.queue = state.queue.filter(i => i.id !== id);
   renderQueue();
+  // Update badge immediately without waiting for full reload
+  const n     = state.queue.length;
+  const badge = document.getElementById('badge-approvals');
+  if (badge) { badge.textContent = n; badge.style.display = n > 0 ? '' : 'none'; }
 }
 
 // ─── RUN AUDIT NOW ───────────────────────────────────────────────
@@ -3955,7 +4031,7 @@ async function loadGa4Report(brand, forceRefresh = false) {
     const llmMonthlyTotals = monthly.map(m => (llmMonthly[m.month]?.total || 0));
     const maxLlm = Math.max(...llmMonthlyTotals, 1);
 
-    document.getElementById('report-ga4-status').innerHTML = `<span style="color:var(--success)">✓ GA4 connected</span> · ${esc(data.propertyId)} · <a href="#" onclick="loadGa4Report('${brand}', true);return false" style="color:var(--text-muted);font-size:10px">↻ Refresh</a>`;
+    document.getElementById('report-ga4-status').innerHTML = `<span style="color:var(--success)">✓ GA4 connected</span> · ${esc(data.propertyId)} · <button onclick="loadGa4Report('${brand}', true)" style="font-size:11px;padding:2px 8px;border-radius:4px;border:1px solid var(--border);background:var(--bg-surface);color:var(--text-muted);cursor:pointer;margin-left:4px">↻ Refresh</button>`;
 
     // Per-source LLM breakdown table
     const llmSources = Object.entries(llmBySource).sort(([,a],[,b]) => b - a);
@@ -5449,7 +5525,7 @@ async function removeSeedKeyword(kw) {
   }
 }
 </script>
-<script src="/js/competitor-matrix-ui.js"></script>
+<script src="/js/competitor-matrix-ui.js?v=6.9n"></script>
 <!-- ═══ PERCH SIDE PANEL ═══ -->
 <div id="perch-side-panel">
   <div id="perch-panel-content" style="padding:0"></div>

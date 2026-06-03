@@ -880,3 +880,124 @@ The Monday pipeline handles the top two rows automatically. Everything below is 
 ## DataForSEO — Note on Labs Access
 `dataforseo_labs/google/ranked_keywords/live` requires Labs product enabled on the DataForSEO account (separate from SERP Standard access). If the Competitor Gaps tab shows a Labs error after Refresh Now, check app.dataforseo.com → API Access. The SERP rankings, Share of Voice, and gap analysis against tracked keywords all continue to work without Labs. Labs only unlocks the "what competitors rank for outside your tracked list" discovery feature.
 
+
+---
+
+## Session: June 2026 — v6.9l Three Fixes
+
+### Fix 1: Reports tab competitor gaps — wrong key access
+`index.html` — `renderReports()`:
+- Bug: `matrixData?.rows` — the API returns `{ pickl: { rows: [] }, bonbird: { rows: [] } }` but code was reading the top level directly, always getting `undefined`
+- Fix: `matrixData?.[brand]?.rows || []`
+- Result: "No competitor data yet" no longer shows when matrix data exists
+
+### Fix 2: International blog approvals — voice score missing from payload
+`international-seo-background.js` — `queueApprovalItem()`:
+- Bug: `voiceScore`, `voiceIssues`, `voiceTopFix` were in `item.meta` but never mapped into `payload {}`. `createApproval` stores `input.payload || {}`, so the badge always read `undefined`
+- Fix: Added explicit mapping of all three voice fields into payload object
+
+### Fix 3: GA4 chart month labels overlapping bars
+`index.html` — `loadGa4Report()`:
+- Bug: Month labels (`writing-mode:vertical-rl`) were inside the same `height:90px` flex container as the bars, causing them to protrude into content below when bars were tall
+- Fix: Separated into two rows — bar area (`height:80px`, bars only) and a clean label row below using horizontal text (month abbreviations fit without rotation)
+
+---
+
+## Session: June 2026 — v6.9m International SEO GSC Data
+
+### Fix: International blogs had no position/impressions data
+
+**Root cause:** The international SEO background function (`international-seo-background.js`) used pre-configured `market.seedKeywords` to decide what to write about but never fetched GSC data. There was a wrong comment in the code saying this was "intentional" — it was not, it was simply never implemented.
+
+**Fix:**
+1. Added `fetchGscDirect` import from `_lib/store.js`
+2. At start of `processMarketLanguage()`, fetch GSC rows for the brand's main site:
+   - Pickl: `https://eatpickl.com/` (covers all `/bh/`, `/egypt/`, `/qatar/` etc. as they're on same property)
+   - Bonbird: `https://bonbirdchicken.com/`
+3. Build `gscMap` — `keyword.toLowerCase() → { position, impressions }`
+4. For each blog's `focusKeyword`, look up in gscMap → pass `currentPos` and `impressions` into `queueApprovalItem` meta
+5. `queueApprovalItem` now maps `currentPos` and `impressions` from meta into the stored payload
+6. Removed the incorrect "intentionally omitted" comment
+
+**Behaviour after fix:**
+- If the international keyword already has impressions in GSC (e.g. "best burger in bahrain" has ranking history) → position and impressions now show on the approval card
+- If it's truly new content with no GSC data (new Oman market, never indexed) → fields are null, which is the honest state — the keyword hasn't been seen by Google yet. The card still shows target keyword, voice score, and market flag.
+
+
+---
+
+## Session: June 2026 — v6.9n Full Bug Fix Pass
+
+### Complete list of issues fixed
+
+#### Backend
+
+**scheduler-background.js**
+- `ctrGap` was stored as `toFixed(1)` on a decimal value (0.023 → "0.0"). Fixed to `(ctrGap * 100).toFixed(1)` → stored as percentage string like "2.3". Display in buildContextBar already shows `+${ctrGap}%` so this is now correct.
+
+**perch.js**
+- Sequential `await` in `for` loop was fetching each task one-at-a-time. With 50 tasks × 100ms/call = 5s minimum load time. Fixed to `Promise.all()` — all tasks fetched in parallel, load time drops to ~100ms regardless of task count.
+
+**international-seo-background.js**
+- `generateBlogDraft` always used `keywords[0]` — same keyword every run. Added `usedKeywords: Set` parameter so each blog in a run uses a different seed keyword.
+- Changed from 1 blog draft per market run to **3 blog drafts per market run** (`MAX_BLOGS_PER_MARKET = 3`) using keyword rotation.
+- GSC lookup was exact keyword match only — focus keywords Claude generates rarely match GSC keywords exactly. Added `findGscData()` with 3-tier fuzzy lookup: (1) exact match, (2) market country/city term match, (3) word-overlap match (≥2 meaningful words in common).
+- Stores `gscKeyword` field in payload when fuzzy match used — shown in context bar as `via "matched keyword"`.
+
+#### Frontend (index.html)
+
+**Approvals Queue — badge not updating**
+- `removeCardFromQueue()` called `renderQueue()` but never `updateQueueBadge()`. Nav badge stayed at original count after approving/dismissing. Fixed: badge now updates immediately from `state.queue.length`.
+
+**Tab state — always returns to Perch on refresh**
+- Active tab never saved. Now: `switchView()` writes `localStorage.setItem('nestActiveTab', target)`. On init, reads saved tab and restores it. Skips if saved tab is 'perch' (no point restoring to default).
+
+**GA4 state — always "not connected" in AI Readiness Score on fresh load**
+- `state.ga4Connected` only set on OAuth redirect or Settings tab visit. Now: `checkGa4Connection()` called in init on every page load so the Reports score is accurate without visiting Settings first.
+
+**Dashboard tab — no data handler**
+- No `if (target === 'dashboard')` case in `switchView()`. Added `loadDashboardIfNeeded()` which calls `loadGscIfNeeded()` — dashboard metrics now populate when the tab is opened directly.
+
+**Approve/Publish button order**
+- "Approve & Publish" (green, publishes live) was right next to "Approve → WP Draft" (blue) — easy to accidentally publish. Reorganised: WP Draft | Edit Draft | Rewrite with AI | [separator] 🚀 Publish Live. Visual separation makes the live publish intentional.
+
+**Edit Draft — raw JSON textarea**
+- Replaced raw JSON editor with type-specific labeled form fields:
+  - `blog_draft` / `page_creation`: Title, Meta Description, Target Keyword, Slug, Content textarea
+  - `meta_update`: Title, Meta Description
+  - Other: raw content only
+- Non-technical users can now edit without knowing JSON.
+
+**Rewrite with AI — window.prompt()**
+- Replaced native browser `prompt()` dialog with a proper styled modal matching the tool's design. Has a textarea for feedback with placeholder examples, Cancel/Rewrite buttons, border validation on empty submission.
+
+**page_update — no voice note**
+- `buildPreview` for `page_update` was missing the amber `⚠ Voice note` warning that `blog_draft` and `page_creation` have. Added.
+
+**GA4 refresh — invisible link**
+- "↻ Refresh" was a tiny inline `<a>` tag. Replaced with a proper styled `<button>`.
+
+**Script cache busting**
+- Added `?v=6.9n` to `/js/competitor-matrix-ui.js` script tag. Browsers that cached the old file will now fetch the latest version automatically on deploy.
+
+**International context bar — GSC fuzzy match label**
+- When a fuzzy GSC match is used (not exact keyword), the impressions cell now shows `via "matched keyword"` in small text so users understand where the data came from.
+
+#### competitor-matrix-ui.js
+
+**SoV trend chart — invisible for first week**
+- `if (historyData.length > 1)` meant no chart showed after the first Monday run. Added message for `historyData.length === 1`: "📅 First data point recorded [date]. Trend line will appear after next Monday's run."
+
+**Refresh Now poll orphan**
+- If user clicked Refresh Now then navigated away and back, two polling loops ran simultaneously. Fixed: `loadData()` now clears any existing `pollTimer` BEFORE the `isLoading` check, so a new loadData always kills the previous poll first.
+
+### New Blobs fields added
+- `competitorRankedKeywords:<brand>` — now includes `gscKeyword` per blog draft (fuzzy matched GSC keyword)
+- International blog payloads — `gscKeyword` field added
+
+### What's left (known remaining issues — fix in next session)
+- Add Target Keyword button in Analytics & ROI saves to wrong list (`state.keywords` via `/api/db/save` instead of competitor matrix keyword config). Needs to add to both.
+- How It Works scheduler status: no timeout/error state — stays "Loading…" if API fails.
+- International new market context bar: null position/impressions looks like broken data for Oman/Pakistan new markets — needs a "New market — no history yet" indicator.
+- SoV aggregator split: confirmed the code exists and is correct. If user still sees one chart, it's a browser cache issue — hard refresh (Ctrl+Shift+R) fixes it. The `?v=6.9n` cache bust will prevent this going forward.
+

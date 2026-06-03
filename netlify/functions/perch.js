@@ -140,15 +140,14 @@ exports.handler = async (event) => {
   // ── GET: list tasks visible to this user ───────────────────────────────────
   if (event.httpMethod === 'GET') {
     try {
-      const index = await getSetting('perchIndex').catch(() => []);
-      const tasks = [];
+      const index   = await getSetting('perchIndex').catch(() => []);
+      const ids     = index || [];
 
-      for (const id of (index || [])) {
-        try {
-          const task = await getSetting('perchTask:' + id);
-          if (task && canSeeTask(task, user)) tasks.push(task);
-        } catch { /* skip missing */ }
-      }
+      // Fetch all tasks in parallel — sequential await was causing N × latency slowness
+      const settled = await Promise.all(
+        ids.map(id => getSetting('perchTask:' + id).catch(() => null))
+      );
+      const tasks = settled.filter(t => t && canSeeTask(t, user));
 
       // Sort by createdAt desc
       tasks.sort((a, b) => (b.createdAt || 0) - (a.createdAt || 0));
