@@ -310,34 +310,91 @@ exports.handler = async (event) => {
     if (post.status !== 'approved') return bad(400, 'Post must be approved before scheduling');
 
     const apiKey = process.env.SOCIALPILOT_API_KEY;
-    if (!apiKey) return bad(503, 'SOCIALPILOT_API_KEY not set in Netlify env vars. Add it to enable auto-scheduling.');
+    if (!apiKey) return bad(503, 'SOCIALPILOT_API_KEY not configured — add it to Netlify env vars.');
+
+    // ── Account ID mapping (brand → market → platform → SocialPilot page ID) ─
+    // "Mena" accounts are used for UAE market for both Pickl and Bonbird.
+    // KSA = Saudi Arabia in SocialPilot labelling.
+    const SP_ACCOUNTS = {
+      pickl: {
+        UAE:     { youtube: 2543471, facebook: 2445831, instagram: 2445847, tiktok: 2445864, linkedin: 2445851 },
+        Bahrain: { facebook: 2445833, instagram: 2445841 },
+        Egypt:   { facebook: 2445838, instagram: 2445843, tiktok: 2445867 },
+        Jordan:  { facebook: 2537712, instagram: 2537716 },
+        KSA:     { facebook: 2445835, instagram: 2445842, tiktok: 2445868 },
+        Oman:    { facebook: 2597955, instagram: 2597956 },
+        Qatar:   { facebook: 2445836, instagram: 2445846 },
+      },
+      bonbird: {
+        UAE:      { youtube: 2543578, facebook: 2445839, instagram: 2445848, linkedin: 2445852, tiktok: 2445866 },
+        Oman:     { facebook: 2445830, instagram: 2445840 },
+        Pakistan: { facebook: 2445832, instagram: 2445844 },
+        Qatar:    { facebook: 2445834, instagram: 2445845 },
+        UK:       { facebook: 2573342, instagram: 2573342, tiktok: 2573342 },
+      },
+      southpour: {
+        UAE: { facebook: 2445837, instagram: 2445849 },
+      },
+    };
+
+    // Resolve account IDs from post's brand + market + platforms
+    const marketMap   = SP_ACCOUNTS[post.brand]?.[post.market] || {};
+    const accountIds  = (post.platforms || []).map(p => marketMap[p]).filter(Boolean).map(String);
+    const missingPlatforms = (post.platforms || []).filter(p => !marketMap[p]);
+
+    if (!accountIds.length) {
+      return bad(400,
+        `No SocialPilot accounts found for ${post.brand} · ${post.market} ` +
+        `on platforms: ${(post.platforms||[]).join(', ')}. ` +
+        `Check the account mapping or push manually from SocialPilot.`
+      );
+    }
 
     try {
-      const schedDt    = new Date(`${post.scheduledDate}T${post.scheduledTime || '10:00'}:00`);
-      const schedUnix  = Math.floor(schedDt.getTime() / 1000);
-      const fullText   = [post.caption, post.hashtags].filter(Boolean).join('\n\n');
+      const schedDt   = new Date(`${post.scheduledDate}T${post.scheduledTime || '10:00'}:00`);
+      const schedUnix = Math.floor(schedDt.getTime() / 1000);
+      const fullText  = [post.caption, post.hashtags].filter(Boolean).join('\n\n');
 
-      // SocialPilot v1 — create scheduled post
-      const spRes = await fetch('https://panel.socialpilot.co/oauth/1.0/apicall/add_post', {
-        method: 'POST',
+      // Build payload — include images for SocialPilot to attach
+      const payload = {
+        accounts:      accountIds,
+        text:          fullText,
+        schedule_time: schedUnix,
+      };
+
+      // Attach images — single image or carousel slides
+      const imageUrls = [];
+      if (post.imageUrl)  imageUrls.push(post.imageUrl);
+      if ((post.mediaFiles || []).length) {
+        for (const f of post.mediaFiles) {
+          const url = f.url || (f.id ? `${SITE_URL}/api/calendar-media?id=${f.id}` : null);
+          if (url) imageUrls.push(url);
+        }
+      }
+      if (imageUrls.length) payload.images = imageUrls;
+
+      // Video URL for reels
+      if (post.videoUrl && post.postType === 'reel') payload.video_url = post.videoUrl;
+
+      const spRes  = await fetch('https://panel.socialpilot.co/oauth/1.0/apicall/add_post', {
+        method:  'POST',
         headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${apiKey}` },
-        body: JSON.stringify({
-          accounts:       body.accountIds || [],
-          text:           fullText,
-          schedule_time:  schedUnix,
-        }),
+        body:    JSON.stringify(payload),
       });
       const spData = await spRes.json();
-      if (!spRes.ok) throw new Error(spData.message || `SocialPilot ${spRes.status}`);
+      if (!spRes.ok) throw new Error(spData.message || spData.error || `SocialPilot API ${spRes.status}`);
 
-      const updated = { ...post, status: 'scheduled',
-        socialPilotPostId: spData.post_id || spData.id || null, updatedAt: now,
-        history: [...(post.history || []), {
-          at: now, actor, action: 'pushed_to_socialpilot',
-          note: `SP Post ID: ${spData.post_id || spData.id}`,
-        }] };
+      const spPostId = spData.post_id || spData.id || null;
+      const note = [
+        `SP Post ID: ${spPostId}`,
+        `Accounts: ${accountIds.join(', ')}`,
+        missingPlatforms.length ? `⚠ No SP account for: ${missingPlatforms.join(', ')}` : '',
+      ].filter(Boolean).join(' · ');
+
+      const updated = { ...post, status: 'scheduled', socialPilotPostId: spPostId, updatedAt: now,
+        history: [...(post.history || []), { at: now, actor, action: 'pushed_to_socialpilot', note }] };
       await savePost(s, updated);
-      return ok({ ok: true, post: updated, spResponse: spData });
+      return ok({ ok: true, post: updated, accountIds, missingPlatforms, spResponse: spData });
 
     } catch (e) {
       console.error('[calendar] SocialPilot error:', e.message);

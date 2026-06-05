@@ -6328,7 +6328,7 @@ function pfIcon(key, size = 14, style = '') {
 
 const CAL_MARKETS = {
   pickl:     ['UAE','KSA','Bahrain','Qatar','Egypt','Jordan','Oman'],
-  bonbird:   ['UAE','Oman','Pakistan','Qatar'],
+  bonbird:   ['UAE','Oman','Pakistan','Qatar','UK'],
   southpour: ['UAE'],
   shadowburg: ['UAE'],
   shadowbird: ['UAE'],
@@ -7339,7 +7339,8 @@ async function calPushSocialPilot(postId) {
       action: 'push_socialpilot', id: postId,
       actor: state.actor, actorEmail: state.userEmail,
     });
-    showToast('📤 Pushed to SocialPilot — post is now scheduled', 'success');
+    const missing = res.missingPlatforms?.length ? ` (no SP account for: ${res.missingPlatforms.join(', ')})` : '';
+    showToast(`📤 Pushed to SocialPilot — scheduled to ${res.accountIds?.length || '?'} account(s)${missing}`, 'success');
     await loadCalendar();
     if (res.post) renderCalDetailPanel(res.post);
   } catch (e) { showToast(e.message, 'error'); }
