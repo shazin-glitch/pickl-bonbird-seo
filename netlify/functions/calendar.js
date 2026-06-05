@@ -431,13 +431,45 @@ exports.handler = async (event) => {
 
       const SP_GW_KEY = 'yFxaTyRTiH7YBUYeYiEeCYBMRGZA8wk5fsCJxVy1';
       const SP_URL    = 'https://rest.socialpilot.co/v4/draft/autosave';
-      const spHeaders = {
-        'Content-Type':  'application/json',
-        'authorization': `Bearer ${apiKey}`,
-        'x-api-key':     SP_GW_KEY,
-        'origin':        'https://app.socialpilot.co',
-        'referer':       'https://app.socialpilot.co/',
-      };
+
+      // Try 1: settings key as Bearer + static key as x-api-key (current - returns "Invalid User")
+      // Try 2: settings key as x-api-key + static key as Bearer (swap)
+      // Try 3: settings key as x-api-key only (no Authorization header)
+      // We'll run all three and log results to find which works
+      const headerVariants = [
+        { 'Content-Type': 'application/json', 'authorization': `Bearer ${apiKey}`,     'x-api-key': SP_GW_KEY, 'origin': 'https://app.socialpilot.co' },
+        { 'Content-Type': 'application/json', 'authorization': `Bearer ${SP_GW_KEY}`,  'x-api-key': apiKey,    'origin': 'https://app.socialpilot.co' },
+        { 'Content-Type': 'application/json', 'x-api-key': apiKey,                                             'origin': 'https://app.socialpilot.co' },
+      ];
+
+      let spHeaders = headerVariants[0];
+      for (let vi = 0; vi < headerVariants.length; vi++) {
+        const testRes  = await fetch(SP_URL, {
+          method: 'POST', headers: headerVariants[vi],
+          body: JSON.stringify({ action: 'create', data: {
+            createPostReducer: { tagIds: [], draftScheduleDate: {} },
+            captionDataReducer: { utmData: {}, linkShortening: false, customize: false, activeTab: 'original', postData: { original: { caption: '__nesttest__' } }, mentions: {} },
+            mediaReducer: { media: [], postType: 'T', mediaMetadata: [], ctaButton: null, isFbCarouselPost: false, linkPreview: null },
+            advanceOptionsReducer: {},
+            accountSelectionReducer: { selectedAccounts: {}, staticAccountIds: [] },
+          }, contentIds: [] }),
+        });
+        const testData = await testRes.json().catch(() => ({}));
+        console.log(`[SP auth test ${vi+1}]:`, testRes.status, JSON.stringify(testData).slice(0, 150));
+        if (testRes.ok || testRes.status === 400 || testRes.status === 422) {
+          // 400/422 = auth passed but request has validation issues — that's fine, we found the right auth
+          spHeaders = headerVariants[vi];
+          console.log(`[SP] Using auth variant ${vi+1}`);
+          // Clean up test draft if created
+          const testDraftId = testData.draftId || testData.id;
+          if (testDraftId) {
+            await fetch(SP_URL, { method: 'POST', headers: headerVariants[vi],
+              body: JSON.stringify({ action: 'delete', draftId: testDraftId }) }).catch(() => null);
+          }
+          break;
+        }
+        if (vi === headerVariants.length - 1) throw new Error(`All auth variants rejected. Last error: ${testData.message || testRes.status}`);
+      }
 
       const schedUnix = marketLocalToUnix(post.scheduledDate, post.scheduledTime || '10:00', post.market || 'UAE');
       const tz        = MARKET_TIMEZONES[post.market] || 'Asia/Dubai';
