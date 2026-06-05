@@ -198,6 +198,45 @@
   .toast.show { transform: translateY(0); opacity: 1; }
   .toast.success { background: #059669; }
   .toast.error { background: #dc2626; }
+  /* ── Content Calendar ───────────────────────────────────────────── */
+  .cal-day { min-height: 100px; border-right: 1px solid var(--border); border-bottom: 1px solid var(--border); padding: 6px; cursor: pointer; transition: background 0.1s; }
+  .cal-day:hover { background: var(--bg-base); }
+  .cal-day:nth-child(7n) { border-right: none; }
+  .cal-day.other-month { opacity: 0.35; }
+  .cal-day.today .cal-day-num { background: var(--primary); color: #fff; border-radius: 50%; width: 22px; height: 22px; display: flex; align-items: center; justify-content: center; }
+  .cal-day-num { font-size: 12px; font-weight: 600; color: var(--text-muted); margin-bottom: 4px; }
+  .cal-pill { font-size: 11px; padding: 2px 6px; border-radius: 4px; margin-bottom: 2px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 100%; cursor: pointer; display: flex; align-items: center; gap: 4px; }
+  .cal-pill:hover { filter: brightness(0.9); }
+  .cal-pill-more { font-size: 10px; color: var(--text-muted); padding: 1px 4px; }
+  .cal-status-draft             { background: #e2e8f0; color: #475569; }
+  .cal-status-in_review         { background: #fef3c7; color: #92400e; }
+  .cal-status-changes_requested { background: #fee2e2; color: #991b1b; }
+  .cal-status-approved          { background: #dcfce7; color: #166534; }
+  .cal-status-scheduled         { background: #ede9fe; color: #5b21b6; }
+  .cal-status-published         { background: #d1fae5; color: #065f46; }
+  .cal-upload-zone { border: 2px dashed var(--border); border-radius: 8px; padding: 24px; text-align: center; cursor: pointer; transition: all 0.2s; }
+  .cal-upload-zone:hover, .cal-upload-zone.dragover { border-color: var(--primary); background: rgba(37,99,235,0.04); }
+  .cal-media-preview { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; margin-top: 10px; }
+  .cal-media-thumb { position: relative; aspect-ratio: 1; border-radius: 6px; overflow: hidden; border: 1px solid var(--border); }
+  .cal-media-thumb img { width: 100%; height: 100%; object-fit: cover; }
+  .cal-media-thumb .cal-remove { position: absolute; top: 4px; right: 4px; background: rgba(0,0,0,0.6); color: #fff; border: none; border-radius: 50%; width: 20px; height: 20px; font-size: 11px; cursor: pointer; display: flex; align-items: center; justify-content: center; }
+  .cal-platform-pill { padding: 5px 12px; border-radius: 20px; font-size: 12px; font-weight: 500; cursor: pointer; border: 1px solid var(--border); color: var(--text-muted); transition: all 0.15s; user-select: none; }
+  .cal-platform-pill.active { color: #fff; border-color: transparent; }
+  .platform-instagram.active { background: #E1306C; }
+  .platform-tiktok.active    { background: #010101; }
+  .platform-facebook.active  { background: #1877F2; }
+  .platform-x.active         { background: #000000; }
+  .platform-linkedin.active  { background: #0A66C2; }
+  .platform-youtube.active   { background: #FF0000; }
+  .cal-approver-row { display: flex; align-items: center; gap: 8px; padding: 8px 0; border-bottom: 1px solid var(--border); }
+  .cal-approver-row:last-child { border-bottom: none; }
+  .cal-comment { background: var(--bg-base); border-radius: 8px; padding: 10px 12px; margin-bottom: 8px; }
+  .cal-comment.change-request { border-left: 3px solid #ef4444; }
+  .cal-comment .author { font-size: 12px; font-weight: 600; color: var(--text-main); }
+  .cal-comment .timestamp { font-size: 11px; color: var(--text-muted); }
+  .cal-comment .body { font-size: 13px; color: var(--text-main); margin-top: 4px; line-height: 1.5; white-space: pre-wrap; }
+  .cal-char-count { font-size: 11px; text-align: right; margin-top: 2px; }
+  .cal-char-count.over { color: #ef4444; font-weight: 600; }
   @media print {
     body { background: #fff !important; color: #000 !important; }
     .sidebar, .nav-item, .pill-nav, .btn, #report-brand-pills,
@@ -228,6 +267,10 @@
   <nav class="nav-menu" id="nav-menu">
     <div class="nav-item active" data-target="perch">
       <span>🪺 The Perch</span>
+    </div>
+    <div class="nav-item" data-target="calendar">
+      <span>📅 Content Calendar</span>
+      <span class="badge" id="badge-calendar" style="display:none;background:#7c3aed">0</span>
     </div>
     <div class="nav-item" data-target="dashboard">
       <span>📋 Approvals Queue</span>
@@ -339,6 +382,108 @@
         <div style="color:var(--text-muted);font-size:14px;max-width:380px;margin:0 auto">Create your first task to get started. Tasks are shared with your team based on brand and department.</div>
       </div>
     </div><!-- /view-perch -->
+
+    <!-- ═══ VIEW: CONTENT CALENDAR ═══ -->
+    <div class="page-view" id="view-calendar">
+      <div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:20px;flex-wrap:wrap;gap:12px">
+        <div>
+          <div class="page-title">Content Calendar</div>
+          <div class="section-desc" style="margin-top:4px">Plan, review and schedule social content for all brands and markets. Every post goes through an approval workflow before it reaches SocialPilot.</div>
+        </div>
+        <button class="btn btn-primary" onclick="openCalForm(null)" style="white-space:nowrap">+ New Post</button>
+      </div>
+
+      <!-- Filters + Month Nav -->
+      <div style="display:flex;flex-wrap:wrap;gap:10px;align-items:center;margin-bottom:20px">
+        <select id="cal-filter-brand" class="form-input" style="width:120px;font-family:var(--font-sans);font-size:13px" onchange="calBrandChanged()">
+          <option value="pickl">Pickl</option>
+          <option value="bonbird">Bonbird</option>
+          <option value="southpour">Southpour</option>
+        </select>
+        <select id="cal-filter-market" class="form-input" style="width:130px;font-family:var(--font-sans);font-size:13px" onchange="loadCalendar()">
+          <option value="">All Markets</option>
+        </select>
+        <select id="cal-filter-platform" class="form-input" style="width:130px;font-family:var(--font-sans);font-size:13px" onchange="loadCalendar()">
+          <option value="">All Platforms</option>
+          <option value="instagram">Instagram</option>
+          <option value="tiktok">TikTok</option>
+          <option value="facebook">Facebook</option>
+          <option value="x">X (Twitter)</option>
+          <option value="linkedin">LinkedIn</option>
+          <option value="youtube">YouTube</option>
+        </select>
+        <select id="cal-filter-status" class="form-input" style="width:140px;font-family:var(--font-sans);font-size:13px" onchange="renderCalendar()">
+          <option value="">All Statuses</option>
+          <option value="draft">Draft</option>
+          <option value="in_review">In Review</option>
+          <option value="changes_requested">Changes Requested</option>
+          <option value="approved">Approved</option>
+          <option value="scheduled">Scheduled</option>
+          <option value="published">Published</option>
+        </select>
+        <div style="flex:1"></div>
+        <!-- Month navigation -->
+        <div style="display:flex;align-items:center;gap:8px">
+          <button class="btn btn-ghost" onclick="calMonthStep(-1)" style="padding:4px 10px">&#8592;</button>
+          <span id="cal-month-label" style="font-weight:600;font-size:14px;min-width:130px;text-align:center"></span>
+          <button class="btn btn-ghost" onclick="calMonthStep(1)" style="padding:4px 10px">&#8594;</button>
+        </div>
+        <!-- View toggle -->
+        <div style="display:flex;border:1px solid var(--border);border-radius:6px;overflow:hidden">
+          <button id="cal-view-month-btn" onclick="setCalView('month')" style="padding:5px 12px;font-size:12px;border:none;cursor:pointer;background:var(--primary);color:#fff">📅 Month</button>
+          <button id="cal-view-list-btn" onclick="setCalView('list')" style="padding:5px 12px;font-size:12px;border:none;cursor:pointer;background:transparent;color:var(--text-muted)">📋 List</button>
+        </div>
+      </div>
+
+      <!-- Month grid -->
+      <div id="cal-month-grid" style="background:var(--bg-surface);border:1px solid var(--border);border-radius:var(--radius);overflow:hidden">
+        <div style="display:grid;grid-template-columns:repeat(7,1fr);border-bottom:1px solid var(--border)">
+          <div style="padding:8px 10px;font-size:11px;font-weight:600;color:var(--text-muted);text-transform:uppercase;text-align:center">Mon</div>
+          <div style="padding:8px 10px;font-size:11px;font-weight:600;color:var(--text-muted);text-transform:uppercase;text-align:center">Tue</div>
+          <div style="padding:8px 10px;font-size:11px;font-weight:600;color:var(--text-muted);text-transform:uppercase;text-align:center">Wed</div>
+          <div style="padding:8px 10px;font-size:11px;font-weight:600;color:var(--text-muted);text-transform:uppercase;text-align:center">Thu</div>
+          <div style="padding:8px 10px;font-size:11px;font-weight:600;color:var(--text-muted);text-transform:uppercase;text-align:center">Fri</div>
+          <div style="padding:8px 10px;font-size:11px;font-weight:600;color:var(--text-muted);text-transform:uppercase;text-align:center">Sat</div>
+          <div style="padding:8px 10px;font-size:11px;font-weight:600;color:var(--text-muted);text-transform:uppercase;text-align:center">Sun</div>
+        </div>
+        <div id="cal-grid-body" style="display:grid;grid-template-columns:repeat(7,1fr)">
+          <!-- populated by renderCalendar() -->
+        </div>
+      </div>
+
+      <!-- List view -->
+      <div id="cal-list-view" style="display:none">
+        <div id="cal-list-body"></div>
+      </div>
+
+      <!-- Empty / loading state -->
+      <div id="cal-empty" style="display:none;text-align:center;padding:60px 24px;color:var(--text-muted)">
+        <div style="font-size:40px;margin-bottom:12px">📅</div>
+        <div style="font-weight:600;font-size:15px;margin-bottom:6px">No posts this month</div>
+        <div style="font-size:13px">Click <strong>+ New Post</strong> to start planning your content.</div>
+      </div>
+    </div><!-- /view-calendar -->
+
+    <!-- ═══ CALENDAR: New/Edit Post slide-in panel ═══ -->
+    <div id="cal-form-overlay" onclick="closeCalForm()" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,0.35);z-index:200"></div>
+    <div id="cal-form-panel" style="display:none;position:fixed;top:0;right:0;width:520px;max-width:100vw;height:100vh;background:var(--bg-surface);box-shadow:-4px 0 24px rgba(0,0,0,0.18);z-index:201;overflow-y:auto;display:flex;flex-direction:column">
+      <div style="padding:20px 24px;border-bottom:1px solid var(--border);display:flex;justify-content:space-between;align-items:center;flex-shrink:0">
+        <div style="font-size:16px;font-weight:700" id="cal-form-title">New Post</div>
+        <button class="btn btn-ghost" onclick="closeCalForm()" style="padding:4px 10px;font-size:16px">✕</button>
+      </div>
+      <div id="cal-form-body" style="padding:24px;flex:1;overflow-y:auto"></div>
+      <div style="padding:16px 24px;border-top:1px solid var(--border);display:flex;gap:10px;justify-content:flex-end;flex-shrink:0">
+        <button class="btn btn-outline" onclick="closeCalForm()">Cancel</button>
+        <button class="btn btn-outline" id="cal-save-draft-btn" onclick="saveCalPost('draft')">Save Draft</button>
+        <button class="btn btn-primary" id="cal-submit-btn" onclick="saveCalPost('submit')">Submit for Review</button>
+      </div>
+    </div>
+
+    <!-- ═══ CALENDAR: Post Detail / Approval slide-in panel ═══ -->
+    <div id="cal-detail-overlay" onclick="closeCalDetail()" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,0.35);z-index:200"></div>
+    <div id="cal-detail-panel" style="display:none;position:fixed;top:0;right:0;width:580px;max-width:100vw;height:100vh;background:var(--bg-surface);box-shadow:-4px 0 24px rgba(0,0,0,0.18);z-index:201;overflow-y:auto">
+      <div id="cal-detail-body" style="height:100%;display:flex;flex-direction:column"></div>
+    </div>
 
     <!-- ═══ VIEW 1: DASHBOARD & APPROVALS ═══ -->
     <div class="page-view" id="view-dashboard">
@@ -1576,6 +1721,9 @@ const TYPE_TAGS = {
   // Check GA4 connection on every page load so AI Readiness Score is accurate
   checkGa4Connection().catch(() => {});
 
+  // Load calendar approval badge
+  loadCalendarBadge().catch(() => {});
+
   // Handle GBP OAuth redirect
   if (urlParams.get('gbp_connected') === '1') {
     window.history.replaceState({}, '', '/');
@@ -1618,6 +1766,7 @@ const TYPE_TAGS = {
 // ═══════════════════════════════════════════════════════════════
 const VIEW_TITLES = {
   perch:         'The Perch',
+  calendar:      'Content Calendar',
   dashboard:     'Approvals Queue',
   analytics:     'Analytics & ROI',
   reports:       'SEO Report',
@@ -1642,6 +1791,7 @@ function switchView(target) {
   try { localStorage.setItem('nestActiveTab', target); } catch {} // persist across refreshes
   if (target === 'perch')         loadPerch();
   else                            closePerchPanel();
+  if (target === 'calendar')      loadCalendarIfNeeded();
   if (target === 'dashboard')     loadDashboardIfNeeded();
   if (target === 'analytics')     loadGscIfNeeded();
   if (target === 'reports')       loadReports();
@@ -6095,6 +6245,904 @@ function exportReportPdf() {
 }
 
 // ── Email Digest ───────────────────────────────────────────────────────────────
+
+// ═══════════════════════════════════════════════════════════════
+// CONTENT CALENDAR
+// ═══════════════════════════════════════════════════════════════
+
+const CAL_PLATFORMS = {
+  instagram: { label: 'Instagram', emoji: '📸', color: '#E1306C', limit: 2200 },
+  tiktok:    { label: 'TikTok',    emoji: '🎵', color: '#010101', limit: 2200 },
+  facebook:  { label: 'Facebook',  emoji: '👥', color: '#1877F2', limit: 63206 },
+  x:         { label: 'X',         emoji: '𝕏',  color: '#000000', limit: 280 },
+  linkedin:  { label: 'LinkedIn',  emoji: '💼', color: '#0A66C2', limit: 3000 },
+  youtube:   { label: 'YouTube',   emoji: '▶',  color: '#FF0000', limit: 500 },
+};
+
+const CAL_MARKETS = {
+  pickl:     ['UAE','KSA','Bahrain','Qatar','Egypt','Jordan','Oman'],
+  bonbird:   ['UAE','Oman','Pakistan','Qatar'],
+  southpour: ['UAE'],
+};
+
+const CAL_STATUS_LABELS = {
+  draft:              { label: 'Draft',              color: '#64748b' },
+  in_review:          { label: 'In Review',          color: '#d97706' },
+  changes_requested:  { label: 'Changes Requested',  color: '#dc2626' },
+  approved:           { label: 'Approved',            color: '#16a34a' },
+  scheduled:          { label: 'Scheduled',           color: '#7c3aed' },
+  published:          { label: 'Published',           color: '#065f46' },
+};
+
+const CAL_POST_TYPES = ['reel','carousel','story','static','copy_only'];
+const CAL_TYPE_LABELS = { reel:'Reel', carousel:'Carousel', story:'Story', static:'Static Image', copy_only:'Copy Only' };
+
+const calState = {
+  brand:    'pickl',
+  year:     new Date().getFullYear(),
+  month:    new Date().getMonth(), // 0-indexed
+  posts:    [],           // all posts loaded for this brand
+  view:     'month',      // 'month' | 'list'
+  editPost: null,         // post being edited (null = new)
+  detailPost: null,       // post open in detail panel
+  mediaUploads: [],       // { mediaId, filename, mimeType, size, dataUrl } — pending uploads in form
+  allUsers: [],           // loaded from /api/users for approver picker
+  loaded:   false,
+};
+
+function loadCalendarIfNeeded() {
+  const brand = document.getElementById('cal-filter-brand')?.value || 'pickl';
+  calState.brand = brand;
+  populateCalMarkets();
+  updateCalMonthLabel();
+  loadCalendar();
+}
+
+function calBrandChanged() {
+  calState.brand = document.getElementById('cal-filter-brand').value;
+  calState.loaded = false;
+  populateCalMarkets();
+  loadCalendar();
+}
+
+function populateCalMarkets() {
+  const sel = document.getElementById('cal-filter-market');
+  if (!sel) return;
+  const markets = CAL_MARKETS[calState.brand] || ['UAE'];
+  sel.innerHTML = '<option value="">All Markets</option>' +
+    markets.map(m => `<option value="${m}">${m}</option>`).join('');
+}
+
+async function loadCalendar() {
+  const brand  = document.getElementById('cal-filter-brand')?.value || 'pickl';
+  calState.brand = brand;
+  const monthStr = `${calState.year}-${String(calState.month + 1).padStart(2, '0')}`;
+  document.getElementById('cal-grid-body').innerHTML =
+    '<div style="grid-column:span 7;padding:40px;text-align:center;color:var(--text-muted);font-size:13px">Loading…</div>';
+
+  try {
+    const data = await apiGet(`/api/calendar?brand=${brand}&month=${monthStr}`);
+    calState.posts = data.posts || [];
+    calState.loaded = true;
+    renderCalendar();
+  } catch (e) {
+    document.getElementById('cal-grid-body').innerHTML =
+      `<div style="grid-column:span 7;padding:40px;text-align:center;color:#ef4444;font-size:13px">Error loading calendar: ${esc(e.message)}</div>`;
+  }
+}
+
+function calMonthStep(dir) {
+  calState.month += dir;
+  if (calState.month > 11) { calState.month = 0;  calState.year++;  }
+  if (calState.month < 0)  { calState.month = 11; calState.year--;  }
+  updateCalMonthLabel();
+  loadCalendar();
+}
+
+function updateCalMonthLabel() {
+  const label = document.getElementById('cal-month-label');
+  if (label) {
+    label.textContent = new Date(calState.year, calState.month, 1)
+      .toLocaleDateString('en-GB', { month: 'long', year: 'numeric' });
+  }
+}
+
+function setCalView(v) {
+  calState.view = v;
+  document.getElementById('cal-month-grid').style.display = v === 'month' ? '' : 'none';
+  document.getElementById('cal-list-view').style.display  = v === 'list'  ? '' : 'none';
+  document.getElementById('cal-view-month-btn').style.background = v === 'month' ? 'var(--primary)' : 'transparent';
+  document.getElementById('cal-view-month-btn').style.color      = v === 'month' ? '#fff' : 'var(--text-muted)';
+  document.getElementById('cal-view-list-btn').style.background  = v === 'list'  ? 'var(--primary)' : 'transparent';
+  document.getElementById('cal-view-list-btn').style.color       = v === 'list'  ? '#fff' : 'var(--text-muted)';
+  renderCalendar();
+}
+
+function renderCalendar() {
+  const statusFilter   = document.getElementById('cal-filter-status')?.value   || '';
+  const platformFilter = document.getElementById('cal-filter-platform')?.value || '';
+
+  let posts = calState.posts;
+  if (statusFilter)   posts = posts.filter(p => p.status === statusFilter);
+  if (platformFilter) posts = posts.filter(p => (p.platforms || []).includes(platformFilter));
+
+  if (calState.view === 'list') { renderCalList(posts); return; }
+  renderCalMonthGrid(posts);
+}
+
+function renderCalMonthGrid(posts) {
+  const year  = calState.year;
+  const month = calState.month;
+  const today = new Date();
+  const todayStr = `${today.getFullYear()}-${String(today.getMonth()+1).padStart(2,'0')}-${String(today.getDate()).padStart(2,'0')}`;
+
+  // First day of month (0=Sun … 6=Sat). We want Mon=0 … Sun=6
+  const firstDay = new Date(year, month, 1).getDay(); // 0=Sun
+  const startOffset = (firstDay + 6) % 7; // shift so Mon=0
+  const daysInMonth = new Date(year, month + 1, 0).getDate();
+  const daysInPrev  = new Date(year, month, 0).getDate();
+
+  // Build post map keyed by date string
+  const postsByDate = {};
+  for (const p of posts) {
+    if (p.scheduledDate) {
+      if (!postsByDate[p.scheduledDate]) postsByDate[p.scheduledDate] = [];
+      postsByDate[p.scheduledDate].push(p);
+    }
+  }
+
+  const totalCells = Math.ceil((startOffset + daysInMonth) / 7) * 7;
+  let html = '';
+
+  for (let i = 0; i < totalCells; i++) {
+    let dayNum, dateStr, otherMonth = false;
+    if (i < startOffset) {
+      dayNum = daysInPrev - startOffset + i + 1;
+      dateStr = `${year}-${String(month).padStart(2,'0')}-${String(dayNum).padStart(2,'0')}`;
+      otherMonth = true;
+    } else if (i - startOffset >= daysInMonth) {
+      dayNum = i - startOffset - daysInMonth + 1;
+      dateStr = `${year}-${String(month + 2).padStart(2,'0')}-${String(dayNum).padStart(2,'0')}`;
+      otherMonth = true;
+    } else {
+      dayNum  = i - startOffset + 1;
+      dateStr = `${year}-${String(month + 1).padStart(2,'0')}-${String(dayNum).padStart(2,'0')}`;
+    }
+
+    const isToday     = dateStr === todayStr;
+    const dayPosts    = postsByDate[dateStr] || [];
+    const MAX_VISIBLE = 3;
+
+    const pillsHtml = dayPosts.slice(0, MAX_VISIBLE).map(p => {
+      const pfEmoji = (p.platforms || []).map(pl => CAL_PLATFORMS[pl]?.emoji || '').join('');
+      const caption = (p.caption || '(no caption)').slice(0, 28);
+      return `<div class="cal-pill cal-status-${p.status}" onclick="event.stopPropagation();openCalDetail('${p.id}')" title="${esc(p.caption || '')}">${pfEmoji} ${esc(caption)}</div>`;
+    }).join('');
+
+    const moreHtml = dayPosts.length > MAX_VISIBLE
+      ? `<div class="cal-pill-more">+${dayPosts.length - MAX_VISIBLE} more</div>` : '';
+
+    html += `<div class="cal-day${otherMonth ? ' other-month' : ''}${isToday ? ' today' : ''}" onclick="openCalForm(null, '${dateStr}')">
+      <div class="cal-day-num">${dayNum}</div>
+      ${pillsHtml}${moreHtml}
+    </div>`;
+  }
+
+  document.getElementById('cal-grid-body').innerHTML = html;
+  document.getElementById('cal-empty').style.display = posts.length === 0 ? '' : 'none';
+}
+
+function renderCalList(posts) {
+  const body = document.getElementById('cal-list-body');
+  if (!posts.length) {
+    body.innerHTML = '<div style="text-align:center;padding:60px 24px;color:var(--text-muted)"><div style="font-size:40px;margin-bottom:12px">📅</div><div style="font-weight:600">No posts this month</div></div>';
+    return;
+  }
+
+  const grouped = {};
+  for (const p of posts) {
+    const d = p.scheduledDate || 'Unscheduled';
+    if (!grouped[d]) grouped[d] = [];
+    grouped[d].push(p);
+  }
+
+  let html = '';
+  for (const [date, datePosts] of Object.entries(grouped).sort()) {
+    const label = date === 'Unscheduled' ? 'Unscheduled' :
+      new Date(date + 'T12:00:00').toLocaleDateString('en-GB', { weekday:'long', day:'numeric', month:'long' });
+    html += `<div style="margin-bottom:24px">
+      <div style="font-size:13px;font-weight:700;color:var(--text-muted);text-transform:uppercase;letter-spacing:0.04em;margin-bottom:8px;padding-bottom:6px;border-bottom:1px solid var(--border)">${label}</div>`;
+    for (const p of datePosts) {
+      const statusInfo = CAL_STATUS_LABELS[p.status] || { label: p.status, color: '#64748b' };
+      const pfLabels   = (p.platforms || []).map(pl => `${CAL_PLATFORMS[pl]?.emoji || ''} ${CAL_PLATFORMS[pl]?.label || pl}`).join(' · ');
+      const hasMedia   = (p.mediaFiles || []).length > 0;
+      html += `<div onclick="openCalDetail('${p.id}')" style="background:var(--bg-surface);border:1px solid var(--border);border-radius:8px;padding:14px 16px;margin-bottom:8px;cursor:pointer;display:flex;gap:14px;align-items:flex-start;transition:box-shadow 0.15s" onmouseover="this.style.boxShadow='0 2px 8px rgba(0,0,0,0.08)'" onmouseout="this.style.boxShadow='none'">
+        ${hasMedia ? `<div style="width:52px;height:52px;border-radius:6px;overflow:hidden;flex-shrink:0;border:1px solid var(--border)"><img src="/api/calendar-media?id=${(p.mediaFiles[0] || {}).id}" style="width:100%;height:100%;object-fit:cover" onerror="this.parentElement.innerHTML='<div style=width:100%;height:100%;background:var(--bg-base);display:flex;align-items:center;justify-content:center;font-size:18px>📷</div>'"></div>` : `<div style="width:52px;height:52px;border-radius:6px;background:var(--bg-base);flex-shrink:0;display:flex;align-items:center;justify-content:center;font-size:22px;border:1px solid var(--border)">${(p.platforms||[]).length ? CAL_PLATFORMS[(p.platforms||[])[0]]?.emoji || '📋' : '📋'}</div>`}
+        <div style="flex:1;min-width:0">
+          <div style="display:flex;align-items:center;gap:8px;margin-bottom:4px;flex-wrap:wrap">
+            <span style="font-size:11px;font-weight:600;color:${statusInfo.color};background:${statusInfo.color}18;padding:2px 8px;border-radius:10px">${statusInfo.label}</span>
+            <span style="font-size:11px;color:var(--text-muted)">${pfLabels}</span>
+            <span style="font-size:11px;color:var(--text-muted)">${p.market || ''}</span>
+            ${p.scheduledTime ? `<span style="font-size:11px;color:var(--text-muted)">🕐 ${p.scheduledTime}</span>` : ''}
+          </div>
+          <div style="font-size:13px;color:var(--text-main);line-height:1.4;overflow:hidden;text-overflow:ellipsis;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical">${esc(p.caption || '(no caption)')}</div>
+          ${p.assignedName ? `<div style="font-size:11px;color:var(--text-muted);margin-top:4px">Assigned: ${esc(p.assignedName)}</div>` : ''}
+        </div>
+        <div style="flex-shrink:0">
+          ${(p.requiredApprovers||[]).length ? `<div style="font-size:10px;color:var(--text-muted);text-align:right">${(p.approvals||[]).length}/${(p.requiredApprovers||[]).length} approved</div>` : ''}
+        </div>
+      </div>`;
+    }
+    html += '</div>';
+  }
+  body.innerHTML = html;
+}
+
+// ── Post Creation / Edit Form ──────────────────────────────────────────────────
+async function openCalForm(postId, prefillDate) {
+  calState.mediaUploads = [];
+
+  // Load users list for approver picker (once)
+  if (!calState.allUsers.length) {
+    try {
+      const ud = await apiGet('/api/users');
+      calState.allUsers = ud.users || [];
+    } catch (_) {}
+  }
+
+  let post = null;
+  if (postId) {
+    try { post = await apiGet(`/api/calendar?id=${postId}`); } catch (_) {}
+  }
+  calState.editPost = post;
+
+  const brand     = post?.brand || calState.brand;
+  const markets   = CAL_MARKETS[brand] || ['UAE'];
+  const today     = new Date().toISOString().slice(0, 10);
+  const defDate   = post?.scheduledDate || prefillDate || today;
+
+  // Approver options (users with manager/admin role)
+  const approverOpts = calState.allUsers
+    .filter(u => ['admin','manager'].includes(u.role))
+    .map(u => {
+      const sel = (post?.requiredApprovers || []).some(a => a.email === u.email) ? 'selected' : '';
+      return `<option value="${esc(u.email)}|${esc(u.name || u.email)}" ${sel}>${esc(u.name || u.email)}</option>`;
+    }).join('');
+
+  // Assignee options
+  const assigneeOpts = calState.allUsers.map(u => {
+    const sel = (post?.assignedTo === u.email || (!post && u.email === state.userEmail)) ? 'selected' : '';
+    return `<option value="${esc(u.email)}|${esc(u.name || u.email)}" ${sel}>${esc(u.name || u.email)}</option>`;
+  }).join('');
+
+  // Existing media files from post
+  const existingMedia = (post?.mediaFiles || []).map(f =>
+    `<div class="cal-media-thumb" id="calthumb-${f.id}">
+      <img src="/api/calendar-media?id=${f.id}" alt="${esc(f.filename)}">
+      <button class="cal-remove" onclick="removeCalMedia('${f.id}', true)">✕</button>
+    </div>`
+  ).join('');
+
+  document.getElementById('cal-form-title').textContent = post ? 'Edit Post' : 'New Post';
+
+  document.getElementById('cal-form-body').innerHTML = `
+    <!-- Platforms -->
+    <div class="form-group">
+      <label class="form-label">Platform(s)</label>
+      <div id="cal-platform-pills" style="display:flex;flex-wrap:wrap;gap:8px">
+        ${Object.entries(CAL_PLATFORMS).map(([k, v]) => {
+          const active = (post?.platforms || []).includes(k) ? 'active' : '';
+          return `<div class="cal-platform-pill platform-${k} ${active}" data-platform="${k}" onclick="toggleCalPlatform(this)">${v.emoji} ${v.label}</div>`;
+        }).join('')}
+      </div>
+    </div>
+
+    <!-- Brand / Market / Type -->
+    <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:12px">
+      <div class="form-group" style="margin-bottom:0">
+        <label class="form-label">Brand</label>
+        <select id="cf-brand" class="form-input" style="font-family:var(--font-sans)" onchange="updateCalFormMarkets()">
+          ${['pickl','bonbird','southpour'].map(b => `<option value="${b}" ${(post?.brand||calState.brand)===b?'selected':''}>${b.charAt(0).toUpperCase()+b.slice(1)}</option>`).join('')}
+        </select>
+      </div>
+      <div class="form-group" style="margin-bottom:0">
+        <label class="form-label">Market</label>
+        <select id="cf-market" class="form-input" style="font-family:var(--font-sans)">
+          ${markets.map(m => `<option value="${m}" ${(post?.market||'UAE')===m?'selected':''}>${m}</option>`).join('')}
+        </select>
+      </div>
+      <div class="form-group" style="margin-bottom:0">
+        <label class="form-label">Post Type</label>
+        <select id="cf-type" class="form-input" style="font-family:var(--font-sans)">
+          ${CAL_POST_TYPES.map(t => `<option value="${t}" ${(post?.postType||'static')===t?'selected':''}>${CAL_TYPE_LABELS[t]}</option>`).join('')}
+        </select>
+      </div>
+    </div>
+
+    <!-- Date / Time -->
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-top:12px">
+      <div class="form-group" style="margin-bottom:0">
+        <label class="form-label">Scheduled Date</label>
+        <input type="date" id="cf-date" class="form-input" value="${defDate}">
+      </div>
+      <div class="form-group" style="margin-bottom:0">
+        <label class="form-label">Time</label>
+        <input type="time" id="cf-time" class="form-input" value="${post?.scheduledTime || '10:00'}">
+      </div>
+    </div>
+
+    <!-- Caption -->
+    <div class="form-group" style="margin-top:12px">
+      <label class="form-label">Caption</label>
+      <textarea id="cf-caption" class="form-input" rows="5" placeholder="Write the post caption…" style="font-family:var(--font-sans);resize:vertical" oninput="updateCalCharCount()">${esc(post?.caption || '')}</textarea>
+      <div id="cf-char-count" class="cal-char-count"></div>
+    </div>
+
+    <!-- Hashtags -->
+    <div class="form-group">
+      <label class="form-label">Hashtags</label>
+      <input type="text" id="cf-hashtags" class="form-input" placeholder="#pickl #dubai #burgers" value="${esc(post?.hashtags || '')}">
+    </div>
+
+    <!-- Visual Notes -->
+    <div class="form-group">
+      <label class="form-label">Visual Notes <span style="font-size:11px;color:var(--text-muted);font-weight:400">(for designer — describe what the post should show)</span></label>
+      <textarea id="cf-visual-notes" class="form-input" rows="3" placeholder="e.g. Close-up of the smash burger being pressed, steam rising, rustic wooden board. Brand colours in background." style="font-family:var(--font-sans);resize:vertical">${esc(post?.visualNotes || '')}</textarea>
+    </div>
+
+    <!-- Media Upload -->
+    <div class="form-group">
+      <label class="form-label">Images <span style="font-size:11px;color:var(--text-muted);font-weight:400">(JPEG, PNG, GIF, WebP · max 5MB each)</span></label>
+      <div class="cal-upload-zone" id="cf-upload-zone" onclick="document.getElementById('cf-file-input').click()" ondragover="event.preventDefault();this.classList.add('dragover')" ondragleave="this.classList.remove('dragover')" ondrop="handleCalDrop(event)">
+        <div style="font-size:28px;margin-bottom:6px">📎</div>
+        <div style="font-size:13px;font-weight:600;color:var(--text-main)">Drag & drop or click to upload</div>
+        <div style="font-size:11px;color:var(--text-muted);margin-top:4px">Images only · max 5MB each · multiple allowed</div>
+      </div>
+      <input type="file" id="cf-file-input" accept="image/*" multiple style="display:none" onchange="handleCalFileSelect(event)">
+      <div id="cf-upload-progress" style="font-size:12px;color:var(--text-muted);margin-top:6px;min-height:16px"></div>
+      <div class="cal-media-preview" id="cf-media-preview">${existingMedia}</div>
+    </div>
+
+    <!-- Video URL -->
+    <div class="form-group">
+      <label class="form-label">Video URL <span style="font-size:11px;color:var(--text-muted);font-weight:400">(YouTube, Google Drive, OneDrive — for large video files)</span></label>
+      <input type="url" id="cf-video-url" class="form-input" placeholder="https://…" value="${esc(post?.videoUrl || '')}">
+    </div>
+
+    <!-- Assign + Approvers -->
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px">
+      <div class="form-group" style="margin-bottom:0">
+        <label class="form-label">Assigned To</label>
+        <select id="cf-assigned" class="form-input" style="font-family:var(--font-sans)">
+          ${assigneeOpts || `<option value="${state.userEmail}|${state.actor}">${state.actor}</option>`}
+        </select>
+      </div>
+      <div class="form-group" style="margin-bottom:0">
+        <label class="form-label">Required Approver(s)</label>
+        <select id="cf-approvers" class="form-input" style="font-family:var(--font-sans)" multiple size="4">
+          ${approverOpts || '<option disabled>No managers/admins found</option>'}
+        </select>
+        <div style="font-size:11px;color:var(--text-muted);margin-top:2px">Hold Ctrl/Cmd to select multiple</div>
+      </div>
+    </div>
+  `;
+
+  // Show form panel
+  document.getElementById('cal-form-overlay').style.display = '';
+  document.getElementById('cal-form-panel').style.display = 'flex';
+  document.getElementById('cal-form-panel').style.flexDirection = 'column';
+
+  // Update char count
+  updateCalCharCount();
+
+  // If editing a published/scheduled post, disable submit
+  if (post && ['scheduled','published'].includes(post.status)) {
+    document.getElementById('cal-submit-btn').disabled = true;
+    document.getElementById('cal-submit-btn').title = 'Cannot re-submit a scheduled or published post';
+  }
+}
+
+function updateCalFormMarkets() {
+  const brand   = document.getElementById('cf-brand')?.value || 'pickl';
+  const markets = CAL_MARKETS[brand] || ['UAE'];
+  const sel     = document.getElementById('cf-market');
+  if (sel) sel.innerHTML = markets.map(m => `<option value="${m}">${m}</option>`).join('');
+}
+
+function toggleCalPlatform(el) {
+  el.classList.toggle('active');
+  updateCalCharCount();
+}
+
+function updateCalCharCount() {
+  const caption  = document.getElementById('cf-caption')?.value || '';
+  const actives  = [...document.querySelectorAll('#cal-platform-pills .cal-platform-pill.active')].map(el => el.dataset.platform);
+  const el       = document.getElementById('cf-char-count');
+  if (!el) return;
+  if (!actives.length) { el.textContent = ''; return; }
+  const minLimit = Math.min(...actives.map(p => CAL_PLATFORMS[p]?.limit || 2200));
+  const len      = caption.length;
+  el.textContent = `${len.toLocaleString()} / ${minLimit.toLocaleString()} characters`;
+  el.className   = 'cal-char-count' + (len > minLimit ? ' over' : '');
+}
+
+function closeCalForm() {
+  document.getElementById('cal-form-overlay').style.display = 'none';
+  document.getElementById('cal-form-panel').style.display   = 'none';
+  calState.editPost = null;
+  calState.mediaUploads = [];
+}
+
+// ── Media Upload ───────────────────────────────────────────────────────────────
+async function handleCalFileSelect(event) {
+  const files = Array.from(event.target.files || []);
+  event.target.value = '';
+  for (const file of files) await uploadCalFile(file);
+}
+
+async function handleCalDrop(event) {
+  event.preventDefault();
+  document.getElementById('cf-upload-zone').classList.remove('dragover');
+  const files = Array.from(event.dataTransfer.files || []).filter(f => f.type.startsWith('image/'));
+  for (const file of files) await uploadCalFile(file);
+}
+
+async function uploadCalFile(file) {
+  const MAX_BYTES = 5 * 1024 * 1024;
+  const progressEl = document.getElementById('cf-upload-progress');
+
+  if (!file.type.startsWith('image/')) {
+    showToast('Only image files are supported here. Use the Video URL field for videos.', 'error');
+    return;
+  }
+  if (file.size > MAX_BYTES) {
+    showToast(`${file.name} is too large (${(file.size/1048576).toFixed(1)}MB). Maximum is 5MB.`, 'error');
+    return;
+  }
+
+  if (progressEl) progressEl.textContent = `Uploading ${file.name}…`;
+
+  // Read as base64
+  const b64 = await new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onload  = e => resolve(e.target.result.split(',')[1]);
+    reader.onerror = reject;
+    reader.readAsDataURL(file);
+  });
+
+  // Get data URL for preview
+  const dataUrl = await new Promise(resolve => {
+    const reader = new FileReader();
+    reader.onload = e => resolve(e.target.result);
+    reader.readAsDataURL(file);
+  });
+
+  try {
+    const res = await apiPost('/api/calendar-media', {
+      filename: file.name,
+      mimeType: file.type,
+      data: b64,
+    });
+
+    calState.mediaUploads.push({ id: res.mediaId, filename: file.name, mimeType: file.type, size: file.size });
+
+    const preview = document.getElementById('cf-media-preview');
+    if (preview) {
+      const thumb = document.createElement('div');
+      thumb.className = 'cal-media-thumb';
+      thumb.id = `calthumb-${res.mediaId}`;
+      thumb.innerHTML = `<img src="${dataUrl}" alt="${esc(file.name)}"><button class="cal-remove" onclick="removeCalMedia('${res.mediaId}', false)">✕</button>`;
+      preview.appendChild(thumb);
+    }
+    if (progressEl) progressEl.textContent = `✓ ${file.name} uploaded`;
+    setTimeout(() => { if (progressEl) progressEl.textContent = ''; }, 2500);
+
+  } catch (e) {
+    showToast('Upload failed: ' + e.message, 'error');
+    if (progressEl) progressEl.textContent = '';
+  }
+}
+
+function removeCalMedia(mediaId, isExisting) {
+  const thumb = document.getElementById(`calthumb-${mediaId}`);
+  if (thumb) thumb.remove();
+  if (!isExisting) {
+    calState.mediaUploads = calState.mediaUploads.filter(m => m.id !== mediaId);
+  } else if (calState.editPost) {
+    calState.editPost.mediaFiles = (calState.editPost.mediaFiles || []).filter(f => f.id !== mediaId);
+  }
+}
+
+// ── Save / Submit Post ─────────────────────────────────────────────────────────
+async function saveCalPost(mode) {
+  const caption   = document.getElementById('cf-caption')?.value || '';
+  const brand     = document.getElementById('cf-brand')?.value   || calState.brand;
+  const market    = document.getElementById('cf-market')?.value  || 'UAE';
+  const postType  = document.getElementById('cf-type')?.value    || 'static';
+  const date      = document.getElementById('cf-date')?.value    || '';
+  const time      = document.getElementById('cf-time')?.value    || '10:00';
+  const hashtags  = document.getElementById('cf-hashtags')?.value.trim() || '';
+  const visualNotes = document.getElementById('cf-visual-notes')?.value || '';
+  const videoUrl  = document.getElementById('cf-video-url')?.value.trim() || '';
+
+  if (!date) { showToast('Please set a scheduled date', 'error'); return; }
+
+  const platforms = [...document.querySelectorAll('#cal-platform-pills .cal-platform-pill.active')].map(el => el.dataset.platform);
+
+  // Approvers
+  const approverSel = document.getElementById('cf-approvers');
+  const requiredApprovers = approverSel
+    ? [...approverSel.selectedOptions].map(o => {
+        const [email, name] = o.value.split('|');
+        return { email, name };
+      })
+    : [];
+
+  // Assignee
+  const assignedSel  = document.getElementById('cf-assigned');
+  const assignedParts = assignedSel?.value?.split('|') || [state.userEmail, state.actor];
+  const assignedTo   = assignedParts[0] || state.userEmail;
+  const assignedName = assignedParts[1] || state.actor;
+
+  // Build media files list: existing (from edit) + new uploads
+  const existingFiles = (calState.editPost?.mediaFiles || [])
+    .filter(f => document.getElementById(`calthumb-${f.id}`)); // only files not removed
+  const mediaFiles = [...existingFiles, ...calState.mediaUploads.map(m => ({ id: m.id, filename: m.filename, mimeType: m.mimeType, size: m.size }))];
+
+  const saveDraftBtn = document.getElementById('cal-save-draft-btn');
+  const submitBtn    = document.getElementById('cal-submit-btn');
+  if (saveDraftBtn) saveDraftBtn.disabled = true;
+  if (submitBtn)    submitBtn.disabled    = true;
+
+  try {
+    let post;
+    if (calState.editPost) {
+      // Update existing
+      const res = await apiPost('/api/calendar', {
+        action: 'update', id: calState.editPost.id,
+        platforms, market, postType, scheduledDate: date, scheduledTime: time,
+        caption, hashtags, visualNotes, videoUrl, mediaFiles,
+        assignedTo, assignedName, requiredApprovers,
+        actor: state.actor, actorEmail: state.userEmail,
+      });
+      post = res.post;
+    } else {
+      // Create new
+      const res = await apiPost('/api/calendar', {
+        action: 'create',
+        brand, market, platforms, postType, scheduledDate: date, scheduledTime: time,
+        caption, hashtags, visualNotes, videoUrl, mediaFiles,
+        assignedTo, assignedName, requiredApprovers,
+        actor: state.actor, actorEmail: state.userEmail,
+      });
+      post = res.post;
+    }
+
+    // If mode is 'submit', submit for review
+    if (mode === 'submit' && ['draft','changes_requested'].includes(post.status)) {
+      if (!requiredApprovers.length) {
+        showToast('Add at least one required approver before submitting for review', 'error');
+        if (saveDraftBtn) saveDraftBtn.disabled = false;
+        if (submitBtn)    submitBtn.disabled    = false;
+        return;
+      }
+      await apiPost('/api/calendar', {
+        action: 'submit', id: post.id,
+        actor: state.actor, actorEmail: state.userEmail,
+      });
+    }
+
+    showToast(mode === 'submit' ? 'Post submitted for review' : 'Draft saved', 'success');
+    closeCalForm();
+    await loadCalendar();
+
+  } catch (e) {
+    showToast('Save failed: ' + e.message, 'error');
+    if (saveDraftBtn) saveDraftBtn.disabled = false;
+    if (submitBtn)    submitBtn.disabled    = false;
+  }
+}
+
+// ── Post Detail / Approval Panel ────────────────────────────────────────────────
+async function openCalDetail(postId) {
+  const post = await apiGet(`/api/calendar?id=${postId}`).catch(() => null);
+  if (!post) { showToast('Post not found', 'error'); return; }
+  calState.detailPost = post;
+  renderCalDetailPanel(post);
+  document.getElementById('cal-detail-overlay').style.display = '';
+  document.getElementById('cal-detail-panel').style.display   = '';
+}
+
+function closeCalDetail() {
+  document.getElementById('cal-detail-overlay').style.display = 'none';
+  document.getElementById('cal-detail-panel').style.display   = 'none';
+  calState.detailPost = null;
+}
+
+function renderCalDetailPanel(post) {
+  const isCreator  = post.createdBy === state.userEmail || post.assignedTo === state.userEmail;
+  const isApprover = (post.requiredApprovers || []).some(a => a.email === state.userEmail) ||
+                     ['admin','manager'].includes(state.userRole);
+  const alreadyApproved = (post.approvals || []).some(a => a.email === state.userEmail);
+  const statusInfo = CAL_STATUS_LABELS[post.status] || { label: post.status, color: '#64748b' };
+
+  // Platform icons
+  const pfRow = (post.platforms || []).map(p => {
+    const cfg = CAL_PLATFORMS[p] || {};
+    return `<span style="background:${cfg.color || '#64748b'}18;color:${cfg.color || '#64748b'};font-size:12px;padding:3px 10px;border-radius:12px;border:1px solid ${cfg.color || '#64748b'}40">${cfg.emoji || ''} ${cfg.label || p}</span>`;
+  }).join(' ');
+
+  // Media carousel
+  const mediaFiles = post.mediaFiles || [];
+  const mediaHtml = mediaFiles.length
+    ? `<div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:16px">
+        ${mediaFiles.map(f => `
+          <div style="border-radius:8px;overflow:hidden;border:1px solid var(--border);cursor:pointer" onclick="calExpandImage('/api/calendar-media?id=${f.id}')">
+            <img src="/api/calendar-media?id=${f.id}" style="height:120px;width:auto;max-width:200px;object-fit:cover;display:block" alt="${esc(f.filename)}">
+          </div>`).join('')}
+      </div>`
+    : '';
+
+  // Video link
+  const videoHtml = post.videoUrl
+    ? `<div style="margin-bottom:12px"><a href="${esc(post.videoUrl)}" target="_blank" rel="noopener" style="font-size:13px;color:var(--primary);display:inline-flex;align-items:center;gap:6px">▶ View Video Link</a></div>`
+    : '';
+
+  // Approvals progress
+  const approvalRows = (post.requiredApprovers || []).map(req => {
+    const done = (post.approvals || []).find(a => a.email === req.email);
+    return `<div class="cal-approver-row">
+      <div style="width:20px;height:20px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:12px;${done ? 'background:#dcfce7;color:#166534' : 'background:#f1f5f9;color:#94a3b8'}">
+        ${done ? '✓' : '…'}
+      </div>
+      <div style="flex:1;font-size:13px;font-weight:500">${esc(req.name || req.email)}</div>
+      ${done ? `<div style="font-size:11px;color:var(--text-muted)">${new Date(done.approvedAt).toLocaleDateString('en-GB',{day:'numeric',month:'short'})}</div>` : '<div style="font-size:11px;color:var(--text-muted)">Pending</div>'}
+    </div>`;
+  }).join('');
+
+  // Comments thread
+  const comments = (post.comments || []);
+  const commentsHtml = comments.map(c => {
+    const isChangeReq = c.type === 'change_request';
+    return `<div class="cal-comment ${isChangeReq ? 'change-request' : ''}">
+      <div style="display:flex;justify-content:space-between;align-items:center">
+        <div class="author">${esc(c.author)}${isChangeReq ? ' <span style="color:#ef4444;font-size:11px">· Requested changes</span>' : ''}</div>
+        <div style="display:flex;align-items:center;gap:8px">
+          <div class="timestamp">${new Date(c.createdAt).toLocaleString('en-GB',{day:'numeric',month:'short',hour:'2-digit',minute:'2-digit'})}</div>
+          ${!c.resolved && (isCreator || state.userRole === 'admin') ? `<button onclick="calResolveComment('${post.id}','${c.id}')" style="font-size:10px;background:none;border:none;cursor:pointer;color:var(--text-muted)" title="Mark resolved">✓ Resolve</button>` : ''}
+          ${c.resolved ? '<span style="font-size:10px;color:#22c55e">✓ Resolved</span>' : ''}
+        </div>
+      </div>
+      <div class="body">${esc(c.text)}</div>
+    </div>`;
+  }).join('');
+
+  // Action bar
+  let actionBar = '';
+
+  if (post.status === 'in_review' && isApprover && !alreadyApproved) {
+    actionBar = `
+      <div style="padding:16px;border-top:1px solid var(--border);background:var(--bg-surface);flex-shrink:0">
+        <div style="display:flex;gap:10px;margin-bottom:12px">
+          <button class="btn btn-primary" style="flex:1;background:#16a34a;border-color:#16a34a" onclick="calApprove('${post.id}')">✅ Approve</button>
+          <button class="btn btn-outline" style="flex:1;border-color:#ef4444;color:#ef4444" onclick="toggleCalChangesForm(true)">💬 Request Changes</button>
+        </div>
+        <div id="cal-changes-form" style="display:none">
+          <textarea id="cal-changes-text" class="form-input" rows="3" placeholder="Describe what needs to change…" style="font-family:var(--font-sans);width:100%;margin-bottom:8px"></textarea>
+          <div style="display:flex;gap:8px;justify-content:flex-end">
+            <button class="btn btn-ghost" onclick="toggleCalChangesForm(false)">Cancel</button>
+            <button class="btn btn-outline" style="border-color:#ef4444;color:#ef4444" onclick="calRequestChanges('${post.id}')">Send & Request Changes</button>
+          </div>
+        </div>
+      </div>`;
+  } else if (['draft','changes_requested'].includes(post.status) && (isCreator || state.userRole === 'admin')) {
+    actionBar = `
+      <div style="padding:16px;border-top:1px solid var(--border);background:var(--bg-surface);flex-shrink:0;display:flex;gap:10px;flex-wrap:wrap">
+        <button class="btn btn-outline" onclick="closeCalDetail();openCalForm('${post.id}')">✏️ Edit Post</button>
+        <button class="btn btn-primary" onclick="calSubmitFromDetail('${post.id}')">🔄 Submit for Review</button>
+        <button class="btn btn-ghost" style="margin-left:auto;color:#ef4444" onclick="calDeletePost('${post.id}')">🗑 Delete</button>
+      </div>`;
+  } else if (post.status === 'approved' && ['admin','manager'].includes(state.userRole)) {
+    actionBar = `
+      <div style="padding:16px;border-top:1px solid var(--border);background:var(--bg-surface);flex-shrink:0;display:flex;gap:10px;flex-wrap:wrap;align-items:center">
+        <button class="btn btn-primary" style="background:#7c3aed;border-color:#7c3aed" onclick="calPushSocialPilot('${post.id}')">📤 Push to SocialPilot</button>
+        <button class="btn btn-outline" onclick="calMarkPublished('${post.id}')">✅ Mark Published</button>
+      </div>`;
+  } else if (post.status === 'scheduled' && ['admin','manager'].includes(state.userRole)) {
+    actionBar = `
+      <div style="padding:16px;border-top:1px solid var(--border);background:var(--bg-surface);flex-shrink:0">
+        <button class="btn btn-outline" onclick="calMarkPublished('${post.id}')">✅ Mark Published</button>
+      </div>`;
+  }
+
+  // Comment input (always visible)
+  const commentInput = `
+    <div style="padding:12px 16px;border-top:1px solid var(--border);flex-shrink:0">
+      <div style="display:flex;gap:8px">
+        <input type="text" id="cal-new-comment" class="form-input" placeholder="Add a comment…" style="flex:1;font-family:var(--font-sans)" onkeydown="if(event.key==='Enter')calAddComment('${post.id}')">
+        <button class="btn btn-outline" onclick="calAddComment('${post.id}')">Send</button>
+      </div>
+    </div>`;
+
+  document.getElementById('cal-detail-body').innerHTML = `
+    <!-- Header -->
+    <div style="padding:16px 20px;border-bottom:1px solid var(--border);display:flex;justify-content:space-between;align-items:center;flex-shrink:0">
+      <div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap">
+        <span style="font-size:12px;font-weight:600;padding:3px 10px;border-radius:10px;color:${statusInfo.color};background:${statusInfo.color}18">${statusInfo.label}</span>
+        <span style="font-size:12px;color:var(--text-muted)">${esc(post.brand?.toUpperCase() || '')} · ${esc(post.market || '')}</span>
+        ${post.scheduledDate ? `<span style="font-size:12px;color:var(--text-muted)">${new Date(post.scheduledDate+'T12:00:00').toLocaleDateString('en-GB',{weekday:'short',day:'numeric',month:'short'})}${post.scheduledTime ? ' · '+post.scheduledTime : ''}</span>` : ''}
+      </div>
+      <button class="btn btn-ghost" onclick="closeCalDetail()" style="padding:4px 10px;font-size:16px">✕</button>
+    </div>
+
+    <!-- Scrollable content -->
+    <div style="flex:1;overflow-y:auto;padding:20px">
+      <!-- Platform row -->
+      ${pfRow ? `<div style="display:flex;flex-wrap:wrap;gap:6px;margin-bottom:16px">${pfRow} <span style="font-size:12px;color:var(--text-muted);align-self:center">${CAL_TYPE_LABELS[post.postType] || post.postType || ''}</span></div>` : ''}
+
+      <!-- Media -->
+      ${mediaHtml}
+      ${videoHtml}
+
+      <!-- Caption -->
+      <div style="margin-bottom:16px">
+        <div style="font-size:11px;font-weight:700;color:var(--text-muted);text-transform:uppercase;letter-spacing:0.04em;margin-bottom:6px">Caption</div>
+        <div style="font-size:14px;line-height:1.65;color:var(--text-main);white-space:pre-wrap">${esc(post.caption || '(no caption)')}</div>
+      </div>
+
+      <!-- Hashtags -->
+      ${post.hashtags ? `<div style="margin-bottom:16px"><div style="font-size:11px;font-weight:700;color:var(--text-muted);text-transform:uppercase;letter-spacing:0.04em;margin-bottom:4px">Hashtags</div><div style="font-size:13px;color:#6366f1">${esc(post.hashtags)}</div></div>` : ''}
+
+      <!-- Visual Notes -->
+      ${post.visualNotes ? `<div style="background:var(--bg-base);border:1px solid var(--border);border-radius:8px;padding:12px;margin-bottom:16px"><div style="font-size:11px;font-weight:700;color:var(--text-muted);text-transform:uppercase;letter-spacing:0.04em;margin-bottom:4px">Visual Notes</div><div style="font-size:13px;color:var(--text-main);white-space:pre-wrap">${esc(post.visualNotes)}</div></div>` : ''}
+
+      <!-- Approvals -->
+      ${(post.requiredApprovers||[]).length ? `
+        <div style="margin-bottom:16px">
+          <div style="font-size:11px;font-weight:700;color:var(--text-muted);text-transform:uppercase;letter-spacing:0.04em;margin-bottom:8px">Approvals (${(post.approvals||[]).length}/${(post.requiredApprovers||[]).length})</div>
+          ${approvalRows}
+        </div>` : ''}
+
+      <!-- Comments -->
+      <div>
+        <div style="font-size:11px;font-weight:700;color:var(--text-muted);text-transform:uppercase;letter-spacing:0.04em;margin-bottom:8px">Comments${comments.length ? ' ('+comments.length+')' : ''}</div>
+        ${commentsHtml || '<div style="font-size:13px;color:var(--text-muted);padding:8px 0">No comments yet.</div>'}
+      </div>
+    </div>
+
+    <!-- Sticky action bars -->
+    ${commentInput}
+    ${actionBar}
+  `;
+}
+
+function toggleCalChangesForm(show) {
+  const el = document.getElementById('cal-changes-form');
+  if (el) el.style.display = show ? '' : 'none';
+}
+
+async function calApprove(postId) {
+  try {
+    const res = await apiPost('/api/calendar', {
+      action: 'approve', id: postId,
+      actor: state.actor, actorEmail: state.userEmail,
+    });
+    showToast(res.allApproved ? '✅ Fully approved!' : '✓ Your approval recorded', 'success');
+    await loadCalendar();
+    if (res.post) renderCalDetailPanel(res.post);
+  } catch (e) { showToast(e.message, 'error'); }
+}
+
+async function calRequestChanges(postId) {
+  const text = (document.getElementById('cal-changes-text')?.value || '').trim();
+  if (!text) { showToast('Please describe what needs to change', 'error'); return; }
+  try {
+    const res = await apiPost('/api/calendar', {
+      action: 'request_changes', id: postId, comment: text,
+      actor: state.actor, actorEmail: state.userEmail,
+    });
+    showToast('Changes requested — creator has been notified', 'success');
+    await loadCalendar();
+    if (res.post) renderCalDetailPanel(res.post);
+  } catch (e) { showToast(e.message, 'error'); }
+}
+
+async function calSubmitFromDetail(postId) {
+  try {
+    const res = await apiPost('/api/calendar', {
+      action: 'submit', id: postId,
+      actor: state.actor, actorEmail: state.userEmail,
+    });
+    showToast('Post submitted for review', 'success');
+    await loadCalendar();
+    if (res.post) renderCalDetailPanel(res.post);
+  } catch (e) { showToast(e.message, 'error'); }
+}
+
+async function calAddComment(postId) {
+  const input = document.getElementById('cal-new-comment');
+  const text  = input?.value?.trim() || '';
+  if (!text) return;
+  try {
+    const res = await apiPost('/api/calendar', {
+      action: 'comment', id: postId, text,
+      actor: state.actor, actorEmail: state.userEmail,
+    });
+    if (input) input.value = '';
+    if (res.post) renderCalDetailPanel(res.post);
+  } catch (e) { showToast(e.message, 'error'); }
+}
+
+async function calResolveComment(postId, commentId) {
+  try {
+    const res = await apiPost('/api/calendar', {
+      action: 'resolve_comment', id: postId, commentId,
+      actor: state.actor, actorEmail: state.userEmail,
+    });
+    if (res.post) renderCalDetailPanel(res.post);
+  } catch (e) { showToast(e.message, 'error'); }
+}
+
+async function calDeletePost(postId) {
+  if (!confirm('Delete this post? This cannot be undone.')) return;
+  try {
+    await apiPost('/api/calendar', {
+      action: 'delete', id: postId,
+      actor: state.actor, actorEmail: state.userEmail,
+    });
+    showToast('Post deleted', 'success');
+    closeCalDetail();
+    await loadCalendar();
+  } catch (e) { showToast(e.message, 'error'); }
+}
+
+async function calPushSocialPilot(postId) {
+  try {
+    const res = await apiPost('/api/calendar', {
+      action: 'push_socialpilot', id: postId,
+      actor: state.actor, actorEmail: state.userEmail,
+    });
+    showToast('📤 Pushed to SocialPilot — post is now scheduled', 'success');
+    await loadCalendar();
+    if (res.post) renderCalDetailPanel(res.post);
+  } catch (e) { showToast(e.message, 'error'); }
+}
+
+async function calMarkPublished(postId) {
+  try {
+    const res = await apiPost('/api/calendar', {
+      action: 'mark_published', id: postId,
+      actor: state.actor, actorEmail: state.userEmail,
+    });
+    showToast('✅ Post marked as published', 'success');
+    await loadCalendar();
+    if (res.post) renderCalDetailPanel(res.post);
+  } catch (e) { showToast(e.message, 'error'); }
+}
+
+function calExpandImage(src) {
+  const overlay = document.createElement('div');
+  overlay.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,0.88);z-index:300;display:flex;align-items:center;justify-content:center;cursor:zoom-out';
+  overlay.onclick = () => overlay.remove();
+  const img = document.createElement('img');
+  img.src = src;
+  img.style.cssText = 'max-width:90vw;max-height:90vh;border-radius:8px;box-shadow:0 8px 40px rgba(0,0,0,0.5)';
+  overlay.appendChild(img);
+  document.body.appendChild(overlay);
+}
+
+// ── Badge count ────────────────────────────────────────────────────────────────
+async function loadCalendarBadge() {
+  if (!state.userEmail) return;
+  try {
+    const { count } = await apiGet(`/api/calendar?pending_approver=${encodeURIComponent(state.userEmail)}`);
+    const badge = document.getElementById('badge-calendar');
+    if (badge) {
+      badge.textContent = count;
+      badge.style.display = count > 0 ? '' : 'none';
+    }
+  } catch (_) {}
+}
 
 // ═══════════════════════════════════════════════════════════════
 // YOUTUBE SEO BRIEF

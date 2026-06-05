@@ -168,6 +168,16 @@
   to = "/.netlify/functions/email-digest"
   status = 200
 
+[[redirects]]
+  from = "/api/calendar"
+  to = "/.netlify/functions/calendar"
+  status = 200
+
+[[redirects]]
+  from = "/api/calendar-media"
+  to = "/.netlify/functions/calendar-media"
+  status = 200
+
 # Weekly cron — Monday 4:00am UTC = Monday 8:00am Dubai time (UTC+4)
 # Runs before your 9am Monday review so all data is fresh
 [functions."scheduler-background"]

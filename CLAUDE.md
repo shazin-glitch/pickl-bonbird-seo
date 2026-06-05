@@ -51,14 +51,14 @@
 
 ---
 
-## Current Version: v6.9t
+## Current Version: v6.9u
 
 See SETUP.md → "Done (Full History)" for complete build log.
 
 **Next up (from SETUP.md roadmap):**
-- Content calendar view — all approved + scheduled content across SEO, social, design in one calendar
-- Social media workflow → SocialPilot integration (Week 5)
+- Social media workflow refinements → SocialPilot account mapping UI
 - Multi-brand expansion — Southpour, Shadowburg, Shadowbird (Week 6)
+- Delivery platform SEO — Talabat, Deliveroo, Noon Food keyword optimisation
 
 ---
 

@@ -1349,3 +1349,109 @@ Each section has a **📋 Copy** button.
 **No new Netlify function** — calls `/api/claude` directly (same pattern as other AI Content Studio tools).
 
 *Last updated: June 2026 — v6.9t: YouTube SEO Brief Generator (5-section output: titles, description, tags, VideoObject schema, content outline; Copy buttons per section)*
+
+---
+
+## Session: June 2026 — v6.9u Content Calendar
+
+### What was built
+
+#### Content Calendar ✅
+Full social media content operations platform — plan, review, approve and schedule posts across all brands and markets.
+
+**Post lifecycle:**
+```
+draft → in_review → changes_requested ↔ in_review → approved → scheduled → published
+```
+
+**New files:**
+- `netlify/functions/calendar.js` — full CRUD + approval workflow
+- `netlify/functions/calendar-media.js` — image upload (base64 → Netlify Blobs) + serve
+
+**netlify.toml:** `/api/calendar` + `/api/calendar-media` redirects added
+
+**New Blobs keys:**
+| Key | Contents |
+|---|---|
+| `calendarPost:<id>` | Full post object (brand, market, platforms, caption, media refs, approvals, comments, history) |
+| `calendarIndex:<brand>` | Array of post IDs for each brand (max 1000) |
+| `calendarMedia:<mediaId>` | Binary image data |
+| `calendarMediaMeta:<mediaId>` | `{ filename, mimeType, size, postId, uploadedAt }` |
+
+**New nav tab: 📅 Content Calendar** (between The Perch and Approvals Queue)
+- Badge (purple) shows pending approval count for current user
+- Brand / Market / Platform / Status filters
+- Month navigation (← June 2026 →)
+- Month grid view + List view toggle
+
+**Post object structure:**
+- Brand + market + platforms (multi-select)
+- Post type: Reel / Carousel / Story / Static Image / Copy Only
+- Scheduled date + time
+- Caption (with live character counter per platform limits)
+- Hashtags (separate field)
+- Visual Notes (for designer — what should the post show)
+- Media files: drag-and-drop image upload (JPEG/PNG/GIF/WebP, max 5MB each) with preview grid
+- Video URL field (YouTube/Drive/OneDrive links for large video files)
+- Required Approvers (multi-select from managers/admins)
+- Assigned To
+
+**Uploader UX (social team):**
+- `+ New Post` button or click any calendar day to create
+- Right-side slide-in panel (520px) — full form with file upload zone
+- Platform pills (colour-coded, multi-select): Instagram / TikTok / Facebook / X / LinkedIn / YouTube
+- Character counter updates per platform limits (X=280, LinkedIn=3000, Instagram=2200 etc.)
+- `Save Draft` or `Submit for Review` (requires at least one approver)
+- Drag-and-drop or click-to-browse image upload with instant preview thumbnails
+
+**Approver UX (managers/admins):**
+- Badge on nav shows how many posts need YOUR approval
+- Post detail slide-in panel (580px) shows full media carousel, caption, hashtags, visual notes
+- Approver list shows who has approved (✓) vs still pending (…)
+- `✅ Approve` green button — if all required approvers have approved → status becomes Approved
+- `💬 Request Changes` red button → inline comment textarea → sends to creator with Slack notification
+- `✓ Resolve` on comments to clear change requests
+
+**Admin/Manager post-approval actions:**
+- `📤 Push to SocialPilot` — calls SocialPilot API, sets status to Scheduled (requires `SOCIALPILOT_API_KEY` env var)
+- `✅ Mark Published` — manual status update
+
+**Comment thread:**
+- Any user can add comments at any time
+- Change requests appear with red left border
+- Admins/creators can resolve comments
+
+**API endpoints in `calendar.js`:**
+- `GET ?brand=&month=YYYY-MM` — list posts
+- `GET ?id=` — single post
+- `GET ?pending_approver=<email>` — badge count (posts needing this user's approval)
+- `POST { action: create/update/submit/approve/request_changes/comment/resolve_comment/delete/push_socialpilot/mark_published }`
+
+**Slack notifications sent for:**
+- `calendar_review_needed` — when post submitted for review (pings each required approver)
+- `calendar_changes_requested` — when approver requests changes (pings assignee)
+- `calendar_approved` — when all approvers have approved (pings creator)
+
+**Platform config:**
+| Platform | Char Limit | Colour |
+|---|---|---|
+| Instagram | 2,200 | #E1306C |
+| TikTok | 2,200 | #010101 |
+| Facebook | 63,206 | #1877F2 |
+| X (Twitter) | 280 | #000000 |
+| LinkedIn | 3,000 | #0A66C2 |
+| YouTube | 500 | #FF0000 |
+
+**Markets per brand:**
+- Pickl: UAE, KSA, Bahrain, Qatar, Egypt, Jordan, Oman
+- Bonbird: UAE, Oman, Pakistan, Qatar
+- Southpour: UAE
+
+**Required env vars (new):**
+| Variable | Purpose |
+|---|---|
+| `SOCIALPILOT_API_KEY` | SocialPilot API — push approved posts to scheduling queue |
+
+**Note on videos:** Videos > ~4MB can't be base64-uploaded through Netlify functions. Use the Video URL field (YouTube/Google Drive/OneDrive) for video content. Image uploads work for all standard social images (1–4MB).
+
+*Last updated: June 2026 — v6.9u: Content Calendar (full social content operations — plan, upload, approve, schedule. Month/list views, image upload, approval workflow, SocialPilot push, Slack notifications, brand/market/platform/status filters)*
