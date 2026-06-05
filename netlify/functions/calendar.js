@@ -260,10 +260,17 @@ exports.handler = async (event) => {
 
   // ── delete ────────────────────────────────────────────────────────────────
   if (action === 'delete') {
+    // Delete all associated media blobs first
+    for (const f of (post.mediaFiles || [])) {
+      await Promise.all([
+        s.delete(`calendarMedia:${f.id}`).catch(() => null),
+        s.delete(`calendarMediaMeta:${f.id}`).catch(() => null),
+      ]);
+    }
     await s.delete(`calendarPost:${id}`).catch(() => null);
     const idx = await getIndex(s, post.brand);
     await saveIndex(s, post.brand, idx.filter(x => x !== id));
-    return ok({ ok: true });
+    return ok({ ok: true, mediaDeleted: (post.mediaFiles || []).length });
   }
 
   // ── push to SocialPilot ───────────────────────────────────────────────────

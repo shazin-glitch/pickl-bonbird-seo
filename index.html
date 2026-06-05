@@ -6351,8 +6351,7 @@ const calState = {
   view:     'month',      // 'month' | 'list'
   editPost: null,         // post being edited (null = new)
   detailPost: null,       // post open in detail panel
-  mediaUploads: [],       // { id, filename, mimeType, size } — pending uploads in form (static/story/thumbnail)
-  carouselSlides: [],     // [{ num, id?, filename?, mimeType?, dataUrl?, note? }] — carousel slide state
+  carouselSlides: [],     // [{ url, note }] — carousel slide state (URL-based, no uploads)
   allUsers: [],           // loaded from /api/users for approver picker
   loaded:   false,
   presentIdx: 0,          // current slide index in presentation mode
@@ -6526,7 +6525,8 @@ function renderCalList(posts) {
       const pfLabels   = (p.platforms || []).map(pl => CAL_PLATFORMS[pl]?.label || pl).join(' · ');
       const firstPf    = (p.platforms||[])[0];
       const hasMedia   = (p.mediaFiles || []).length > 0 || !!p.imageUrl;
-      const thumbSrc   = (p.mediaFiles||[]).length ? `/api/calendar-media?id=${p.mediaFiles[0].id}` : p.imageUrl || '';
+      const _mf0       = (p.mediaFiles||[])[0];
+      const thumbSrc   = _mf0 ? (_mf0.url || (_mf0.id ? `/api/calendar-media?id=${_mf0.id}` : '')) : (p.imageUrl || '');
       html += `<div onclick="openCalDetail('${p.id}')" style="background:var(--bg-surface);border:1px solid var(--border);border-radius:8px;padding:14px 16px;margin-bottom:8px;cursor:pointer;display:flex;gap:14px;align-items:flex-start;transition:box-shadow 0.15s" onmouseover="this.style.boxShadow='0 2px 8px rgba(0,0,0,0.08)'" onmouseout="this.style.boxShadow='none'">
         ${hasMedia && thumbSrc ? `<div style="width:52px;height:52px;border-radius:6px;overflow:hidden;flex-shrink:0;border:1px solid var(--border)"><img src="${thumbSrc}" style="width:100%;height:100%;object-fit:cover" onerror="this.style.display='none'"></div>` : `<div style="width:52px;height:52px;border-radius:6px;background:var(--bg-base);flex-shrink:0;display:flex;align-items:center;justify-content:center;border:1px solid var(--border)">${firstPf ? pfIcon(firstPf, 22) : '<span style="font-size:18px">📋</span>'}</div>`}
         <div style="flex:1;min-width:0">
@@ -6684,8 +6684,10 @@ async function openCalForm(postId, prefillDate) {
 
   // Init carousel slides from existing post if editing
   if (post?.postType === 'carousel') {
-    calState.carouselSlides = (post.mediaFiles || []).map((f, i) => ({
-      num: i + 1, id: f.id, filename: f.filename, mimeType: f.mimeType, note: f.note || '', isExisting: true,
+    calState.carouselSlides = (post.mediaFiles || []).map(f => ({
+      // backward compat: old posts may have blob id instead of url
+      url:  f.url || (f.id ? `/api/calendar-media?id=${f.id}` : ''),
+      note: f.note || '',
     }));
   } else {
     calState.carouselSlides = [];
@@ -6737,7 +6739,6 @@ function closeCalForm() {
   document.getElementById('cal-form-overlay').style.display = 'none';
   document.getElementById('cal-form-panel').style.display   = 'none';
   calState.editPost = null;
-  calState.mediaUploads = [];
   calState.carouselSlides = [];
 }
 
@@ -6745,12 +6746,13 @@ function updateCalMediaSection() {
   renderCalMediaSection(calState.editPost);
 }
 
-// ── Post-type-aware media section ─────────────────────────────────────────────
+// ── Post-type-aware media section (URL-based — no uploads) ────────────────────
 function renderCalMediaSection(post) {
   const sec = document.getElementById('cf-media-section');
   if (!sec) return;
   const postType = document.getElementById('cf-type')?.value || post?.postType || 'static';
   const videoUrl = post?.videoUrl || '';
+  const imageUrl = post?.imageUrl || '';
 
   if (postType === 'copy_only') {
     sec.innerHTML = `<div style="background:var(--bg-base);border:1px solid var(--border);border-radius:8px;padding:12px 14px;font-size:12px;color:var(--text-muted);margin-bottom:8px">📝 Copy Only — no images or video needed for this post type.</div>`;
@@ -6758,50 +6760,27 @@ function renderCalMediaSection(post) {
   }
 
   if (postType === 'reel') {
-    const thumbId = (post?.mediaFiles || [])[0]?.id;
     sec.innerHTML = `
       <div class="form-group">
-        <label class="form-label">Video URL <span style="font-size:11px;color:var(--text-muted);font-weight:400;font-style:italic">Required — paste a Google Drive, OneDrive, or YouTube link to the reel video file</span></label>
-        <input type="url" id="cf-video-url" class="form-input" placeholder="https://drive.google.com/…" value="${esc(videoUrl)}" required>
-        <div style="font-size:11px;color:var(--text-muted);margin-top:4px">Tip: In Google Drive, right-click → Get link → Anyone with link can view</div>
+        <label class="form-label">Video URL <span style="font-size:11px;color:var(--text-muted);font-weight:400;font-style:italic">Required — paste a Google Drive, OneDrive, YouTube, or any shareable video link</span></label>
+        <input type="url" id="cf-video-url" class="form-input" placeholder="https://drive.google.com/file/d/…" value="${esc(videoUrl)}">
+        <div style="font-size:11px;color:var(--text-muted);margin-top:4px">Google Drive: right-click file → Get link → change to "Anyone with link"</div>
       </div>
       <div class="form-group">
-        <label class="form-label">Thumbnail <span style="font-size:11px;color:var(--text-muted);font-weight:400">(optional · 1:1 or 9:16 · max 5MB)</span></label>
-        <div class="cal-upload-zone" id="cf-upload-zone" onclick="document.getElementById('cf-file-input').click()" ondragover="event.preventDefault();this.classList.add('dragover')" ondragleave="this.classList.remove('dragover')" ondrop="handleCalDrop(event)" style="padding:14px">
-          <div style="font-size:13px;font-weight:600;color:var(--text-main)">📎 Upload thumbnail</div>
-          <div style="font-size:11px;color:var(--text-muted);margin-top:2px">Single image · JPEG/PNG · max 5MB</div>
-        </div>
-        <input type="file" id="cf-file-input" accept="image/*" style="display:none" onchange="handleCalFileSelect(event,'single')">
-        <div id="cf-upload-progress" style="font-size:12px;color:var(--text-muted);margin-top:6px;min-height:16px"></div>
-        <div id="cf-media-preview" style="margin-top:8px">
-          ${thumbId ? `<div class="cal-media-thumb" id="calthumb-${thumbId}" style="width:80px;height:80px"><img src="/api/calendar-media?id=${thumbId}"><button class="cal-remove" onclick="removeCalMedia('${thumbId}',true)">✕</button></div>` : ''}
-        </div>
+        <label class="form-label">Thumbnail URL <span style="font-size:11px;color:var(--text-muted);font-weight:400">(optional · 1:1 or 9:16 · paste a shareable image link)</span></label>
+        <input type="url" id="cf-image-url" class="form-input" placeholder="https://…" value="${esc(imageUrl)}" oninput="updateCalImagePreview()">
+        <div id="cf-image-preview">${imageUrl ? `<img src="${esc(imageUrl)}" style="max-height:80px;border-radius:6px;margin-top:8px;border:1px solid var(--border)" onerror="this.style.display='none'">` : ''}</div>
       </div>`;
     return;
   }
 
   if (postType === 'story') {
-    const existing = (post?.mediaFiles || []);
-    const existingHtml = existing.map(f =>
-      `<div class="cal-media-thumb" id="calthumb-${f.id}" style="width:70px;height:124px;aspect-ratio:unset"><img src="/api/calendar-media?id=${f.id}"><button class="cal-remove" onclick="removeCalMedia('${f.id}',true)">✕</button></div>`
-    ).join('');
     sec.innerHTML = `
       <div class="form-group">
-        <label class="form-label">Story Image <span style="font-size:11px;color:var(--text-muted);font-weight:400">(9:16 vertical · 1080×1920px recommended · max 5MB)</span></label>
-        <div class="cal-upload-zone" id="cf-upload-zone" onclick="document.getElementById('cf-file-input').click()" ondragover="event.preventDefault();this.classList.add('dragover')" ondragleave="this.classList.remove('dragover')" ondrop="handleCalDrop(event)" style="padding:16px">
-          <div style="font-size:22px;margin-bottom:4px">📱</div>
-          <div style="font-size:13px;font-weight:600;color:var(--text-main)">Upload story image</div>
-          <div style="font-size:11px;color:var(--text-muted);margin-top:2px">Vertical 9:16 · 1080×1920px · JPEG/PNG</div>
-        </div>
-        <input type="file" id="cf-file-input" accept="image/*" style="display:none" onchange="handleCalFileSelect(event,'single')">
-        <div id="cf-upload-progress" style="font-size:12px;color:var(--text-muted);margin-top:6px;min-height:16px"></div>
-        <div id="cf-media-preview" style="display:flex;gap:8px;margin-top:8px">${existingHtml}</div>
-        <div style="margin-top:10px;display:flex;align-items:center;gap:8px">
-          <div style="flex:1;height:1px;background:var(--border)"></div>
-          <span style="font-size:11px;color:var(--text-muted);white-space:nowrap">or paste image URL</span>
-          <div style="flex:1;height:1px;background:var(--border)"></div>
-        </div>
-        <input type="url" id="cf-image-url" class="form-input" placeholder="https://drive.google.com/… or Cloudinary / Dropbox link" value="${esc(post?.imageUrl || '')}" style="margin-top:6px;font-size:12px">
+        <label class="form-label">Story Image URL <span style="font-size:11px;color:var(--text-muted);font-weight:400">(9:16 vertical · 1080×1920px · paste a shareable image link)</span></label>
+        <input type="url" id="cf-image-url" class="form-input" placeholder="https://drive.google.com/… or Dropbox / Cloudinary link" value="${esc(imageUrl)}" oninput="updateCalImagePreview()">
+        <div id="cf-image-preview">${imageUrl ? `<img src="${esc(imageUrl)}" style="max-height:160px;border-radius:6px;margin-top:8px;border:1px solid var(--border)" onerror="this.style.display='none'">` : ''}</div>
+        <div style="font-size:11px;color:var(--text-muted);margin-top:4px">📱 1080 × 1920 px (9:16) recommended</div>
       </div>
       <div class="form-group">
         <label class="form-label">Video URL <span style="font-size:11px;color:var(--text-muted);font-weight:400">(optional — if this is a video story)</span></label>
@@ -6811,27 +6790,12 @@ function renderCalMediaSection(post) {
   }
 
   if (postType === 'static') {
-    const existing = (post?.mediaFiles || []);
-    const existingHtml = existing.map(f =>
-      `<div class="cal-media-thumb" id="calthumb-${f.id}"><img src="/api/calendar-media?id=${f.id}"><button class="cal-remove" onclick="removeCalMedia('${f.id}',true)">✕</button></div>`
-    ).join('');
     sec.innerHTML = `
       <div class="form-group">
-        <label class="form-label">Image <span style="font-size:11px;color:var(--text-muted);font-weight:400">(1:1 or 4:5 · JPEG/PNG · max 5MB)</span></label>
-        <div class="cal-upload-zone" id="cf-upload-zone" onclick="document.getElementById('cf-file-input').click()" ondragover="event.preventDefault();this.classList.add('dragover')" ondragleave="this.classList.remove('dragover')" ondrop="handleCalDrop(event)">
-          <div style="font-size:26px;margin-bottom:6px">🖼</div>
-          <div style="font-size:13px;font-weight:600;color:var(--text-main)">Drag & drop or click to upload</div>
-          <div style="font-size:11px;color:var(--text-muted);margin-top:4px">Single image · 1:1 square or 4:5 portrait</div>
-        </div>
-        <input type="file" id="cf-file-input" accept="image/*" style="display:none" onchange="handleCalFileSelect(event,'single')">
-        <div id="cf-upload-progress" style="font-size:12px;color:var(--text-muted);margin-top:6px;min-height:16px"></div>
-        <div class="cal-media-preview" id="cf-media-preview" style="grid-template-columns:repeat(3,80px)">${existingHtml}</div>
-        <div style="margin-top:10px;display:flex;align-items:center;gap:8px">
-          <div style="flex:1;height:1px;background:var(--border)"></div>
-          <span style="font-size:11px;color:var(--text-muted);white-space:nowrap">or paste image URL</span>
-          <div style="flex:1;height:1px;background:var(--border)"></div>
-        </div>
-        <input type="url" id="cf-image-url" class="form-input" placeholder="https://drive.google.com/… or Cloudinary / Dropbox link" value="${esc(post?.imageUrl || '')}" style="margin-top:6px;font-size:12px">
+        <label class="form-label">Image URL <span style="font-size:11px;color:var(--text-muted);font-weight:400">(1:1 or 4:5 · paste a shareable image link)</span></label>
+        <input type="url" id="cf-image-url" class="form-input" placeholder="https://drive.google.com/… or Dropbox / Cloudinary link" value="${esc(imageUrl)}" oninput="updateCalImagePreview()">
+        <div id="cf-image-preview">${imageUrl ? `<img src="${esc(imageUrl)}" style="max-height:120px;border-radius:6px;margin-top:8px;border:1px solid var(--border)" onerror="this.style.display='none'">` : ''}</div>
+        <div style="font-size:11px;color:var(--text-muted);margin-top:4px">Google Drive: right-click → Get link → "Anyone with link can view", then use the direct image URL</div>
       </div>`;
     return;
   }
@@ -6840,24 +6804,25 @@ function renderCalMediaSection(post) {
     sec.innerHTML = `
       <div class="form-group">
         <label class="form-label" style="display:flex;justify-content:space-between;align-items:center">
-          <span>Carousel Slides <span style="font-size:11px;color:var(--text-muted);font-weight:400">(up to 10 slides · drag images per slide)</span></span>
+          <span>Carousel Slides <span style="font-size:11px;color:var(--text-muted);font-weight:400">(up to 10 · paste an image URL per slide)</span></span>
           <button type="button" onclick="addCalSlide()" style="font-size:12px;background:var(--primary);color:#fff;border:none;border-radius:5px;padding:3px 10px;cursor:pointer">+ Add Slide</button>
         </label>
         <div id="cf-carousel-slides"></div>
-        <input type="file" id="cf-slide-file-input" accept="image/*" style="display:none" data-slide-idx="">
-        <div id="cf-upload-progress" style="font-size:12px;color:var(--text-muted);margin-top:6px;min-height:16px"></div>
       </div>`;
-    // Seed with one empty slide if none yet
-    if (!calState.carouselSlides.length) calState.carouselSlides.push({ num: 1, note: '' });
+    if (!calState.carouselSlides.length) calState.carouselSlides.push({ url: '', note: '' });
     renderCarouselSlides();
-    // wire up slide file input
-    document.getElementById('cf-slide-file-input').addEventListener('change', async function(e) {
-      const idx = parseInt(this.dataset.slideIdx, 10);
-      const file = e.target.files[0];
-      this.value = '';
-      if (file) await uploadCalSlideImage(idx, file);
-    });
     return;
+  }
+}
+
+function updateCalImagePreview() {
+  const url  = document.getElementById('cf-image-url')?.value.trim() || '';
+  const prev = document.getElementById('cf-image-preview');
+  if (!prev) return;
+  if (url) {
+    prev.innerHTML = `<img src="${esc(url)}" style="max-height:120px;border-radius:6px;margin-top:8px;border:1px solid var(--border)" onerror="this.parentElement.innerHTML='<div style=color:#ef4444;font-size:12px;margin-top:6px>⚠️ Could not load image from this URL — make sure sharing is set to public</div>'">`;
+  } else {
+    prev.innerHTML = '';
   }
 }
 
@@ -6870,29 +6835,38 @@ function renderCarouselSlides() {
     return;
   }
   container.innerHTML = slides.map((slide, idx) => {
-    const thumbSrc = slide.dataUrl
-      ? `<img src="${slide.dataUrl}" style="width:100%;height:100%;object-fit:cover">`
-      : (slide.id
-          ? `<img src="/api/calendar-media?id=${slide.id}" style="width:100%;height:100%;object-fit:cover">`
-          : '<span style="font-size:20px">📷</span>');
+    const preview = slide.url
+      ? `<img src="${esc(slide.url)}" style="width:100%;height:100%;object-fit:cover" onerror="this.style.display='none'">`
+      : '<span style="font-size:16px;color:var(--text-muted)">🔗</span>';
     return `<div class="cal-slide-item" id="cal-slide-${idx}">
       <div class="cal-slide-num">${idx + 1}</div>
-      <div class="cal-slide-thumb" onclick="document.getElementById('cf-slide-file-input').dataset.slideIdx='${idx}';document.getElementById('cf-slide-file-input').click()" title="Click to upload image">${thumbSrc}</div>
-      <div style="flex:1">
-        <input type="text" class="form-input" placeholder="Slide caption / note (optional)" value="${esc(slide.note || '')}" oninput="calState.carouselSlides[${idx}].note=this.value" style="font-size:12px;padding:5px 8px;margin-bottom:0">
+      <div class="cal-slide-thumb" title="Preview">${preview}</div>
+      <div style="flex:1;display:flex;flex-direction:column;gap:5px">
+        <input type="url" class="form-input" placeholder="Image URL (Drive, Dropbox, Cloudinary…)" value="${esc(slide.url || '')}" oninput="calState.carouselSlides[${idx}].url=this.value;updateCarouselThumb(${idx},this.value)" style="font-size:12px;padding:5px 8px">
+        <input type="text" class="form-input" placeholder="Slide caption / note (optional)" value="${esc(slide.note || '')}" oninput="calState.carouselSlides[${idx}].note=this.value" style="font-size:12px;padding:5px 8px">
       </div>
       <div class="cal-slide-controls">
         ${idx > 0 ? `<button onclick="moveCalSlide(${idx},-1)" title="Move up">▲</button>` : '<button disabled style="opacity:0.2">▲</button>'}
         ${idx < slides.length - 1 ? `<button onclick="moveCalSlide(${idx},1)" title="Move down">▼</button>` : '<button disabled style="opacity:0.2">▼</button>'}
-        <button onclick="removeCalSlide(${idx})" title="Remove slide" style="color:#ef4444;border-color:#ef4444">✕</button>
+        <button onclick="removeCalSlide(${idx})" title="Remove" style="color:#ef4444;border-color:#ef4444">✕</button>
       </div>
     </div>`;
   }).join('');
 }
 
+function updateCarouselThumb(idx, url) {
+  const thumb = document.querySelector(`#cal-slide-${idx} .cal-slide-thumb`);
+  if (!thumb) return;
+  if (url) {
+    thumb.innerHTML = `<img src="${esc(url)}" style="width:100%;height:100%;object-fit:cover" onerror="this.style.display='none'">`;
+  } else {
+    thumb.innerHTML = '<span style="font-size:16px;color:var(--text-muted)">🔗</span>';
+  }
+}
+
 function addCalSlide() {
   if (calState.carouselSlides.length >= 10) { showToast('Maximum 10 slides per carousel', 'error'); return; }
-  calState.carouselSlides.push({ num: calState.carouselSlides.length + 1, note: '' });
+  calState.carouselSlides.push({ url: '', note: '' });
   renderCarouselSlides();
 }
 
@@ -6907,105 +6881,6 @@ function moveCalSlide(idx, dir) {
   if (target < 0 || target >= slides.length) return;
   [slides[idx], slides[target]] = [slides[target], slides[idx]];
   renderCarouselSlides();
-}
-
-async function uploadCalSlideImage(idx, file) {
-  const MAX_BYTES = 5 * 1024 * 1024;
-  const progressEl = document.getElementById('cf-upload-progress');
-  if (!file.type.startsWith('image/')) { showToast('Images only', 'error'); return; }
-  if (file.size > MAX_BYTES) { showToast(`${file.name} too large (max 5MB)`, 'error'); return; }
-  if (progressEl) progressEl.textContent = `Uploading slide ${idx + 1}…`;
-  const [b64, dataUrl] = await Promise.all([
-    new Promise((res, rej) => { const r = new FileReader(); r.onload = e => res(e.target.result.split(',')[1]); r.onerror = rej; r.readAsDataURL(file); }),
-    new Promise(res => { const r = new FileReader(); r.onload = e => res(e.target.result); r.readAsDataURL(file); }),
-  ]);
-  try {
-    const result = await apiPost('/api/calendar-media', { filename: file.name, mimeType: file.type, data: b64 });
-    calState.carouselSlides[idx] = { ...calState.carouselSlides[idx], id: result.mediaId, filename: file.name, mimeType: file.type, dataUrl };
-    renderCarouselSlides();
-    if (progressEl) { progressEl.textContent = `✓ Slide ${idx + 1} uploaded`; setTimeout(() => { if (progressEl) progressEl.textContent = ''; }, 2000); }
-  } catch (e) { showToast('Upload failed: ' + e.message, 'error'); if (progressEl) progressEl.textContent = ''; }
-}
-
-// ── Generic upload handlers (static / story / reel thumbnail) ─────────────────
-async function handleCalFileSelect(event, mode) {
-  const files = Array.from(event.target.files || []);
-  event.target.value = '';
-  if (mode === 'single') {
-    if (files[0]) await uploadCalFile(files[0], true);
-  } else {
-    for (const file of files) await uploadCalFile(file, false);
-  }
-}
-
-async function handleCalDrop(event) {
-  event.preventDefault();
-  document.getElementById('cf-upload-zone')?.classList.remove('dragover');
-  const postType = document.getElementById('cf-type')?.value || 'static';
-  const isSingle = ['static','story','reel'].includes(postType);
-  const files = Array.from(event.dataTransfer.files || []).filter(f => f.type.startsWith('image/'));
-  if (isSingle) {
-    if (files[0]) await uploadCalFile(files[0], true);
-  } else {
-    for (const file of files) await uploadCalFile(file, false);
-  }
-}
-
-async function uploadCalFile(file, singleMode) {
-  const MAX_BYTES = 5 * 1024 * 1024;
-  const progressEl = document.getElementById('cf-upload-progress');
-
-  if (!file.type.startsWith('image/')) {
-    showToast('Only image files are supported here. Use the Video URL field for videos.', 'error');
-    return;
-  }
-  if (file.size > MAX_BYTES) {
-    showToast(`${file.name} is too large (${(file.size/1048576).toFixed(1)}MB). Maximum is 5MB.`, 'error');
-    return;
-  }
-
-  // In single-image mode, clear existing uploads first
-  if (singleMode) {
-    calState.mediaUploads = [];
-    const preview = document.getElementById('cf-media-preview');
-    if (preview) preview.innerHTML = '';
-  }
-
-  if (progressEl) progressEl.textContent = `Uploading ${file.name}…`;
-
-  const [b64, dataUrl] = await Promise.all([
-    new Promise((resolve, reject) => { const r = new FileReader(); r.onload = e => resolve(e.target.result.split(',')[1]); r.onerror = reject; r.readAsDataURL(file); }),
-    new Promise(resolve => { const r = new FileReader(); r.onload = e => resolve(e.target.result); r.readAsDataURL(file); }),
-  ]);
-
-  try {
-    const res = await apiPost('/api/calendar-media', { filename: file.name, mimeType: file.type, data: b64 });
-    calState.mediaUploads.push({ id: res.mediaId, filename: file.name, mimeType: file.type, size: file.size });
-
-    const preview = document.getElementById('cf-media-preview');
-    if (preview) {
-      const thumb = document.createElement('div');
-      thumb.className = 'cal-media-thumb';
-      thumb.id = `calthumb-${res.mediaId}`;
-      thumb.innerHTML = `<img src="${dataUrl}" alt="${esc(file.name)}"><button class="cal-remove" onclick="removeCalMedia('${res.mediaId}',false)">✕</button>`;
-      preview.appendChild(thumb);
-    }
-    if (progressEl) progressEl.textContent = `✓ ${file.name} uploaded`;
-    setTimeout(() => { if (progressEl) progressEl.textContent = ''; }, 2500);
-  } catch (e) {
-    showToast('Upload failed: ' + e.message, 'error');
-    if (progressEl) progressEl.textContent = '';
-  }
-}
-
-function removeCalMedia(mediaId, isExisting) {
-  const thumb = document.getElementById(`calthumb-${mediaId}`);
-  if (thumb) thumb.remove();
-  if (!isExisting) {
-    calState.mediaUploads = calState.mediaUploads.filter(m => m.id !== mediaId);
-  } else if (calState.editPost) {
-    calState.editPost.mediaFiles = (calState.editPost.mediaFiles || []).filter(f => f.id !== mediaId);
-  }
 }
 
 // ── Save / Submit Post ─────────────────────────────────────────────────────────
@@ -7040,17 +6915,14 @@ async function saveCalPost(mode) {
   const assignedTo   = assignedParts[0] || state.userEmail;
   const assignedName = assignedParts[1] || state.actor;
 
-  // Build media files list
+  // Build media files list (URL-based — no blob uploads)
   let mediaFiles;
   if (postType === 'carousel') {
-    // Ordered slides — only include slides that have an uploaded image
     mediaFiles = calState.carouselSlides
-      .filter(s => s.id)
-      .map((s, i) => ({ id: s.id, filename: s.filename || `slide-${i+1}.jpg`, mimeType: s.mimeType || 'image/jpeg', note: s.note || '' }));
+      .filter(s => s.url)
+      .map(s => ({ url: s.url, note: s.note || '' }));
   } else {
-    const existingFiles = (calState.editPost?.mediaFiles || [])
-      .filter(f => document.getElementById(`calthumb-${f.id}`));
-    mediaFiles = [...existingFiles, ...calState.mediaUploads.map(m => ({ id: m.id, filename: m.filename, mimeType: m.mimeType, size: m.size }))];
+    mediaFiles = []; // static/story/reel use imageUrl field; no mediaFiles needed
   }
 
   const saveDraftBtn = document.getElementById('cal-save-draft-btn');
@@ -7136,14 +7008,18 @@ function renderCalDetailPanel(post) {
     return `<span style="background:${cfg.color || '#64748b'}18;color:${cfg.color || '#64748b'};font-size:12px;padding:3px 10px;border-radius:12px;border:1px solid ${cfg.color || '#64748b'}40;display:inline-flex;align-items:center;gap:5px">${pfIcon(p)} ${cfg.label || p}</span>`;
   }).join(' ');
 
-  // Media
+  // Media — supports URL-based (new) and blob-ID-based (legacy) entries
   const mediaFiles = post.mediaFiles || [];
+  const mediaSrc   = f => f.url || (f.id ? `/api/calendar-media?id=${f.id}` : null);
   const mediaHtml = mediaFiles.length
     ? `<div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:16px">
-        ${mediaFiles.map(f => `
-          <div style="border-radius:8px;overflow:hidden;border:1px solid var(--border);cursor:pointer" onclick="calExpandImage('/api/calendar-media?id=${f.id}')">
-            <img src="/api/calendar-media?id=${f.id}" style="height:120px;width:auto;max-width:200px;object-fit:cover;display:block" alt="${esc(f.filename)}">
-          </div>`).join('')}
+        ${mediaFiles.map((f, i) => {
+          const src = mediaSrc(f);
+          return src ? `<div style="position:relative;border-radius:8px;overflow:hidden;border:1px solid var(--border);cursor:pointer" onclick="calExpandImage('${esc(src)}')">
+            <img src="${esc(src)}" style="height:120px;width:auto;max-width:200px;object-fit:cover;display:block" onerror="this.style.opacity='0.3'">
+            ${post.postType==='carousel' ? `<div style="position:absolute;top:4px;left:4px;background:rgba(0,0,0,0.6);color:#fff;font-size:10px;font-weight:700;padding:1px 6px;border-radius:4px">${i+1}</div>` : ''}
+          </div>` : '';
+        }).join('')}
       </div>`
     : (post.imageUrl
         ? `<div style="margin-bottom:16px;border-radius:8px;overflow:hidden;border:1px solid var(--border);display:inline-block;cursor:pointer" onclick="calExpandImage('${esc(post.imageUrl)}')">
@@ -7466,7 +7342,8 @@ function renderPresentSlide() {
       </div>`).join('')}
     </div>`;
   } else if (mediaFiles.length) {
-    mediaHtml = `<img src="/api/calendar-media?id=${mediaFiles[0].id}" style="max-height:200px;border-radius:8px;object-fit:cover;cursor:pointer;max-width:100%" onclick="calExpandImage('/api/calendar-media?id=${mediaFiles[0].id}')">`;
+    const s0 = mediaFiles[0].url || (mediaFiles[0].id ? `/api/calendar-media?id=${mediaFiles[0].id}` : '');
+    if (s0) mediaHtml = `<img src="${esc(s0)}" style="max-height:200px;border-radius:8px;object-fit:cover;cursor:pointer;max-width:100%" onclick="calExpandImage('${esc(s0)}')" onerror="this.style.display='none'">`;
   } else if (post.imageUrl) {
     mediaHtml = `<img src="${esc(post.imageUrl)}" style="max-height:200px;border-radius:8px;object-fit:cover;cursor:pointer;max-width:100%" onclick="calExpandImage('${esc(post.imageUrl)}')" onerror="this.style.display='none'">`;
   }
@@ -7503,7 +7380,8 @@ function renderPresentStrip() {
   const strip = document.getElementById('cal-present-strip');
   strip.innerHTML = posts.map((p, i) => {
     const sc = CAL_STATUS_LABELS[p.status] || { color: '#94a3b8' };
-    const stripSrc = (p.mediaFiles||[]).length ? `/api/calendar-media?id=${p.mediaFiles[0].id}` : p.imageUrl || '';
+    const _sf0 = (p.mediaFiles||[])[0];
+    const stripSrc = _sf0 ? (_sf0.url || (_sf0.id ? `/api/calendar-media?id=${_sf0.id}` : '')) : (p.imageUrl || '');
     const thumb = stripSrc
       ? `<img src="${stripSrc}" style="width:100%;height:100%;object-fit:cover;border-radius:5px" onerror="this.style.display='none'">`
       : `<div style="width:100%;height:100%;display:flex;align-items:center;justify-content:center;border-radius:5px;background:rgba(255,255,255,0.05)">${(p.platforms||[])[0] ? pfIcon((p.platforms||[])[0], 20, 'filter:brightness(0) invert(0.6)') : '<span style="font-size:16px">📋</span>'}</div>`;
@@ -7566,9 +7444,9 @@ function printCalPresent() {
     const sc = CAL_STATUS_LABELS[post.status] || { label: post.status, color: '#64748b' };
     const pfRow = (post.platforms||[]).map(p => `${CAL_PLATFORMS[p]?.emoji||''} ${CAL_PLATFORMS[p]?.label||p}`).join(' · ');
     const mediaFiles = post.mediaFiles || [];
-    const mediaHtml = mediaFiles.length
-      ? `<img src="/api/calendar-media?id=${mediaFiles[0].id}" style="max-height:180px;max-width:100%;border-radius:6px;object-fit:cover;display:block;margin:10px 0">`
-      : '';
+    const _pm0 = mediaFiles[0];
+    const printSrc = _pm0 ? (_pm0.url || (_pm0.id ? `/api/calendar-media?id=${_pm0.id}` : '')) : (post.imageUrl || '');
+    const mediaHtml = printSrc ? `<img src="${esc(printSrc)}" style="max-height:180px;max-width:100%;border-radius:6px;object-fit:cover;display:block;margin:10px 0">` : '';
     return `<div class="cal-present-print-slide" style="padding:24px;border:1px solid #e2e8f0;border-radius:8px;margin-bottom:24px;background:#fff">
       <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px">
         <div style="font-size:13px;font-weight:700">${(post.brand||'').toUpperCase()} · ${esc(post.market||'')}</div>

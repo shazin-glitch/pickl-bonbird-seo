@@ -1,12 +1,13 @@
 // netlify/functions/calendar-media.js
 // Media upload and serving for Content Calendar posts.
 //
-// POST { filename, mimeType, data: base64, postId? } — upload image (max 5MB), returns { mediaId, ... }
-// GET  ?id=<mediaId>                                 — serve binary file with correct Content-Type
+// POST   { filename, mimeType, data: base64, postId? } — upload image (max 5MB)
+// GET    ?id=<mediaId>                                  — serve binary file
+// DELETE ?id=<mediaId>                                  — delete a single media item
+// GET    ?scan=1                                        — list all media + orphan detection
+// POST   { action:'purge_orphans' }                     — delete media not referenced by any post
 //
 // Supported types: JPEG, PNG, GIF, WebP, HEIC
-// Videos: too large for base64 upload — use videoUrl field on posts instead.
-//
 // Blobs: calendarMedia:<mediaId> (binary), calendarMediaMeta:<mediaId> (JSON metadata)
 
 const { getStore } = require('@netlify/blobs');
@@ -14,7 +15,7 @@ const { getStore } = require('@netlify/blobs');
 const CORS = {
   'Access-Control-Allow-Origin':  '*',
   'Access-Control-Allow-Headers': 'Content-Type',
-  'Access-Control-Allow-Methods': 'GET, POST, OPTIONS',
+  'Access-Control-Allow-Methods': 'GET, POST, DELETE, OPTIONS',
 };
 const JSON_HEADERS = { ...CORS, 'Content-Type': 'application/json' };
 
@@ -64,12 +65,81 @@ exports.handler = async (event) => {
     };
   }
 
-  // ── POST: upload image ────────────────────────────────────────────────────
+  // ── DELETE: remove a single media item ────────────────────────────────────
+  if (event.httpMethod === 'DELETE') {
+    const mediaId = event.queryStringParameters?.id;
+    if (!mediaId) return { statusCode: 400, headers: JSON_HEADERS, body: JSON.stringify({ error: 'id required' }) };
+    await Promise.all([
+      s.delete(`calendarMedia:${mediaId}`).catch(() => null),
+      s.delete(`calendarMediaMeta:${mediaId}`).catch(() => null),
+    ]);
+    return { statusCode: 200, headers: JSON_HEADERS, body: JSON.stringify({ ok: true }) };
+  }
+
+  // ── GET ?scan=1: list all media + orphan detection ─────────────────────────
+  if (event.httpMethod === 'GET' && event.queryStringParameters?.scan === '1') {
+    // List all meta keys
+    const listed = await s.list({ prefix: 'calendarMediaMeta:' }).catch(() => ({ blobs: [] }));
+    const allMedia = await Promise.all(
+      (listed.blobs || []).map(async b => {
+        const mediaId = b.key.replace('calendarMediaMeta:', '');
+        const meta = await s.get(b.key, { type: 'json' }).catch(() => null);
+        return { mediaId, ...(meta || {}), key: b.key };
+      })
+    );
+    // Count total size
+    const totalBytes = allMedia.reduce((sum, m) => sum + (m.size || 0), 0);
+    return {
+      statusCode: 200,
+      headers: JSON_HEADERS,
+      body: JSON.stringify({ ok: true, count: allMedia.length, totalBytes, media: allMedia }),
+    };
+  }
+
+  // ── POST action:purge_orphans — delete media not linked to any post ────────
   if (event.httpMethod === 'POST') {
     let body;
     try { body = JSON.parse(event.body || '{}'); }
     catch (_) { return { statusCode: 400, headers: JSON_HEADERS, body: JSON.stringify({ error: 'Invalid JSON' }) }; }
 
+    if (body.action === 'purge_orphans') {
+      // Collect all referenced mediaIds from all posts across all brands
+      const ALL_BRANDS = ['pickl', 'bonbird', 'southpour', 'shadowburg', 'shadowbird'];
+      const referencedIds = new Set();
+      for (const brand of ALL_BRANDS) {
+        const ids = await s.get(`calendarIndex:${brand}`, { type: 'json' }).catch(() => []) || [];
+        for (const postId of ids) {
+          const post = await s.get(`calendarPost:${postId}`, { type: 'json' }).catch(() => null);
+          if (post) (post.mediaFiles || []).forEach(f => referencedIds.add(f.id));
+        }
+      }
+      // List all media
+      const listed = await s.list({ prefix: 'calendarMediaMeta:' }).catch(() => ({ blobs: [] }));
+      const orphans = (listed.blobs || []).filter(b => {
+        const mediaId = b.key.replace('calendarMediaMeta:', '');
+        return !referencedIds.has(mediaId);
+      });
+      // Delete orphans
+      let deleted = 0;
+      let freedBytes = 0;
+      for (const b of orphans) {
+        const mediaId = b.key.replace('calendarMediaMeta:', '');
+        const meta = await s.get(b.key, { type: 'json' }).catch(() => null);
+        freedBytes += meta?.size || 0;
+        await Promise.all([
+          s.delete(`calendarMedia:${mediaId}`).catch(() => null),
+          s.delete(b.key).catch(() => null),
+        ]);
+        deleted++;
+      }
+      return {
+        statusCode: 200,
+        headers: JSON_HEADERS,
+        body: JSON.stringify({ ok: true, deleted, freedBytes }),
+      };
+    }
+
+    // ── POST: upload image (existing logic) ──────────────────────────────────
     const { filename, mimeType, data, postId } = body;
 
     if (!filename || !mimeType || !data)
