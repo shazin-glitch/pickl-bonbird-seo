@@ -220,8 +220,9 @@
   .cal-media-thumb { position: relative; aspect-ratio: 1; border-radius: 6px; overflow: hidden; border: 1px solid var(--border); }
   .cal-media-thumb img { width: 100%; height: 100%; object-fit: cover; }
   .cal-media-thumb .cal-remove { position: absolute; top: 4px; right: 4px; background: rgba(0,0,0,0.6); color: #fff; border: none; border-radius: 50%; width: 20px; height: 20px; font-size: 11px; cursor: pointer; display: flex; align-items: center; justify-content: center; }
-  .cal-platform-pill { padding: 5px 12px; border-radius: 20px; font-size: 12px; font-weight: 500; cursor: pointer; border: 1px solid var(--border); color: var(--text-muted); transition: all 0.15s; user-select: none; }
+  .cal-platform-pill { padding: 5px 12px; border-radius: 20px; font-size: 12px; font-weight: 500; cursor: pointer; border: 1px solid var(--border); color: var(--text-muted); transition: all 0.15s; user-select: none; display:inline-flex; align-items:center; gap:5px; }
   .cal-platform-pill.active { color: #fff; border-color: transparent; }
+  .cal-platform-pill.active .cal-pf-icon { filter: brightness(0) invert(1); }
   .platform-instagram.active { background: #E1306C; }
   .platform-tiktok.active    { background: #010101; }
   .platform-facebook.active  { background: #1877F2; }
@@ -6309,13 +6310,18 @@ function exportReportPdf() {
 // ═══════════════════════════════════════════════════════════════
 
 const CAL_PLATFORMS = {
-  instagram: { label: 'Instagram', emoji: '📸', color: '#E1306C', limit: 2200 },
-  tiktok:    { label: 'TikTok',    emoji: '🎵', color: '#010101', limit: 2200 },
-  facebook:  { label: 'Facebook',  emoji: '👥', color: '#1877F2', limit: 63206 },
-  x:         { label: 'X',         emoji: '𝕏',  color: '#000000', limit: 280 },
-  linkedin:  { label: 'LinkedIn',  emoji: '💼', color: '#0A66C2', limit: 3000 },
-  youtube:   { label: 'YouTube',   emoji: '▶',  color: '#FF0000', limit: 500 },
+  instagram: { label: 'Instagram', color: '#E1306C', limit: 2200,  icon: 'https://cdn.simpleicons.org/instagram/E1306C' },
+  tiktok:    { label: 'TikTok',    color: '#010101', limit: 2200,  icon: 'https://cdn.simpleicons.org/tiktok/000000' },
+  facebook:  { label: 'Facebook',  color: '#1877F2', limit: 63206, icon: 'https://cdn.simpleicons.org/facebook/1877F2' },
+  x:         { label: 'X',         color: '#000000', limit: 280,   icon: 'https://cdn.simpleicons.org/x/000000' },
+  linkedin:  { label: 'LinkedIn',  color: '#0A66C2', limit: 3000,  icon: 'https://cdn.simpleicons.org/linkedin/0A66C2' },
+  youtube:   { label: 'YouTube',   color: '#FF0000', limit: 500,   icon: 'https://cdn.simpleicons.org/youtube/FF0000' },
 };
+function pfIcon(key, size = 14, style = '') {
+  const src = CAL_PLATFORMS[key]?.icon;
+  if (!src) return '';
+  return `<img class="cal-pf-icon" src="${src}" width="${size}" height="${size}" style="vertical-align:middle;display:inline-block${style ? ';' + style : ''}">`;
+}
 
 const CAL_MARKETS = {
   pickl:     ['UAE','KSA','Bahrain','Qatar','Egypt','Jordan','Oman'],
@@ -6477,9 +6483,9 @@ function renderCalMonthGrid(posts) {
     const MAX_VISIBLE = 3;
 
     const pillsHtml = dayPosts.slice(0, MAX_VISIBLE).map(p => {
-      const pfEmoji = (p.platforms || []).map(pl => CAL_PLATFORMS[pl]?.emoji || '').join('');
+      const pfIcons = (p.platforms || []).slice(0,2).map(pl => pfIcon(pl, 11, 'margin-right:1px')).join('');
       const caption = (p.caption || '(no caption)').slice(0, 28);
-      return `<div class="cal-pill cal-status-${p.status}" onclick="event.stopPropagation();openCalDetail('${p.id}')" title="${esc(p.caption || '')}">${pfEmoji} ${esc(caption)}</div>`;
+      return `<div class="cal-pill cal-status-${p.status}" onclick="event.stopPropagation();openCalDetail('${p.id}')" title="${esc(p.caption || '')}" style="display:flex;align-items:center;gap:3px">${pfIcons}<span>${esc(caption)}</span></div>`;
     }).join('');
 
     const moreHtml = dayPosts.length > MAX_VISIBLE
@@ -6517,10 +6523,12 @@ function renderCalList(posts) {
       <div style="font-size:13px;font-weight:700;color:var(--text-muted);text-transform:uppercase;letter-spacing:0.04em;margin-bottom:8px;padding-bottom:6px;border-bottom:1px solid var(--border)">${label}</div>`;
     for (const p of datePosts) {
       const statusInfo = CAL_STATUS_LABELS[p.status] || { label: p.status, color: '#64748b' };
-      const pfLabels   = (p.platforms || []).map(pl => `${CAL_PLATFORMS[pl]?.emoji || ''} ${CAL_PLATFORMS[pl]?.label || pl}`).join(' · ');
-      const hasMedia   = (p.mediaFiles || []).length > 0;
+      const pfLabels   = (p.platforms || []).map(pl => CAL_PLATFORMS[pl]?.label || pl).join(' · ');
+      const firstPf    = (p.platforms||[])[0];
+      const hasMedia   = (p.mediaFiles || []).length > 0 || !!p.imageUrl;
+      const thumbSrc   = (p.mediaFiles||[]).length ? `/api/calendar-media?id=${p.mediaFiles[0].id}` : p.imageUrl || '';
       html += `<div onclick="openCalDetail('${p.id}')" style="background:var(--bg-surface);border:1px solid var(--border);border-radius:8px;padding:14px 16px;margin-bottom:8px;cursor:pointer;display:flex;gap:14px;align-items:flex-start;transition:box-shadow 0.15s" onmouseover="this.style.boxShadow='0 2px 8px rgba(0,0,0,0.08)'" onmouseout="this.style.boxShadow='none'">
-        ${hasMedia ? `<div style="width:52px;height:52px;border-radius:6px;overflow:hidden;flex-shrink:0;border:1px solid var(--border)"><img src="/api/calendar-media?id=${(p.mediaFiles[0] || {}).id}" style="width:100%;height:100%;object-fit:cover" onerror="this.parentElement.innerHTML='<div style=width:100%;height:100%;background:var(--bg-base);display:flex;align-items:center;justify-content:center;font-size:18px>📷</div>'"></div>` : `<div style="width:52px;height:52px;border-radius:6px;background:var(--bg-base);flex-shrink:0;display:flex;align-items:center;justify-content:center;font-size:22px;border:1px solid var(--border)">${(p.platforms||[]).length ? CAL_PLATFORMS[(p.platforms||[])[0]]?.emoji || '📋' : '📋'}</div>`}
+        ${hasMedia && thumbSrc ? `<div style="width:52px;height:52px;border-radius:6px;overflow:hidden;flex-shrink:0;border:1px solid var(--border)"><img src="${thumbSrc}" style="width:100%;height:100%;object-fit:cover" onerror="this.style.display='none'"></div>` : `<div style="width:52px;height:52px;border-radius:6px;background:var(--bg-base);flex-shrink:0;display:flex;align-items:center;justify-content:center;border:1px solid var(--border)">${firstPf ? pfIcon(firstPf, 22) : '<span style="font-size:18px">📋</span>'}</div>`}
         <div style="flex:1;min-width:0">
           <div style="display:flex;align-items:center;gap:8px;margin-bottom:4px;flex-wrap:wrap">
             <span style="font-size:11px;font-weight:600;color:${statusInfo.color};background:${statusInfo.color}18;padding:2px 8px;border-radius:10px">${statusInfo.label}</span>
@@ -6595,7 +6603,7 @@ async function openCalForm(postId, prefillDate) {
       <div id="cal-platform-pills" style="display:flex;flex-wrap:wrap;gap:8px">
         ${Object.entries(CAL_PLATFORMS).map(([k, v]) => {
           const active = (post?.platforms || []).includes(k) ? 'active' : '';
-          return `<div class="cal-platform-pill platform-${k} ${active}" data-platform="${k}" onclick="toggleCalPlatform(this)">${v.emoji} ${v.label}</div>`;
+          return `<div class="cal-platform-pill platform-${k} ${active}" data-platform="${k}" onclick="toggleCalPlatform(this)">${pfIcon(k)} ${v.label}</div>`;
         }).join('')}
       </div>
     </div>
@@ -6788,6 +6796,12 @@ function renderCalMediaSection(post) {
         <input type="file" id="cf-file-input" accept="image/*" style="display:none" onchange="handleCalFileSelect(event,'single')">
         <div id="cf-upload-progress" style="font-size:12px;color:var(--text-muted);margin-top:6px;min-height:16px"></div>
         <div id="cf-media-preview" style="display:flex;gap:8px;margin-top:8px">${existingHtml}</div>
+        <div style="margin-top:10px;display:flex;align-items:center;gap:8px">
+          <div style="flex:1;height:1px;background:var(--border)"></div>
+          <span style="font-size:11px;color:var(--text-muted);white-space:nowrap">or paste image URL</span>
+          <div style="flex:1;height:1px;background:var(--border)"></div>
+        </div>
+        <input type="url" id="cf-image-url" class="form-input" placeholder="https://drive.google.com/… or Cloudinary / Dropbox link" value="${esc(post?.imageUrl || '')}" style="margin-top:6px;font-size:12px">
       </div>
       <div class="form-group">
         <label class="form-label">Video URL <span style="font-size:11px;color:var(--text-muted);font-weight:400">(optional — if this is a video story)</span></label>
@@ -6812,6 +6826,12 @@ function renderCalMediaSection(post) {
         <input type="file" id="cf-file-input" accept="image/*" style="display:none" onchange="handleCalFileSelect(event,'single')">
         <div id="cf-upload-progress" style="font-size:12px;color:var(--text-muted);margin-top:6px;min-height:16px"></div>
         <div class="cal-media-preview" id="cf-media-preview" style="grid-template-columns:repeat(3,80px)">${existingHtml}</div>
+        <div style="margin-top:10px;display:flex;align-items:center;gap:8px">
+          <div style="flex:1;height:1px;background:var(--border)"></div>
+          <span style="font-size:11px;color:var(--text-muted);white-space:nowrap">or paste image URL</span>
+          <div style="flex:1;height:1px;background:var(--border)"></div>
+        </div>
+        <input type="url" id="cf-image-url" class="form-input" placeholder="https://drive.google.com/… or Cloudinary / Dropbox link" value="${esc(post?.imageUrl || '')}" style="margin-top:6px;font-size:12px">
       </div>`;
     return;
   }
@@ -6999,6 +7019,7 @@ async function saveCalPost(mode) {
   const hashtags  = document.getElementById('cf-hashtags')?.value.trim() || '';
   const visualNotes = document.getElementById('cf-visual-notes')?.value || '';
   const videoUrl  = document.getElementById('cf-video-url')?.value.trim() || '';
+  const imageUrl  = document.getElementById('cf-image-url')?.value.trim() || '';
 
   if (!date) { showToast('Please set a scheduled date', 'error'); return; }
 
@@ -7044,7 +7065,7 @@ async function saveCalPost(mode) {
       const res = await apiPost('/api/calendar', {
         action: 'update', id: calState.editPost.id,
         platforms, market, postType, scheduledDate: date, scheduledTime: time,
-        caption, hashtags, visualNotes, videoUrl, mediaFiles,
+        caption, hashtags, visualNotes, videoUrl, imageUrl, mediaFiles,
         assignedTo, assignedName, requiredApprovers,
         actor: state.actor, actorEmail: state.userEmail,
       });
@@ -7054,7 +7075,7 @@ async function saveCalPost(mode) {
       const res = await apiPost('/api/calendar', {
         action: 'create',
         brand, market, platforms, postType, scheduledDate: date, scheduledTime: time,
-        caption, hashtags, visualNotes, videoUrl, mediaFiles,
+        caption, hashtags, visualNotes, videoUrl, imageUrl, mediaFiles,
         assignedTo, assignedName, requiredApprovers,
         actor: state.actor, actorEmail: state.userEmail,
       });
@@ -7112,10 +7133,10 @@ function renderCalDetailPanel(post) {
   // Platform icons
   const pfRow = (post.platforms || []).map(p => {
     const cfg = CAL_PLATFORMS[p] || {};
-    return `<span style="background:${cfg.color || '#64748b'}18;color:${cfg.color || '#64748b'};font-size:12px;padding:3px 10px;border-radius:12px;border:1px solid ${cfg.color || '#64748b'}40">${cfg.emoji || ''} ${cfg.label || p}</span>`;
+    return `<span style="background:${cfg.color || '#64748b'}18;color:${cfg.color || '#64748b'};font-size:12px;padding:3px 10px;border-radius:12px;border:1px solid ${cfg.color || '#64748b'}40;display:inline-flex;align-items:center;gap:5px">${pfIcon(p)} ${cfg.label || p}</span>`;
   }).join(' ');
 
-  // Media carousel
+  // Media
   const mediaFiles = post.mediaFiles || [];
   const mediaHtml = mediaFiles.length
     ? `<div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:16px">
@@ -7124,9 +7145,13 @@ function renderCalDetailPanel(post) {
             <img src="/api/calendar-media?id=${f.id}" style="height:120px;width:auto;max-width:200px;object-fit:cover;display:block" alt="${esc(f.filename)}">
           </div>`).join('')}
       </div>`
-    : '';
+    : (post.imageUrl
+        ? `<div style="margin-bottom:16px;border-radius:8px;overflow:hidden;border:1px solid var(--border);display:inline-block;cursor:pointer" onclick="calExpandImage('${esc(post.imageUrl)}')">
+            <img src="${esc(post.imageUrl)}" style="height:120px;width:auto;max-width:300px;object-fit:cover;display:block" onerror="this.parentElement.style.display='none'">
+           </div>`
+        : '');
 
-  // Video link
+  // Video / image URL links
   const videoHtml = post.videoUrl
     ? `<div style="margin-bottom:12px"><a href="${esc(post.videoUrl)}" target="_blank" rel="noopener" style="font-size:13px;color:var(--primary);display:inline-flex;align-items:center;gap:6px">▶ View Video Link</a></div>`
     : '';
@@ -7423,7 +7448,7 @@ function renderPresentSlide() {
   // Platform pills
   const pfRow = (post.platforms||[]).map(p => {
     const cfg = CAL_PLATFORMS[p] || {};
-    return `<span style="background:${cfg.color||'#64748b'}30;color:${cfg.color||'#94a3b8'};font-size:11px;padding:2px 9px;border-radius:10px;border:1px solid ${cfg.color||'#64748b'}40">${cfg.emoji||''} ${cfg.label||p}</span>`;
+    return `<span style="background:${cfg.color||'#64748b'}30;color:${cfg.color||'#94a3b8'};font-size:11px;padding:2px 9px;border-radius:10px;border:1px solid ${cfg.color||'#64748b'}40;display:inline-flex;align-items:center;gap:4px">${pfIcon(p, 12, 'filter:brightness(0) invert(0.7)')} ${cfg.label||p}</span>`;
   }).join(' ');
 
   // Status badge
@@ -7442,6 +7467,8 @@ function renderPresentSlide() {
     </div>`;
   } else if (mediaFiles.length) {
     mediaHtml = `<img src="/api/calendar-media?id=${mediaFiles[0].id}" style="max-height:200px;border-radius:8px;object-fit:cover;cursor:pointer;max-width:100%" onclick="calExpandImage('/api/calendar-media?id=${mediaFiles[0].id}')">`;
+  } else if (post.imageUrl) {
+    mediaHtml = `<img src="${esc(post.imageUrl)}" style="max-height:200px;border-radius:8px;object-fit:cover;cursor:pointer;max-width:100%" onclick="calExpandImage('${esc(post.imageUrl)}')" onerror="this.style.display='none'">`;
   }
   if (post.videoUrl) {
     mediaHtml += `<div style="margin-top:8px"><a href="${esc(post.videoUrl)}" target="_blank" rel="noopener" style="color:#60a5fa;font-size:13px;display:inline-flex;align-items:center;gap:5px">▶ View Video</a></div>`;
@@ -7476,9 +7503,10 @@ function renderPresentStrip() {
   const strip = document.getElementById('cal-present-strip');
   strip.innerHTML = posts.map((p, i) => {
     const sc = CAL_STATUS_LABELS[p.status] || { color: '#94a3b8' };
-    const thumb = (p.mediaFiles||[]).length
-      ? `<img src="/api/calendar-media?id=${p.mediaFiles[0].id}" style="width:100%;height:100%;object-fit:cover;border-radius:5px">`
-      : `<div style="width:100%;height:100%;display:flex;align-items:center;justify-content:center;font-size:16px;border-radius:5px;background:rgba(255,255,255,0.05)">${(p.platforms||[]).length ? CAL_PLATFORMS[(p.platforms||[])[0]]?.emoji||'📋' : '📋'}</div>`;
+    const stripSrc = (p.mediaFiles||[]).length ? `/api/calendar-media?id=${p.mediaFiles[0].id}` : p.imageUrl || '';
+    const thumb = stripSrc
+      ? `<img src="${stripSrc}" style="width:100%;height:100%;object-fit:cover;border-radius:5px" onerror="this.style.display='none'">`
+      : `<div style="width:100%;height:100%;display:flex;align-items:center;justify-content:center;border-radius:5px;background:rgba(255,255,255,0.05)">${(p.platforms||[])[0] ? pfIcon((p.platforms||[])[0], 20, 'filter:brightness(0) invert(0.6)') : '<span style="font-size:16px">📋</span>'}</div>`;
     return `<div onclick="calState.presentIdx=${i};renderPresentSlide();renderPresentStrip()" style="flex-shrink:0;width:64px;height:64px;border-radius:6px;cursor:pointer;border:2px solid ${i===idx ? '#3b82f6' : 'rgba(255,255,255,0.15)'};overflow:hidden;position:relative;transition:border-color 0.15s">
       ${thumb}
       <div style="position:absolute;bottom:2px;right:2px;width:8px;height:8px;border-radius:50%;background:${sc.color};border:1px solid #0f172a"></div>

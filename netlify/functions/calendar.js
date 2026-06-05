@@ -103,7 +103,7 @@ exports.handler = async (event) => {
   // ── create ────────────────────────────────────────────────────────────────
   if (action === 'create') {
     const { brand, market, platforms, postType, scheduledDate, scheduledTime,
-            caption, hashtags, visualNotes, videoUrl, mediaFiles,
+            caption, hashtags, visualNotes, videoUrl, imageUrl, mediaFiles,
             assignedTo, assignedName, requiredApprovers } = body;
     if (!brand)         return bad(400, 'brand required');
     if (!scheduledDate) return bad(400, 'scheduledDate required');
@@ -120,6 +120,7 @@ exports.handler = async (event) => {
       hashtags:   hashtags   || '',
       visualNotes: visualNotes || '',
       videoUrl:   videoUrl   || '',
+      imageUrl:   imageUrl   || '',
       mediaFiles: mediaFiles || [],
       assignedTo:   assignedTo   || actorEmail,
       assignedName: assignedName || actor,
@@ -149,7 +150,7 @@ exports.handler = async (event) => {
   // ── update ────────────────────────────────────────────────────────────────
   if (action === 'update') {
     const fields = ['platforms','postType','scheduledDate','scheduledTime','market',
-                    'caption','hashtags','visualNotes','videoUrl','mediaFiles',
+                    'caption','hashtags','visualNotes','videoUrl','imageUrl','mediaFiles',
                     'assignedTo','assignedName','requiredApprovers'];
     const patch  = {};
     for (const k of fields) if (k in body) patch[k] = body[k];
