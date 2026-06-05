@@ -928,6 +928,57 @@
           <div class="tool-title">On-Demand Page Audit</div>
           <div class="tool-desc">Paste a URL for any landing page to get an instant SEO technical audit with prioritized recommendations.</div>
         </div>
+
+        <!-- Card 5: YouTube SEO Brief -->
+        <div class="tool-card" onclick="document.getElementById('youtube-seo-section').scrollIntoView({behavior:'smooth'});document.getElementById('yt-keyword').focus()">
+          <div class="tool-icon">
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M22.54 6.42A2.78 2.78 0 0 0 20.6 4.47C18.88 4 12 4 12 4s-6.88 0-8.6.47A2.78 2.78 0 0 0 1.46 6.42 29 29 0 0 0 1 12a29 29 0 0 0 .46 5.58A2.78 2.78 0 0 0 3.4 19.53C5.12 20 12 20 12 20s6.88 0 8.6-.47a2.78 2.78 0 0 0 1.94-1.95A29 29 0 0 0 23 12a29 29 0 0 0-.46-5.58z"/><polygon points="9.75 15.02 15.5 12 9.75 8.98 9.75 15.02" fill="currentColor" stroke="none"/></svg>
+          </div>
+          <div class="tool-title">YouTube SEO Brief</div>
+          <div class="tool-desc">Enter a keyword to get a full YouTube SEO package: optimised title, description, tags, VideoObject schema, and content outline.</div>
+        </div>
+      </div>
+
+      <!-- YouTube SEO Full Section -->
+      <div id="youtube-seo-section" style="margin-top:32px">
+        <div style="display:flex;align-items:center;gap:12px;margin-bottom:20px">
+          <div style="font-size:18px">📺</div>
+          <div>
+            <div style="font-size:16px;font-weight:700;color:var(--text-main)">YouTube SEO Brief Generator</div>
+            <div style="font-size:13px;color:var(--text-muted)">Generate a complete YouTube SEO package — title, description, tags, VideoObject schema, and content outline.</div>
+          </div>
+        </div>
+
+        <div style="background:var(--bg-surface);border:1px solid var(--border);border-radius:var(--radius);padding:24px;margin-bottom:20px">
+          <div style="display:grid;grid-template-columns:1fr 1fr 1fr auto;gap:12px;align-items:end">
+            <div class="form-group" style="margin-bottom:0">
+              <label class="form-label">Brand</label>
+              <select id="yt-brand" class="form-input" style="font-family:var(--font-sans)">
+                <option value="pickl">Pickl</option>
+                <option value="bonbird">Bonbird</option>
+              </select>
+            </div>
+            <div class="form-group" style="margin-bottom:0;grid-column:span 1">
+              <label class="form-label">Target Keyword</label>
+              <input type="text" id="yt-keyword" class="form-input" placeholder="e.g. best smash burger dubai">
+            </div>
+            <div class="form-group" style="margin-bottom:0">
+              <label class="form-label">Video Type</label>
+              <select id="yt-type" class="form-input" style="font-family:var(--font-sans)">
+                <option value="review">Restaurant Review / Vlog</option>
+                <option value="howto">How-To / Educational</option>
+                <option value="location">Location / Area Guide</option>
+                <option value="behind">Behind the Scenes</option>
+                <option value="food">Food Showcase / ASMR</option>
+              </select>
+            </div>
+            <button class="btn btn-primary" id="yt-generate-btn" onclick="generateYouTubeBrief()" style="white-space:nowrap">▶ Generate</button>
+          </div>
+        </div>
+
+        <div id="yt-results" style="display:none">
+          <!-- Results rendered by generateYouTubeBrief() -->
+        </div>
       </div>
     </div>
 
@@ -6044,6 +6095,128 @@ function exportReportPdf() {
 }
 
 // ── Email Digest ───────────────────────────────────────────────────────────────
+
+// ═══════════════════════════════════════════════════════════════
+// YOUTUBE SEO BRIEF
+// ═══════════════════════════════════════════════════════════════
+async function generateYouTubeBrief() {
+  const brand   = document.getElementById('yt-brand').value;
+  const keyword = document.getElementById('yt-keyword').value.trim();
+  const type    = document.getElementById('yt-type').value;
+  if (!keyword) { showToast('Enter a target keyword first', 'error'); return; }
+
+  const btn = document.getElementById('yt-generate-btn');
+  btn.innerHTML = '<span class="spinner"></span> Generating…';
+  btn.disabled = true;
+
+  const typeLabels = {
+    review: 'Restaurant Review / Vlog',
+    howto: 'How-To / Educational',
+    location: 'Location / Area Guide',
+    behind: 'Behind the Scenes',
+    food: 'Food Showcase / ASMR',
+  };
+  const brandName = brand === 'pickl' ? 'Pickl (smash burgers, Dubai UAE)' : 'Bonbird Chicken (fresh fried chicken, Dubai UAE)';
+
+  const prompt = `You are a YouTube SEO expert. Generate a complete YouTube SEO package for a ${typeLabels[type]} video for ${brandName} targeting the keyword "${keyword}".
+
+Return ONLY the following sections, each starting with the exact header shown:
+
+## VIDEO TITLE
+Write 3 title options. Each under 60 characters. Front-load the keyword. Make them click-worthy and natural. Number them 1. 2. 3.
+
+## VIDEO DESCRIPTION
+Write a full YouTube description (600–800 words). Structure: hook sentence, keyword-rich intro paragraph (mention brand + keyword naturally), 3–4 chapters with timestamps (00:00 Intro, 02:30 etc.), 3 paragraph body covering the video topic, keyword mentions throughout, brand information paragraph, call-to-action (subscribe, comment, visit website), hashtags section (15 relevant hashtags).
+
+## TAGS
+List exactly 25 YouTube tags as a comma-separated list. Mix: exact match keyword, broad category, location variants, brand terms, related topics. No quotes around tags.
+
+## VIDEO SCHEMA (JSON-LD)
+Generate a complete VideoObject JSON-LD schema. Use the first title option. Set uploadDate to today. Include: name, description (first 2 sentences from description), thumbnailUrl (placeholder), contentUrl (placeholder for brand's YouTube channel). Return only the JSON, no explanation.
+
+## CONTENT OUTLINE
+Write a production-ready content outline for the video creator:
+- Hook (first 15 seconds): what to say/show
+- 4–5 main sections with: section title, key talking points (2–3 bullets), B-roll suggestions
+- Outro (last 30 seconds): CTA text
+
+Keep everything in ${brand === 'pickl' ? "Pickl's playful, cheeky brand voice" : "Bonbird's direct, bold, confident brand voice"}.`;
+
+  try {
+    const data = await apiPost('/api/claude', {
+      model: 'claude-sonnet-4-6',
+      max_tokens: 3000,
+      messages: [{ role: 'user', content: prompt }],
+    });
+    const text = (data.content || []).map(b => b.text || '').join('');
+    renderYouTubeBrief(text, keyword);
+  } catch (e) {
+    showToast('Error generating brief: ' + e.message, 'error');
+  }
+  btn.innerHTML = '↻ Regenerate'; btn.disabled = false;
+}
+
+function renderYouTubeBrief(text, keyword) {
+  const sections = [
+    { key: 'VIDEO TITLE',        label: '🎬 Video Titles',           icon: '🎬' },
+    { key: 'VIDEO DESCRIPTION',  label: '📝 Video Description',      icon: '📝' },
+    { key: 'TAGS',               label: '🏷 Tags (25)',              icon: '🏷' },
+    { key: 'VIDEO SCHEMA',       label: '🔧 VideoObject Schema',     icon: '🔧' },
+    { key: 'CONTENT OUTLINE',    label: '🎥 Content Outline',        icon: '🎥' },
+  ];
+
+  // Parse sections from Claude's response
+  const parsed = {};
+  for (let i = 0; i < sections.length; i++) {
+    const start = text.indexOf(`## ${sections[i].key}`);
+    if (start === -1) continue;
+    const end = i < sections.length - 1
+      ? text.indexOf(`## ${sections[i + 1].key}`, start)
+      : text.length;
+    parsed[sections[i].key] = text.slice(start + sections[i].key.length + 4, end).trim();
+  }
+
+  const esc = s => s.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+
+  const cards = sections.map(s => {
+    const content = parsed[s.key] || '';
+    const isCode  = s.key === 'VIDEO SCHEMA';
+    const display = isCode
+      ? `<pre style="background:var(--bg-base);border:1px solid var(--border);border-radius:6px;padding:12px;font-size:11px;overflow-x:auto;max-height:280px;white-space:pre-wrap">${esc(content)}</pre>`
+      : `<div style="background:var(--bg-base);border:1px solid var(--border);border-radius:6px;padding:12px;font-size:13px;line-height:1.7;white-space:pre-wrap;max-height:280px;overflow-y:auto">${esc(content)}</div>`;
+
+    return `<div style="background:var(--bg-surface);border:1px solid var(--border);border-radius:var(--radius);padding:20px;margin-bottom:16px">
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px">
+        <div style="font-size:14px;font-weight:600;color:var(--text-main)">${s.label}</div>
+        <button class="btn btn-outline" style="font-size:11px;padding:4px 10px" onclick="ytCopySection(this,'${s.key.replace(/'/g,"\\'")}')">📋 Copy</button>
+      </div>
+      ${display}
+    </div>`;
+  });
+
+  const container = document.getElementById('yt-results');
+  container.innerHTML = `
+    <div style="background:var(--success-bg,#f0fdf4);border:1px solid var(--success-border,#bbf7d0);border-radius:8px;padding:12px 16px;margin-bottom:20px;font-size:13px;color:var(--success-text,#166534)">
+      ✅ YouTube SEO package generated for <strong>${esc(keyword)}</strong> — copy each section as needed.
+    </div>
+    ${cards.join('')}`;
+  container.style.display = 'block';
+  container.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+
+  // Store parsed content for copy
+  container._ytParsed = parsed;
+}
+
+function ytCopySection(btn, key) {
+  const container = document.getElementById('yt-results');
+  const content = (container._ytParsed || {})[key] || '';
+  if (!content) { showToast('Nothing to copy', 'error'); return; }
+  navigator.clipboard.writeText(content).then(() => {
+    const orig = btn.textContent;
+    btn.textContent = '✓ Copied!';
+    setTimeout(() => btn.textContent = orig, 2000);
+  }).catch(() => showToast('Copy failed — select text manually', 'error'));
+}
 
 async function sendDigestEmail() {
   const btn    = document.getElementById('digest-send-btn');

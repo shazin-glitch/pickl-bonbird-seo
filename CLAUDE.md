@@ -51,14 +51,14 @@
 
 ---
 
-## Current Version: v6.9s
+## Current Version: v6.9t
 
 See SETUP.md → "Done (Full History)" for complete build log.
 
 **Next up (from SETUP.md roadmap):**
-- YouTube SEO module — keyword research, video content briefs, video schema markup
-- Content calendar view — all approved + scheduled content across SEO, social, design
-- Social media workflow → SocialPilot integration
+- Content calendar view — all approved + scheduled content across SEO, social, design in one calendar
+- Social media workflow → SocialPilot integration (Week 5)
+- Multi-brand expansion — Southpour, Shadowburg, Shadowbird (Week 6)
 
 ---
 

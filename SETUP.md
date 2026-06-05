@@ -1311,3 +1311,41 @@ Weekly Monday summary email via Resend API — pipeline activity + GSC highlight
 | `DIGEST_TO_EMAIL` | Default recipient (optional, falls back to shazin@yolkbrands.com) |
 
 *Last updated: June 2026 — v6.9s: Deep Competitor Audit (DataForSEO Labs ranked_keywords, 50-row table, queue to seed list), CEO PDF Export (window.print + @media print CSS), Email Digest (Resend API, per-brand HTML email, Settings send button)*
+
+---
+
+## Session: June 2026 — v6.9t YouTube SEO Brief Generator
+
+### What was built
+
+#### YouTube SEO Brief Generator ✅
+Full YouTube SEO package generated on demand by Claude — no external APIs needed beyond Claude.
+
+**Inputs:**
+- Brand (Pickl / Bonbird)
+- Target keyword
+- Video type: Restaurant Review / How-To / Location Guide / Behind the Scenes / Food Showcase
+
+**Outputs (5 structured sections):**
+1. **Video Titles** — 3 options, each under 60 chars, keyword front-loaded
+2. **Video Description** — 600–800 words with chapters/timestamps, keyword-rich, CTA, hashtags
+3. **Tags** — 25 YouTube tags (exact match, category, location variants, brand, related)
+4. **VideoObject Schema** — JSON-LD `VideoObject` ready to embed in WordPress
+5. **Content Outline** — production-ready for video creator: hook (15s), 4–5 sections with talking points + B-roll suggestions, outro CTA
+
+Each section has a **📋 Copy** button.
+
+**UI — AI Content Studio tab:**
+- New `🎥 YouTube SEO Brief` card in the studio grid (scrolls to section below)
+- Full-width `#youtube-seo-section` below the tool grid: brand + keyword + video type + Generate button
+- Results rendered by `renderYouTubeBrief()` — scrollable preview per section
+- `ytCopySection()` — copies section text to clipboard
+
+**JS functions added (`index.html`):**
+- `generateYouTubeBrief()` — builds Claude prompt, calls `/api/claude` with `max_tokens: 3000`
+- `renderYouTubeBrief(text, keyword)` — parses `## SECTION` headers from Claude response, renders structured output
+- `ytCopySection(btn, key)` — clipboard copy per section
+
+**No new Netlify function** — calls `/api/claude` directly (same pattern as other AI Content Studio tools).
+
+*Last updated: June 2026 — v6.9t: YouTube SEO Brief Generator (5-section output: titles, description, tags, VideoObject schema, content outline; Copy buttons per section)*
