@@ -448,45 +448,48 @@ exports.handler = async (event) => {
       // Video URL for reels
       if (post.videoUrl && post.postType === 'reel') payload.video_url = post.videoUrl;
 
-      // Try multiple auth approaches to find what SocialPilot accepts
-      // Log payload (without sensitive data) for debugging
       console.log('[SP push] accounts:', payload.accounts, 'schedule_time:', payload.schedule_time);
 
-      // Try 1: Bearer header on their panel API
-      let spRes = await fetch('https://panel.socialpilot.co/oauth/1.0/apicall/add_post', {
+      // api.socialpilot.co/v1/posts needs OAuth 1.0 header format, not Bearer.
+      // Try OAuth header variants — the token IS correct, just the format differs.
+      const oauthHeader1 = `OAuth oauth_token="${apiKey}"`;
+      const oauthHeader2 = `OAuth oauth_consumer_key="${apiKey}", oauth_token="${apiKey}", oauth_version="1.0"`;
+
+      // Try 1: OAuth token-only header
+      let spRes = await fetch('https://api.socialpilot.co/v1/posts', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${apiKey}` },
+        headers: { 'Content-Type': 'application/json', 'Authorization': oauthHeader1 },
         body: JSON.stringify(payload),
       });
       let spData;
       try { spData = await spRes.json(); } catch (_) { spData = {}; }
-      console.log('[SP push] Try1 (Bearer/panel):', spRes.status, JSON.stringify(spData));
+      console.log('[SP push] Try1 (OAuth token):', spRes.status, JSON.stringify(spData));
 
-      // Try 2: Token as query param on panel API
-      if (spRes.status === 401 || spRes.status === 403) {
-        spRes = await fetch(`https://panel.socialpilot.co/oauth/1.0/apicall/add_post?access_token=${encodeURIComponent(apiKey)}`, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify(payload),
-        });
-        try { spData = await spRes.json(); } catch (_) { spData = {}; }
-        console.log('[SP push] Try2 (query param/panel):', spRes.status, JSON.stringify(spData));
-      }
-
-      // Try 3: Bearer header on their newer API endpoint
+      // Try 2: OAuth with consumer_key = token (some APIs use same value for both)
       if (spRes.status === 401 || spRes.status === 403) {
         spRes = await fetch('https://api.socialpilot.co/v1/posts', {
           method: 'POST',
-          headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${apiKey}` },
+          headers: { 'Content-Type': 'application/json', 'Authorization': oauthHeader2 },
           body: JSON.stringify(payload),
         });
         try { spData = await spRes.json(); } catch (_) { spData = {}; }
-        console.log('[SP push] Try3 (Bearer/api.v1):', spRes.status, JSON.stringify(spData));
+        console.log('[SP push] Try2 (OAuth consumer+token):', spRes.status, JSON.stringify(spData));
+      }
+
+      // Try 3: Original panel endpoint with OAuth header
+      if (spRes.status === 401 || spRes.status === 403) {
+        spRes = await fetch('https://panel.socialpilot.co/oauth/1.0/apicall/add_post', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json', 'Authorization': oauthHeader1 },
+          body: JSON.stringify(payload),
+        });
+        try { spData = await spRes.json(); } catch (_) { spData = {}; }
+        console.log('[SP push] Try3 (OAuth/panel):', spRes.status, JSON.stringify(spData));
       }
 
       if (!spRes.ok) throw new Error(
         spData.message || spData.error || spData.msg ||
-        (typeof spData === 'string' ? spData.slice(0, 200) : `SocialPilot API returned ${spRes.status} on all attempts`)
+        (typeof spData === 'string' ? spData.slice(0, 300) : `SocialPilot API returned ${spRes.status}`)
       );
 
       const spPostId = spData.post_id || spData.id || null;
