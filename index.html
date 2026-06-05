@@ -6393,6 +6393,27 @@ const SP_HAS_ACCOUNT = {
   southpour: { UAE: new Set(['facebook','instagram']) },
 };
 
+// SocialPilot account IDs — used for CSV bulk import (mirrors SP_ACCOUNTS in calendar.js)
+const SP_ACCOUNTS_FLAT = {
+  pickl: {
+    UAE:     { youtube: 2543471, facebook: 2445831, instagram: 2445847, tiktok: 2445864, linkedin: 2445851 },
+    Bahrain: { facebook: 2445833, instagram: 2445841 },
+    Egypt:   { facebook: 2445838, instagram: 2445843, tiktok: 2445867 },
+    Jordan:  { facebook: 2537712, instagram: 2537716 },
+    KSA:     { facebook: 2445835, instagram: 2445842, tiktok: 2445868 },
+    Oman:    { facebook: 2597955, instagram: 2597956 },
+    Qatar:   { facebook: 2445836, instagram: 2445846 },
+  },
+  bonbird: {
+    UAE:      { youtube: 2543578, facebook: 2445839, instagram: 2445848, linkedin: 2445852, tiktok: 2445866 },
+    Oman:     { facebook: 2445830, instagram: 2445840 },
+    Pakistan: { facebook: 2445832, instagram: 2445844 },
+    Qatar:    { facebook: 2445834, instagram: 2445845 },
+    UK:       { facebook: 2573342, instagram: 2573342, tiktok: 2573342 },
+  },
+  southpour: { UAE: { facebook: 2445837, instagram: 2445849 } },
+};
+
 // SocialPilot account NAMES — used for CSV bulk import (must match exactly what appears in SP)
 // ⚠️ Adding a new market? Add account names here too.
 const SP_ACCOUNT_NAMES = {
@@ -8063,34 +8084,43 @@ function printCalPresent() {
 // One row per platform per post (SP requires one account per row).
 
 function buildSpCsvRows(posts) {
+  // SocialPilot bulk import format (NO header row):
+  // Message, Images (semicolon-separated), "Mon DD, YYYY HH:MM", AccountID, First Comment, Tags
   const rows = [];
-  // Header
-  rows.push(['Account', 'Date', 'Time', 'Message', 'Image 1', 'Image 2', 'Image 3', 'Image 4', 'Image 5', 'Video']);
 
   for (const p of posts) {
-    const nameMap   = SP_ACCOUNT_NAMES[p.brand]?.[p.market] || {};
+    const idMap     = SP_ACCOUNTS_FLAT[p.brand]?.[p.market] || {};
     const platforms = p.platforms || [];
     const message   = [p.caption, p.hashtags].filter(Boolean).join('\n\n');
-    // Format date as MM/DD/YYYY for SocialPilot
-    const [y, mo, d] = (p.scheduledDate || '').split('-');
-    const dateStr = p.scheduledDate ? `${mo}/${d}/${y}` : '';
-    // Format time as HH:MM
-    const timeStr = p.scheduledTime || '10:00';
 
-    // Collect image URLs (up to 5)
-    const imageUrls = [];
-    if (p.imageUrl) imageUrls.push(p.imageUrl);
-    for (const f of p.mediaFiles || []) {
-      if (f.url && imageUrls.length < 5) imageUrls.push(f.url);
+    // Date: "Jun 12, 2026 10:00" — SP format (csvEscape will quote it)
+    let dateStr = '';
+    if (p.scheduledDate) {
+      const dt = new Date(p.scheduledDate + 'T12:00:00');
+      const mon = dt.toLocaleDateString('en-US', { month: 'short' });
+      const day = dt.getDate();
+      const yr  = dt.getFullYear();
+      const t   = p.scheduledTime || '10:00';
+      dateStr   = `${mon} ${day}, ${yr} ${t}`;
     }
-    while (imageUrls.length < 5) imageUrls.push('');
-    const videoUrl = (p.postType === 'reel' && p.videoUrl) ? p.videoUrl : '';
+
+    // Images — all in one column, semicolon-separated
+    const imgs = [];
+    if (p.imageUrl) imgs.push(p.imageUrl);
+    for (const f of p.mediaFiles || []) { if (f.url) imgs.push(f.url); }
+    const imagesCol = imgs.join('; ');
+
+    // Video URL for reels goes in images column if no still image
+    const mediaCol = imagesCol || (p.postType === 'reel' && p.videoUrl ? p.videoUrl : '');
 
     for (const platform of platforms) {
-      const accountName = nameMap[platform] || `${p.brand} ${p.market} ${platform}`;
-      rows.push([accountName, dateStr, timeStr, message, ...imageUrls, videoUrl]);
+      const accountId = idMap[platform];
+      if (!accountId) continue; // skip platforms with no SP account for this market
+      rows.push([message, mediaCol, dateStr, String(accountId), '', '']);
     }
   }
+
+  if (!rows.length) rows.push(['No approved posts with SocialPilot accounts found', '', '', '', '', '']);
   return rows;
 }
 
