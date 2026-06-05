@@ -51,12 +51,11 @@
 
 ---
 
-## Current Version: v6.9p
+## Current Version: v6.9q
 
 See SETUP.md → "Done (Full History)" for complete build log.
 
 **Next up (from SETUP.md roadmap):**
-- AI Overview Visibility Tracker — weekly check: do top 20 keywords show AI Overviews? Are we in them?
 - Deep Competitor Audit — enter competitor URL → get their top keywords, traffic estimate, backlink count
 
 ---

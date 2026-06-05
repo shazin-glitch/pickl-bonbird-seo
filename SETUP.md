@@ -1097,6 +1097,75 @@ NAP (Name, Address, Phone) consistency checker across 5 UAE food platforms.
 - 📱 What's On — `site:whatson.ae`
 - 🎟 The Entertainer — `site:theentertainerme.com`
 
+**New files:** `citations.js`, `citations-background.js`
+**New Blobs:** `citationNAP:<brand>`, `citationData:<brand>`, `citationStatus:<brand>`
+**UI:** Local SEO tab — always-visible section, brand pills, per-platform rows with Verified/Issue buttons. Settings tab — Citation Settings card (Business Name, Address, Phone per brand).
+**Cron:** Monday 4am UTC alongside other Monday jobs.
+
+---
+
+## Session: June 2026 — v6.9q AI Overview Visibility Tracker
+
+### What was built
+
+#### AI Overview Visibility Tracker ✅
+Weekly check: do our top 20 non-branded GSC keywords trigger a Google AI Overview? Are we mentioned in them?
+
+**How it works:**
+- Reads top 20 non-branded keywords from `gscCache:<brand>` (sorted by impressions — no extra API call)
+- Submits all 20 as a single batch POST to DataForSEO SERP Standard mode
+- Polls all task IDs in parallel (5s interval, 90s max)
+- Detects `ai_overview` item type in SERP results OR `ai_overview` in `serp_info.serp_features`
+- Checks brand name (Pickl/Bonbird) in extracted AI overview text for brand mention
+- Also captures our organic position from live SERP (more current than gscCache avg)
+- Cost: ~$0.0006/keyword × 20 = ~$0.012/brand/run = ~$0.024/week
+
+**New files:**
+- `netlify/functions/ai-overview-background.js` — Monday 4am UTC cron + single-brand manual trigger via `?brand=`
+- `netlify/functions/ai-overview.js` — GET (cached data + history) / POST (fires background, returns 202)
+
+**netlify.toml additions:**
+- `[[redirects]]` `/api/ai-overview` → `/.netlify/functions/ai-overview`
+- `[functions."ai-overview-background"]` schedule `"0 4 * * 1"`
+
+**New Blobs keys:**
+| Key | Contents |
+|---|---|
+| `aiOverviewData:<brand>` | Latest 20-keyword results array |
+| `aiOverviewHistory:<brand>` | Rolling 12-week summary `[{ date, keywordsChecked, aiOverviewCount, brandMentionedCount }]` |
+
+**UI — Reports tab (between Competitor Gaps and GA4):**
+- Two summary cards: "AI Overviews Triggered" X/20 · "Brand Mentioned" X
+- 12-week trend SVG line chart (blue = AI Overviews, green = Brand Mentioned) — shown after 2+ data points
+- Keyword table: Keyword | Our Position | AI Overview (✅/⬜) | Brand Mentioned (🟢/—) | Checked date
+- Sorted: AI Overview Yes first, then by position ascending
+- "↻ Refresh Now" button — fires background, polls every 30s until `checkedAt` changes, live re-renders
+- Placeholder with "Run Now" button when no data yet
+
+**JS functions added:**
+- `loadAiOverview(brand)` — fetches and renders, called alongside GA4 + LLM in `renderReports`
+- `renderAiOverview(el, data, history, brandName, brand)` — full UI render
+- `renderAiOverviewTrend(history, brandName)` — SVG trend chart
+- `triggerAiOverviewRefresh(brand)` — POST → background, 30s poll loop, live re-render on completion
+
+*Last updated: June 2026 — v6.9q: AI Overview Visibility Tracker (DataForSEO SERP batch + parallel poll, brand mention detection, Reports tab section, 12-week trend chart, Monday cron)*
+
+---
+
+## Session: June 2026 — v6.9p Citation Tracker
+
+### What was built
+
+#### Citation Tracker ✅
+NAP (Name, Address, Phone) consistency checker across 5 UAE food platforms.
+
+**Platforms checked:**
+- 🍽 Zomato — `site:zomato.com`
+- ✈️ TripAdvisor — `site:tripadvisor.com`
+- ⏰ Time Out Dubai — `site:timeoutdubai.com`
+- 📱 What's On — `site:whatson.ae`
+- 🎟 The Entertainer — `site:theentertainerme.com`
+
 **How it works:**
 - For each platform: submits SERP task `<brand name> Dubai site:<domain>` to DataForSEO Standard mode (task_post + task_get/advanced polling)
 - Extracts top organic result: title, snippet, URL

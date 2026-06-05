@@ -153,6 +153,11 @@
   to = "/.netlify/functions/citations"
   status = 200
 
+[[redirects]]
+  from = "/api/ai-overview"
+  to = "/.netlify/functions/ai-overview"
+  status = 200
+
 # Weekly cron — Monday 4:00am UTC = Monday 8:00am Dubai time (UTC+4)
 # Runs before your 9am Monday review so all data is fresh
 [functions."scheduler-background"]
@@ -174,6 +179,9 @@
   schedule = "0 4 * * 1"
 
 [functions."citations-background"]
+  schedule = "0 4 * * 1"
+
+[functions."ai-overview-background"]
   schedule = "0 4 * * 1"
 
 # Daily Perch due date digest — 5am UTC = 9am Dubai

@@ -540,6 +540,16 @@
           <div id="report-competitor-gaps"></div>
         </div>
 
+        <!-- Row 5b: AI Overview Visibility -->
+        <div class="card" style="margin-bottom:24px">
+          <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:4px">
+            <div style="font-weight:600;font-size:14px">🤖 AI Overview Visibility</div>
+            <button id="ai-overview-refresh-btn" onclick="triggerAiOverviewRefresh(reportState.brand)" class="btn btn-outline" style="font-size:12px;padding:4px 12px">↻ Refresh Now</button>
+          </div>
+          <div style="font-size:12px;color:var(--text-muted);margin-bottom:16px">Do our top 20 non-branded keywords trigger a Google AI Overview? Are we mentioned in them?</div>
+          <div id="report-ai-overview"></div>
+        </div>
+
         <!-- Row 6: GA4 Website Traffic -->
         <div class="card" style="margin-bottom:24px" id="report-ga4-section">
           <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:4px">
@@ -4054,9 +4064,10 @@ function renderReports(brand, rows, techData, queue, matrixData) {
 
   document.getElementById('report-talking-points').innerHTML = talkingPoints.map(p => `<div style="margin-bottom:12px;padding-left:12px;border-left:2px solid #475569">• ${p}</div>`).join('');
 
-  // Load GA4 and LLM mentions in parallel (non-blocking)
+  // Load GA4, LLM mentions, and AI Overview in parallel (non-blocking)
   loadGa4Report(brand).catch(() => {});
   loadLlmMentions(brand).catch(() => {});
+  loadAiOverview(brand).catch(() => {});
 }
 
 
@@ -5842,6 +5853,179 @@ async function removeSeedKeyword(kw) {
     status.textContent = 'Failed: ' + e.message;
     status.style.color = 'var(--danger)';
   }
+}
+
+// ── AI Overview Visibility Tracker ────────────────────────────────────────────
+
+async function loadAiOverview(brand) {
+  const el = document.getElementById('report-ai-overview');
+  if (!el) return;
+  el.innerHTML = '<div style="font-size:13px;color:var(--text-muted);padding:8px 0">Loading…</div>';
+
+  try {
+    const res  = await fetch(`/api/ai-overview?brand=${brand}`, { credentials: 'include' });
+    const all  = await res.json();
+    const d    = all[brand] || { data: [], history: [] };
+    renderAiOverview(el, d.data, d.history, brand === 'pickl' ? 'Pickl' : 'Bonbird', brand);
+  } catch (e) {
+    el.innerHTML = `<div style="font-size:13px;color:var(--text-muted)">Could not load AI Overview data.</div>`;
+  }
+}
+
+function renderAiOverview(el, data, history, brandName, brand) {
+  if (!data.length) {
+    el.innerHTML = `
+      <div style="text-align:center;padding:24px">
+        <div style="font-size:32px;margin-bottom:8px">🤖</div>
+        <div style="font-size:13px;color:var(--text-muted);margin-bottom:12px">No data yet — run first check to see AI Overview visibility for top keywords.</div>
+        <button onclick="triggerAiOverviewRefresh('${brand}')" class="btn btn-primary" style="font-size:13px">Run Now</button>
+        <div id="ai-overview-run-status" style="font-size:12px;color:var(--text-muted);margin-top:8px"></div>
+      </div>`;
+    return;
+  }
+
+  const aiCount  = data.filter(r => r.hasAiOverview).length;
+  const mentioned = data.filter(r => r.brandMentioned).length;
+  const total    = data.length;
+
+  const summaryCards = `
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:20px">
+      <div style="background:var(--bg-base);border-radius:8px;padding:16px;text-align:center">
+        <div style="font-size:28px;font-weight:800;color:${aiCount > 0 ? 'var(--primary)' : 'var(--text-muted)'}">${aiCount}<span style="font-size:14px;font-weight:400;color:var(--text-muted)"> / ${total}</span></div>
+        <div style="font-size:12px;color:var(--text-muted);margin-top:4px">AI Overviews Triggered</div>
+      </div>
+      <div style="background:var(--bg-base);border-radius:8px;padding:16px;text-align:center">
+        <div style="font-size:28px;font-weight:800;color:${mentioned > 0 ? '#059669' : 'var(--text-muted)'}">${mentioned}</div>
+        <div style="font-size:12px;color:var(--text-muted);margin-top:4px">Brand Mentioned in AI Overviews</div>
+      </div>
+    </div>`;
+
+  const trendChart = renderAiOverviewTrend(history, brandName);
+
+  const tableRows = data.map((r, i) => `
+    <tr style="border-bottom:1px solid var(--border);background:${i%2 ? 'transparent' : 'rgba(0,0,0,0.015)'}">
+      <td style="padding:8px 12px;font-weight:500;font-size:13px">${esc(r.keyword)}</td>
+      <td style="padding:8px 12px;text-align:center">
+        ${r.ourPosition
+          ? `<span style="background:${r.ourPosition<=10?'#dcfce7':r.ourPosition<=20?'#fef3c7':'var(--bg-base)'};color:${r.ourPosition<=10?'#166534':r.ourPosition<=20?'#92400e':'var(--text-muted)'};font-weight:700;padding:2px 8px;border-radius:4px;font-size:12px">#${r.ourPosition}</span>`
+          : '<span style="font-size:12px;color:#94a3b8">—</span>'}
+      </td>
+      <td style="padding:8px 12px;text-align:center;font-size:15px">${r.hasAiOverview ? '✅' : '⬜'}</td>
+      <td style="padding:8px 12px;text-align:center;font-size:14px">${r.hasAiOverview ? (r.brandMentioned ? '🟢' : '—') : '—'}</td>
+      <td style="padding:8px 12px;font-size:11px;color:var(--text-muted)">${r.checkedAt ? new Date(r.checkedAt).toLocaleDateString('en-GB',{day:'numeric',month:'short'}) : '—'}</td>
+    </tr>`).join('');
+
+  el.innerHTML = `
+    ${summaryCards}
+    ${trendChart}
+    <table style="width:100%;border-collapse:collapse;font-size:13px">
+      <thead>
+        <tr style="border-bottom:2px solid var(--border)">
+          <th style="text-align:left;padding:6px 12px;font-size:11px;color:var(--text-muted);font-weight:700;text-transform:uppercase;letter-spacing:0.04em">Keyword</th>
+          <th style="text-align:center;padding:6px 12px;font-size:11px;color:var(--text-muted);font-weight:700;text-transform:uppercase;letter-spacing:0.04em">Our Position</th>
+          <th style="text-align:center;padding:6px 12px;font-size:11px;color:var(--text-muted);font-weight:700;text-transform:uppercase;letter-spacing:0.04em">AI Overview</th>
+          <th style="text-align:center;padding:6px 12px;font-size:11px;color:var(--text-muted);font-weight:700;text-transform:uppercase;letter-spacing:0.04em">Brand Mentioned</th>
+          <th style="text-align:left;padding:6px 12px;font-size:11px;color:var(--text-muted);font-weight:700;text-transform:uppercase;letter-spacing:0.04em">Checked</th>
+        </tr>
+      </thead>
+      <tbody>${tableRows}</tbody>
+    </table>
+    <div id="ai-overview-run-status" style="font-size:12px;color:var(--text-muted);margin-top:12px;text-align:center"></div>`;
+}
+
+function renderAiOverviewTrend(history, brandName) {
+  if (!history || history.length < 2) {
+    return `<div style="font-size:12px;color:var(--text-muted);margin-bottom:16px;padding:10px 14px;background:var(--bg-base);border-radius:6px">📅 Trend line appears after 2 weeks of data</div>`;
+  }
+
+  const recent = history.slice(-8);
+  const W = 500, H = 110, PL = 28, PT = 10, PB = 28, PR = 10;
+  const cw = W - PL - PR, ch = H - PT - PB;
+  const xStep = cw / Math.max(recent.length - 1, 1);
+  const maxY  = Math.max(5, ...recent.map(h => h.aiOverviewCount || 0), ...recent.map(h => h.brandMentionedCount || 0));
+
+  function px(i) { return PL + i * xStep; }
+  function py(v) { return PT + ch - (v / maxY) * ch; }
+
+  const aiPts = recent.map((h, i) => `${px(i).toFixed(1)},${py(h.aiOverviewCount || 0).toFixed(1)}`).join(' ');
+  const mnPts = recent.map((h, i) => `${px(i).toFixed(1)},${py(h.brandMentionedCount || 0).toFixed(1)}`).join(' ');
+
+  const xLabels = recent.map((h, i) => {
+    const short = new Date(h.date).toLocaleDateString('en-GB', { month: 'short', day: 'numeric' });
+    return `<text x="${px(i).toFixed(1)}" y="${H - 4}" text-anchor="middle" fill="#64748b" font-size="9">${short}</text>`;
+  }).join('');
+
+  return `
+    <div style="margin-bottom:16px">
+      <div style="font-size:11px;font-weight:600;color:var(--text-muted);text-transform:uppercase;letter-spacing:0.04em;margin-bottom:6px">${brandName} AI Overview Visibility — Trend</div>
+      <svg viewBox="0 0 ${W} ${H}" style="width:100%;max-width:${W}px;overflow:visible;display:block">
+        <line x1="${PL}" y1="${PT}" x2="${PL}" y2="${PT+ch}" stroke="var(--border)" stroke-width="1"/>
+        <line x1="${PL}" y1="${py(maxY/2).toFixed(1)}" x2="${W-PR}" y2="${py(maxY/2).toFixed(1)}" stroke="var(--border)" stroke-width="1" stroke-dasharray="4,4" opacity="0.5"/>
+        <text x="${PL-4}" y="${py(maxY).toFixed(1)}" text-anchor="end" fill="#64748b" font-size="9" dominant-baseline="middle">${maxY}</text>
+        <text x="${PL-4}" y="${py(0).toFixed(1)}"    text-anchor="end" fill="#64748b" font-size="9" dominant-baseline="middle">0</text>
+        <polyline points="${aiPts}" fill="none" stroke="#6366f1" stroke-width="2" stroke-linejoin="round"/>
+        <polyline points="${mnPts}" fill="none" stroke="#059669" stroke-width="2" stroke-linejoin="round"/>
+        ${xLabels}
+      </svg>
+      <div style="display:flex;gap:12px;margin-top:4px">
+        <span style="display:inline-flex;align-items:center;gap:4px;font-size:11px;color:#475569"><span style="width:12px;height:2px;background:#6366f1;border-radius:1px;display:inline-block"></span>AI Overviews</span>
+        <span style="display:inline-flex;align-items:center;gap:4px;font-size:11px;color:#475569"><span style="width:12px;height:2px;background:#059669;border-radius:1px;display:inline-block"></span>Brand Mentioned</span>
+      </div>
+    </div>`;
+}
+
+async function triggerAiOverviewRefresh(brand) {
+  const btn    = document.getElementById('ai-overview-refresh-btn');
+  const status = document.getElementById('ai-overview-run-status');
+
+  if (btn) { btn.disabled = true; btn.textContent = '⏳ Running…'; }
+  if (status) status.textContent = 'Check started — checking 20 keywords, takes 2–3 minutes…';
+
+  // Capture current checkedAt so we can detect when new data arrives
+  let prevCheckedAt = null;
+  try {
+    const cur = await fetch(`/api/ai-overview?brand=${brand}`, { credentials: 'include' }).then(r => r.json());
+    prevCheckedAt = cur[brand]?.data?.[0]?.checkedAt || null;
+  } catch {}
+
+  try {
+    await fetch('/api/ai-overview', {
+      method:      'POST',
+      credentials: 'include',
+      headers:     { 'Content-Type': 'application/json' },
+      body:        JSON.stringify({ brand, action: 'refresh' }),
+    });
+  } catch (e) {
+    if (btn) { btn.disabled = false; btn.textContent = '↻ Refresh Now'; }
+    if (status) status.textContent = 'Error: ' + e.message;
+    return;
+  }
+
+  // Poll every 30s until checkedAt changes, max 10 minutes
+  const started = Date.now();
+  const pollTimer = setInterval(async () => {
+    if (Date.now() - started > 10 * 60 * 1000) {
+      clearInterval(pollTimer);
+      if (btn) { btn.disabled = false; btn.textContent = '↻ Refresh Now'; }
+      if (status) status.textContent = 'Timed out — try refreshing the page.';
+      return;
+    }
+    try {
+      const res  = await fetch(`/api/ai-overview?brand=${brand}`, { credentials: 'include' });
+      const all  = await res.json();
+      const data = all[brand]?.data || [];
+      const newCheckedAt = data[0]?.checkedAt || null;
+
+      if (data.length && newCheckedAt !== prevCheckedAt) {
+        clearInterval(pollTimer);
+        const el = document.getElementById('report-ai-overview');
+        if (el) renderAiOverview(el, data, all[brand]?.history || [], brand === 'pickl' ? 'Pickl' : 'Bonbird', brand);
+        if (btn) { btn.disabled = false; btn.textContent = '↻ Refresh Now'; }
+        if (status) status.textContent = '';
+        showToast('AI Overview check complete', '');
+      }
+    } catch {}
+  }, 30000);
 }
 
 // ── Citation Tracker ───────────────────────────────────────────────────────────
