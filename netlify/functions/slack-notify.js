@@ -42,6 +42,7 @@ exports.handler = async (event) => {
     else if (type === 'calendar_review_needed')    payload = buildCalendarReviewNeeded(body);
     else if (type === 'calendar_approved')         payload = buildCalendarApproved(body);
     else if (type === 'calendar_changes_requested') payload = buildCalendarChangesRequested(body);
+    else if (type === 'calendar_mention')           payload = buildCalendarMention(body);
     else                                     payload = buildGeneric(body);
 
     const slackRes = await fetch(webhookUrl, {
@@ -320,6 +321,27 @@ function buildCalendarChangesRequested({ brand, market, postId, caption, schedul
     { type: 'actions', elements: [
       { type: 'button', text: { type: 'plain_text', text: '✏️ Edit Post', emoji: true }, style: 'primary', url: `${SITE_URL}/?post=${postId}` },
       { type: 'button', text: { type: 'plain_text', text: '🔗 View in The Nest', emoji: true }, url: `${SITE_URL}/?post=${postId}` },
+    ]}
+  );
+  return { blocks };
+}
+
+// ─── Calendar: @mention in comment ───────────────────────────────────────────
+function buildCalendarMention({ brand, market, postId, mentionedName, mentionedBy, commentText, platforms, postType, scheduledDate, imageUrl }) {
+  const blocks = [
+    { type: 'header', text: { type: 'plain_text', text: `💬 ${mentionedBy} mentioned you in a comment`, emoji: true } },
+    { type: 'section', text: { type: 'mrkdwn', text: calBrandLine(brand, market, platforms, postType, scheduledDate, null) } },
+  ];
+  if (isEmbeddableImage(imageUrl)) {
+    blocks.push({ type: 'image', image_url: imageUrl, alt_text: `${brand} post` });
+  }
+  if (commentText) {
+    blocks.push({ type: 'section', text: { type: 'mrkdwn', text: `> ${commentText}` } });
+  }
+  blocks.push(
+    { type: 'divider' },
+    { type: 'actions', elements: [
+      { type: 'button', text: { type: 'plain_text', text: '🔗 View Post', emoji: true }, style: 'primary', url: `${SITE_URL}/?post=${postId}` },
     ]}
   );
   return { blocks };

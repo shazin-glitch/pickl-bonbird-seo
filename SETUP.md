@@ -1444,10 +1444,18 @@ draft → in_review → changes_requested ↔ in_review → approved → schedul
 
 **Markets per brand:**
 - Pickl: UAE, KSA, Bahrain, Qatar, Egypt, Jordan, Oman
-- Bonbird: UAE, Oman, Pakistan, Qatar
+- Bonbird: UAE, Oman, Pakistan, Qatar, UK
 - Southpour: UAE
 - Shadowburg: UAE
 - Shadowbird: UAE
+
+**⚠️ Adding a new market — REQUIRED steps:**
+1. Add market to `CAL_MARKETS` in `index.html`
+2. Add IANA timezone to `MARKET_TIMEZONES` in `netlify/functions/calendar.js`
+3. Add IANA timezone to `CAL_MARKET_TIMEZONES` in `index.html`
+4. Add timezone abbreviation to `CAL_MARKET_TZ_ABBR` in `index.html` (or `null` for DST-aware like UK)
+5. Add SocialPilot account IDs to `SP_ACCOUNTS` in `calendar.js`
+Without steps 2–3, SocialPilot will receive the wrong UTC timestamp. Full IANA list: https://en.wikipedia.org/wiki/List_of_tz_database_time_zones
 
 **Required env vars (new):**
 | Variable | Purpose |

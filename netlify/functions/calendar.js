@@ -15,6 +15,43 @@ const { newId, ok, bad, preflight, parseBody, CORS } = require('./_lib/store');
 
 const SITE_URL = process.env.URL || 'https://yolkseo.netlify.app';
 
+// ── Market timezone map (IANA) ────────────────────────────────────────────────
+// All scheduled times are stored as the LOCAL time for that market.
+// When pushing to SocialPilot, convert to UTC using this map.
+// ⚠️ ADDING A NEW MARKET? You MUST add its IANA timezone here.
+//    Full list: https://en.wikipedia.org/wiki/List_of_tz_database_time_zones
+const MARKET_TIMEZONES = {
+  UAE:      'Asia/Dubai',     // UTC+4, no DST
+  KSA:      'Asia/Riyadh',    // UTC+3, no DST
+  Bahrain:  'Asia/Bahrain',   // UTC+3, no DST
+  Qatar:    'Asia/Qatar',     // UTC+3, no DST
+  Egypt:    'Africa/Cairo',   // UTC+2, no DST (Egypt stopped DST 2015)
+  Jordan:   'Asia/Amman',     // UTC+3, no DST (Jordan stopped DST 2022)
+  Oman:     'Asia/Muscat',    // UTC+4, no DST
+  Pakistan: 'Asia/Karachi',   // UTC+5, no DST
+  UK:       'Europe/London',  // UTC+0 winter / UTC+1 summer — DST auto-handled
+};
+
+// Convert "YYYY-MM-DD HH:MM" local market time → UTC Unix timestamp
+// Uses a two-pass Intl trick that handles DST correctly without external packages.
+function marketLocalToUnix(dateStr, timeStr, market) {
+  const tz = MARKET_TIMEZONES[market] || 'Asia/Dubai';
+  const [year, month, day]   = dateStr.split('-').map(Number);
+  const [hour, minute]       = (timeStr || '10:00').split(':').map(Number);
+  const approxMs = Date.UTC(year, month - 1, day, hour, minute, 0);
+  // Format that UTC epoch in the target timezone to find out the offset
+  const tzStr = new Date(approxMs).toLocaleString('en-CA', {
+    timeZone: tz,
+    year: 'numeric', month: '2-digit', day: '2-digit',
+    hour: '2-digit', minute: '2-digit', second: '2-digit',
+    hour12: false,
+  });
+  const [datePart, timePart] = tzStr.split(', ');
+  const tzMs = new Date(`${datePart}T${timePart}Z`).getTime();
+  // Formula: actual UTC = 2 × approxMs − tzMs  (mathematically eliminates the offset)
+  return Math.floor((2 * approxMs - tzMs) / 1000);
+}
+
 function getS() {
   return getStore({
     name:   'seo-tool',
@@ -70,6 +107,25 @@ exports.handler = async (event) => {
         ).length;
       }
       return ok({ count: total });
+    }
+
+    // Hashtag presets
+    if (q.hashtag_presets && q.brand) {
+      const presets = await s.get(`calHashtagPresets:${q.brand}`, { type: 'json' }).catch(() => []) || [];
+      return ok({ presets });
+    }
+
+    // SocialPilot connection test
+    if (q.sp_test === '1') {
+      const apiKey = process.env.SOCIALPILOT_API_KEY;
+      if (!apiKey) return ok({ ok: false, error: 'SOCIALPILOT_API_KEY not set in Netlify env vars' });
+      try {
+        const r = await fetch('https://panel.socialpilot.co/oauth/1.0/apicall/get_accounts', {
+          headers: { 'Authorization': `Bearer ${apiKey}` },
+        });
+        const d = await r.json();
+        return ok({ ok: r.ok, status: r.status, accounts: d.accounts?.length || 0, raw: r.ok ? undefined : d });
+      } catch (e) { return ok({ ok: false, error: e.message }); }
     }
 
     const brand = q.brand;
@@ -141,6 +197,23 @@ exports.handler = async (event) => {
     return ok({ ok: true, post });
   }
 
+  // ── hashtag presets ───────────────────────────────────────────────────────────
+  if (action === 'save_hashtag_preset') {
+    const { brand, name, hashtags: ht } = body;
+    if (!brand || !name) return bad(400, 'brand and name required');
+    const presets = await s.get(`calHashtagPresets:${brand}`, { type: 'json' }).catch(() => []) || [];
+    presets.push({ id: newId('htp'), name, hashtags: ht || '', createdAt: now });
+    await s.setJSON(`calHashtagPresets:${brand}`, presets);
+    return ok({ ok: true, presets });
+  }
+  if (action === 'delete_hashtag_preset') {
+    const { brand, presetId } = body;
+    if (!brand || !presetId) return bad(400, 'brand and presetId required');
+    const presets = (await s.get(`calHashtagPresets:${brand}`, { type: 'json' }).catch(() => [])) || [];
+    await s.setJSON(`calHashtagPresets:${brand}`, presets.filter(p => p.id !== presetId));
+    return ok({ ok: true });
+  }
+
   // ── bulk_submit — submit multiple posts for review at once ──────────────────
   if (action === 'bulk_submit') {
     const { ids } = body;
@@ -192,8 +265,12 @@ exports.handler = async (event) => {
     if (!['draft', 'changes_requested'].includes(post.status))
       return bad(400, `Cannot submit from status: ${post.status}`);
 
+    // Reset approvals when resubmitting after changes_requested
+    const resetApprovals = post.status === 'changes_requested';
     const updated = { ...post, status: 'in_review', updatedAt: now,
-      history: [...(post.history || []), { at: now, actor, action: 'submitted_for_review' }] };
+      approvals: resetApprovals ? [] : (post.approvals || []),
+      history: [...(post.history || []), { at: now, actor, action: 'submitted_for_review',
+        note: resetApprovals ? 'Resubmitted after changes — approvals reset' : '' }] };
     await savePost(s, updated);
 
     for (const approver of (post.requiredApprovers || [])) {
@@ -351,8 +428,8 @@ exports.handler = async (event) => {
     }
 
     try {
-      const schedDt   = new Date(`${post.scheduledDate}T${post.scheduledTime || '10:00'}:00`);
-      const schedUnix = Math.floor(schedDt.getTime() / 1000);
+      // Convert market local time → UTC using IANA timezone (handles DST correctly)
+      const schedUnix = marketLocalToUnix(post.scheduledDate, post.scheduledTime || '10:00', post.market || 'UAE');
       const fullText  = [post.caption, post.hashtags].filter(Boolean).join('\n\n');
 
       // Build payload — include images for SocialPilot to attach
@@ -400,6 +477,53 @@ exports.handler = async (event) => {
       console.error('[calendar] SocialPilot error:', e.message);
       return bad(500, e.message);
     }
+  }
+
+  // ── duplicate post ────────────────────────────────────────────────────────
+  if (action === 'duplicate') {
+    const copy = {
+      ...post,
+      id: newId('cal'),
+      status: 'draft',
+      approvals: [], comments: [], socialPilotPostId: null,
+      createdAt: now, updatedAt: now,
+      createdBy: actorEmail, createdByName: actor,
+      history: [{ at: now, actor, action: 'created', note: `Duplicated from post ${id}` }],
+    };
+    await savePost(s, copy);
+    const idx = await getIndex(s, copy.brand);
+    idx.unshift(copy.id);
+    if (idx.length > 1000) idx.length = 1000;
+    await saveIndex(s, copy.brand, idx);
+    return ok({ ok: true, post: copy });
+  }
+
+  // ── copy to other markets ─────────────────────────────────────────────────
+  if (action === 'copy_to_markets') {
+    const { markets: targetMarkets } = body;
+    if (!targetMarkets?.length) return bad(400, 'markets required');
+    const created = [];
+    for (const market of targetMarkets) {
+      if (market === post.market) continue; // skip same market
+      const copy = {
+        ...post,
+        id: newId('cal'),
+        market,
+        status: 'draft',
+        approvals: [], comments: [], socialPilotPostId: null,
+        createdAt: now, updatedAt: now,
+        createdBy: actorEmail, createdByName: actor,
+        history: [{ at: now, actor, action: 'created',
+          note: `Copied from ${post.market} (post ${id})` }],
+      };
+      await savePost(s, copy);
+      const idx = await getIndex(s, copy.brand);
+      idx.unshift(copy.id);
+      if (idx.length > 1000) idx.length = 1000;
+      await saveIndex(s, copy.brand, idx);
+      created.push({ id: copy.id, market });
+    }
+    return ok({ ok: true, created, count: created.length });
   }
 
   // ── mark published ────────────────────────────────────────────────────────

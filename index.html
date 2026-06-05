@@ -208,12 +208,16 @@
   .cal-pill { font-size: 11px; padding: 2px 6px; border-radius: 4px; margin-bottom: 2px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 100%; cursor: pointer; display: flex; align-items: center; gap: 4px; }
   .cal-pill:hover { filter: brightness(0.9); }
   .cal-pill-more { font-size: 10px; color: var(--text-muted); padding: 1px 4px; }
-  .cal-status-draft             { background: #e2e8f0; color: #475569; }
-  .cal-status-in_review         { background: #fef3c7; color: #92400e; }
-  .cal-status-changes_requested { background: #fee2e2; color: #991b1b; }
-  .cal-status-approved          { background: #dcfce7; color: #166534; }
-  .cal-status-scheduled         { background: #ede9fe; color: #5b21b6; }
-  .cal-status-published         { background: #d1fae5; color: #065f46; }
+  .cal-status-draft             { background: #e2e8f0; color: #475569; border-left: 3px solid #94a3b8; }
+  .cal-status-in_review         { background: #fef3c7; color: #92400e; border-left: 3px solid #d97706; }
+  .cal-status-changes_requested { background: #fee2e2; color: #991b1b; border-left: 3px solid #dc2626; }
+  .cal-status-approved          { background: #dcfce7; color: #166534; border-left: 3px solid #16a34a; }
+  .cal-status-scheduled         { background: #ede9fe; color: #5b21b6; border-left: 3px solid #7c3aed; }
+  .cal-status-published         { background: #d1fae5; color: #065f46; border-left: 3px solid #059669; }
+  .cal-stats-bar { background: var(--bg-surface); border: 1px solid var(--border); border-radius: 8px; padding: 10px 16px; margin-bottom: 16px; }
+  .cal-stats-bar .stat-row { display: flex; flex-wrap: wrap; gap: 6px 16px; align-items: center; font-size: 12px; }
+  .cal-stats-bar .stat-total { font-weight: 700; color: var(--text-main); margin-right: 4px; }
+  .cal-stats-bar .stat-type-row { display: flex; flex-wrap: wrap; gap: 6px 14px; margin-top: 6px; font-size: 11px; color: var(--text-muted); }
   .cal-upload-zone { border: 2px dashed var(--border); border-radius: 8px; padding: 24px; text-align: center; cursor: pointer; transition: all 0.2s; }
   .cal-upload-zone:hover, .cal-upload-zone.dragover { border-color: var(--primary); background: rgba(37,99,235,0.04); }
   .cal-media-preview { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; margin-top: 10px; }
@@ -455,6 +459,9 @@
           <button id="cal-view-list-btn" onclick="setCalView('list')" style="padding:5px 12px;font-size:12px;border:none;cursor:pointer;background:transparent;color:var(--text-muted)">📋 List</button>
         </div>
       </div>
+
+      <!-- Stats bar -->
+      <div id="cal-stats-bar" class="cal-stats-bar" style="display:none"></div>
 
       <!-- Month grid -->
       <div id="cal-month-grid" style="background:var(--bg-surface);border:1px solid var(--border);border-radius:var(--radius);overflow:hidden">
@@ -1370,6 +1377,23 @@
           <h3 style="font-size:16px;font-weight:600;margin-bottom:20px">Audit Log &amp; Rollbacks</h3>
           <div id="audit-log-list">
             <div style="text-align:center;padding:24px;color:var(--text-muted);font-size:13px">Loading audit log…</div>
+          </div>
+        </div>
+
+      <!-- Media Storage + SocialPilot -->
+        <div class="card">
+          <h3 style="font-size:16px;font-weight:600;margin-bottom:16px">🔌 Integrations</h3>
+          <div style="margin-bottom:20px">
+            <h4 style="font-size:14px;font-weight:600;margin-bottom:4px">SocialPilot</h4>
+            <p style="font-size:13px;color:var(--text-muted);margin-bottom:10px">API key is set via <code>SOCIALPILOT_API_KEY</code> Netlify env var. Use the test button to verify the connection.</p>
+            <div style="display:flex;gap:10px;align-items:center;flex-wrap:wrap">
+              <button class="btn btn-outline" onclick="testSocialPilotConn()">🔌 Test Connection</button>
+              <span id="sp-test-result"></span>
+            </div>
+          </div>
+          <div>
+            <h4 style="font-size:14px;font-weight:600;margin-bottom:4px">Google Cloud Storage</h4>
+            <p style="font-size:13px;color:var(--text-muted)">Media uploads go to GCS. Requires <code>GCS_BUCKET_NAME</code> and <code>GCS_SERVICE_ACCOUNT_KEY</code> env vars in Netlify.</p>
           </div>
         </div>
 
@@ -6346,6 +6370,33 @@ const CAL_STATUS_LABELS = {
 const CAL_POST_TYPES = ['reel','carousel','story','static','copy_only'];
 const CAL_TYPE_LABELS = { reel:'Reel', carousel:'Carousel', story:'Story', static:'Static Image', copy_only:'Copy Only' };
 
+// ⚠️ Adding a new market? Add its IANA timezone here too — see SETUP.md
+const CAL_MARKET_TIMEZONES = {
+  UAE: 'Asia/Dubai', KSA: 'Asia/Riyadh', Bahrain: 'Asia/Bahrain',
+  Qatar: 'Asia/Qatar', Egypt: 'Africa/Cairo', Jordan: 'Asia/Amman',
+  Oman: 'Asia/Muscat', Pakistan: 'Asia/Karachi', UK: 'Europe/London',
+};
+const CAL_MARKET_TZ_ABBR = {
+  UAE: 'GST', KSA: 'AST', Bahrain: 'AST', Qatar: 'AST',
+  Egypt: 'EET', Jordan: 'AST', Oman: 'GST', Pakistan: 'PKT',
+  UK: null, // dynamic — GMT or BST
+};
+function getMarketTzNote(market, scheduledDate) {
+  if (!market || market === 'UAE') return '';
+  const iana = CAL_MARKET_TIMEZONES[market];
+  if (!iana) return '';
+  let abbr = CAL_MARKET_TZ_ABBR[market];
+  if (!abbr) {
+    // Dynamic (UK): check if BST or GMT
+    try {
+      const s = new Intl.DateTimeFormat('en-GB', { timeZone: iana, timeZoneName: 'short' })
+        .format(new Date((scheduledDate || new Date().toISOString().slice(0,10)) + 'T12:00:00Z'));
+      abbr = s.match(/[A-Z]{2,4}$/)?.[0] || 'local';
+    } catch { abbr = 'local'; }
+  }
+  return `<span style="font-size:10px;color:var(--text-muted);font-weight:400;margin-left:3px">${abbr}</span>`;
+}
+
 const calState = {
   brand:    'pickl',
   year:     new Date().getFullYear(),
@@ -6386,13 +6437,15 @@ function populateCalMarkets() {
 
 async function loadCalendar() {
   const brand  = document.getElementById('cal-filter-brand')?.value || 'pickl';
+  const market = document.getElementById('cal-filter-market')?.value || '';
   calState.brand = brand;
   const monthStr = `${calState.year}-${String(calState.month + 1).padStart(2, '0')}`;
   document.getElementById('cal-grid-body').innerHTML =
     '<div style="grid-column:span 7;padding:40px;text-align:center;color:var(--text-muted);font-size:13px">Loading…</div>';
 
   try {
-    const data = await apiGet(`/api/calendar?brand=${brand}&month=${monthStr}`);
+    const params = `brand=${brand}&month=${monthStr}${market ? `&market=${encodeURIComponent(market)}` : ''}`;
+    const data = await apiGet(`/api/calendar?${params}`);
     calState.posts = data.posts || [];
     calState.loaded = true;
     renderCalendar();
@@ -6437,8 +6490,38 @@ function renderCalendar() {
   if (statusFilter)   posts = posts.filter(p => p.status === statusFilter);
   if (platformFilter) posts = posts.filter(p => (p.platforms || []).includes(platformFilter));
 
+  renderCalStats(calState.posts); // always stats over full unfiltered set
   if (calState.view === 'list') { renderCalList(posts); return; }
   renderCalMonthGrid(posts);
+}
+
+function renderCalStats(posts) {
+  const el = document.getElementById('cal-stats-bar');
+  if (!el) return;
+  if (!posts.length) { el.style.display = 'none'; return; }
+  el.style.display = '';
+
+  const byStatus = {}, byType = {};
+  for (const p of posts) {
+    byStatus[p.status] = (byStatus[p.status] || 0) + 1;
+    byType[p.postType || 'static'] = (byType[p.postType || 'static'] || 0) + 1;
+  }
+
+  const statusStr = Object.entries(CAL_STATUS_LABELS)
+    .map(([k, v]) => byStatus[k] ? `<span style="color:${v.color};font-weight:600">${byStatus[k]}</span> ${v.label}` : null)
+    .filter(Boolean).join(' &nbsp;·&nbsp; ');
+
+  const typeEmojis = { static: '🖼', carousel: '🎠', reel: '🎬', story: '📱', copy_only: '📝' };
+  const typeStr = Object.entries(byType)
+    .map(([k, n]) => `${typeEmojis[k] || '📋'} ${CAL_TYPE_LABELS[k] || k} ×${n}`)
+    .join('   ');
+
+  el.innerHTML = `
+    <div class="stat-row">
+      <span class="stat-total">${posts.length} post${posts.length !== 1 ? 's' : ''} this month</span>
+      ${statusStr}
+    </div>
+    <div class="stat-type-row">${typeStr}</div>`;
 }
 
 function renderCalMonthGrid(posts) {
@@ -6652,10 +6735,14 @@ async function openCalForm(postId, prefillDate) {
       <div id="cf-char-count" class="cal-char-count"></div>
     </div>
 
-    <!-- Hashtags -->
+    <!-- Hashtags + presets -->
     <div class="form-group">
-      <label class="form-label">Hashtags</label>
+      <label class="form-label" style="display:flex;justify-content:space-between;align-items:center">
+        <span>Hashtags</span>
+        <button type="button" onclick="saveHashtagPreset()" style="font-size:11px;background:none;border:none;color:var(--primary);cursor:pointer;padding:0;font-weight:500">💾 Save as preset</button>
+      </label>
       <input type="text" id="cf-hashtags" class="form-input" placeholder="#pickl #dubai #burgers" value="${esc(post?.hashtags || '')}">
+      <div id="cf-hashtag-presets"></div>
     </div>
 
     <!-- Visual Notes -->
@@ -6703,6 +6790,8 @@ async function openCalForm(postId, prefillDate) {
 
   // Render post-type-aware media section
   renderCalMediaSection(post);
+  // Load hashtag presets for this brand
+  loadHashtagPresets(brand);
 
   // Update char count
   updateCalCharCount();
@@ -6985,6 +7074,10 @@ async function saveCalPost(mode) {
   const imageUrl  = document.getElementById('cf-image-url')?.value.trim() || '';
 
   if (!date) { showToast('Please set a scheduled date', 'error'); return; }
+  const todayStr = new Date().toISOString().slice(0, 10);
+  if (date < todayStr) {
+    if (!confirm(`⚠️ Scheduled date ${date} is in the past. Save anyway?`)) return;
+  }
 
   const platforms = [...document.querySelectorAll('#cal-platform-pills .cal-platform-pill.active')].map(el => el.dataset.platform);
 
@@ -7154,8 +7247,37 @@ function renderCalDetailPanel(post) {
     </div>`;
   }).join('');
 
+  // Activity log
+  const ACTION_LABELS = {
+    created: 'Created', updated: 'Edited', submitted_for_review: 'Submitted for review',
+    fully_approved: 'Fully approved', approved_partial: 'Partially approved',
+    changes_requested: 'Changes requested', pushed_to_socialpilot: 'Pushed to SocialPilot',
+    marked_published: 'Marked as published',
+  };
+  const activityHtml = (post.history || []).slice().reverse().map(h =>
+    `<div style="display:flex;gap:10px;padding:5px 0;border-bottom:1px solid var(--border);font-size:12px">
+      <span style="color:var(--text-muted);white-space:nowrap;flex-shrink:0">${new Date(h.at).toLocaleDateString('en-GB',{day:'numeric',month:'short',hour:'2-digit',minute:'2-digit'})}</span>
+      <span style="color:var(--text-main)">${ACTION_LABELS[h.action] || h.action} <strong>${esc(h.actor || '')}</strong>${h.note ? ` <span style="color:var(--text-muted)">— ${esc(h.note)}</span>` : ''}</span>
+    </div>`
+  ).join('');
+
+  // Creator info
+  const createdByStr = post.createdByName || post.createdBy || '';
+  const assignedStr  = post.assignedName  || post.assignedTo  || '';
+
+  // Timezone note for non-UAE markets
+  const tzNote = getMarketTzNote(post.market, post.scheduledDate);
+
   // Action bar
+  const canCopyDuplicate = isCreator || ['admin','manager'].includes(state.userRole);
+  const availableMarkets = (CAL_MARKETS[post.brand] || []).filter(m => m !== post.market);
+
   let actionBar = '';
+  const copyDupBar = canCopyDuplicate ? `
+    <div style="display:flex;gap:8px;flex-wrap:wrap;padding:8px 16px;border-top:1px solid var(--border);background:var(--bg-base)">
+      <button class="btn btn-ghost" style="font-size:12px;padding:4px 10px" onclick="calDuplicatePost('${post.id}')">📋 Duplicate</button>
+      ${availableMarkets.length ? `<button class="btn btn-ghost" style="font-size:12px;padding:4px 10px" onclick="openCopyToMarketsPanel('${post.id}')">🌍 Copy to Markets</button>` : ''}
+    </div>` : '';
 
   if (post.status === 'in_review' && isApprover && !alreadyApproved) {
     actionBar = `
@@ -7174,80 +7296,107 @@ function renderCalDetailPanel(post) {
       </div>`;
   } else if (['draft','changes_requested'].includes(post.status) && (isCreator || state.userRole === 'admin')) {
     actionBar = `
-      <div style="padding:16px;border-top:1px solid var(--border);background:var(--bg-surface);flex-shrink:0;display:flex;gap:10px;flex-wrap:wrap">
-        <button class="btn btn-outline" onclick="closeCalDetail();openCalForm('${post.id}')">✏️ Edit Post</button>
+      <div style="padding:12px 16px;border-top:1px solid var(--border);background:var(--bg-surface);flex-shrink:0;display:flex;gap:10px;flex-wrap:wrap">
+        <button class="btn btn-outline" onclick="closeCalDetail();openCalForm('${post.id}')">✏️ Edit</button>
         <button class="btn btn-primary" onclick="calSubmitFromDetail('${post.id}')">🔄 Submit for Review</button>
         <button class="btn btn-ghost" style="margin-left:auto;color:#ef4444" onclick="calDeletePost('${post.id}')">🗑 Delete</button>
       </div>`;
   } else if (post.status === 'approved' && ['admin','manager'].includes(state.userRole)) {
     actionBar = `
-      <div style="padding:16px;border-top:1px solid var(--border);background:var(--bg-surface);flex-shrink:0;display:flex;gap:10px;flex-wrap:wrap;align-items:center">
+      <div style="padding:12px 16px;border-top:1px solid var(--border);background:var(--bg-surface);flex-shrink:0;display:flex;gap:10px;flex-wrap:wrap;align-items:center">
         <button class="btn btn-primary" style="background:#7c3aed;border-color:#7c3aed" onclick="calPushSocialPilot('${post.id}')">📤 Push to SocialPilot</button>
         <button class="btn btn-outline" onclick="calMarkPublished('${post.id}')">✅ Mark Published</button>
       </div>`;
   } else if (post.status === 'scheduled' && ['admin','manager'].includes(state.userRole)) {
     actionBar = `
-      <div style="padding:16px;border-top:1px solid var(--border);background:var(--bg-surface);flex-shrink:0">
+      <div style="padding:12px 16px;border-top:1px solid var(--border);background:var(--bg-surface);flex-shrink:0">
         <button class="btn btn-outline" onclick="calMarkPublished('${post.id}')">✅ Mark Published</button>
       </div>`;
   }
 
-  // Comment input (always visible)
+  // Comment input with @mention button
+  const usersForMention = (calState.allUsers || []).filter(u => u.email !== state.userEmail);
+  const mentionDropdown = usersForMention.length ? `
+    <div id="cal-mention-list" style="display:none;position:absolute;bottom:100%;left:0;background:var(--bg-surface);border:1px solid var(--border);border-radius:8px;box-shadow:0 4px 12px rgba(0,0,0,0.12);min-width:180px;z-index:10;padding:4px 0">
+      ${usersForMention.map(u => `<div onclick="insertCalMention('${esc(u.name||u.email)}')" style="padding:7px 14px;font-size:13px;cursor:pointer;hover:background:var(--bg-base)">${esc(u.name||u.email)}</div>`).join('')}
+    </div>` : '';
+
   const commentInput = `
     <div style="padding:12px 16px;border-top:1px solid var(--border);flex-shrink:0">
-      <div style="display:flex;gap:8px">
-        <input type="text" id="cal-new-comment" class="form-input" placeholder="Add a comment…" style="flex:1;font-family:var(--font-sans)" onkeydown="if(event.key==='Enter')calAddComment('${post.id}')">
+      <div style="display:flex;gap:8px;position:relative">
+        ${mentionDropdown}
+        <input type="text" id="cal-new-comment" class="form-input" placeholder="Add a comment… (type @ to mention)" style="flex:1;font-family:var(--font-sans)" onkeydown="if(event.key==='Enter')calAddComment('${post.id}');handleCommentMentionKey(event)">
+        ${usersForMention.length ? `<button class="btn btn-ghost" onclick="toggleCalMentionList()" style="padding:5px 8px;font-size:16px" title="Mention someone">@</button>` : ''}
         <button class="btn btn-outline" onclick="calAddComment('${post.id}')">Send</button>
       </div>
     </div>`;
 
   document.getElementById('cal-detail-body').innerHTML = `
-    <!-- Header -->
-    <div style="padding:16px 20px;border-bottom:1px solid var(--border);display:flex;justify-content:space-between;align-items:center;flex-shrink:0">
-      <div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap">
-        <span style="font-size:12px;font-weight:600;padding:3px 10px;border-radius:10px;color:${statusInfo.color};background:${statusInfo.color}18">${statusInfo.label}</span>
-        <span style="font-size:12px;color:var(--text-muted)">${esc(post.brand?.toUpperCase() || '')} · ${esc(post.market || '')}</span>
-        ${post.scheduledDate ? `<span style="font-size:12px;color:var(--text-muted)">${new Date(post.scheduledDate+'T12:00:00').toLocaleDateString('en-GB',{weekday:'short',day:'numeric',month:'short'})}${post.scheduledTime ? ' · '+post.scheduledTime : ''}</span>` : ''}
+    <!-- Header — two rows, no overflow clipping -->
+    <div style="padding:14px 20px;border-bottom:1px solid var(--border);flex-shrink:0">
+      <div style="display:flex;justify-content:space-between;align-items:flex-start;gap:8px">
+        <div style="min-width:0">
+          <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin-bottom:6px">
+            <span style="font-size:12px;font-weight:600;padding:3px 10px;border-radius:10px;color:${statusInfo.color};background:${statusInfo.color}18;white-space:nowrap">${statusInfo.label}</span>
+            <span style="font-size:12px;color:var(--text-muted);font-weight:600">${esc((post.brand||'').toUpperCase())} · ${esc(post.market||'')}</span>
+            ${post.scheduledDate ? `<span style="font-size:12px;color:var(--text-muted)">${new Date(post.scheduledDate+'T12:00:00').toLocaleDateString('en-GB',{weekday:'short',day:'numeric',month:'short'})}${post.scheduledTime ? ' · '+post.scheduledTime+tzNote : ''}</span>` : ''}
+          </div>
+          <div style="display:flex;flex-wrap:wrap;align-items:center;gap:6px">
+            ${pfRow}
+            ${post.postType ? `<span style="font-size:11px;color:var(--text-muted);padding:2px 7px;background:var(--bg-base);border-radius:8px;border:1px solid var(--border)">${CAL_TYPE_LABELS[post.postType]||post.postType}</span>` : ''}
+          </div>
+          <div style="font-size:11px;color:var(--text-muted);margin-top:5px">
+            Created by <strong>${esc(createdByStr)}</strong>${assignedStr && assignedStr !== createdByStr ? ` · Assigned to <strong>${esc(assignedStr)}</strong>` : ''}
+          </div>
+        </div>
+        <button class="btn btn-ghost" onclick="closeCalDetail()" style="padding:4px 8px;font-size:16px;flex-shrink:0">✕</button>
       </div>
-      <button class="btn btn-ghost" onclick="closeCalDetail()" style="padding:4px 10px;font-size:16px">✕</button>
+    </div>
+
+    <!-- Copy to markets inline panel (hidden by default) -->
+    <div id="cal-copy-markets-panel" style="display:none;padding:12px 20px;border-bottom:1px solid var(--border);background:var(--bg-base)">
+      <div style="font-size:13px;font-weight:600;margin-bottom:8px">🌍 Copy to markets (creates new drafts)</div>
+      <div style="display:flex;flex-wrap:wrap;gap:8px;margin-bottom:10px">
+        ${availableMarkets.map(m => `<label style="display:flex;align-items:center;gap:5px;font-size:13px;cursor:pointer"><input type="checkbox" class="copy-market-cb" value="${esc(m)}"> ${esc(m)}</label>`).join('')}
+      </div>
+      <div style="display:flex;gap:8px">
+        <button class="btn btn-primary" style="font-size:12px;padding:5px 14px" onclick="calCopyToMarkets('${post.id}')">Copy</button>
+        <button class="btn btn-ghost" style="font-size:12px;padding:5px 14px" onclick="document.getElementById('cal-copy-markets-panel').style.display='none'">Cancel</button>
+      </div>
     </div>
 
     <!-- Scrollable content -->
     <div style="flex:1;overflow-y:auto;padding:20px">
-      <!-- Platform row -->
-      ${pfRow ? `<div style="display:flex;flex-wrap:wrap;gap:6px;margin-bottom:16px">${pfRow} <span style="font-size:12px;color:var(--text-muted);align-self:center">${CAL_TYPE_LABELS[post.postType] || post.postType || ''}</span></div>` : ''}
-
-      <!-- Media -->
       ${mediaHtml}
       ${videoHtml}
 
-      <!-- Caption -->
       <div style="margin-bottom:16px">
         <div style="font-size:11px;font-weight:700;color:var(--text-muted);text-transform:uppercase;letter-spacing:0.04em;margin-bottom:6px">Caption</div>
         <div style="font-size:14px;line-height:1.65;color:var(--text-main);white-space:pre-wrap">${esc(post.caption || '(no caption)')}</div>
       </div>
 
-      <!-- Hashtags -->
       ${post.hashtags ? `<div style="margin-bottom:16px"><div style="font-size:11px;font-weight:700;color:var(--text-muted);text-transform:uppercase;letter-spacing:0.04em;margin-bottom:4px">Hashtags</div><div style="font-size:13px;color:#6366f1">${esc(post.hashtags)}</div></div>` : ''}
-
-      <!-- Visual Notes -->
       ${post.visualNotes ? `<div style="background:var(--bg-base);border:1px solid var(--border);border-radius:8px;padding:12px;margin-bottom:16px"><div style="font-size:11px;font-weight:700;color:var(--text-muted);text-transform:uppercase;letter-spacing:0.04em;margin-bottom:4px">Visual Notes</div><div style="font-size:13px;color:var(--text-main);white-space:pre-wrap">${esc(post.visualNotes)}</div></div>` : ''}
 
-      <!-- Approvals -->
       ${(post.requiredApprovers||[]).length ? `
         <div style="margin-bottom:16px">
           <div style="font-size:11px;font-weight:700;color:var(--text-muted);text-transform:uppercase;letter-spacing:0.04em;margin-bottom:8px">Approvals (${(post.approvals||[]).length}/${(post.requiredApprovers||[]).length})</div>
           ${approvalRows}
         </div>` : ''}
 
-      <!-- Comments -->
-      <div>
+      <div style="margin-bottom:16px">
         <div style="font-size:11px;font-weight:700;color:var(--text-muted);text-transform:uppercase;letter-spacing:0.04em;margin-bottom:8px">Comments${comments.length ? ' ('+comments.length+')' : ''}</div>
         ${commentsHtml || '<div style="font-size:13px;color:var(--text-muted);padding:8px 0">No comments yet.</div>'}
       </div>
+
+      <!-- Activity log (collapsible) -->
+      ${activityHtml ? `<details style="margin-top:8px">
+        <summary style="font-size:11px;font-weight:700;color:var(--text-muted);text-transform:uppercase;letter-spacing:0.04em;cursor:pointer;user-select:none;list-style:none">⏱ Activity (${(post.history||[]).length})</summary>
+        <div style="margin-top:8px">${activityHtml}</div>
+      </details>` : ''}
     </div>
 
-    <!-- Sticky action bars -->
+    ${copyDupBar}
     ${commentInput}
     ${actionBar}
   `;
@@ -7300,6 +7449,9 @@ async function calAddComment(postId) {
   const input = document.getElementById('cal-new-comment');
   const text  = input?.value?.trim() || '';
   if (!text) return;
+  // Close mention list if open
+  const ml = document.getElementById('cal-mention-list');
+  if (ml) ml.style.display = 'none';
   try {
     const res = await apiPost('/api/calendar', {
       action: 'comment', id: postId, text,
@@ -7307,6 +7459,25 @@ async function calAddComment(postId) {
     });
     if (input) input.value = '';
     if (res.post) renderCalDetailPanel(res.post);
+    // Fire-and-forget Slack notifications for @mentions
+    const mentions = [...text.matchAll(/@([\w\s]+?)(?=\s|$|[@,])/g)].map(m => m[1].trim());
+    for (const name of mentions) {
+      const user = (calState.allUsers || []).find(u => (u.name || u.email) === name);
+      if (user && user.email !== state.userEmail) {
+        const post = res.post;
+        fetch('/.netlify/functions/slack-notify', {
+          method: 'POST', headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            type: 'calendar_mention',
+            brand: post.brand, market: post.market, postId,
+            mentionedName: name, mentionedBy: state.actor,
+            commentText: text, platforms: post.platforms,
+            postType: post.postType, scheduledDate: post.scheduledDate,
+            imageUrl: post.imageUrl || '',
+          }),
+        }).catch(() => null);
+      }
+    }
   } catch (e) { showToast(e.message, 'error'); }
 }
 
@@ -7356,6 +7527,133 @@ async function calMarkPublished(postId) {
     await loadCalendar();
     if (res.post) renderCalDetailPanel(res.post);
   } catch (e) { showToast(e.message, 'error'); }
+}
+
+// ── Duplicate post ─────────────────────────────────────────────────────────────
+async function calDuplicatePost(postId) {
+  try {
+    const res = await apiPost('/api/calendar', { action: 'duplicate', id: postId, actor: state.actor, actorEmail: state.userEmail });
+    showToast('📋 Duplicate created as a new draft', 'success');
+    closeCalDetail();
+    await loadCalendar();
+    openCalDetail(res.post.id);
+  } catch (e) { showToast(e.message, 'error'); }
+}
+
+// ── Copy to markets ────────────────────────────────────────────────────────────
+function openCopyToMarketsPanel(postId) {
+  const panel = document.getElementById('cal-copy-markets-panel');
+  if (panel) panel.style.display = panel.style.display === 'none' ? '' : 'none';
+}
+
+async function calCopyToMarkets(postId) {
+  const cbs = [...document.querySelectorAll('.copy-market-cb:checked')].map(cb => cb.value);
+  if (!cbs.length) { showToast('Select at least one market', 'error'); return; }
+  try {
+    const res = await apiPost('/api/calendar', {
+      action: 'copy_to_markets', id: postId, markets: cbs,
+      actor: state.actor, actorEmail: state.userEmail,
+    });
+    showToast(`✅ Copied to ${res.count} market${res.count > 1 ? 's' : ''} as new drafts`, 'success');
+    document.getElementById('cal-copy-markets-panel').style.display = 'none';
+    await loadCalendar();
+  } catch (e) { showToast(e.message, 'error'); }
+}
+
+// ── @mention in comments ───────────────────────────────────────────────────────
+function toggleCalMentionList() {
+  const list = document.getElementById('cal-mention-list');
+  if (list) list.style.display = list.style.display === 'none' ? '' : 'none';
+}
+function insertCalMention(name) {
+  const input = document.getElementById('cal-new-comment');
+  if (input) {
+    const cur = input.value;
+    input.value = cur.replace(/@\w*$/, '') + `@${name} `;
+    input.focus();
+  }
+  const list = document.getElementById('cal-mention-list');
+  if (list) list.style.display = 'none';
+}
+function handleCommentMentionKey(event) {
+  const val = event.target.value;
+  const list = document.getElementById('cal-mention-list');
+  if (!list) return;
+  if (val.endsWith('@') || val.match(/@\w+$/)) {
+    list.style.display = '';
+  } else {
+    list.style.display = 'none';
+  }
+}
+
+// ── Hashtag presets ────────────────────────────────────────────────────────────
+let calHashtagPresets = [];
+
+async function loadHashtagPresets(brand) {
+  try {
+    const res = await apiGet(`/api/calendar?hashtag_presets=1&brand=${encodeURIComponent(brand)}`);
+    calHashtagPresets = res.presets || [];
+    renderHashtagPresets();
+  } catch (_) {}
+}
+
+function renderHashtagPresets() {
+  const el = document.getElementById('cf-hashtag-presets');
+  if (!el) return;
+  if (!calHashtagPresets.length) { el.innerHTML = ''; return; }
+  el.innerHTML = `<div style="margin-top:4px;display:flex;flex-wrap:wrap;gap:5px">
+    ${calHashtagPresets.map(p => `<span style="font-size:11px;background:var(--bg-surface);border:1px solid var(--border);border-radius:12px;padding:2px 9px;cursor:pointer;color:var(--text-main)" onclick="applyHashtagPreset('${esc(p.id)}')" title="${esc(p.hashtags)}">📌 ${esc(p.name)} <span onclick="event.stopPropagation();deleteHashtagPreset('${esc(p.id)}')" style="color:var(--text-muted);margin-left:3px">✕</span></span>`).join('')}
+  </div>`;
+}
+
+function applyHashtagPreset(presetId) {
+  const preset = calHashtagPresets.find(p => p.id === presetId);
+  if (!preset) return;
+  const el = document.getElementById('cf-hashtags');
+  if (el) el.value = preset.hashtags;
+}
+
+async function saveHashtagPreset() {
+  const brand = document.getElementById('cf-brand')?.value || calState.brand;
+  const hashtags = document.getElementById('cf-hashtags')?.value.trim();
+  if (!hashtags) { showToast('Enter hashtags first', 'error'); return; }
+  const name = prompt('Name for this preset (e.g. "Pickl UAE Standard"):');
+  if (!name?.trim()) return;
+  try {
+    const res = await apiPost('/api/calendar', {
+      action: 'save_hashtag_preset', brand, name: name.trim(), hashtags,
+      actor: state.actor, actorEmail: state.userEmail,
+    });
+    calHashtagPresets = res.presets || [];
+    renderHashtagPresets();
+    showToast('Hashtag preset saved', 'success');
+  } catch (e) { showToast(e.message, 'error'); }
+}
+
+async function deleteHashtagPreset(presetId) {
+  const brand = document.getElementById('cf-brand')?.value || calState.brand;
+  try {
+    await apiPost('/api/calendar', {
+      action: 'delete_hashtag_preset', brand, presetId,
+      actor: state.actor, actorEmail: state.userEmail,
+    });
+    calHashtagPresets = calHashtagPresets.filter(p => p.id !== presetId);
+    renderHashtagPresets();
+  } catch (e) { showToast(e.message, 'error'); }
+}
+
+// ── SocialPilot connection test ────────────────────────────────────────────────
+async function testSocialPilotConn() {
+  const el = document.getElementById('sp-test-result');
+  if (el) el.innerHTML = '<span style="color:var(--text-muted);font-size:12px">Testing…</span>';
+  try {
+    const res = await apiGet('/api/calendar?sp_test=1');
+    if (el) el.innerHTML = res.ok
+      ? `<span style="color:#16a34a;font-size:12px">✅ Connected — ${res.accounts} account(s) found</span>`
+      : `<span style="color:#ef4444;font-size:12px">❌ ${esc(res.error || 'Connection failed')}</span>`;
+  } catch (e) {
+    if (el) el.innerHTML = `<span style="color:#ef4444;font-size:12px">❌ ${esc(e.message)}</span>`;
+  }
 }
 
 function calExpandImage(src) {
