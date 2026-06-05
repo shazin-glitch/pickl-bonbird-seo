@@ -18,16 +18,17 @@ const DATAFORSEO_GET_URL  = 'https://api.dataforseo.com/v3/serp/google/organic/t
 
 const BRAND_CONFIG = {
   pickl: {
-    gscKey:     'gscCache:https://eatpickl.com/',
-    brandTerms: ['pickl'],
-    brandName:  'Pickl',
-    ownDomain:  'eatpickl.com',
+    gscKey:    'gscCache:https://eatpickl.com/',
+    brandName: 'Pickl',
+    ownDomain: 'eatpickl.com',
+    // English variants + misspellings + Arabic transliterations
+    brandTerms: ['pickl', 'pickel', 'pikle', 'pickels', 'بيكل', 'بكلز', 'بيكلز', 'بيكل برجر'],
   },
   bonbird: {
-    gscKey:     'gscCache:sc-domain:bonbirdchicken.com',
-    brandTerms: ['bonbird'],
-    brandName:  'Bonbird',
-    ownDomain:  'bonbirdchicken.com',
+    gscKey:    'gscCache:sc-domain:bonbirdchicken.com',
+    brandName: 'Bonbird',
+    ownDomain: 'bonbirdchicken.com',
+    brandTerms: ['bonbird', 'bon bird', 'بونبيرد'],
   },
 };
 

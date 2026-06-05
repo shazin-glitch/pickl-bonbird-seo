@@ -55,7 +55,7 @@ async function submitSerpTask(keyword, authHeader) {
 }
 
 // ── Poll task until done (max 60s) ───────────────────────────────────────────
-async function pollSerpTask(taskId, authHeader, maxWaitMs = 60000) {
+async function pollSerpTask(taskId, authHeader, maxWaitMs = 90000) {
   const pollInterval = 5000;
   const maxAttempts  = Math.ceil(maxWaitMs / pollInterval);
 
@@ -70,12 +70,11 @@ async function pollSerpTask(taskId, authHeader, maxWaitMs = 60000) {
     const task = data.tasks?.[0];
     if (!task) continue;
     if (task.status_code === 20000 && task.result) return task.result[0] || null;
-    if (task.status_code === 40501 || task.status_code === 40601) {
-      throw new Error(`Task failed: ${task.status_message}`);
-    }
-    // 40602 = still processing, continue polling
+    if (task.status_code === 40501) return null; // task not found — return null, no error
+    // 40601 = task handed to another server — keep polling
+    // 40602 = still processing — keep polling
   }
-  throw new Error('DataForSEO SERP task timed out after 60s');
+  return null; // timed out — return null rather than throwing
 }
 
 // ── Check one platform for a brand ───────────────────────────────────────────
