@@ -1080,3 +1080,69 @@ Cost: ~$0.002–0.005 per domain query. With 5 domains per brand × 2 brands = ~
 ---
 
 *Last updated: June 2026 — v6.9o: Add Target Keyword dual-write fix, How It Works timeout fix, International new market context bar, Backlink Monitoring (DataForSEO referring_domains, competitor comparison, delta tracking, Monday cron)*
+
+---
+
+## Session: June 2026 — v6.9p Citation Tracker
+
+### What was built
+
+#### Citation Tracker ✅
+NAP (Name, Address, Phone) consistency checker across 5 UAE food platforms.
+
+**Platforms checked:**
+- 🍽 Zomato — `site:zomato.com`
+- ✈️ TripAdvisor — `site:tripadvisor.com`
+- ⏰ Time Out Dubai — `site:timeoutdubai.com`
+- 📱 What's On — `site:whatson.ae`
+- 🎟 The Entertainer — `site:theentertainerme.com`
+
+**How it works:**
+- For each platform: submits SERP task `<brand name> Dubai site:<domain>` to DataForSEO Standard mode (task_post + task_get/advanced polling)
+- Extracts top organic result: title, snippet, URL
+- Stores raw snippet — human reviews and marks Verified / Issue Flagged
+- Cost: ~$0.0006/query × 5 platforms × 2 brands = ~$0.006/run
+
+**New files:**
+- `netlify/functions/citations.js` — GET (cached data + NAP + status) / POST (check, save_nap, save_status)
+- `netlify/functions/citations-background.js` — Monday 4am UTC cron, runs both brands
+
+**netlify.toml additions:**
+- `[[redirects]]` `/api/citations` → `/.netlify/functions/citations`
+- `[functions."citations-background"]` schedule `"0 4 * * 1"`
+
+**New Blobs keys:**
+| Key | Contents |
+|---|---|
+| `citationNAP:<brand>` | Canonical name/address/phone for checking |
+| `citationData:<brand>` | Array of 5 platform results from last check |
+| `citationStatus:<brand>` | Manual status per platform: `verified` \| `issue` \| null |
+
+**UI — Local SEO tab:**
+- `#citation-section` — always visible, independent of GBP connection state
+- Brand pills (Pickl / Bonbird) to filter display
+- Per-platform rows: platform name + emoji, last checked date, snippet (120 chars), URL link, status pill
+- Status pills: 🟢 Verified / 🔴 Issue Flagged / ⚪ Unchecked / ⏳ Checking…
+- "✓ Mark Verified" / "⚠ Flag Issue" buttons — toggle off if clicked again
+- "🔄 Check All Now" button — runs both brands sequentially with 2s delay between each
+
+**UI — Settings tab:**
+- New "📋 Citation Settings" card (full-width, above Audit Log)
+- Per-brand: Business Name, Address, Phone fields
+- Default values pre-filled: Pickl (name=Pickl, address=Dubai UAE, phone=+971), Bonbird (name=Bonbird Chicken, address=Dubai UAE, phone=+971)
+- Brand selector + Save button
+
+**JS functions added (index.html):**
+- `loadCitationData()` — fetches all data, shows section, renders both brands
+- `renderCitationTracker(brand)` — builds platform rows from state
+- `checkAllCitations()` — POSTs check for each brand in sequence, live-updates rows
+- `markCitationStatus(brand, platform, status)` — toggles verified/issue, saves to Blobs
+- `loadCitationNap()` / `saveCitationNap()` — Settings NAP CRUD
+- `switchCitationBrand(brand, el)` — brand pill filter
+- `fmtRelativeDate(iso)` — relative time formatter (shared utility)
+
+**switchView wiring:**
+- `localseo`: now calls `loadCitationData()` alongside `loadLocalSeo()`
+- `settings`: now calls `loadCitationNap()` alongside existing settings loaders
+
+*Last updated: June 2026 — v6.9p: Citation Tracker (NAP checker, 5 UAE food platforms, DataForSEO SERP Standard, manual verify/flag, Settings NAP fields, Monday cron)*

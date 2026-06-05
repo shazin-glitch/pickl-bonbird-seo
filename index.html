@@ -758,6 +758,33 @@
         <div id="localseo-error-msg" style="color:var(--text-muted);font-size:13px"></div>
       </div>
 
+      <!-- Citation Tracker — always shown, independent of GBP connection -->
+      <div id="citation-section" style="display:none;margin-top:20px">
+        <div class="card">
+          <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:16px">
+            <div>
+              <div style="font-weight:600;font-size:14px">📋 Citation Tracker</div>
+              <div style="font-size:12px;color:var(--text-muted);margin-top:2px">NAP consistency across UAE food platforms — checks that your name, address &amp; phone appear correctly</div>
+            </div>
+            <button class="btn btn-outline" id="citation-check-all-btn" onclick="checkAllCitations()" style="flex-shrink:0">🔄 Check All Now</button>
+          </div>
+
+          <!-- Brand filter pills -->
+          <div class="pill-nav" id="citation-brand-pills" style="margin-bottom:16px">
+            <div class="pill active" onclick="switchCitationBrand('pickl',this)">🟡 Pickl</div>
+            <div class="pill" onclick="switchCitationBrand('bonbird',this)">🔴 Bonbird</div>
+          </div>
+
+          <!-- Platform rows — populated by renderCitationTracker() -->
+          <div id="citation-rows-pickl"></div>
+          <div id="citation-rows-bonbird" style="display:none"></div>
+
+          <div id="citation-loading" style="text-align:center;padding:24px;color:var(--text-muted);font-size:13px;display:none">
+            Fetching platform results… this takes up to 60s per brand
+          </div>
+        </div>
+      </div>
+
     </div><!-- /view-localseo -->
 
     <div class="page-view" id="view-international">
@@ -996,6 +1023,38 @@
             <div id="brand-ex-status" style="font-size:12px;color:var(--text-muted)"></div>
             <div id="brand-ex-char-count" style="font-size:12px;color:var(--text-muted)"></div>
           </div>
+        </div>
+
+      <!-- Citation Settings -->
+        <div class="card" style="grid-column:1/-1">
+          <div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:20px">
+            <div>
+              <h3 style="font-size:16px;font-weight:600">📋 Citation Settings</h3>
+              <p style="font-size:13px;color:var(--text-muted);margin-top:4px">Canonical NAP used when checking listing consistency across Zomato, TripAdvisor, Time Out Dubai, What's On, and The Entertainer.</p>
+            </div>
+            <div style="display:flex;gap:8px">
+              <select id="citation-nap-selector" class="form-input" style="width:140px;font-family:var(--font-sans)" onchange="loadCitationNap()">
+                <option value="pickl">Pickl</option>
+                <option value="bonbird">Bonbird</option>
+              </select>
+              <button class="btn btn-primary" onclick="saveCitationNap()">Save</button>
+            </div>
+          </div>
+          <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:16px">
+            <div class="form-group">
+              <label class="form-label">Business Name</label>
+              <input type="text" id="citation-nap-name" class="form-input" placeholder="e.g. Pickl">
+            </div>
+            <div class="form-group">
+              <label class="form-label">Address (short form)</label>
+              <input type="text" id="citation-nap-address" class="form-input" placeholder="e.g. Dubai, UAE">
+            </div>
+            <div class="form-group">
+              <label class="form-label">Phone</label>
+              <input type="text" id="citation-nap-phone" class="form-input" placeholder="e.g. +971 4 123 4567">
+            </div>
+          </div>
+          <div id="citation-nap-status" style="font-size:12px;color:var(--text-muted);margin-top:4px"></div>
         </div>
 
       <!-- Audit Log -->
@@ -1484,8 +1543,8 @@ function switchView(target) {
   if (target === 'analytics')     loadGscIfNeeded();
   if (target === 'reports')       loadReports();
   if (target === 'techseo')       { loadTechnicalSeo(); loadTechDevKanban(techSeoState.brand); }
-  if (target === 'localseo')      loadLocalSeo();
-  if (target === 'settings')      { renderAuditLog(); loadBrandCtx(); loadBrandExamples(); loadSlackWebhook(); checkGbpConnection(); checkGa4Connection(); if (state.userRole === 'admin') { document.getElementById('users-panel').style.display = ''; loadUsersPanel(); } }
+  if (target === 'localseo')      { loadLocalSeo(); loadCitationData(); }
+  if (target === 'settings')      { renderAuditLog(); loadBrandCtx(); loadBrandExamples(); loadSlackWebhook(); checkGbpConnection(); checkGa4Connection(); loadCitationNap(); if (state.userRole === 'admin') { document.getElementById('users-panel').style.display = ''; loadUsersPanel(); } }
   if (target === 'international') loadIntlDashboard();
   if (target === 'howto')         loadHowItWorks();
 }
@@ -5783,6 +5842,256 @@ async function removeSeedKeyword(kw) {
     status.textContent = 'Failed: ' + e.message;
     status.style.color = 'var(--danger)';
   }
+}
+
+// ── Citation Tracker ───────────────────────────────────────────────────────────
+
+const CITATION_PLATFORMS = [
+  { id: 'zomato',       label: 'Zomato',         emoji: '🍽' },
+  { id: 'tripadvisor',  label: 'TripAdvisor',     emoji: '✈️' },
+  { id: 'timeoutdubai', label: 'Time Out Dubai',  emoji: '⏰' },
+  { id: 'whatson',      label: "What's On",       emoji: '📱' },
+  { id: 'entertainer',  label: 'The Entertainer', emoji: '🎟' },
+];
+
+const citationState = {
+  data:        {},    // { pickl: { nap, data, status }, bonbird: { ... } }
+  activeBrand: 'pickl',
+  checking:    {},    // { pickl: bool, bonbird: bool }
+};
+
+function switchCitationBrand(brand, el) {
+  citationState.activeBrand = brand;
+  document.querySelectorAll('#citation-brand-pills .pill').forEach(p => p.classList.remove('active'));
+  el.classList.add('active');
+  document.getElementById('citation-rows-pickl').style.display   = brand === 'pickl'   ? '' : 'none';
+  document.getElementById('citation-rows-bonbird').style.display = brand === 'bonbird' ? '' : 'none';
+}
+
+async function loadCitationData() {
+  const section = document.getElementById('citation-section');
+  if (!section) return;
+
+  try {
+    const res  = await fetch('/api/citations?brand=all', { credentials: 'include' });
+    const data = await res.json();
+    citationState.data = data;
+    section.style.display = '';
+    renderCitationTracker('pickl');
+    renderCitationTracker('bonbird');
+  } catch (e) {
+    section.style.display = '';
+    ['pickl', 'bonbird'].forEach(b => {
+      const el = document.getElementById(`citation-rows-${b}`);
+      if (el) el.innerHTML = `<div style="font-size:13px;color:var(--danger);padding:8px 0">Could not load citation data: ${esc(e.message)}</div>`;
+    });
+  }
+}
+
+function renderCitationTracker(brand) {
+  const container = document.getElementById(`citation-rows-${brand}`);
+  if (!container) return;
+
+  const brandData = citationState.data[brand] || { nap: {}, data: [], status: {} };
+  const { data: rows, status } = brandData;
+  const isChecking = citationState.checking[brand];
+
+  if (!rows.length && !isChecking) {
+    container.innerHTML = `
+      <div style="text-align:center;padding:24px;color:var(--text-muted);font-size:13px">
+        No citation data yet — click <strong>Check All Now</strong> to run the first scan.
+      </div>`;
+    return;
+  }
+
+  const platformMap = {};
+  rows.forEach(r => { platformMap[r.platform] = r; });
+
+  const tableRows = CITATION_PLATFORMS.map(p => {
+    const row       = platformMap[p.id] || {};
+    const manStatus = status[p.id] || null;
+    const isLoading = isChecking && !row.checkedAt;
+
+    let statusPill;
+    if (isLoading) {
+      statusPill = `<span style="display:inline-flex;align-items:center;gap:4px;padding:2px 10px;border-radius:99px;font-size:11px;font-weight:600;background:var(--bg-base);color:var(--text-muted)">⏳ Checking…</span>`;
+    } else if (manStatus === 'verified') {
+      statusPill = `<span style="display:inline-flex;align-items:center;gap:4px;padding:2px 10px;border-radius:99px;font-size:11px;font-weight:600;background:#dcfce7;color:#166534">🟢 Verified</span>`;
+    } else if (manStatus === 'issue') {
+      statusPill = `<span style="display:inline-flex;align-items:center;gap:4px;padding:2px 10px;border-radius:99px;font-size:11px;font-weight:600;background:#fee2e2;color:#991b1b">🔴 Issue Flagged</span>`;
+    } else if (!row.checkedAt) {
+      statusPill = `<span style="display:inline-flex;align-items:center;gap:4px;padding:2px 10px;border-radius:99px;font-size:11px;font-weight:600;background:var(--bg-base);color:var(--text-muted)">⚪ Unchecked</span>`;
+    } else {
+      statusPill = `<span style="display:inline-flex;align-items:center;gap:4px;padding:2px 10px;border-radius:99px;font-size:11px;font-weight:600;background:var(--bg-base);color:var(--text-muted)">⚪ Unchecked</span>`;
+    }
+
+    const snippet = row.snippet ? esc(row.snippet.slice(0, 120)) + (row.snippet.length > 120 ? '…' : '') : '';
+    const urlLink = row.url
+      ? `<a href="${esc(row.url)}" target="_blank" rel="noopener" style="font-size:11px;color:var(--primary);word-break:break-all">${esc(row.url.replace(/https?:\/\//, '').slice(0, 60))}…</a>`
+      : (row.checkedAt ? `<span style="font-size:12px;color:var(--text-muted)">No listing found</span>` : '');
+    const checkedAt = row.checkedAt
+      ? `<span style="font-size:11px;color:var(--text-muted)">${fmtRelativeDate(row.checkedAt)}</span>`
+      : `<span style="font-size:11px;color:var(--text-muted)">Never checked</span>`;
+    const errorNote = row.error
+      ? `<div style="font-size:11px;color:var(--danger);margin-top:2px">⚠ ${esc(row.error)}</div>`
+      : '';
+
+    const actionBtns = row.checkedAt && !isLoading ? `
+      <div style="display:flex;gap:6px;flex-shrink:0">
+        <button onclick="markCitationStatus('${brand}','${p.id}','verified')"
+          class="btn btn-outline" style="font-size:11px;padding:3px 10px;${manStatus==='verified'?'background:#dcfce7;border-color:#86efac;color:#166534':''}">✓ Mark Verified</button>
+        <button onclick="markCitationStatus('${brand}','${p.id}','issue')"
+          class="btn btn-outline" style="font-size:11px;padding:3px 10px;${manStatus==='issue'?'background:#fee2e2;border-color:#fca5a5;color:#991b1b':''}">⚠ Flag Issue</button>
+      </div>` : '';
+
+    return `
+      <div style="display:grid;grid-template-columns:140px 1fr auto;gap:12px;align-items:start;padding:12px 0;border-bottom:1px solid var(--border)">
+        <div>
+          <div style="font-weight:600;font-size:13px">${p.emoji} ${p.label}</div>
+          ${checkedAt}
+        </div>
+        <div>
+          ${statusPill}
+          ${snippet ? `<div style="font-size:12px;color:var(--text-muted);margin-top:6px;line-height:1.5">${snippet}</div>` : ''}
+          ${urlLink ? `<div style="margin-top:4px">${urlLink}</div>` : ''}
+          ${errorNote}
+        </div>
+        ${actionBtns}
+      </div>`;
+  }).join('');
+
+  container.innerHTML = tableRows || `<div style="font-size:13px;color:var(--text-muted);padding:8px 0">No data yet.</div>`;
+}
+
+async function checkAllCitations() {
+  const btn = document.getElementById('citation-check-all-btn');
+  if (btn) { btn.disabled = true; btn.textContent = '⏳ Checking…'; }
+
+  const loadingEl = document.getElementById('citation-loading');
+  if (loadingEl) loadingEl.style.display = '';
+
+  for (const brand of ['pickl', 'bonbird']) {
+    citationState.checking[brand] = true;
+    renderCitationTracker(brand);
+
+    try {
+      const res  = await fetch('/api/citations', {
+        method:      'POST',
+        credentials: 'include',
+        headers:     { 'Content-Type': 'application/json' },
+        body:        JSON.stringify({ action: 'check', brand }),
+      });
+      const result = await res.json();
+
+      if (!citationState.data[brand]) citationState.data[brand] = { nap: {}, data: [], status: {} };
+      citationState.data[brand].data = result.results || [];
+    } catch (e) {
+      console.error(`[citations] check failed for ${brand}:`, e.message);
+    }
+
+    citationState.checking[brand] = false;
+    renderCitationTracker(brand);
+
+    // 2s gap between brands
+    if (brand === 'pickl') await new Promise(r => setTimeout(r, 2000));
+  }
+
+  if (loadingEl) loadingEl.style.display = 'none';
+  if (btn) { btn.disabled = false; btn.textContent = '🔄 Check All Now'; }
+  showToast('Citation check complete', '');
+}
+
+async function markCitationStatus(brand, platform, status) {
+  // Toggle off if already set
+  const current = citationState.data[brand]?.status?.[platform];
+  const newStatus = current === status ? null : status;
+
+  try {
+    await fetch('/api/citations', {
+      method:      'POST',
+      credentials: 'include',
+      headers:     { 'Content-Type': 'application/json' },
+      body:        JSON.stringify({ action: 'save_status', brand, platform, status: newStatus }),
+    });
+    if (!citationState.data[brand]) citationState.data[brand] = { nap: {}, data: [], status: {} };
+    if (newStatus === null) {
+      delete citationState.data[brand].status[platform];
+    } else {
+      citationState.data[brand].status[platform] = newStatus;
+    }
+    renderCitationTracker(brand);
+  } catch (e) {
+    showToast('Failed to save status', e.message);
+  }
+}
+
+// ── Citation NAP Settings ──────────────────────────────────────────────────────
+
+const DEFAULT_CITATION_NAP = {
+  pickl:   { name: 'Pickl',           address: 'Dubai, UAE', phone: '+971' },
+  bonbird: { name: 'Bonbird Chicken', address: 'Dubai, UAE', phone: '+971' },
+};
+
+async function loadCitationNap() {
+  const sel = document.getElementById('citation-nap-selector');
+  if (!sel) return;
+  const brand = sel.value;
+
+  try {
+    const res  = await fetch(`/api/citations?brand=${brand}`, { credentials: 'include' });
+    const data = await res.json();
+    const nap  = data[brand]?.nap || DEFAULT_CITATION_NAP[brand];
+    document.getElementById('citation-nap-name').value    = nap.name    || '';
+    document.getElementById('citation-nap-address').value = nap.address || '';
+    document.getElementById('citation-nap-phone').value   = nap.phone   || '';
+    document.getElementById('citation-nap-status').textContent = '';
+  } catch (e) {
+    const def = DEFAULT_CITATION_NAP[brand] || {};
+    document.getElementById('citation-nap-name').value    = def.name    || '';
+    document.getElementById('citation-nap-address').value = def.address || '';
+    document.getElementById('citation-nap-phone').value   = def.phone   || '';
+  }
+}
+
+async function saveCitationNap() {
+  const sel     = document.getElementById('citation-nap-selector');
+  const status  = document.getElementById('citation-nap-status');
+  if (!sel || !status) return;
+  const brand = sel.value;
+  const nap   = {
+    name:    document.getElementById('citation-nap-name').value.trim(),
+    address: document.getElementById('citation-nap-address').value.trim(),
+    phone:   document.getElementById('citation-nap-phone').value.trim(),
+  };
+
+  try {
+    await fetch('/api/citations', {
+      method:      'POST',
+      credentials: 'include',
+      headers:     { 'Content-Type': 'application/json' },
+      body:        JSON.stringify({ action: 'save_nap', brand, nap }),
+    });
+    status.textContent = '✓ Saved';
+    status.style.color = 'var(--success)';
+    setTimeout(() => { status.textContent = ''; }, 2000);
+  } catch (e) {
+    status.textContent = 'Failed: ' + e.message;
+    status.style.color = 'var(--danger)';
+  }
+}
+
+function fmtRelativeDate(iso) {
+  if (!iso) return 'Never';
+  const diff = Date.now() - new Date(iso).getTime();
+  const mins = Math.floor(diff / 60000);
+  if (mins < 2)   return 'Just now';
+  if (mins < 60)  return `${mins}m ago`;
+  const hrs = Math.floor(mins / 60);
+  if (hrs < 24)   return `${hrs}h ago`;
+  const days = Math.floor(hrs / 24);
+  if (days === 1) return 'Yesterday';
+  if (days < 7)   return `${days} days ago`;
+  return new Date(iso).toLocaleDateString('en-GB', { day: 'numeric', month: 'short' });
 }
 </script>
 <script src="/js/competitor-matrix-ui.js?v=6.9n"></script>

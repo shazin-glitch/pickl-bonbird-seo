@@ -51,12 +51,11 @@
 
 ---
 
-## Current Version: v6.9o
+## Current Version: v6.9p
 
 See SETUP.md → "Done (Full History)" for complete build log.
 
 **Next up (from SETUP.md roadmap):**
-- Citation Tracker — NAP consistency across Zomato, TripAdvisor, Time Out Dubai, What's On, The Entertainer
 - AI Overview Visibility Tracker — weekly check: do top 20 keywords show AI Overviews? Are we in them?
 - Deep Competitor Audit — enter competitor URL → get their top keywords, traffic estimate, backlink count
 
