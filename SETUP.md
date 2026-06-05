@@ -1001,3 +1001,82 @@ The Monday pipeline handles the top two rows automatically. Everything below is 
 - International new market context bar: null position/impressions looks like broken data for Oman/Pakistan new markets — needs a "New market — no history yet" indicator.
 - SoV aggregator split: confirmed the code exists and is correct. If user still sees one chart, it's a browser cache issue — hard refresh (Ctrl+Shift+R) fixes it. The `?v=6.9n` cache bust will prevent this going forward.
 
+
+---
+
+## Session: June 2026 — v6.9o Bug Fixes + Backlink Monitoring
+
+### Bug Fixes
+
+#### Fix 1: Add Target Keyword — now writes to both lists ✅
+`index.html` — `addKeyword()`:
+- Previously only saved to `state.keywords` (GSC tracking list) via `/api/db/save`
+- Now also POSTs to `/api/keyword-config` with the new keyword appended to the brand's competitor matrix keyword list
+- Toast updated: "added to {brand} tracking & competitor matrix"
+- Error in keyword-config update is non-fatal (logged as warning, doesn't block the primary save)
+
+#### Fix 2: How It Works scheduler status — timeout + error state ✅
+`index.html` — `loadHowItWorks()`:
+- Added `Promise.race()` with a 10s timeout against the `/api/db/get` call
+- Timeout shows: "Status check timed out — Netlify function may be cold. Try refreshing." in danger color
+- API error shows: "Error loading status: {message}" with a warning icon
+- Both error states include a reassurance: "Scheduler still runs automatically every Monday 8am Dubai time."
+- No more infinite "Loading…" if the function is cold or unreachable
+
+#### Fix 3: International context bar — new market indicator ✅
+`index.html` — `buildContextBar()`:
+- Added `isNewMarket` detection: `isIntl && !pos && !impressions`
+  - `isIntl` = has a locationTag that isn't `🇦🇪 UAE`
+- New "Market Status" cell renders for new market items: "New market · No ranking history yet" in sky blue
+- Early-return guard updated: `!isNewMarket` added to prevent empty bar on these items
+- Affects: Oman (Pickl NEW), Oman (Bonbird), Pakistan (Bonbird) — the three markets with no established GSC presence
+
+### New Feature: Backlink Monitoring ✅
+
+#### What it does
+- Fetches referring_domains data for eatpickl.com and bonbirdchicken.com via DataForSEO Standard mode (task_post + task_get polling)
+- Also fetches top competitor domains for comparison
+- Runs every Monday automatically (same cron as other Monday jobs)
+- "Refresh Now" per-brand buttons for manual fetch
+
+#### DataForSEO endpoint used
+`/v3/backlinks/referring_domains/task_post` + `task_get` — Standard mode, polling every 5s
+Cost: ~$0.002–0.005 per domain query. With 5 domains per brand × 2 brands = ~$0.04/week
+
+#### Domains tracked
+- **Pickl**: eatpickl.com (own) + salt.ae, highjoint.ae, shakeshack.com, fiveguys.ae (competitors)
+- **Bonbird**: bonbirdchicken.com (own) + raisingcanes.com, kfc.com, popeyes.com, daves-hot-chicken.com (competitors)
+
+#### Metrics shown
+- Referring domains count (total unique linking domains)
+- Total backlinks (sum from top 100 referring domains)
+- Dofollow % (link equity being passed)
+- Domain Score (avg DR of top 20 referring domains, DataForSEO's 0–1000 scale)
+- Weekly delta: new domains gained / lost vs previous snapshot
+- Top 10 referring domains table: domain, DR, backlink count, dofollow/nofollow
+- Competitor comparison bar chart: referring domains side-by-side
+
+#### New files
+- `netlify/functions/backlinks.js` — GET (cached data) + POST (trigger refresh)
+- `netlify/functions/backlinks-background.js` — Monday 4am UTC cron
+
+#### netlify.toml additions
+- `[[redirects]]` `/api/backlinks` → `/.netlify/functions/backlinks`
+- `[functions."backlinks-background"]` schedule `"0 4 * * 1"`
+
+#### New Blobs keys
+| Key | Contents |
+|---|---|
+| `backlinkData:<brand>` | Latest backlink snapshot: own domain summary + competitor summaries + delta |
+| `backlinkHistory:<brand>` | Rolling 12-week history (date, referringDomains, totalBacklinks) |
+
+#### UI
+- New pill in Analytics & ROI tab: "🔗 Backlinks"
+- New `panel-backlinks` div — shown/hidden by `switchAnalyticsView()`
+- `loadBacklinksIfNeeded()` — loads on first tab open, cached thereafter
+- `renderBacklinks(data)` — renders full UI from data
+- `refreshBacklinks(brand)` — triggers POST to /api/backlinks, re-renders on success
+
+---
+
+*Last updated: June 2026 — v6.9o: Add Target Keyword dual-write fix, How It Works timeout fix, International new market context bar, Backlink Monitoring (DataForSEO referring_domains, competitor comparison, delta tracking, Monday cron)*

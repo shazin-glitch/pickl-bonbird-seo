@@ -419,6 +419,7 @@
         <div class="pill" data-view="gsc" data-brand="pickl" onclick="switchAnalyticsView(this)">Pickl Only</div>
         <div class="pill" data-view="gsc" data-brand="bonbird" onclick="switchAnalyticsView(this)">Bonbird Only</div>
         <div class="pill" data-view="comp" data-brand="all" onclick="switchAnalyticsView(this)">Competitor Matrix (SERP API)</div>
+        <div class="pill" data-view="backlinks" data-brand="all" onclick="switchAnalyticsView(this)">🔗 Backlinks</div>
       </div>
 
       <!-- GSC TABLE -->
@@ -448,6 +449,21 @@
       <!-- COMPETITOR MATRIX TABLE (Phase 2 — live via DataForSEO) -->
       <div id="panel-comp" style="display:none">
         <div id="competitor-matrix-live"></div>
+      </div>
+
+      <!-- BACKLINKS PANEL -->
+      <div id="panel-backlinks" style="display:none">
+        <div id="backlinks-container">
+          <div style="text-align:center;padding:48px;color:var(--text-muted)">
+            <div style="font-size:32px;margin-bottom:12px">🔗</div>
+            <div style="font-size:15px;font-weight:600;margin-bottom:6px">Backlink Monitoring</div>
+            <div style="font-size:13px;margin-bottom:20px">DataForSEO referring domains — runs every Monday automatically.</div>
+            <div style="display:flex;gap:12px;justify-content:center;flex-wrap:wrap">
+              <button class="btn btn-primary" onclick="refreshBacklinks('pickl')">↻ Fetch Pickl Backlinks</button>
+              <button class="btn btn-outline" onclick="refreshBacklinks('bonbird')">↻ Fetch Bonbird Backlinks</button>
+            </div>
+          </div>
+        </div>
       </div>
     </div>
 
@@ -1654,8 +1670,9 @@ function switchAnalyticsView(pill) {
   state.activeAnalyticsBrand = pill.dataset.brand;
   state.activeAnalyticsView  = pill.dataset.view;
 
-  document.getElementById('panel-gsc').style.display  = state.activeAnalyticsView === 'gsc'  ? 'block' : 'none';
-  document.getElementById('panel-comp').style.display = state.activeAnalyticsView === 'comp' ? 'block' : 'none';
+  document.getElementById('panel-gsc').style.display       = state.activeAnalyticsView === 'gsc'       ? 'block' : 'none';
+  document.getElementById('panel-comp').style.display      = state.activeAnalyticsView === 'comp'      ? 'block' : 'none';
+  document.getElementById('panel-backlinks').style.display = state.activeAnalyticsView === 'backlinks' ? 'block' : 'none';
 
   if (state.activeAnalyticsView === 'gsc') {
     if (state.gscConnected) {
@@ -1668,6 +1685,10 @@ function switchAnalyticsView(pill) {
     if (window.competitorMatrix && typeof window.competitorMatrix.init === 'function') {
       window.competitorMatrix.init();
     }
+  }
+
+  if (state.activeAnalyticsView === 'backlinks') {
+    loadBacklinksIfNeeded();
   }
 }
 
@@ -1905,7 +1926,12 @@ function buildContextBar(item) {
   const isSeed      = p.isSeedKeyword || (item.payload?.keywordTier === 'Priority Gap' && !pos);
   const isMeta      = item.type === 'meta_update';
 
-  if (!keyword && !pos && !impressions && !isSeed) return '';
+  // Detect international items for new markets (no GSC history yet)
+  const locationTag = item.locationTag || p.locationTag || null;
+  const isIntl      = locationTag && locationTag !== '🇦🇪 UAE';
+  const isNewMarket = isIntl && !pos && !impressions;
+
+  if (!keyword && !pos && !impressions && !isSeed && !isNewMarket) return '';
 
   const posColor = pos <= 10 ? '#059669' : pos <= 20 ? '#d97706' : '#6366f1';
 
@@ -1936,6 +1962,11 @@ function buildContextBar(item) {
         <div style="font-size:10px;font-weight:700;color:var(--text-muted);text-transform:uppercase;letter-spacing:0.4px;margin-bottom:2px">Status</div>
         <div style="font-size:12px;font-weight:600;color:#8b5cf6">New keyword</div>
         <div style="font-size:10px;color:var(--text-muted)">Not yet in GSC</div>
+      </div>` : ''}
+      ${isNewMarket ? `<div style="padding:8px 12px;border-right:1px solid var(--border)">
+        <div style="font-size:10px;font-weight:700;color:var(--text-muted);text-transform:uppercase;letter-spacing:0.4px;margin-bottom:2px">Market Status</div>
+        <div style="font-size:12px;font-weight:600;color:#0ea5e9">New market</div>
+        <div style="font-size:10px;color:var(--text-muted)">No ranking history yet</div>
       </div>` : ''}
       ${pos ? `<div style="padding:8px 12px;border-right:1px solid var(--border)">
         <div style="font-size:10px;font-weight:700;color:var(--text-muted);text-transform:uppercase;letter-spacing:0.4px;margin-bottom:2px">${isMeta ? 'Ranking' : 'Position Now'}</div>
@@ -2269,10 +2300,26 @@ async function addKeyword() {
   const kw = document.getElementById('kw-input').value.trim();
   if (!kw) { showToast('Enter a keyword first', 'error'); return; }
   const brand = document.getElementById('kw-brand').value;
+
+  // 1. Save to state.keywords (GSC tracking list)
   state.keywords.push({ keyword: kw, brand, addedAt: Date.now() });
   await apiPost('/api/db/save', { keywords: state.keywords });
+
+  // 2. Also add to competitor matrix keyword config so it appears in SERP tracking
+  try {
+    const cfg = await apiGet(`/api/keyword-config?brand=${brand}`);
+    const existing = cfg?.[brand]?.keywords || [];
+    const kwLower = kw.toLowerCase().trim();
+    if (!existing.includes(kwLower)) {
+      const updated = [...existing, kwLower];
+      await apiPost('/api/keyword-config', { brand, keywords: updated });
+    }
+  } catch (e) {
+    console.warn('[addKeyword] keyword-config update failed (non-fatal):', e.message);
+  }
+
   closeKwModal();
-  showToast(`"${kw}" added to ${BRAND_LABELS[brand]} tracking`, 'success');
+  showToast(`"${kw}" added to ${BRAND_LABELS[brand]} tracking & competitor matrix`, 'success');
   document.getElementById('kw-input').value = '';
 }
 
@@ -4294,6 +4341,210 @@ function renderLlmQueryDetails(results, brandName) {
 
 
 // ═══════════════════════════════════════════════════════════════
+// BACKLINK MONITORING
+// ═══════════════════════════════════════════════════════════════
+
+let backlinksLoaded = false;
+let backlinksPollTimer = null;
+
+async function loadBacklinksIfNeeded() {
+  if (backlinksLoaded) return;
+  backlinksLoaded = true;
+  await renderBacklinks();
+}
+
+async function renderBacklinks(data) {
+  const container = document.getElementById('backlinks-container');
+  if (!container) return;
+
+  if (!data) {
+    container.innerHTML = `<div style="text-align:center;padding:32px;color:var(--text-muted);font-size:13px">Loading backlink data…</div>`;
+    try {
+      const res = await fetch('/api/backlinks?brand=all', { credentials: 'include' });
+      data = await res.json();
+    } catch (e) {
+      container.innerHTML = `<div style="text-align:center;padding:48px;color:var(--danger)">Failed to load: ${esc(e.message)}</div>`;
+      return;
+    }
+  }
+
+  const pickl    = data.pickl;
+  const bonbird  = data.bonbird;
+  const hasData  = pickl || bonbird;
+
+  let html = `
+    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:20px;flex-wrap:wrap;gap:12px">
+      <div>
+        <div style="font-size:16px;font-weight:700;color:var(--text-main)">🔗 Backlink Intelligence</div>
+        <div style="font-size:12px;color:var(--text-muted);margin-top:3px">Referring domains via DataForSEO · Runs every Monday · Last updated: ${hasData ? (pickl?.fetchedAt || bonbird?.fetchedAt || '').slice(0,10) : 'Never'}</div>
+      </div>
+      <div style="display:flex;gap:8px;flex-wrap:wrap">
+        <button class="btn btn-outline" style="font-size:12px" id="bl-refresh-pickl" onclick="refreshBacklinks('pickl')">↻ Refresh Pickl</button>
+        <button class="btn btn-outline" style="font-size:12px" id="bl-refresh-bonbird" onclick="refreshBacklinks('bonbird')">↻ Refresh Bonbird</button>
+      </div>
+    </div>`;
+
+  if (!hasData) {
+    html += `<div style="text-align:center;padding:48px;background:var(--bg-surface);border-radius:12px;border:1px solid var(--border)">
+      <div style="font-size:32px;margin-bottom:12px">🔗</div>
+      <div style="font-weight:600;margin-bottom:6px">No backlink data yet</div>
+      <div style="font-size:13px;color:var(--text-muted);margin-bottom:20px">Data runs every Monday at 8am Dubai time alongside the SEO scheduler.<br>Click a Refresh button above to fetch now (takes ~2 minutes per brand).</div>
+    </div>`;
+    container.innerHTML = html;
+    return;
+  }
+
+  // Render each brand
+  for (const [brand, d] of [['pickl', pickl], ['bonbird', bonbird]]) {
+    if (!d) continue;
+    const brandColor  = brand === 'pickl' ? 'var(--pickl)' : 'var(--bonbird)';
+    const brandLabel  = brand === 'pickl' ? 'Pickl' : 'Bonbird';
+    const own         = d.own;
+    const delta       = d.delta;
+    const competitors = d.competitors || [];
+
+    if (own?.error) {
+      html += `<div style="padding:16px;background:var(--bg-surface);border-radius:10px;border:1px solid var(--border);margin-bottom:20px">
+        <div style="font-weight:700;color:${brandColor};margin-bottom:6px">${brandLabel}</div>
+        <div style="color:var(--danger);font-size:13px">⚠ Fetch failed: ${esc(own.error)}</div>
+      </div>`;
+      continue;
+    }
+
+    // Summary cards row
+    html += `<div style="margin-bottom:24px">
+      <div style="font-size:14px;font-weight:700;color:${brandColor};margin-bottom:12px;display:flex;align-items:center;gap:8px">
+        <div style="width:8px;height:8px;border-radius:50%;background:${brandColor}"></div>${brandLabel} — ${own.target}
+      </div>
+      <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(140px,1fr));gap:12px;margin-bottom:16px">
+        <div style="background:var(--bg-surface);border-radius:10px;border:1px solid var(--border);padding:14px 16px">
+          <div style="font-size:11px;font-weight:600;color:var(--text-muted);text-transform:uppercase;letter-spacing:0.4px;margin-bottom:4px">Referring Domains</div>
+          <div style="font-size:24px;font-weight:800;color:var(--text-main)">${(own.referringDomains || 0).toLocaleString()}</div>
+          ${delta ? `<div style="font-size:11px;margin-top:3px;color:${delta.referringDelta >= 0 ? '#059669' : '#dc2626'}">
+            ${delta.referringDelta >= 0 ? '↑' : '↓'} ${Math.abs(delta.referringDelta)} vs last week
+          </div>` : '<div style="font-size:11px;color:var(--text-muted);margin-top:3px">First snapshot</div>'}
+        </div>
+        <div style="background:var(--bg-surface);border-radius:10px;border:1px solid var(--border);padding:14px 16px">
+          <div style="font-size:11px;font-weight:600;color:var(--text-muted);text-transform:uppercase;letter-spacing:0.4px;margin-bottom:4px">Total Backlinks</div>
+          <div style="font-size:24px;font-weight:800;color:var(--text-main)">${(own.totalBacklinks || 0).toLocaleString()}</div>
+          <div style="font-size:11px;color:var(--text-muted);margin-top:3px">from top 100 domains</div>
+        </div>
+        <div style="background:var(--bg-surface);border-radius:10px;border:1px solid var(--border);padding:14px 16px">
+          <div style="font-size:11px;font-weight:600;color:var(--text-muted);text-transform:uppercase;letter-spacing:0.4px;margin-bottom:4px">Dofollow %</div>
+          <div style="font-size:24px;font-weight:800;color:${(own.dofollowPct || 0) >= 60 ? '#059669' : '#d97706'}">${own.dofollowPct || 0}%</div>
+          <div style="font-size:11px;color:var(--text-muted);margin-top:3px">link equity passed</div>
+        </div>
+        <div style="background:var(--bg-surface);border-radius:10px;border:1px solid var(--border);padding:14px 16px">
+          <div style="font-size:11px;font-weight:600;color:var(--text-muted);text-transform:uppercase;letter-spacing:0.4px;margin-bottom:4px">Domain Score</div>
+          <div style="font-size:24px;font-weight:800;color:var(--text-main)">${own.domainRankProxy || 0}</div>
+          <div style="font-size:11px;color:var(--text-muted);margin-top:3px">avg referring DR (0–1000)</div>
+        </div>
+      </div>`;
+
+    // New / lost domains delta
+    if (delta && (delta.newDomains?.length || delta.lostDomains?.length)) {
+      html += `<div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:16px">`;
+      if (delta.newDomains?.length) {
+        html += `<div style="background:rgba(5,150,105,0.06);border:1px solid rgba(5,150,105,0.2);border-radius:10px;padding:14px">
+          <div style="font-size:12px;font-weight:700;color:#059669;margin-bottom:8px">✓ New domains this week (${delta.newDomains.length})</div>
+          ${delta.newDomains.map(d => `<div style="font-size:12px;padding:3px 0;color:var(--text-main)">${esc(d.domain)} <span style="color:var(--text-muted)">· DR ${d.rank}</span></div>`).join('')}
+        </div>`;
+      }
+      if (delta.lostDomains?.length) {
+        html += `<div style="background:rgba(220,38,38,0.05);border:1px solid rgba(220,38,38,0.15);border-radius:10px;padding:14px">
+          <div style="font-size:12px;font-weight:700;color:#dc2626;margin-bottom:8px">✗ Lost domains this week (${delta.lostDomains.length})</div>
+          ${delta.lostDomains.map(d => `<div style="font-size:12px;padding:3px 0;color:var(--text-main)">${esc(d.domain)} <span style="color:var(--text-muted)">· DR ${d.rank}</span></div>`).join('')}
+        </div>`;
+      }
+      html += `</div>`;
+    }
+
+    // Top referring domains table
+    if (own.topDomains?.length) {
+      html += `<div style="background:var(--bg-surface);border-radius:10px;border:1px solid var(--border);overflow:hidden;margin-bottom:16px">
+        <div style="padding:12px 16px;border-bottom:1px solid var(--border);font-size:13px;font-weight:600">Top Referring Domains</div>
+        <table style="width:100%;border-collapse:collapse;font-size:13px">
+          <thead><tr style="background:var(--bg-base)">
+            <th style="text-align:left;padding:8px 16px;font-size:11px;font-weight:600;color:var(--text-muted);text-transform:uppercase;letter-spacing:0.4px">Domain</th>
+            <th style="text-align:right;padding:8px 12px;font-size:11px;font-weight:600;color:var(--text-muted);text-transform:uppercase;letter-spacing:0.4px">DR</th>
+            <th style="text-align:right;padding:8px 12px;font-size:11px;font-weight:600;color:var(--text-muted);text-transform:uppercase;letter-spacing:0.4px">Backlinks</th>
+            <th style="text-align:right;padding:8px 16px;font-size:11px;font-weight:600;color:var(--text-muted);text-transform:uppercase;letter-spacing:0.4px">Type</th>
+          </tr></thead>
+          <tbody>
+            ${own.topDomains.map((d, i) => `<tr style="border-top:1px solid var(--border)">
+              <td style="padding:9px 16px;font-weight:500">${i < 3 ? `<span style="color:${brandColor}">#${i+1}</span> ` : ''}${esc(d.domain)}</td>
+              <td style="text-align:right;padding:9px 12px;color:var(--text-muted)">${d.rank}</td>
+              <td style="text-align:right;padding:9px 12px;font-weight:600">${d.backlinks.toLocaleString()}</td>
+              <td style="text-align:right;padding:9px 16px">
+                <span style="font-size:11px;padding:2px 8px;border-radius:4px;font-weight:600;background:${d.dofollow > 0 ? 'rgba(5,150,105,0.1)' : 'rgba(107,114,128,0.1)'};color:${d.dofollow > 0 ? '#059669' : '#6b7280'}">${d.dofollow > 0 ? 'dofollow' : 'nofollow'}</span>
+              </td>
+            </tr>`).join('')}
+          </tbody>
+        </table>
+      </div>`;
+    }
+
+    // Competitor comparison
+    const validComps = competitors.filter(c => !c.error && c.referringDomains);
+    if (validComps.length) {
+      // Build a comparison bar chart
+      const allDomains   = [{ label: brandLabel, referringDomains: own.referringDomains || 0, isOwn: true }, ...validComps.map(c => ({ label: c.label, referringDomains: c.referringDomains || 0 }))];
+      const maxDomains   = Math.max(...allDomains.map(d => d.referringDomains), 1);
+
+      html += `<div style="background:var(--bg-surface);border-radius:10px;border:1px solid var(--border);padding:16px;margin-bottom:16px">
+        <div style="font-size:13px;font-weight:600;margin-bottom:14px">Competitor Comparison — Referring Domains</div>
+        ${allDomains.map(d => {
+          const pct    = Math.round((d.referringDomains / maxDomains) * 100);
+          const color  = d.isOwn ? brandColor : 'var(--text-muted)';
+          const bgOpacity = d.isOwn ? '0.15' : '0.06';
+          const fg        = d.isOwn ? brandColor : '#64748b';
+          return `<div style="margin-bottom:10px">
+            <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:4px">
+              <div style="font-size:12px;font-weight:${d.isOwn ? '700' : '500'};color:${d.isOwn ? 'var(--text-main)' : 'var(--text-muted)'}">${d.isOwn ? '⬡ ' : ''}${esc(d.label)}</div>
+              <div style="font-size:12px;font-weight:600;color:${fg}">${d.referringDomains.toLocaleString()}</div>
+            </div>
+            <div style="height:8px;background:var(--border);border-radius:4px;overflow:hidden">
+              <div style="height:100%;width:${pct}%;background:${fg};border-radius:4px;transition:width 0.4s ease"></div>
+            </div>
+          </div>`;
+        }).join('')}
+        <div style="font-size:11px;color:var(--text-muted);margin-top:8px">DataForSEO referring_domains · dofollow only · top 100 per domain</div>
+      </div>`;
+    }
+
+    html += `</div>`; // end brand section
+  }
+
+  container.innerHTML = html;
+}
+
+async function refreshBacklinks(brand) {
+  const btn = document.getElementById(`bl-refresh-${brand}`);
+  if (btn) { btn.disabled = true; btn.textContent = '⏳ Fetching…'; }
+
+  try {
+    showToast(`Fetching ${brand} backlinks… this takes ~2 mins`, 'info');
+    const res  = await fetch('/api/backlinks', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      credentials: 'include',
+      body: JSON.stringify({ brand, action: 'refresh' }),
+    });
+    const data = await res.json();
+    if (!res.ok) throw new Error(data.error || 'Fetch failed');
+
+    showToast(`Backlinks updated for ${brand}`, 'success');
+    backlinksLoaded = false;
+    await renderBacklinks();
+  } catch (e) {
+    showToast(`Backlink fetch failed: ${e.message}`, 'error');
+  } finally {
+    if (btn) { btn.disabled = false; btn.textContent = `↻ Refresh ${brand.charAt(0).toUpperCase() + brand.slice(1)}`; }
+  }
+}
+
+
+// ═══════════════════════════════════════════════════════════════
 // LOCAL SEO — Google Business Profile
 // ═══════════════════════════════════════════════════════════════
 
@@ -5393,12 +5644,16 @@ document.addEventListener('keydown', e => {
 // ═══════════════════════════════════════════════════════════════
 
 async function loadHowItWorks() {
-  // Load scheduler last run status
+  // Load scheduler last run status — with 10s timeout to avoid infinite "Loading…"
+  const el = document.getElementById('scheduler-status-detail');
+  const statusEl = document.getElementById('howto-status');
+
   try {
-    const data = await apiGet('/api/db/get');
+    const timeoutPromise = new Promise((_, reject) =>
+      setTimeout(() => reject(new Error('Request timed out after 10s')), 10000)
+    );
+    const data = await Promise.race([apiGet('/api/db/get'), timeoutPromise]);
     const lastRun = data?.schedulerLastRun || data?.['scheduler:lastrun'];
-    const el      = document.getElementById('scheduler-status-detail');
-    const statusEl = document.getElementById('howto-status');
 
     if (lastRun) {
       const ran     = new Date(lastRun.startedAt || lastRun.finishedAt);
@@ -5427,8 +5682,13 @@ async function loadHowItWorks() {
       if (statusEl) statusEl.textContent = 'Next run: Monday 8:00am Dubai time';
     }
   } catch (e) {
-    const el = document.getElementById('scheduler-status-detail');
-    if (el) el.innerHTML = `<span style="color:var(--danger)">${esc(e.message)}</span>`;
+    const isTmeout = e.message?.includes('timed out');
+    if (el) el.innerHTML = `<div style="color:var(--danger);display:flex;align-items:center;gap:8px">
+      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>
+      ${isTmeout ? 'Status check timed out — Netlify function may be cold. Try refreshing.' : `Error loading status: ${esc(e.message)}`}
+    </div>
+    <div style="margin-top:8px;font-size:12px;color:var(--text-muted)">Scheduler still runs automatically every Monday 8am Dubai time.</div>`;
+    if (statusEl) statusEl.textContent = 'Next run: Monday 8:00am Dubai time';
   }
 
   // Load seed keywords
