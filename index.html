@@ -412,7 +412,7 @@
         <div style="display:flex;gap:8px">
           <button class="btn btn-outline" onclick="openCalPresent()" style="white-space:nowrap">📊 Present</button>
           <button class="btn btn-outline" onclick="submitAllDrafts()" style="white-space:nowrap" title="Submit all draft posts for the current brand &amp; month for review">📨 Submit All Drafts</button>
-          <button class="btn btn-outline" id="cal-push-all-btn" onclick="pushAllApproved()" style="white-space:nowrap;display:none">📤 Push All Approved</button>
+          <button class="btn btn-outline" id="cal-push-all-btn" onclick="exportSPCsv()" style="white-space:nowrap;display:none">📥 Export CSV for SocialPilot</button>
           <button class="btn btn-primary" onclick="openCalForm(null)" style="white-space:nowrap">+ New Post</button>
         </div>
       </div>
@@ -6393,6 +6393,28 @@ const SP_HAS_ACCOUNT = {
   southpour: { UAE: new Set(['facebook','instagram']) },
 };
 
+// SocialPilot account NAMES — used for CSV bulk import (must match exactly what appears in SP)
+// ⚠️ Adding a new market? Add account names here too.
+const SP_ACCOUNT_NAMES = {
+  pickl: {
+    UAE:     { youtube: 'Pickl Mena YouTube', facebook: 'Pickl Mena Facebook', instagram: 'Pickl Mena Instagram', tiktok: 'Pickl Mena TikTok', linkedin: 'Pickl Mena LinkedIn' },
+    Bahrain: { facebook: 'Pickl Bahrain Facebook', instagram: 'Pickl Bahrain Instagram' },
+    Egypt:   { facebook: 'Pickl Egypt Facebook', instagram: 'Pickl Egypt Instagram', tiktok: 'Pickl Egypt TikTok' },
+    Jordan:  { facebook: 'Pickl Jordan Facebook', instagram: 'Pickl Jordan Instagram' },
+    KSA:     { facebook: 'Pickl Saudi Arabia Facebook', instagram: 'Pickl Saudi Arabia Instagram', tiktok: 'Pickl Saudi Arabia TikTok' },
+    Oman:    { facebook: 'Pickl Oman Facebook', instagram: 'Pickl Oman Instagram' },
+    Qatar:   { facebook: 'Pickl Qatar Facebook', instagram: 'Pickl Qatar Instagram' },
+  },
+  bonbird: {
+    UAE:      { youtube: 'Bonbird Mena YouTube', facebook: 'Bonbird Mena Facebook', instagram: 'Bonbird Mena Instagram', linkedin: 'Bonbird Mena LinkedIn', tiktok: 'Bonbird Mena TikTok' },
+    Oman:     { facebook: 'Bonbird Oman Facebook', instagram: 'Bonbird Oman Instagram' },
+    Pakistan: { facebook: 'Bonbird Pakistan Facebook', instagram: 'Bonbird Pakistan Instagram' },
+    Qatar:    { facebook: 'Bonbird Qatar Facebook', instagram: 'Bonbird Qatar Instagram' },
+    UK:       { facebook: 'Bonbird UK Facebook', instagram: 'Bonbird UK Instagram', tiktok: 'Bonbird UK TikTok' },
+  },
+  southpour: { UAE: { facebook: 'Southpour Facebook', instagram: 'Southpour Instagram' } },
+};
+
 // ⚠️ Adding a new market? Add its IANA timezone here too — see SETUP.md
 const CAL_MARKET_TIMEZONES = {
   UAE: 'Asia/Dubai', KSA: 'Asia/Riyadh', Bahrain: 'Asia/Bahrain',
@@ -6662,7 +6684,7 @@ function renderCalList(posts) {
     <span id="cal-list-bar-count" style="font-size:13px;font-weight:600;color:var(--text-main)"></span>
     <div style="flex:1"></div>
     <button id="cal-bar-submit" class="btn btn-outline" onclick="bulkCalAction('submit')" style="font-size:12px;padding:5px 12px;display:none">📨 Submit for Review</button>
-    <button id="cal-bar-push"   class="btn btn-primary" onclick="bulkCalAction('push')"   style="font-size:12px;padding:5px 12px;background:#7c3aed;border-color:#7c3aed;display:none">📤 Push to SocialPilot</button>
+    <button id="cal-bar-push"   class="btn btn-outline"  onclick="bulkCalAction('push')"   style="font-size:12px;padding:5px 12px;display:none">📥 Export CSV for SocialPilot</button>
     <button id="cal-bar-delete" class="btn btn-ghost"   onclick="bulkCalAction('delete')" style="font-size:12px;padding:5px 12px;color:#ef4444;display:none">🗑 Delete</button>
     <button class="btn btn-ghost" onclick="calState.selectedPosts.clear();updateCalListBar();document.querySelectorAll('#cal-list-body input[type=checkbox]').forEach(cb=>cb.checked=false);document.querySelectorAll('[id^=list-row-]').forEach(r=>r.style.borderColor='var(--border)')" style="font-size:12px;padding:5px 10px;color:var(--text-muted)">✕ Clear</button>
   </div>`;
@@ -6709,15 +6731,10 @@ async function bulkCalAction(action) {
     showToast(`✅ ${res.submitted} submitted`, 'success');
   } else if (action === 'push') {
     const approved = selPosts.filter(p => p.status === 'approved');
-    if (!confirm(`Push ${approved.length} post${approved.length>1?'s':''} to SocialPilot?`)) return;
-    const pushErrors = [];
-    let pushed = 0;
-    for (const p of approved) {
-      try { await apiPost('/api/calendar', {action:'push_socialpilot',id:p.id,actor:state.actor,actorEmail:state.userEmail}); pushed++; }
-      catch (e) { pushErrors.push(`${p.brand} ${p.market}: ${e.message}`); }
-    }
-    if (pushErrors.length) showToast(`📤 ${pushed} pushed, ${pushErrors.length} failed:\n${pushErrors.join('\n')}`, pushed>0?'success':'error');
-    else showToast(`📤 ${pushed} pushed`, 'success');
+    if (!approved.length) { showToast('No approved posts selected', 'error'); return; }
+    downloadCsv(buildSpCsvRows(approved), `socialpilot-export-${new Date().toISOString().slice(0,10)}.csv`);
+    showToast(`📥 CSV downloaded — ${approved.length} post(s). Import via SocialPilot → Bulk Import`, 'success');
+    return;
   } else if (action === 'delete') {
     if (!confirm(`Delete ${ids.length} post${ids.length>1?'s':''}? Cannot be undone.`)) return;
     for (const id of ids) await apiPost('/api/calendar',{action:'delete',id,actor:state.actor,actorEmail:state.userEmail}).catch(()=>null);
@@ -7402,14 +7419,11 @@ function renderCalDetailPanel(post) {
   } else if (post.status === 'approved' && ['admin','manager'].includes(state.userRole)) {
     actionBar = `
       <div style="padding:12px 16px;border-top:1px solid var(--border);background:var(--bg-surface);flex-shrink:0">
-        <div style="display:flex;gap:10px;flex-wrap:wrap;align-items:center;margin-bottom:10px">
-          <button class="btn btn-primary" style="background:#7c3aed;border-color:#7c3aed" onclick="calPushSocialPilot('${post.id}')">📤 Mark Ready for SocialPilot</button>
+        <div style="display:flex;gap:10px;flex-wrap:wrap;align-items:center;margin-bottom:8px">
+          <button class="btn btn-primary" style="background:#7c3aed;border-color:#7c3aed" onclick="exportSPCsvSingle('${post.id}')">📥 Export for SocialPilot</button>
           <button class="btn btn-outline" onclick="calMarkPublished('${post.id}')">✅ Mark Published</button>
         </div>
-        <div style="background:var(--bg-base);border:1px solid var(--border);border-radius:8px;padding:10px 12px;font-size:12px;color:var(--text-muted)">
-          💡 <strong style="color:var(--text-main)">Manual scheduling:</strong> Copy the caption + image URL above and schedule in SocialPilot.
-          Zapier auto-scheduling can be enabled later — ask leadership.
-        </div>
+        <div style="font-size:11px;color:var(--text-muted)">Downloads a CSV row ready to import into SocialPilot's Bulk Import. Zapier auto-push available when approved by leadership.</div>
       </div>`;
   } else if (post.status === 'scheduled' && ['admin','manager'].includes(state.userRole)) {
     actionBar = `
@@ -7664,10 +7678,9 @@ async function pushAllApproved() {
     } catch (e) { errors.push(`${p.brand} ${p.market} (${(p.platforms||[]).join('/')}): ${e.message}`); }
   }
   if (errors.length) {
-    console.error('[pushAllApproved] errors:', errors);
-    showToast(`📤 ${pushed} pushed, ${errors.length} failed:\n${errors.join('\n')}`, pushed > 0 ? 'success' : 'error');
+    showToast(`⚠️ ${pushed} marked ready, ${errors.length} failed`, 'error');
   } else {
-    showToast(`📤 All ${pushed} posts pushed to SocialPilot`, 'success');
+    showToast(`✅ ${pushed} posts marked ready — schedule them manually in SocialPilot`, 'success');
   }
   await loadCalendar();
 }
@@ -8042,6 +8055,75 @@ function printCalPresent() {
   window.print();
   document.body.classList.remove('cal-printing');
   div.remove();
+}
+
+// ── SocialPilot CSV Export ─────────────────────────────────────────────────────
+// Generates a CSV ready for SocialPilot's Bulk Import feature.
+// SocialPilot bulk import columns: Account, Date, Time, Message, Image 1..5, Video
+// One row per platform per post (SP requires one account per row).
+
+function buildSpCsvRows(posts) {
+  const rows = [];
+  // Header
+  rows.push(['Account', 'Date', 'Time', 'Message', 'Image 1', 'Image 2', 'Image 3', 'Image 4', 'Image 5', 'Video']);
+
+  for (const p of posts) {
+    const nameMap   = SP_ACCOUNT_NAMES[p.brand]?.[p.market] || {};
+    const platforms = p.platforms || [];
+    const message   = [p.caption, p.hashtags].filter(Boolean).join('\n\n');
+    // Format date as MM/DD/YYYY for SocialPilot
+    const [y, mo, d] = (p.scheduledDate || '').split('-');
+    const dateStr = p.scheduledDate ? `${mo}/${d}/${y}` : '';
+    // Format time as HH:MM
+    const timeStr = p.scheduledTime || '10:00';
+
+    // Collect image URLs (up to 5)
+    const imageUrls = [];
+    if (p.imageUrl) imageUrls.push(p.imageUrl);
+    for (const f of p.mediaFiles || []) {
+      if (f.url && imageUrls.length < 5) imageUrls.push(f.url);
+    }
+    while (imageUrls.length < 5) imageUrls.push('');
+    const videoUrl = (p.postType === 'reel' && p.videoUrl) ? p.videoUrl : '';
+
+    for (const platform of platforms) {
+      const accountName = nameMap[platform] || `${p.brand} ${p.market} ${platform}`;
+      rows.push([accountName, dateStr, timeStr, message, ...imageUrls, videoUrl]);
+    }
+  }
+  return rows;
+}
+
+function csvEscape(val) {
+  const s = String(val || '');
+  if (s.includes(',') || s.includes('"') || s.includes('\n')) return `"${s.replace(/"/g, '""')}"`;
+  return s;
+}
+
+function downloadCsv(rows, filename) {
+  const csv  = rows.map(row => row.map(csvEscape).join(',')).join('\n');
+  const blob = new Blob([csv], { type: 'text/csv' });
+  const url  = URL.createObjectURL(blob);
+  const a    = document.createElement('a');
+  a.href = url; a.download = filename; a.click();
+  URL.revokeObjectURL(url);
+}
+
+function exportSPCsv() {
+  // Export all approved posts for current brand+month
+  const approved = calState.posts.filter(p => p.status === 'approved');
+  if (!approved.length) { showToast('No approved posts to export', 'error'); return; }
+  const brand = calState.brand;
+  const month = `${calState.year}-${String(calState.month + 1).padStart(2,'0')}`;
+  downloadCsv(buildSpCsvRows(approved), `socialpilot-${brand}-${month}.csv`);
+  showToast(`📥 CSV downloaded — ${approved.length} post(s). Import via SocialPilot → Bulk Import`, 'success');
+}
+
+function exportSPCsvSingle(postId) {
+  const post = calState.posts.find(p => p.id === postId) || calState.detailPost;
+  if (!post) { showToast('Post not found', 'error'); return; }
+  downloadCsv(buildSpCsvRows([post]), `socialpilot-${post.brand}-${post.scheduledDate || 'post'}.csv`);
+  showToast(`📥 CSV downloaded — import via SocialPilot → Bulk Import`, 'success');
 }
 
 // ── Bulk submit all drafts ─────────────────────────────────────────────────────
