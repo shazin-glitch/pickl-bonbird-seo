@@ -423,49 +423,94 @@ exports.handler = async (event) => {
     }
 
     try {
-      // Convert market local time → UTC using IANA timezone (handles DST correctly)
-      const schedUnix = marketLocalToUnix(post.scheduledDate, post.scheduledTime || '10:00', post.market || 'UAE');
-      const fullText  = [post.caption, post.hashtags].filter(Boolean).join('\n\n');
+      // Confirmed from network inspection:
+      // Endpoint: POST https://rest.socialpilot.co/v4/draft/autosave
+      // Flow: 1) action:"create" → get draftId  2) action:"schedule" → schedule with draftId
+      // x-api-key is their static AWS API Gateway key (same for all users from browser network)
+      // authorization Bearer = user's personal API key from SocialPilot settings
 
-      // Build payload — include images for SocialPilot to attach
-      const payload = {
-        accounts:      accountIds,
-        text:          fullText,
-        schedule_time: schedUnix,
+      const SP_GW_KEY = 'yFxaTyRTiH7YBUYeYiEeCYBMRGZA8wk5fsCJxVy1';
+      const SP_URL    = 'https://rest.socialpilot.co/v4/draft/autosave';
+      const spHeaders = {
+        'Content-Type':  'application/json',
+        'authorization': `Bearer ${apiKey}`,
+        'x-api-key':     SP_GW_KEY,
+        'origin':        'https://app.socialpilot.co',
+        'referer':       'https://app.socialpilot.co/',
       };
 
-      // Attach images — single image or carousel slides
-      const imageUrls = [];
-      if (post.imageUrl)  imageUrls.push(post.imageUrl);
-      if ((post.mediaFiles || []).length) {
-        for (const f of post.mediaFiles) {
-          const url = f.url || (f.id ? `${SITE_URL}/api/calendar-media?id=${f.id}` : null);
-          if (url) imageUrls.push(url);
+      const schedUnix = marketLocalToUnix(post.scheduledDate, post.scheduledTime || '10:00', post.market || 'UAE');
+      const tz        = MARKET_TIMEZONES[post.market] || 'Asia/Dubai';
+      const fullText  = [post.caption, post.hashtags].filter(Boolean).join('\n\n');
+
+      // Build media array from imageUrl or carousel slides
+      const spMedia = [];
+      if (post.imageUrl) spMedia.push({ url: post.imageUrl, type: 'I' });
+      if (post.postType === 'carousel') {
+        for (const f of post.mediaFiles || []) {
+          if (f.url) spMedia.push({ url: f.url, type: 'I' });
         }
       }
-      if (imageUrls.length) payload.images = imageUrls;
+      const isVideo    = post.postType === 'reel';
+      const isCarousel = post.postType === 'carousel';
+      const spPostType = isVideo ? 'V' : (spMedia.length ? 'I' : 'T');
 
-      // Video URL for reels
-      if (post.videoUrl && post.postType === 'reel') payload.video_url = post.videoUrl;
+      // Account selection — {accountId: sortIndex}
+      const selectedAccounts = Object.fromEntries(accountIds.map((id, i) => [id, i]));
 
-      // api.socialpilot.co is AWS API Gateway — API keys go in x-api-key header
-      console.log('[SP push] accounts:', payload.accounts, 'schedule_time:', payload.schedule_time);
-      const spRes = await fetch('https://api.socialpilot.co/v1/posts', {
-        method:  'POST',
-        headers: { 'Content-Type': 'application/json', 'x-api-key': apiKey },
-        body:    JSON.stringify(payload),
+      // Shared data structure (same for create + schedule)
+      const buildData = () => ({
+        createPostReducer: { tagIds: [], draftScheduleDate: {} },
+        captionDataReducer: {
+          utmData: {}, linkShortening: false, customize: false,
+          activeTab: 'original',
+          postData: { original: { caption: fullText } },
+          mentions: {},
+        },
+        mediaReducer: {
+          media: spMedia, postType: spPostType,
+          mediaMetadata: [], ctaButton: null, isFbCarouselPost: isCarousel,
+          linkPreview: null, customThumbnail: '', thumbnail: '',
+          previewRemove: false,
+        },
+        advanceOptionsReducer: {
+          instagram: { instagramPostType: 'post', publishVia: 'direct', firstComment: '', shareToFeed: true },
+          facebook:  { instagramPostType: 'post', publishVia: 'direct', firstComment: '' },
+          tiktok:    { instagramPostType: 'post', publishVia: 'direct', tiktokDirectPublish: true, tiktokPrivacy: 'PUBLIC_TO_EVERYONE' },
+          linkedin:  { instagramPostType: 'post', publishVia: 'direct', firstComment: '' },
+          youtube:   { instagramPostType: 'post', publishVia: 'direct', youtubePrivacy: 'public', youtubeMadeForKids: false },
+        },
+        accountSelectionReducer: { selectedAccounts, staticAccountIds: accountIds },
       });
-      let spData;
-      try { spData = await spRes.json(); } catch (_) { spData = {}; }
-      console.log('[SP push] response:', spRes.status, JSON.stringify(spData));
-      if (!spRes.ok) throw new Error(
-        spData.message || spData.error || spData.msg ||
-        (typeof spData === 'string' ? spData.slice(0, 300) : `SocialPilot API returned ${spRes.status}`)
-      );
 
-      const spPostId = spData.post_id || spData.id || null;
+      // ── Step 1: Create draft ──────────────────────────────────────────────
+      const createRes  = await fetch(SP_URL, {
+        method: 'POST', headers: spHeaders,
+        body: JSON.stringify({ action: 'create', data: buildData(), contentIds: [] }),
+      });
+      const createData = await createRes.json().catch(() => ({}));
+      console.log('[SP] create:', createRes.status, JSON.stringify(createData).slice(0, 300));
+      if (!createRes.ok) throw new Error(createData.message || createData.error || `SP create ${createRes.status}`);
+
+      const draftId = createData.draftId || createData.id || createData.data?.draftId;
+      if (!draftId) throw new Error('SP create returned no draftId — response: ' + JSON.stringify(createData).slice(0, 200));
+
+      // ── Step 2: Schedule draft ────────────────────────────────────────────
+      const schedData_obj = buildData();
+      schedData_obj.createPostReducer.draftScheduleDate = { timestamp: schedUnix, timezone: tz };
+      schedData_obj.accountSelectionReducer.staticAccountIds = accountIds;
+
+      const schedRes  = await fetch(SP_URL, {
+        method: 'POST', headers: spHeaders,
+        body: JSON.stringify({ draftId, action: 'schedule', data: schedData_obj, contentIds: [] }),
+      });
+      const schedData = await schedRes.json().catch(() => ({}));
+      console.log('[SP] schedule:', schedRes.status, JSON.stringify(schedData).slice(0, 300));
+      if (!schedRes.ok) throw new Error(schedData.message || schedData.error || `SP schedule ${schedRes.status}`);
+
+      const spPostId = schedData.contentId || schedData.id || schedData.draftId || draftId;
       const note = [
-        `SP Post ID: ${spPostId}`,
+        `SP Draft ID: ${draftId}`,
         `Accounts: ${accountIds.join(', ')}`,
         missingPlatforms.length ? `⚠ No SP account for: ${missingPlatforms.join(', ')}` : '',
       ].filter(Boolean).join(' · ');
@@ -473,7 +518,7 @@ exports.handler = async (event) => {
       const updated = { ...post, status: 'scheduled', socialPilotPostId: spPostId, updatedAt: now,
         history: [...(post.history || []), { at: now, actor, action: 'pushed_to_socialpilot', note }] };
       await savePost(s, updated);
-      return ok({ ok: true, post: updated, accountIds, missingPlatforms, spResponse: spData });
+      return ok({ ok: true, post: updated, accountIds, missingPlatforms });
 
     } catch (e) {
       console.error('[calendar] SocialPilot error:', e.message);
