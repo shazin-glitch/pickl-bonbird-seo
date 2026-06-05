@@ -245,15 +245,14 @@
   .cal-slide-controls { display: flex; flex-direction: column; gap: 3px; }
   .cal-slide-controls button { background: none; border: 1px solid var(--border); border-radius: 4px; width: 22px; height: 22px; font-size: 10px; cursor: pointer; color: var(--text-muted); display: flex; align-items: center; justify-content: center; }
   .cal-slide-controls button:hover { background: var(--bg-base); color: var(--text-main); }
-  /* Presentation print */
-  @media print {
-    #cal-present-overlay { display:flex !important; position:static !important; background:#fff !important; }
-    #cal-present-overlay > div:first-child, #cal-present-strip, #cal-present-overlay > div:last-child { display:none !important; }
-    #cal-present-slide { break-after: page; box-shadow: none !important; max-width: 100% !important; }
-    .cal-present-print-slide { page-break-after: always; }
-  }
   @media print {
     body { background: #fff !important; color: #000 !important; }
+    /* Presentation PDF: hide overlay, show print pages */
+    body.cal-printing .sidebar, body.cal-printing .main-content,
+    body.cal-printing #cal-present-overlay { display: none !important; }
+    body.cal-printing #cal-print-pages { display: block !important; }
+    .cal-present-print-slide { page-break-after: always; break-after: page; }
+    /* Reports print */
     .sidebar, .nav-item, .pill-nav, .btn, #report-brand-pills,
     .toast, #perch-side-panel, [onclick] > button,
     #report-loading, #report-no-data { display: none !important; }
@@ -513,7 +512,7 @@
           <div id="cal-present-comments" style="flex:1;overflow-y:auto;padding:12px 16px"></div>
           <div style="padding:10px 12px;border-top:1px solid rgba(255,255,255,0.1)">
             <div style="display:flex;gap:8px">
-              <input id="cal-present-input" type="text" placeholder="Add note…" style="flex:1;background:rgba(255,255,255,0.08);border:1px solid rgba(255,255,255,0.2);color:#fff;padding:6px 10px;border-radius:6px;font-size:12px;font-family:var(--font-sans)" onkeydown="if(event.key==='Enter')calPresentAddNote()">
+              <input id="cal-present-input" type="text" placeholder="Add note…" style="flex:1;background:rgba(255,255,255,0.08);border:1px solid rgba(255,255,255,0.2);color:#fff;padding:6px 10px;border-radius:6px;font-size:12px;font-family:var(--font-sans)" onkeydown="if(event.key==='Enter'){calPresentAddNote();}event.stopPropagation();">
               <button onclick="calPresentAddNote()" style="background:var(--primary);border:none;color:#fff;padding:6px 12px;border-radius:6px;font-size:12px;cursor:pointer">Send</button>
             </div>
           </div>
@@ -6676,11 +6675,11 @@ async function openCalForm(postId, prefillDate) {
   `;
 
   // Init carousel slides from existing post if editing
-  if (post?.postType === 'carousel' && (post.mediaFiles || []).length) {
-    calState.carouselSlides = post.mediaFiles.map((f, i) => ({
+  if (post?.postType === 'carousel') {
+    calState.carouselSlides = (post.mediaFiles || []).map((f, i) => ({
       num: i + 1, id: f.id, filename: f.filename, mimeType: f.mimeType, note: f.note || '', isExisting: true,
     }));
-  } else if (!post || post.postType !== 'carousel') {
+  } else {
     calState.carouselSlides = [];
   }
 
@@ -7530,13 +7529,12 @@ async function calPresentAddNote() {
 }
 
 function printCalPresent() {
-  // Build a print-friendly hidden div with all slides
   const existing = document.getElementById('cal-print-pages');
   if (existing) existing.remove();
   const div = document.createElement('div');
   div.id = 'cal-print-pages';
-  div.style.cssText = 'display:none';
-  div.innerHTML = calState.presentPosts.map((post, i) => {
+  div.style.cssText = 'display:none;font-family:var(--font-sans)';
+  div.innerHTML = calState.presentPosts.map((post) => {
     const sc = CAL_STATUS_LABELS[post.status] || { label: post.status, color: '#64748b' };
     const pfRow = (post.platforms||[]).map(p => `${CAL_PLATFORMS[p]?.emoji||''} ${CAL_PLATFORMS[p]?.label||p}`).join(' · ');
     const mediaFiles = post.mediaFiles || [];
@@ -7545,10 +7543,10 @@ function printCalPresent() {
       : '';
     return `<div class="cal-present-print-slide" style="padding:24px;border:1px solid #e2e8f0;border-radius:8px;margin-bottom:24px;background:#fff">
       <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px">
-        <div style="font-size:13px;font-weight:700">${(post.brand||'').toUpperCase()} · ${post.market||''}</div>
+        <div style="font-size:13px;font-weight:700">${(post.brand||'').toUpperCase()} · ${esc(post.market||'')}</div>
         <span style="font-size:11px;font-weight:600;padding:2px 8px;border-radius:8px;color:${sc.color};background:${sc.color}20">${sc.label}</span>
       </div>
-      <div style="font-size:11px;color:#64748b;margin-bottom:8px">${pfRow} · ${CAL_TYPE_LABELS[post.postType]||post.postType||''} · ${post.scheduledDate||''}${post.scheduledTime?' '+post.scheduledTime:''}</div>
+      <div style="font-size:11px;color:#64748b;margin-bottom:8px">${esc(pfRow)} · ${esc(CAL_TYPE_LABELS[post.postType]||post.postType||'')} · ${esc(post.scheduledDate||'')}${post.scheduledTime?' '+esc(post.scheduledTime):''}</div>
       ${mediaHtml}
       <div style="font-size:13px;line-height:1.65;white-space:pre-wrap;margin-bottom:8px">${esc(post.caption||'')}</div>
       ${post.hashtags ? `<div style="font-size:11px;color:#6366f1">${esc(post.hashtags)}</div>` : ''}
@@ -7556,10 +7554,10 @@ function printCalPresent() {
     </div>`;
   }).join('');
   document.body.appendChild(div);
-  // Temporarily show for print
-  div.style.display = 'block';
+  document.body.classList.add('cal-printing');
   window.print();
-  div.style.display = 'none';
+  document.body.classList.remove('cal-printing');
+  div.remove();
 }
 
 // ── Badge count ────────────────────────────────────────────────────────────────
