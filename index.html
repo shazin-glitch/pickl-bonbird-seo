@@ -6746,13 +6746,31 @@ function updateCalMediaSection() {
   renderCalMediaSection(calState.editPost);
 }
 
-// ── Post-type-aware media section (URL-based — no uploads) ────────────────────
+// ── Post-type-aware media section ─────────────────────────────────────────────
+function calUploadZoneHtml(inputId, hint) {
+  return `
+    <div class="cal-upload-zone" id="cf-upload-zone"
+         onclick="document.getElementById('${inputId}').click()"
+         ondragover="event.preventDefault();this.classList.add('dragover')"
+         ondragleave="this.classList.remove('dragover')"
+         ondrop="handleCalDrop(event,'${inputId}')">
+      <div style="font-size:22px;margin-bottom:5px">☁️</div>
+      <div style="font-size:13px;font-weight:600;color:var(--text-main)">Click to upload or drag & drop</div>
+      <div style="font-size:11px;color:var(--text-muted);margin-top:2px">${hint}</div>
+    </div>
+    <input type="file" id="${inputId}" accept="image/*" style="display:none" onchange="handleCalFileSelect(event,'${inputId}')">
+    <div id="cf-upload-progress" style="font-size:12px;color:var(--text-muted);margin-top:5px;min-height:16px"></div>`;
+}
+
 function renderCalMediaSection(post) {
   const sec = document.getElementById('cf-media-section');
   if (!sec) return;
   const postType = document.getElementById('cf-type')?.value || post?.postType || 'static';
   const videoUrl = post?.videoUrl || '';
   const imageUrl = post?.imageUrl || '';
+  const prevHtml = imageUrl
+    ? `<img src="${esc(imageUrl)}" style="max-height:120px;border-radius:6px;margin-top:8px;border:1px solid var(--border)" onerror="this.style.display='none'">`
+    : '';
 
   if (postType === 'copy_only') {
     sec.innerHTML = `<div style="background:var(--bg-base);border:1px solid var(--border);border-radius:8px;padding:12px 14px;font-size:12px;color:var(--text-muted);margin-bottom:8px">📝 Copy Only — no images or video needed for this post type.</div>`;
@@ -6762,41 +6780,44 @@ function renderCalMediaSection(post) {
   if (postType === 'reel') {
     sec.innerHTML = `
       <div class="form-group">
-        <label class="form-label">Video URL <span style="font-size:11px;color:var(--text-muted);font-weight:400;font-style:italic">Required — paste a Google Drive, OneDrive, YouTube, or any shareable video link</span></label>
+        <label class="form-label">Video URL <span style="font-size:11px;color:var(--text-muted);font-weight:400;font-style:italic">Required — paste a Google Drive, OneDrive, or YouTube link</span></label>
         <input type="url" id="cf-video-url" class="form-input" placeholder="https://drive.google.com/file/d/…" value="${esc(videoUrl)}">
-        <div style="font-size:11px;color:var(--text-muted);margin-top:4px">Google Drive: right-click file → Get link → change to "Anyone with link"</div>
+        <div style="font-size:11px;color:var(--text-muted);margin-top:4px">Google Drive: right-click → Get link → "Anyone with link"</div>
       </div>
       <div class="form-group">
-        <label class="form-label">Thumbnail URL <span style="font-size:11px;color:var(--text-muted);font-weight:400">(optional · 1:1 or 9:16 · paste a shareable image link)</span></label>
-        <input type="url" id="cf-image-url" class="form-input" placeholder="https://…" value="${esc(imageUrl)}" oninput="updateCalImagePreview()">
-        <div id="cf-image-preview">${imageUrl ? `<img src="${esc(imageUrl)}" style="max-height:80px;border-radius:6px;margin-top:8px;border:1px solid var(--border)" onerror="this.style.display='none'">` : ''}</div>
+        <label class="form-label">Thumbnail <span style="font-size:11px;color:var(--text-muted);font-weight:400">(optional · 1:1 or 9:16)</span></label>
+        ${calUploadZoneHtml('cf-file-input', 'JPEG · PNG · WebP · max 10 MB')}
+        <div style="display:flex;align-items:center;gap:8px;margin-top:8px">
+          <div style="flex:1;height:1px;background:var(--border)"></div>
+          <span style="font-size:11px;color:var(--text-muted);white-space:nowrap">or paste URL</span>
+          <div style="flex:1;height:1px;background:var(--border)"></div>
+        </div>
+        <input type="url" id="cf-image-url" class="form-input" placeholder="https://…" value="${esc(imageUrl)}" oninput="updateCalImagePreview()" style="margin-top:6px">
+        <div id="cf-image-preview" style="margin-top:4px">${prevHtml}</div>
       </div>`;
     return;
   }
 
-  if (postType === 'story') {
+  const isStory = postType === 'story';
+  if (isStory || postType === 'static') {
+    const hint   = isStory ? '9:16 vertical · 1080×1920px · max 10 MB' : '1:1 or 4:5 · JPEG · PNG · WebP · max 10 MB';
+    const tip    = isStory ? '📱 1080 × 1920 px (9:16) recommended' : '';
+    const prevH  = isStory ? '160px' : '120px';
+    const prevImg = imageUrl ? `<img src="${esc(imageUrl)}" style="max-height:${prevH};border-radius:6px;margin-top:8px;border:1px solid var(--border)" onerror="this.style.display='none'">` : '';
     sec.innerHTML = `
       <div class="form-group">
-        <label class="form-label">Story Image URL <span style="font-size:11px;color:var(--text-muted);font-weight:400">(9:16 vertical · 1080×1920px · paste a shareable image link)</span></label>
-        <input type="url" id="cf-image-url" class="form-input" placeholder="https://drive.google.com/… or Dropbox / Cloudinary link" value="${esc(imageUrl)}" oninput="updateCalImagePreview()">
-        <div id="cf-image-preview">${imageUrl ? `<img src="${esc(imageUrl)}" style="max-height:160px;border-radius:6px;margin-top:8px;border:1px solid var(--border)" onerror="this.style.display='none'">` : ''}</div>
-        <div style="font-size:11px;color:var(--text-muted);margin-top:4px">📱 1080 × 1920 px (9:16) recommended</div>
+        <label class="form-label">${isStory ? 'Story Image' : 'Image'} <span style="font-size:11px;color:var(--text-muted);font-weight:400">${isStory ? '(9:16 vertical · 1080×1920px recommended)' : '(1:1 or 4:5)'}</span></label>
+        ${calUploadZoneHtml('cf-file-input', hint)}
+        <div style="display:flex;align-items:center;gap:8px;margin-top:8px">
+          <div style="flex:1;height:1px;background:var(--border)"></div>
+          <span style="font-size:11px;color:var(--text-muted);white-space:nowrap">or paste URL</span>
+          <div style="flex:1;height:1px;background:var(--border)"></div>
+        </div>
+        <input type="url" id="cf-image-url" class="form-input" placeholder="https://drive.google.com/… or any public image link" value="${esc(imageUrl)}" oninput="updateCalImagePreview()" style="margin-top:6px">
+        <div id="cf-image-preview" style="margin-top:4px">${prevImg}</div>
+        ${tip ? `<div style="font-size:11px;color:var(--text-muted);margin-top:4px">${tip}</div>` : ''}
       </div>
-      <div class="form-group">
-        <label class="form-label">Video URL <span style="font-size:11px;color:var(--text-muted);font-weight:400">(optional — if this is a video story)</span></label>
-        <input type="url" id="cf-video-url" class="form-input" placeholder="https://…" value="${esc(videoUrl)}">
-      </div>`;
-    return;
-  }
-
-  if (postType === 'static') {
-    sec.innerHTML = `
-      <div class="form-group">
-        <label class="form-label">Image URL <span style="font-size:11px;color:var(--text-muted);font-weight:400">(1:1 or 4:5 · paste a shareable image link)</span></label>
-        <input type="url" id="cf-image-url" class="form-input" placeholder="https://drive.google.com/… or Dropbox / Cloudinary link" value="${esc(imageUrl)}" oninput="updateCalImagePreview()">
-        <div id="cf-image-preview">${imageUrl ? `<img src="${esc(imageUrl)}" style="max-height:120px;border-radius:6px;margin-top:8px;border:1px solid var(--border)" onerror="this.style.display='none'">` : ''}</div>
-        <div style="font-size:11px;color:var(--text-muted);margin-top:4px">Google Drive: right-click → Get link → "Anyone with link can view", then use the direct image URL</div>
-      </div>`;
+      ${isStory ? `<div class="form-group"><label class="form-label">Video URL <span style="font-size:11px;color:var(--text-muted);font-weight:400">(optional — video story)</span></label><input type="url" id="cf-video-url" class="form-input" placeholder="https://…" value="${esc(videoUrl)}"></div>` : ''}`;
     return;
   }
 
@@ -6804,7 +6825,7 @@ function renderCalMediaSection(post) {
     sec.innerHTML = `
       <div class="form-group">
         <label class="form-label" style="display:flex;justify-content:space-between;align-items:center">
-          <span>Carousel Slides <span style="font-size:11px;color:var(--text-muted);font-weight:400">(up to 10 · paste an image URL per slide)</span></span>
+          <span>Carousel Slides <span style="font-size:11px;color:var(--text-muted);font-weight:400">(up to 10 slides)</span></span>
           <button type="button" onclick="addCalSlide()" style="font-size:12px;background:var(--primary);color:#fff;border:none;border-radius:5px;padding:3px 10px;cursor:pointer">+ Add Slide</button>
         </label>
         <div id="cf-carousel-slides"></div>
@@ -6819,11 +6840,74 @@ function updateCalImagePreview() {
   const url  = document.getElementById('cf-image-url')?.value.trim() || '';
   const prev = document.getElementById('cf-image-preview');
   if (!prev) return;
-  if (url) {
-    prev.innerHTML = `<img src="${esc(url)}" style="max-height:120px;border-radius:6px;margin-top:8px;border:1px solid var(--border)" onerror="this.parentElement.innerHTML='<div style=color:#ef4444;font-size:12px;margin-top:6px>⚠️ Could not load image from this URL — make sure sharing is set to public</div>'">`;
-  } else {
-    prev.innerHTML = '';
+  prev.innerHTML = url
+    ? `<img src="${esc(url)}" style="max-height:120px;border-radius:6px;margin-top:6px;border:1px solid var(--border)" onerror="this.parentElement.innerHTML='<div style=color:#ef4444;font-size:12px;margin-top:6px>⚠️ Could not load — make sure link sharing is set to public</div>'">`
+    : '';
+}
+
+// ── Upload handlers ────────────────────────────────────────────────────────────
+async function handleCalFileSelect(event, inputId) {
+  const file = event.target.files[0];
+  event.target.value = '';
+  if (file) await uploadCalFile(file, inputId);
+}
+
+async function handleCalDrop(event, inputId) {
+  event.preventDefault();
+  document.getElementById('cf-upload-zone')?.classList.remove('dragover');
+  const file = Array.from(event.dataTransfer.files || []).find(f => f.type.startsWith('image/'));
+  if (file) await uploadCalFile(file, inputId);
+}
+
+async function uploadCalFile(file, targetInputId) {
+  const MAX = 10 * 1024 * 1024;
+  const prog = document.getElementById('cf-upload-progress');
+  if (!file.type.startsWith('image/')) { showToast('Images only — use a URL for videos', 'error'); return null; }
+  if (file.size > MAX) { showToast(`${file.name} is too large (max 10 MB)`, 'error'); return null; }
+
+  if (prog) prog.innerHTML = `<span class="spinner" style="width:12px;height:12px;margin-right:6px"></span>Uploading ${file.name}…`;
+
+  const b64 = await new Promise((res, rej) => {
+    const r = new FileReader();
+    r.onload  = e => res(e.target.result.split(',')[1]);
+    r.onerror = rej;
+    r.readAsDataURL(file);
+  });
+
+  try {
+    const result = await apiPost('/api/calendar-media', { filename: file.name, mimeType: file.type, data: b64 });
+    if (prog) { prog.textContent = `✓ Uploaded to ${result.provider === 'gcs' ? 'Google Cloud' : 'storage'}`; setTimeout(() => { if (prog) prog.textContent = ''; }, 3000); }
+
+    // Auto-fill the URL field if targetInputId points to a URL input
+    const urlInput = document.getElementById('cf-image-url');
+    if (urlInput) {
+      urlInput.value = result.url;
+      updateCalImagePreview();
+    }
+    return result.url;
+  } catch (e) {
+    showToast('Upload failed: ' + e.message, 'error');
+    if (prog) prog.textContent = '';
+    return null;
   }
+}
+
+// Carousel slide upload — uploads and fills the slide's URL field
+async function uploadCalSlideImage(idx, file) {
+  const prog = document.getElementById('cf-upload-progress');
+  if (prog) prog.innerHTML = `<span class="spinner" style="width:12px;height:12px;margin-right:6px"></span>Uploading slide ${idx + 1}…`;
+  const MAX = 10 * 1024 * 1024;
+  if (!file.type.startsWith('image/')) { showToast('Images only', 'error'); return; }
+  if (file.size > MAX) { showToast(`${file.name} too large (max 10 MB)`, 'error'); return; }
+  const b64 = await new Promise((res, rej) => {
+    const r = new FileReader(); r.onload = e => res(e.target.result.split(',')[1]); r.onerror = rej; r.readAsDataURL(file);
+  });
+  try {
+    const result = await apiPost('/api/calendar-media', { filename: file.name, mimeType: file.type, data: b64 });
+    calState.carouselSlides[idx].url = result.url;
+    renderCarouselSlides();
+    if (prog) { prog.textContent = `✓ Slide ${idx + 1} uploaded`; setTimeout(() => { if (prog) prog.textContent = ''; }, 2500); }
+  } catch (e) { showToast('Upload failed: ' + e.message, 'error'); if (prog) prog.textContent = ''; }
 }
 
 function renderCarouselSlides() {
@@ -6836,14 +6920,15 @@ function renderCarouselSlides() {
   }
   container.innerHTML = slides.map((slide, idx) => {
     const preview = slide.url
-      ? `<img src="${esc(slide.url)}" style="width:100%;height:100%;object-fit:cover" onerror="this.style.display='none'">`
-      : '<span style="font-size:16px;color:var(--text-muted)">🔗</span>';
+      ? `<img src="${esc(slide.url)}" style="width:100%;height:100%;object-fit:cover;border-radius:5px" onerror="this.style.display='none'">`
+      : `<span style="font-size:13px;color:var(--text-muted)">📷</span>`;
     return `<div class="cal-slide-item" id="cal-slide-${idx}">
       <div class="cal-slide-num">${idx + 1}</div>
-      <div class="cal-slide-thumb" title="Preview">${preview}</div>
+      <div class="cal-slide-thumb" title="Click to upload" onclick="document.getElementById('csi-${idx}').click()" style="cursor:pointer">${preview}</div>
+      <input type="file" id="csi-${idx}" accept="image/*" style="display:none" onchange="(async()=>{const f=this.files[0];this.value='';if(f)await uploadCalSlideImage(${idx},f)})()">
       <div style="flex:1;display:flex;flex-direction:column;gap:5px">
-        <input type="url" class="form-input" placeholder="Image URL (Drive, Dropbox, Cloudinary…)" value="${esc(slide.url || '')}" oninput="calState.carouselSlides[${idx}].url=this.value;updateCarouselThumb(${idx},this.value)" style="font-size:12px;padding:5px 8px">
-        <input type="text" class="form-input" placeholder="Slide caption / note (optional)" value="${esc(slide.note || '')}" oninput="calState.carouselSlides[${idx}].note=this.value" style="font-size:12px;padding:5px 8px">
+        <input type="url" class="form-input" placeholder="Image URL — or click thumbnail to upload" value="${esc(slide.url || '')}" oninput="calState.carouselSlides[${idx}].url=this.value;updateCarouselThumb(${idx},this.value)" style="font-size:12px;padding:5px 8px">
+        <input type="text" class="form-input" placeholder="Slide note / caption (optional)" value="${esc(slide.note || '')}" oninput="calState.carouselSlides[${idx}].note=this.value" style="font-size:12px;padding:5px 8px">
       </div>
       <div class="cal-slide-controls">
         ${idx > 0 ? `<button onclick="moveCalSlide(${idx},-1)" title="Move up">▲</button>` : '<button disabled style="opacity:0.2">▲</button>'}
