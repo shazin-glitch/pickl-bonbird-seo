@@ -6710,12 +6710,14 @@ async function bulkCalAction(action) {
   } else if (action === 'push') {
     const approved = selPosts.filter(p => p.status === 'approved');
     if (!confirm(`Push ${approved.length} post${approved.length>1?'s':''} to SocialPilot?`)) return;
-    let pushed=0, failed=0;
+    const pushErrors = [];
+    let pushed = 0;
     for (const p of approved) {
       try { await apiPost('/api/calendar', {action:'push_socialpilot',id:p.id,actor:state.actor,actorEmail:state.userEmail}); pushed++; }
-      catch(_) { failed++; }
+      catch (e) { pushErrors.push(`${p.brand} ${p.market}: ${e.message}`); }
     }
-    showToast(`📤 ${pushed} pushed${failed?`, ${failed} failed`:''}`, pushed>0?'success':'error');
+    if (pushErrors.length) showToast(`📤 ${pushed} pushed, ${pushErrors.length} failed:\n${pushErrors.join('\n')}`, pushed>0?'success':'error');
+    else showToast(`📤 ${pushed} pushed`, 'success');
   } else if (action === 'delete') {
     if (!confirm(`Delete ${ids.length} post${ids.length>1?'s':''}? Cannot be undone.`)) return;
     for (const id of ids) await apiPost('/api/calendar',{action:'delete',id,actor:state.actor,actorEmail:state.userEmail}).catch(()=>null);
@@ -7647,12 +7649,20 @@ async function pushAllApproved() {
     ? `Push ${approved.length} approved posts?\n\n⚠️ ${noAccounts.length} post(s) have no SP accounts and will fail — check their brand/market/platform config.\n\nContinue?`
     : `Push all ${approved.length} approved posts to SocialPilot?`;
   if (!confirm(msg)) return;
-  let pushed=0, failed=0;
+  const errors = [];
+  let pushed = 0;
   for (const p of approved) {
-    try { await apiPost('/api/calendar',{action:'push_socialpilot',id:p.id,actor:state.actor,actorEmail:state.userEmail}); pushed++; }
-    catch(_) { failed++; }
+    try {
+      await apiPost('/api/calendar', { action:'push_socialpilot', id:p.id, actor:state.actor, actorEmail:state.userEmail });
+      pushed++;
+    } catch (e) { errors.push(`${p.brand} ${p.market} (${(p.platforms||[]).join('/')}): ${e.message}`); }
   }
-  showToast(`📤 ${pushed} pushed${failed?`, ${failed} failed`:''}`, pushed>0?'success':'error');
+  if (errors.length) {
+    console.error('[pushAllApproved] errors:', errors);
+    showToast(`📤 ${pushed} pushed, ${errors.length} failed:\n${errors.join('\n')}`, pushed > 0 ? 'success' : 'error');
+  } else {
+    showToast(`📤 All ${pushed} posts pushed to SocialPilot`, 'success');
+  }
   await loadCalendar();
 }
 

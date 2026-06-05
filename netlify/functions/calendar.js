@@ -448,13 +448,19 @@ exports.handler = async (event) => {
       // Video URL for reels
       if (post.videoUrl && post.postType === 'reel') payload.video_url = post.videoUrl;
 
+      console.log('[SP push] payload:', JSON.stringify({ ...payload, images: payload.images?.length, accounts: payload.accounts }));
       const spRes  = await fetch('https://panel.socialpilot.co/oauth/1.0/apicall/add_post', {
         method:  'POST',
         headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${apiKey}` },
         body:    JSON.stringify(payload),
       });
-      const spData = await spRes.json();
-      if (!spRes.ok) throw new Error(spData.message || spData.error || `SocialPilot API ${spRes.status}`);
+      let spData;
+      try { spData = await spRes.json(); } catch (_) { spData = {}; }
+      console.log('[SP push] response:', spRes.status, JSON.stringify(spData));
+      if (!spRes.ok) throw new Error(
+        spData.message || spData.error || spData.msg ||
+        (typeof spData === 'string' ? spData : `SocialPilot API returned ${spRes.status}`)
+      );
 
       const spPostId = spData.post_id || spData.id || null;
       const note = [
