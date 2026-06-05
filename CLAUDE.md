@@ -51,12 +51,14 @@
 
 ---
 
-## Current Version: v6.9q
+## Current Version: v6.9s
 
 See SETUP.md → "Done (Full History)" for complete build log.
 
 **Next up (from SETUP.md roadmap):**
-- Deep Competitor Audit — enter competitor URL → get their top keywords, traffic estimate, backlink count
+- YouTube SEO module — keyword research, video content briefs, video schema markup
+- Content calendar view — all approved + scheduled content across SEO, social, design
+- Social media workflow → SocialPilot integration
 
 ---
 
@@ -69,6 +71,8 @@ international-seo-background — 9-market content pipeline
 technical-seo-background     — PageSpeed + health checks
 llm-mentions-background      — LLM brand mention tracking
 backlinks-background         — Referring domains + competitor comparison
+citations-background         — NAP citation check across 5 UAE food platforms
+ai-overview-background       — AI Overview visibility check (top 20 keywords per brand)
 ```
 
 Daily 5am UTC = 9am Dubai:

@@ -198,6 +198,20 @@
   .toast.show { transform: translateY(0); opacity: 1; }
   .toast.success { background: #059669; }
   .toast.error { background: #dc2626; }
+  @media print {
+    body { background: #fff !important; color: #000 !important; }
+    .sidebar, .nav-item, .pill-nav, .btn, #report-brand-pills,
+    .toast, #perch-side-panel, [onclick] > button,
+    #report-loading, #report-no-data { display: none !important; }
+    .main-content { margin: 0 !important; padding: 0 !important; width: 100% !important; }
+    .page-view { display: block !important; }
+    .page-view:not(#view-reports) { display: none !important; }
+    #view-reports { padding: 0 !important; }
+    .card { border: 1px solid #e2e8f0 !important; background: #fff !important; box-shadow: none !important; break-inside: avoid; }
+    #report-content { display: block !important; }
+    #report-ai-overview-section button,
+    #ai-overview-refresh-btn { display: none !important; }
+  }
 </style>
 </head>
 <body>
@@ -420,6 +434,7 @@
         <div class="pill" data-view="gsc" data-brand="bonbird" onclick="switchAnalyticsView(this)">Bonbird Only</div>
         <div class="pill" data-view="comp" data-brand="all" onclick="switchAnalyticsView(this)">Competitor Matrix (SERP API)</div>
         <div class="pill" data-view="backlinks" data-brand="all" onclick="switchAnalyticsView(this)">🔗 Backlinks</div>
+        <div class="pill" data-view="audit" data-brand="all" onclick="switchAnalyticsView(this)">🔍 Deep Audit</div>
       </div>
 
       <!-- GSC TABLE -->
@@ -465,6 +480,21 @@
           </div>
         </div>
       </div>
+
+      <!-- DEEP AUDIT PANEL -->
+      <div id="panel-audit" style="display:none">
+        <div class="card" style="margin-bottom:20px">
+          <div style="font-weight:600;font-size:15px;margin-bottom:4px">🔍 Deep Competitor Audit</div>
+          <div style="font-size:13px;color:var(--text-muted);margin-bottom:16px">Enter any competitor domain to see their top 50 keywords, traffic estimate, and domain metrics via DataForSEO Labs.</div>
+          <div style="display:flex;gap:10px;max-width:520px">
+            <input type="text" id="audit-domain-input" class="form-input" placeholder="e.g. salt.ae or highjoint.co" style="flex:1;font-family:var(--font-sans)">
+            <button class="btn btn-primary" onclick="runCompetitorAudit()" id="audit-run-btn">Run Audit</button>
+          </div>
+          <div id="audit-status" style="font-size:12px;color:var(--text-muted);margin-top:6px"></div>
+        </div>
+        <div id="audit-results"></div>
+      </div>
+
     </div>
 
     <!-- ═══ VIEW: REPORTS ═══ -->
@@ -475,9 +505,12 @@
           <div class="page-title">SEO Report</div>
           <div class="section-desc" style="margin-top:4px">Performance overview for the CEO meeting. Traffic value, rankings, AI search readiness.</div>
         </div>
-        <div style="font-size:12px;color:var(--text-muted);text-align:right;padding-top:4px">
-          Data: last 90 days (Google Search Console)<br>
-          <span id="report-last-updated"></span>
+        <div style="display:flex;align-items:center;gap:10px">
+          <div style="font-size:12px;color:var(--text-muted);text-align:right;padding-top:4px">
+            Data: last 90 days (Google Search Console)<br>
+            <span id="report-last-updated"></span>
+          </div>
+          <button class="btn btn-outline" onclick="exportReportPdf()" style="flex-shrink:0;font-size:12px;padding:6px 14px">📄 Export PDF</button>
         </div>
       </div>
 
@@ -939,6 +972,15 @@
               <p>Get notified via Resend when the queue has new items.</p>
             </div>
             <div class="toggle-switch" id="email-toggle" onclick="this.classList.toggle('off')"></div>
+          </div>
+          <div class="form-group" style="margin-top:-8px">
+            <label class="form-label">Weekly Digest Email</label>
+            <div style="display:flex;gap:8px">
+              <input type="email" id="digest-to-email" class="form-input" placeholder="shazin@yolkbrands.com" style="flex:1;font-family:var(--font-sans)">
+              <button class="btn btn-outline" onclick="sendDigestEmail()" id="digest-send-btn">📧 Send Now</button>
+            </div>
+            <div id="digest-send-status" style="font-size:12px;color:var(--text-muted);margin-top:4px"></div>
+            <div style="font-size:11px;color:var(--text-muted);margin-top:4px">Requires <code>RESEND_API_KEY</code> + <code>DIGEST_FROM_EMAIL</code> in Netlify env vars</div>
           </div>
 
           <div class="form-group">
@@ -1742,6 +1784,7 @@ function switchAnalyticsView(pill) {
   document.getElementById('panel-gsc').style.display       = state.activeAnalyticsView === 'gsc'       ? 'block' : 'none';
   document.getElementById('panel-comp').style.display      = state.activeAnalyticsView === 'comp'      ? 'block' : 'none';
   document.getElementById('panel-backlinks').style.display = state.activeAnalyticsView === 'backlinks' ? 'block' : 'none';
+  document.getElementById('panel-audit').style.display     = state.activeAnalyticsView === 'audit'     ? 'block' : 'none';
 
   if (state.activeAnalyticsView === 'gsc') {
     if (state.gscConnected) {
@@ -5853,6 +5896,179 @@ async function removeSeedKeyword(kw) {
     status.textContent = 'Failed: ' + e.message;
     status.style.color = 'var(--danger)';
   }
+}
+
+// ── Deep Competitor Audit ─────────────────────────────────────────────────────
+
+async function runCompetitorAudit() {
+  const input  = document.getElementById('audit-domain-input');
+  const btn    = document.getElementById('audit-run-btn');
+  const status = document.getElementById('audit-status');
+  const results = document.getElementById('audit-results');
+  const domain = (input?.value || '').trim();
+  if (!domain) { if (status) { status.textContent = 'Enter a domain first.'; status.style.color = 'var(--danger)'; } return; }
+
+  btn.disabled = true; btn.textContent = '⏳ Auditing…';
+  status.textContent = 'Running DataForSEO Labs query…'; status.style.color = 'var(--text-muted)';
+  results.innerHTML  = '';
+
+  try {
+    // Try cache first
+    const cached = await fetch(`/api/competitor-audit?domain=${encodeURIComponent(domain)}`, { credentials: 'include' }).then(r => r.json()).catch(() => ({ notFound: true }));
+    if (!cached.notFound && cached.domain) {
+      renderAuditResults(cached, results);
+      status.textContent = `Cached result from ${new Date(cached.fetchedAt).toLocaleDateString('en-GB',{day:'numeric',month:'short'})} — `;
+      const rerunLink = document.createElement('a');
+      rerunLink.textContent = 'Run fresh audit'; rerunLink.style.cssText = 'color:var(--primary);cursor:pointer';
+      rerunLink.onclick = async () => {
+        status.textContent = 'Running fresh audit…'; results.innerHTML = '';
+        const fresh = await fetch('/api/competitor-audit', { method:'POST', credentials:'include', headers:{'Content-Type':'application/json'}, body: JSON.stringify({ domain }) }).then(r => r.json());
+        renderAuditResults(fresh, results);
+        status.textContent = 'Fresh audit complete';
+      };
+      status.appendChild(rerunLink);
+      btn.disabled = false; btn.textContent = 'Run Audit';
+      return;
+    }
+
+    const data = await fetch('/api/competitor-audit', {
+      method: 'POST', credentials: 'include',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ domain }),
+    }).then(r => r.json());
+
+    renderAuditResults(data, results);
+    status.textContent = data.labsError ? `⚠ ${data.labsError}` : 'Audit complete';
+    status.style.color = data.labsError ? 'var(--danger)' : 'var(--success)';
+  } catch (e) {
+    status.textContent = 'Error: ' + e.message; status.style.color = 'var(--danger)';
+  }
+  btn.disabled = false; btn.textContent = 'Run Audit';
+}
+
+function renderAuditResults(data, container) {
+  if (data.labsError && !data.keywords?.length) {
+    container.innerHTML = `<div class="card"><div style="color:var(--danger);font-size:13px;padding:8px 0">⚠ ${esc(data.labsError)}</div><div style="font-size:12px;color:var(--text-muted);margin-top:6px">DataForSEO Labs must be enabled on your account: <a href="https://app.dataforseo.com" target="_blank" style="color:var(--primary)">app.dataforseo.com → API Access</a></div></div>`;
+    return;
+  }
+
+  const m  = data.metrics || {};
+  const kws = data.keywords || [];
+  const etvAed = m.etv ? Math.round(m.etv * 3.67) : 0;
+
+  const summaryCards = `
+    <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(140px,1fr));gap:12px;margin-bottom:20px">
+      <div style="background:var(--bg-base);border-radius:8px;padding:14px;text-align:center">
+        <div style="font-size:22px;font-weight:800">${(m.totalKeywords||kws.length).toLocaleString()}</div>
+        <div style="font-size:11px;color:var(--text-muted);margin-top:3px">Total Keywords Ranking</div>
+      </div>
+      <div style="background:var(--bg-base);border-radius:8px;padding:14px;text-align:center">
+        <div style="font-size:22px;font-weight:800;color:#059669">${m.top10||0}</div>
+        <div style="font-size:11px;color:var(--text-muted);margin-top:3px">Top 10 Keywords</div>
+      </div>
+      <div style="background:var(--bg-base);border-radius:8px;padding:14px;text-align:center">
+        <div style="font-size:22px;font-weight:800;color:#6366f1">${m.top3||0}</div>
+        <div style="font-size:11px;color:var(--text-muted);margin-top:3px">Top 3 Keywords</div>
+      </div>
+      <div style="background:var(--bg-base);border-radius:8px;padding:14px;text-align:center">
+        <div style="font-size:22px;font-weight:800;color:#f59e0b">AED ${etvAed.toLocaleString()}</div>
+        <div style="font-size:11px;color:var(--text-muted);margin-top:3px">Est. Traffic Value/mo</div>
+      </div>
+    </div>`;
+
+  const tableRows = kws.map((k, i) => `
+    <tr style="border-bottom:1px solid var(--border);background:${i%2?'transparent':'rgba(0,0,0,0.015)'}">
+      <td style="padding:7px 12px;font-size:13px;font-weight:500">${esc(k.keyword)}</td>
+      <td style="padding:7px 12px;text-align:center">
+        <span style="background:${k.position<=3?'#dcfce7':k.position<=10?'#dbeafe':'var(--bg-base)'};color:${k.position<=3?'#166534':k.position<=10?'#1e40af':'var(--text-muted)'};font-weight:700;padding:2px 8px;border-radius:4px;font-size:12px">#${k.position}</span>
+      </td>
+      <td style="padding:7px 12px;text-align:right;font-size:13px">${(k.volume||0).toLocaleString()}</td>
+      <td style="padding:7px 12px;text-align:right;font-size:13px;color:var(--text-muted)">${k.cpc ? 'AED '+((k.cpc||0)*3.67).toFixed(2) : '—'}</td>
+      <td style="padding:7px 12px;text-align:center">
+        <button onclick="queueAuditKeyword('${esc(k.keyword).replace(/'/g,"\\'")}')" class="btn btn-outline" style="font-size:11px;padding:2px 8px">➕ Queue</button>
+      </td>
+    </tr>`).join('');
+
+  container.innerHTML = `
+    <div class="card">
+      <div style="font-weight:600;font-size:14px;margin-bottom:4px">📊 ${esc(data.domain)}</div>
+      <div style="font-size:12px;color:var(--text-muted);margin-bottom:16px">Top 50 keywords by search volume · Dubai location · DataForSEO Labs</div>
+      ${summaryCards}
+      <table style="width:100%;border-collapse:collapse">
+        <thead><tr style="border-bottom:2px solid var(--border)">
+          <th style="text-align:left;padding:6px 12px;font-size:11px;color:var(--text-muted);font-weight:700;text-transform:uppercase;letter-spacing:.04em">Keyword</th>
+          <th style="text-align:center;padding:6px 12px;font-size:11px;color:var(--text-muted);font-weight:700;text-transform:uppercase;letter-spacing:.04em">Position</th>
+          <th style="text-align:right;padding:6px 12px;font-size:11px;color:var(--text-muted);font-weight:700;text-transform:uppercase;letter-spacing:.04em">Volume/mo</th>
+          <th style="text-align:right;padding:6px 12px;font-size:11px;color:var(--text-muted);font-weight:700;text-transform:uppercase;letter-spacing:.04em">CPC (AED)</th>
+          <th style="text-align:center;padding:6px 12px;font-size:11px;color:var(--text-muted);font-weight:700;text-transform:uppercase;letter-spacing:.04em">Action</th>
+        </tr></thead>
+        <tbody>${tableRows || '<tr><td colspan="5" style="text-align:center;padding:24px;color:var(--text-muted);font-size:13px">No keyword data returned — domain may not rank in Dubai location</td></tr>'}</tbody>
+      </table>
+    </div>`;
+}
+
+async function queueAuditKeyword(keyword) {
+  try {
+    const brand = state.activeAnalyticsBrand === 'bonbird' ? 'bonbird' : 'pickl';
+    const res   = await fetch('/api/seed-keywords', { credentials: 'include' }).then(r => r.json());
+    const existing = res[brand] || [];
+    if (existing.includes(keyword)) { showToast('Already in seed list', ''); return; }
+    existing.push(keyword);
+    await fetch('/api/seed-keywords', { method:'POST', credentials:'include', headers:{'Content-Type':'application/json'}, body: JSON.stringify({ brand, keywords: existing }) });
+    showToast(`"${keyword}" added to ${brand} Priority Gap seed list`, '');
+  } catch (e) { showToast('Failed to queue keyword', e.message); }
+}
+
+// ── CEO PDF Export ─────────────────────────────────────────────────────────────
+
+function exportReportPdf() {
+  // Hide elements we don't want in the PDF, print, then restore
+  const toHide = ['#report-brand-pills', '#ai-overview-refresh-btn'];
+  const hidden = toHide.map(sel => {
+    const el = document.querySelector(sel);
+    if (el) { const prev = el.style.display; el.style.display = 'none'; return { el, prev }; }
+    return null;
+  }).filter(Boolean);
+
+  const brand = reportState.brand;
+  const title = document.title;
+  document.title = `The Nest — ${brand === 'pickl' ? 'Pickl' : 'Bonbird'} SEO Report ${new Date().toLocaleDateString('en-GB')}`;
+
+  window.print();
+
+  // Restore after print dialog closes
+  setTimeout(() => {
+    hidden.forEach(({ el, prev }) => { el.style.display = prev; });
+    document.title = title;
+  }, 500);
+}
+
+// ── Email Digest ───────────────────────────────────────────────────────────────
+
+async function sendDigestEmail() {
+  const btn    = document.getElementById('digest-send-btn');
+  const status = document.getElementById('digest-send-status');
+  const toEl   = document.getElementById('digest-to-email');
+  const to     = (toEl?.value || '').trim() || 'shazin@yolkbrands.com';
+
+  btn.disabled = true; btn.textContent = '⏳ Sending…';
+  status.textContent = ''; status.style.color = 'var(--text-muted)';
+
+  try {
+    const res  = await fetch('/api/email-digest', {
+      method: 'POST', credentials: 'include',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ to }),
+    });
+    const data = await res.json();
+    if (!res.ok || data.error) throw new Error(data.error || 'Send failed');
+    status.textContent = `✓ Sent to ${to}`;
+    status.style.color = 'var(--success)';
+  } catch (e) {
+    status.textContent = '✗ ' + e.message;
+    status.style.color = 'var(--danger)';
+  }
+  btn.disabled = false; btn.textContent = '📧 Send Now';
 }
 
 // ── AI Overview Visibility Tracker ────────────────────────────────────────────

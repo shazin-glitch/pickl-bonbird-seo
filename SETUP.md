@@ -1215,3 +1215,99 @@ NAP (Name, Address, Phone) consistency checker across 5 UAE food platforms.
 - `settings`: now calls `loadCitationNap()` alongside existing settings loaders
 
 *Last updated: June 2026 — v6.9p: Citation Tracker (NAP checker, 5 UAE food platforms, DataForSEO SERP Standard, manual verify/flag, Settings NAP fields, Monday cron)*
+
+---
+
+## Session: June 2026 — v6.9s Deep Competitor Audit + CEO PDF Export + Email Digest
+
+### What was built
+
+#### Deep Competitor Audit ✅
+Enter any competitor domain, get their top 50 non-branded keywords + traffic metrics via DataForSEO Labs.
+
+**How it works:**
+- POST `{ domain }` → DataForSEO Labs `dataforseo_labs/google/ranked_keywords/live` (Dubai location, en)
+- Returns top 50 keywords by search volume, filtered to `search_volume > 0`
+- Domain metrics: totalKeywords, top10, top3, estimated traffic value (ETV)
+- Results cached 24hr per domain in Blobs
+
+**New file:** `netlify/functions/competitor-audit.js`
+- GET `?domain=xxx` — returns cached result (if < 24hr old)
+- POST `{ domain }` — runs fresh audit, caches result
+- `cleanDomain()` strips protocol/www, handles full URLs and bare domains
+
+**netlify.toml:** Added `[[redirects]]` `/api/competitor-audit` → `/.netlify/functions/competitor-audit`
+
+**New Blobs key:** `competitorAuditCache:<domain>` — `{ domain, keywords[], metrics, fetchedAt }`
+
+**UI — Analytics & ROI tab:**
+- New `🔍 Deep Audit` pill in `#analytics-pills`
+- New `#panel-audit` panel — domain input + Run Audit button + results area
+- 4 summary cards: Total Keywords · Top 10 · Top 3 · ETV (DataForSEO's estimated monthly traffic value)
+- 50-row keyword table: Keyword | Position | Volume | CPC | Competition | Traffic% | URL | ➕ Queue
+- ➕ Queue button calls `queueAuditKeyword(keyword)` — adds to Priority Gap seed list via `/api/seed-keywords`
+- Cached results shown immediately, live audit badge shows when fetching fresh
+
+**JS functions added (`index.html`):**
+- `runCompetitorAudit()` — gets domain input, GETs cache first, POSTs if stale/missing
+- `renderAuditResults(data, container)` — builds summary cards + keyword table
+- `queueAuditKeyword(keyword)` — adds keyword to brand's seed list
+
+**Note:** Requires DataForSEO Labs product enabled on account (`dataforseo_labs/google/ranked_keywords/live`). Labs is a separate product from SERP Standard. If not enabled, endpoint returns 40300. Check app.dataforseo.com → API Access.
+
+---
+
+#### CEO PDF Export ✅
+One-click PDF export of the Reports tab for executive review.
+
+**Implementation:** `window.print()` with `@media print` CSS
+- Print CSS hides: nav, all panels except Reports, buttons, toasts, modals, analytics pills, perch content
+- Shows only `#panel-reports` content
+- Sets `overflow: visible` on containers so content doesn't clip
+- Document title set to `"The Nest — {BrandName} Report — {YYYY-MM-DD}"` before printing, restored after
+- Full-width layout in print: 2-col and 3-col grids become 1-col
+
+**UI:** `📄 Export PDF` button in Reports tab header (right side)
+
+**JS function:** `exportReportPdf()` — sets title, calls `window.print()`, restores title
+
+---
+
+#### Email Digest ✅
+Weekly Monday summary email via Resend API — pipeline activity + GSC highlights per brand.
+
+**New file:** `netlify/functions/email-digest.js`
+- POST `{ to? }` — builds HTML email, sends via Resend, saves `digestLastSent` to Blobs
+- GET — returns `{ lastSent, to, messageId }` metadata
+- Requires env vars: `RESEND_API_KEY`, `DIGEST_FROM_EMAIL`
+- Default recipient: `DIGEST_TO_EMAIL` env var, falls back to `shazin@yolkbrands.com`
+
+**Email content per brand:**
+- Non-branded keywords in top 10 (from gscCache)
+- Quick wins (pos 11-20)
+- Pending approval count
+- Pipeline: items approved + published to WordPress this week
+- AI Overview count (X/total from `aiOverviewData:<brand>`)
+- Top 3 keyword opportunities table (by impressions)
+
+**HTML email:** Responsive, dark header, brand-coloured section headers (amber for Pickl, red for Bonbird), inline CSS only (Resend-compatible)
+
+**netlify.toml:** Added `[[redirects]]` `/api/email-digest` → `/.netlify/functions/email-digest`
+
+**New Blobs key:** `digestLastSent` — `{ lastSent: ISO string, to, messageId }`
+
+**UI — Settings tab (System Preferences card):**
+- Email recipient input (pre-filled from `DIGEST_TO_EMAIL` env var default)
+- "📧 Send Now" button → calls `sendDigestEmail()`, shows last sent date on success
+- Note: requires `RESEND_API_KEY` + `DIGEST_FROM_EMAIL` env vars in Netlify
+
+**JS function:** `sendDigestEmail()` — POSTs to `/api/email-digest`, shows success/error toast
+
+**Required env vars (new):**
+| Variable | Purpose |
+|---|---|
+| `RESEND_API_KEY` | Resend API key (resend.com) |
+| `DIGEST_FROM_EMAIL` | Verified sender address (e.g. `digest@yolkbrands.com`) |
+| `DIGEST_TO_EMAIL` | Default recipient (optional, falls back to shazin@yolkbrands.com) |
+
+*Last updated: June 2026 — v6.9s: Deep Competitor Audit (DataForSEO Labs ranked_keywords, 50-row table, queue to seed list), CEO PDF Export (window.print + @media print CSS), Email Digest (Resend API, per-brand HTML email, Settings send button)*
