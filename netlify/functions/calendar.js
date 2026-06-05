@@ -141,6 +141,32 @@ exports.handler = async (event) => {
     return ok({ ok: true, post });
   }
 
+  // ── bulk_submit — submit multiple posts for review at once ──────────────────
+  if (action === 'bulk_submit') {
+    const { ids } = body;
+    if (!ids?.length) return bad(400, 'ids required');
+    let submitted = 0;
+    for (const postId of ids) {
+      const p = await getPost(s, postId);
+      if (!p || !['draft','changes_requested'].includes(p.status)) continue;
+      const updated = { ...p, status: 'in_review', updatedAt: now,
+        history: [...(p.history || []), { at: now, actor, action: 'submitted_for_review' }] };
+      await savePost(s, updated);
+      for (const approver of (p.requiredApprovers || [])) {
+        await notifySlack('calendar_review_needed', {
+          brand: p.brand, market: p.market, postId: postId,
+          caption: (p.caption || '').slice(0, 200),
+          scheduledDate: p.scheduledDate, scheduledTime: p.scheduledTime,
+          submittedBy: actor, approverName: approver.name,
+          platforms: p.platforms || [], postType: p.postType || 'static',
+          imageUrl: p.imageUrl || '',
+        });
+      }
+      submitted++;
+    }
+    return ok({ ok: true, submitted });
+  }
+
   // All remaining actions need an existing post
   const { id } = body;
   if (!id) return bad(400, 'id required');
@@ -173,9 +199,11 @@ exports.handler = async (event) => {
     for (const approver of (post.requiredApprovers || [])) {
       await notifySlack('calendar_review_needed', {
         brand: post.brand, market: post.market, postId: id,
-        caption: (post.caption || '').slice(0, 120),
-        scheduledDate: post.scheduledDate,
+        caption: (post.caption || '').slice(0, 200),
+        scheduledDate: post.scheduledDate, scheduledTime: post.scheduledTime,
         submittedBy: actor, approverName: approver.name,
+        platforms: post.platforms || [], postType: post.postType || 'static',
+        imageUrl: post.imageUrl || '',
       });
     }
     return ok({ ok: true, post: updated });
@@ -208,6 +236,8 @@ exports.handler = async (event) => {
         brand: post.brand, market: post.market, postId: id,
         caption: (post.caption || '').slice(0, 120),
         scheduledDate: post.scheduledDate, approvedBy: actor,
+        platforms: post.platforms || [], postType: post.postType || 'static',
+        imageUrl: post.imageUrl || '',
       });
     }
     return ok({ ok: true, post: updated, allApproved });
@@ -233,6 +263,8 @@ exports.handler = async (event) => {
       caption: (post.caption || '').slice(0, 120),
       scheduledDate: post.scheduledDate,
       requestedBy: actor, assignedTo: post.assignedName, comment: text,
+      platforms: post.platforms || [], postType: post.postType || 'static',
+      imageUrl: post.imageUrl || '',
     });
     return ok({ ok: true, post: updated });
   }

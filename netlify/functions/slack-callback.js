@@ -96,6 +96,41 @@ exports.handler = async (event) => {
           },
         ],
       });
+    } else if (actionId === 'approve_calendar_post') {
+      const res  = await fetch(`${SITE_URL}/api/calendar`, {
+        method:  'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ action: 'approve', id: itemId, actor: slackUser + ' (via Slack)', actorEmail: '' }),
+      });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) {
+        await respondToSlack(response_url, { text: `⚠️ Could not approve: ${data.error || res.status}. Open The Nest to approve manually.` });
+      } else {
+        const post = data.post || {};
+        const allDone = data.allApproved;
+        await respondToSlack(response_url, {
+          replace_original: true,
+          blocks: [
+            { type: 'section', text: { type: 'mrkdwn', text: allDone
+              ? `✅ *Fully approved!* All approvers have signed off.\n*${post.brand?.toUpperCase()} · ${post.market}* — ${post.scheduledDate || ''}`
+              : `✅ *Approved* by ${slackUser} (partial — waiting on other approvers)\n*${post.brand?.toUpperCase()} · ${post.market}*` }},
+            { type: 'actions', elements: [{ type: 'button', text: { type: 'plain_text', text: 'View in The Nest →' }, url: `${SITE_URL}/?post=${itemId}` }] },
+          ],
+        });
+      }
+
+    } else if (actionId === 'request_changes_calendar_post') {
+      // Can't ask for a text input via webhooks alone — redirect to The Nest
+      await respondToSlack(response_url, {
+        replace_original: false,
+        blocks: [
+          { type: 'section', text: { type: 'mrkdwn', text: `💬 To request changes with a comment, open the post in The Nest.` } },
+          { type: 'actions', elements: [
+            { type: 'button', text: { type: 'plain_text', text: '✏️ Open post →', emoji: true }, style: 'primary', url: `${SITE_URL}/?post=${itemId}` },
+          ]},
+        ],
+      });
+
     } else {
       // Unknown action — just acknowledge
       await respondToSlack(response_url, { text: `Received action: ${actionId}` });

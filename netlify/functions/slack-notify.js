@@ -34,12 +34,15 @@ exports.handler = async (event) => {
     const { type } = body;
 
     let payload;
-    if (type === 'queue_summary')       payload = buildQueueSummary(body);
+    if (type === 'queue_summary')            payload = buildQueueSummary(body);
     else if (type === 'international_queue') payload = buildIntlSummary(body);
-    else if (type === 'perch_assigned') payload = buildPerchAssigned(body);
-    else if (type === 'perch_done')     payload = buildPerchDone(body);
-    else if (type === 'perch_due_alert') payload = buildPerchDueAlert(body);
-    else                                payload = buildGeneric(body);
+    else if (type === 'perch_assigned')      payload = buildPerchAssigned(body);
+    else if (type === 'perch_done')          payload = buildPerchDone(body);
+    else if (type === 'perch_due_alert')     payload = buildPerchDueAlert(body);
+    else if (type === 'calendar_review_needed')    payload = buildCalendarReviewNeeded(body);
+    else if (type === 'calendar_approved')         payload = buildCalendarApproved(body);
+    else if (type === 'calendar_changes_requested') payload = buildCalendarChangesRequested(body);
+    else                                     payload = buildGeneric(body);
 
     const slackRes = await fetch(webhookUrl, {
       method: 'POST',
@@ -212,6 +215,114 @@ function buildPerchDueAlert({ overdue = [], dueToday = [], dueSoon = [] }) {
       { type: 'actions', elements: [{ type: 'button', text: { type: 'plain_text', text: 'Open The Perch →' }, url: SITE_URL, style: 'primary' }] },
     ],
   };
+}
+
+// ─── Calendar helpers ─────────────────────────────────────────────────────────
+const BRAND_EMOJI = { pickl: '🟡', bonbird: '🔴', southpour: '🟢', shadowburg: '🟣', shadowbird: '🔵' };
+const PLATFORM_LABEL = { instagram: '📸 Instagram', tiktok: '🎵 TikTok', facebook: '👥 Facebook', x: '✖ X', linkedin: '💼 LinkedIn', youtube: '▶ YouTube' };
+const TYPE_LABEL = { static: 'Static Image', carousel: 'Carousel', reel: 'Reel', story: 'Story', copy_only: 'Copy Only' };
+
+function calBrandLine(brand, market, platforms, postType, scheduledDate, scheduledTime) {
+  const emoji   = BRAND_EMOJI[brand] || '🏷';
+  const bLabel  = `${emoji} *${(brand||'').charAt(0).toUpperCase()+(brand||'').slice(1)} · ${market||''}*`;
+  const pfStr   = (platforms||[]).map(p => PLATFORM_LABEL[p]||p).join('  ·  ');
+  const typeStr = TYPE_LABEL[postType] || postType || '';
+  const dateParts = [];
+  if (scheduledDate) dateParts.push(new Date(scheduledDate+'T12:00:00').toLocaleDateString('en-GB',{weekday:'short',day:'numeric',month:'short'}));
+  if (scheduledTime) dateParts.push(scheduledTime);
+  const dateStr = dateParts.join(' · ');
+  return [bLabel, [pfStr, typeStr, dateStr].filter(Boolean).join('  ·  ')].filter(Boolean).join('\n');
+}
+
+// Only embed images Slack can actually fetch (GCS / Cloudinary / direct image URLs)
+function isEmbeddableImage(url) {
+  if (!url || !url.startsWith('https://')) return false;
+  if (url.includes('storage.googleapis.com')) return true;
+  if (url.includes('res.cloudinary.com')) return true;
+  if (/\.(jpe?g|png|webp|gif)(\?.*)?$/i.test(url)) return true;
+  return false;
+}
+
+// ─── Calendar: review needed ──────────────────────────────────────────────────
+function buildCalendarReviewNeeded({ brand, market, postId, caption, scheduledDate, scheduledTime,
+                                     submittedBy, approverName, platforms, postType, imageUrl }) {
+  const captionPreview = (caption || '').slice(0, 200) + ((caption||'').length > 200 ? '…' : '');
+  const blocks = [
+    { type: 'header', text: { type: 'plain_text', text: '📋 New post ready for your review', emoji: true } },
+    { type: 'section', text: { type: 'mrkdwn', text: calBrandLine(brand, market, platforms, postType, scheduledDate, scheduledTime) } },
+  ];
+
+  if (isEmbeddableImage(imageUrl)) {
+    blocks.push({ type: 'image', image_url: imageUrl, alt_text: `${brand} ${postType} post` });
+  }
+
+  if (captionPreview) {
+    blocks.push({ type: 'section', text: { type: 'mrkdwn', text: `*Caption:*\n_${captionPreview}_` } });
+  }
+
+  blocks.push(
+    { type: 'context', elements: [{ type: 'mrkdwn', text: `Submitted by *${submittedBy||'someone'}*  ·  Needs approval from *${approverName||'you'}*` }] },
+    { type: 'divider' },
+    {
+      type: 'actions',
+      elements: [
+        { type: 'button', text: { type: 'plain_text', text: '✅ Approve', emoji: true }, style: 'primary', action_id: 'approve_calendar_post', value: postId },
+        { type: 'button', text: { type: 'plain_text', text: '💬 Request Changes', emoji: true }, style: 'danger', action_id: 'request_changes_calendar_post', value: postId },
+        { type: 'button', text: { type: 'plain_text', text: '🔗 View in The Nest', emoji: true }, url: `${SITE_URL}/?post=${postId}` },
+      ],
+    }
+  );
+  return { blocks };
+}
+
+// ─── Calendar: fully approved ─────────────────────────────────────────────────
+function buildCalendarApproved({ brand, market, postId, caption, scheduledDate, approvedBy, platforms, postType, imageUrl }) {
+  const captionPreview = (caption || '').slice(0, 120) + ((caption||'').length > 120 ? '…' : '');
+  const blocks = [
+    { type: 'header', text: { type: 'plain_text', text: '✅ Post approved — ready to schedule', emoji: true } },
+    { type: 'section', text: { type: 'mrkdwn', text: calBrandLine(brand, market, platforms, postType, scheduledDate, null) } },
+  ];
+  if (isEmbeddableImage(imageUrl)) {
+    blocks.push({ type: 'image', image_url: imageUrl, alt_text: `${brand} post` });
+  }
+  if (captionPreview) {
+    blocks.push({ type: 'section', text: { type: 'mrkdwn', text: `_${captionPreview}_` } });
+  }
+  blocks.push(
+    { type: 'context', elements: [{ type: 'mrkdwn', text: `Approved by *${approvedBy||'someone'}*` }] },
+    { type: 'divider' },
+    { type: 'actions', elements: [
+      { type: 'button', text: { type: 'plain_text', text: '📤 Push to SocialPilot', emoji: true }, style: 'primary', url: `${SITE_URL}/?post=${postId}` },
+      { type: 'button', text: { type: 'plain_text', text: '🔗 View in The Nest', emoji: true }, url: `${SITE_URL}/?post=${postId}` },
+    ]}
+  );
+  return { blocks };
+}
+
+// ─── Calendar: changes requested ─────────────────────────────────────────────
+function buildCalendarChangesRequested({ brand, market, postId, caption, scheduledDate,
+                                          requestedBy, assignedTo, comment, platforms, postType, imageUrl }) {
+  const captionPreview = (caption || '').slice(0, 100) + ((caption||'').length > 100 ? '…' : '');
+  const blocks = [
+    { type: 'header', text: { type: 'plain_text', text: '💬 Changes requested on a post', emoji: true } },
+    { type: 'section', text: { type: 'mrkdwn', text: calBrandLine(brand, market, platforms, postType, scheduledDate, null) } },
+  ];
+  if (isEmbeddableImage(imageUrl)) {
+    blocks.push({ type: 'image', image_url: imageUrl, alt_text: `${brand} post` });
+  }
+  if (captionPreview) {
+    blocks.push({ type: 'section', text: { type: 'mrkdwn', text: `_"${captionPreview}"_` } });
+  }
+  blocks.push(
+    { type: 'section', text: { type: 'mrkdwn', text: `*Feedback from ${requestedBy||'reviewer'}:*\n> ${comment||'No comment provided'}` } },
+    { type: 'context', elements: [{ type: 'mrkdwn', text: `Assigned to *${assignedTo||'creator'}* to revise` }] },
+    { type: 'divider' },
+    { type: 'actions', elements: [
+      { type: 'button', text: { type: 'plain_text', text: '✏️ Edit Post', emoji: true }, style: 'primary', url: `${SITE_URL}/?post=${postId}` },
+      { type: 'button', text: { type: 'plain_text', text: '🔗 View in The Nest', emoji: true }, url: `${SITE_URL}/?post=${postId}` },
+    ]}
+  );
+  return { blocks };
 }
 
 // ─── Generic fallback ────────────────────────────────────────────────────────

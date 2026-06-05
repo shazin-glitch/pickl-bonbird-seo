@@ -407,6 +407,7 @@
         </div>
         <div style="display:flex;gap:8px">
           <button class="btn btn-outline" onclick="openCalPresent()" style="white-space:nowrap">📊 Present</button>
+          <button class="btn btn-outline" onclick="submitAllDrafts()" style="white-space:nowrap" title="Submit all draft posts for the current brand &amp; month for review">📤 Submit All Drafts</button>
           <button class="btn btn-primary" onclick="openCalForm(null)" style="white-space:nowrap">+ New Post</button>
         </div>
       </div>
@@ -1767,8 +1768,10 @@ const TYPE_TAGS = {
 
   // Check ?tab= param in URL (from notification deep-links)
   const urlParams = new URLSearchParams(window.location.search);
-  const urlTab = urlParams.get('tab');
-  if (urlTab) { window.history.replaceState({}, '', '/'); switchView(urlTab); }
+  const urlTab  = urlParams.get('tab');
+  const urlPost = urlParams.get('post');
+  if (urlTab)  { window.history.replaceState({}, '', '/'); switchView(urlTab); }
+  if (urlPost) { window.history.replaceState({}, '', '/'); switchView('calendar'); setTimeout(() => openCalDetail(urlPost), 900); }
   else {
     // Restore last active tab from localStorage (so refresh doesn't always go to Perch)
     try {
@@ -7093,24 +7096,29 @@ function renderCalDetailPanel(post) {
     return `<span style="background:${cfg.color || '#64748b'}18;color:${cfg.color || '#64748b'};font-size:12px;padding:3px 10px;border-radius:12px;border:1px solid ${cfg.color || '#64748b'}40;display:inline-flex;align-items:center;gap:5px">${pfIcon(p)} ${cfg.label || p}</span>`;
   }).join(' ');
 
-  // Media — supports URL-based (new) and blob-ID-based (legacy) entries
+  // Media — full-width display in detail panel
   const mediaFiles = post.mediaFiles || [];
   const mediaSrc   = f => f.url || (f.id ? `/api/calendar-media?id=${f.id}` : null);
-  const mediaHtml = mediaFiles.length
-    ? `<div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:16px">
-        ${mediaFiles.map((f, i) => {
-          const src = mediaSrc(f);
-          return src ? `<div style="position:relative;border-radius:8px;overflow:hidden;border:1px solid var(--border);cursor:pointer" onclick="calExpandImage('${esc(src)}')">
-            <img src="${esc(src)}" style="height:120px;width:auto;max-width:200px;object-fit:cover;display:block" onerror="this.style.opacity='0.3'">
-            ${post.postType==='carousel' ? `<div style="position:absolute;top:4px;left:4px;background:rgba(0,0,0,0.6);color:#fff;font-size:10px;font-weight:700;padding:1px 6px;border-radius:4px">${i+1}</div>` : ''}
-          </div>` : '';
-        }).join('')}
-      </div>`
-    : (post.imageUrl
-        ? `<div style="margin-bottom:16px;border-radius:8px;overflow:hidden;border:1px solid var(--border);display:inline-block;cursor:pointer" onclick="calExpandImage('${esc(post.imageUrl)}')">
-            <img src="${esc(post.imageUrl)}" style="height:120px;width:auto;max-width:300px;object-fit:cover;display:block" onerror="this.parentElement.style.display='none'">
-           </div>`
-        : '');
+  let mediaHtml = '';
+  if (post.postType === 'carousel' && mediaFiles.length) {
+    // Carousel: horizontal scrolling strip with larger images
+    mediaHtml = `<div style="display:flex;gap:8px;overflow-x:auto;margin:-20px -20px 16px;padding:0 20px 12px;scrollbar-width:thin">
+      ${mediaFiles.map((f, i) => {
+        const src = mediaSrc(f);
+        return src ? `<div style="flex-shrink:0;position:relative;cursor:pointer" onclick="calExpandImage('${esc(src)}')">
+          <img src="${esc(src)}" style="height:220px;width:auto;max-width:280px;border-radius:8px;object-fit:cover;display:block;border:1px solid var(--border)" onerror="this.style.opacity='0.3'">
+          <div style="position:absolute;top:6px;left:6px;background:rgba(0,0,0,0.65);color:#fff;font-size:11px;font-weight:700;padding:2px 7px;border-radius:4px">${i+1}</div>
+        </div>` : '';
+      }).join('')}
+    </div>`;
+  } else {
+    const src = mediaFiles.length ? mediaSrc(mediaFiles[0]) : post.imageUrl || '';
+    if (src) {
+      mediaHtml = `<div style="margin:-20px -20px 16px;background:#0a0a0a;cursor:pointer" onclick="calExpandImage('${esc(src)}')">
+        <img src="${esc(src)}" style="width:100%;max-height:420px;object-fit:contain;display:block" onerror="this.parentElement.style.display='none'">
+      </div>`;
+    }
+  }
 
   // Video / image URL links
   const videoHtml = post.videoUrl
@@ -7416,43 +7424,51 @@ function renderPresentSlide() {
   const sc = CAL_STATUS_LABELS[post.status] || { label: post.status, color: '#94a3b8' };
   const statusBadge = `<span style="font-size:11px;font-weight:600;padding:2px 9px;border-radius:8px;color:${sc.color};background:${sc.color}25">${sc.label}</span>`;
 
-  // Media
+  // Media — resolve sources cleanly
   const mediaFiles = post.mediaFiles || [];
-  let mediaHtml = '';
-  if (post.postType === 'carousel' && mediaFiles.length) {
-    mediaHtml = `<div style="display:flex;gap:6px;overflow-x:auto;padding-bottom:4px">
-      ${mediaFiles.map((f,i) => `<div style="flex-shrink:0;position:relative">
-        <img src="/api/calendar-media?id=${f.id}" style="height:140px;width:auto;border-radius:6px;border:1px solid rgba(255,255,255,0.1);object-fit:cover;cursor:pointer" onclick="calExpandImage('/api/calendar-media?id=${f.id}')">
-        <div style="position:absolute;top:4px;left:4px;background:rgba(0,0,0,0.6);color:#fff;font-size:10px;font-weight:700;padding:1px 6px;border-radius:4px">${i+1}</div>
-      </div>`).join('')}
+  const mSrc = f => f.url || (f.id ? `/api/calendar-media?id=${f.id}` : '');
+  const singleSrc = mediaFiles.length ? mSrc(mediaFiles[0]) : (post.imageUrl || '');
+  const isCarousel = post.postType === 'carousel' && mediaFiles.length > 0;
+
+  // Build edge-to-edge media block
+  let mediaBlock = '';
+  if (isCarousel) {
+    mediaBlock = `<div style="background:#000;border-radius:12px 12px 0 0;overflow:hidden">
+      <div style="display:flex;overflow-x:auto;scrollbar-width:none;-webkit-overflow-scrolling:touch">
+        ${mediaFiles.map((f,i) => {const s=mSrc(f); return s?`<div style="flex-shrink:0;position:relative">
+          <img src="${esc(s)}" style="height:min(52vh,420px);width:auto;max-width:85vw;object-fit:cover;display:block;cursor:pointer" onclick="calExpandImage('${esc(s)}')" onerror="this.style.display='none'">
+          <div style="position:absolute;top:8px;left:8px;background:rgba(0,0,0,0.7);color:#fff;font-size:12px;font-weight:700;padding:2px 8px;border-radius:4px">${i+1}</div>
+        </div>`:''}).join('')}
+      </div>
     </div>`;
-  } else if (mediaFiles.length) {
-    const s0 = mediaFiles[0].url || (mediaFiles[0].id ? `/api/calendar-media?id=${mediaFiles[0].id}` : '');
-    if (s0) mediaHtml = `<img src="${esc(s0)}" style="max-height:200px;border-radius:8px;object-fit:cover;cursor:pointer;max-width:100%" onclick="calExpandImage('${esc(s0)}')" onerror="this.style.display='none'">`;
-  } else if (post.imageUrl) {
-    mediaHtml = `<img src="${esc(post.imageUrl)}" style="max-height:200px;border-radius:8px;object-fit:cover;cursor:pointer;max-width:100%" onclick="calExpandImage('${esc(post.imageUrl)}')" onerror="this.style.display='none'">`;
-  }
-  if (post.videoUrl) {
-    mediaHtml += `<div style="margin-top:8px"><a href="${esc(post.videoUrl)}" target="_blank" rel="noopener" style="color:#60a5fa;font-size:13px;display:inline-flex;align-items:center;gap:5px">▶ View Video</a></div>`;
+  } else if (singleSrc) {
+    mediaBlock = `<div style="background:#000;border-radius:12px 12px 0 0;overflow:hidden;cursor:pointer" onclick="calExpandImage('${esc(singleSrc)}')">
+      <img src="${esc(singleSrc)}" style="width:100%;max-height:min(52vh,420px);object-fit:contain;display:block" onerror="this.parentElement.style.display='none'">
+    </div>`;
   }
 
+  // Can this user approve this post?
+  const canApprovePresent = post.status === 'in_review' &&
+    ((post.requiredApprovers||[]).some(a => a.email === state.userEmail) || ['admin','manager'].includes(state.userRole)) &&
+    !(post.approvals||[]).some(a => a.email === state.userEmail);
+
   document.getElementById('cal-present-slide').innerHTML = `
-    <div style="padding:20px 22px">
-      <!-- Meta row -->
-      <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin-bottom:14px">
+    ${mediaBlock}
+    <div style="padding:18px 22px${mediaBlock ? '' : ';padding-top:22px'}">
+      <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin-bottom:12px">
         ${statusBadge}
         <span style="font-size:12px;color:rgba(255,255,255,0.45)">${CAL_TYPE_LABELS[post.postType] || post.postType || ''}</span>
         ${post.scheduledDate ? `<span style="font-size:12px;color:rgba(255,255,255,0.45)">${new Date(post.scheduledDate+'T12:00:00').toLocaleDateString('en-GB',{weekday:'short',day:'numeric',month:'short'})}${post.scheduledTime?' · '+post.scheduledTime:''}</span>` : ''}
         <div style="margin-left:auto;display:flex;gap:6px;flex-wrap:wrap">${pfRow}</div>
       </div>
-      <!-- Media -->
-      ${mediaHtml ? `<div style="margin-bottom:14px">${mediaHtml}</div>` : ''}
-      <!-- Caption -->
-      <div style="font-size:14px;color:rgba(255,255,255,0.9);line-height:1.65;white-space:pre-wrap;margin-bottom:10px">${esc(post.caption || '(no caption)')}</div>
-      <!-- Hashtags -->
+      <div style="font-size:14px;color:rgba(255,255,255,0.9);line-height:1.7;white-space:pre-wrap;margin-bottom:10px">${esc(post.caption || '(no caption)')}</div>
       ${post.hashtags ? `<div style="font-size:12px;color:#818cf8;margin-bottom:10px">${esc(post.hashtags)}</div>` : ''}
-      <!-- Visual Notes -->
       ${post.visualNotes ? `<div style="background:rgba(255,255,255,0.05);border:1px solid rgba(255,255,255,0.1);border-radius:6px;padding:10px 12px"><div style="font-size:10px;font-weight:700;color:rgba(255,255,255,0.4);text-transform:uppercase;letter-spacing:0.04em;margin-bottom:4px">Visual Notes</div><div style="font-size:12px;color:rgba(255,255,255,0.7);white-space:pre-wrap">${esc(post.visualNotes)}</div></div>` : ''}
+      ${post.videoUrl ? `<div style="margin-top:10px"><a href="${esc(post.videoUrl)}" target="_blank" rel="noopener" style="color:#60a5fa;font-size:13px">▶ View Video</a></div>` : ''}
+      ${canApprovePresent ? `<div style="display:flex;gap:8px;margin-top:16px;padding-top:14px;border-top:1px solid rgba(255,255,255,0.1)">
+        <button onclick="presentApprove('${post.id}')" style="flex:1;background:#16a34a;border:none;color:#fff;padding:8px 0;border-radius:7px;font-size:13px;font-weight:600;cursor:pointer">✅ Approve</button>
+        <button onclick="presentRequestChanges('${post.id}')" style="flex:1;background:rgba(239,68,68,0.15);border:1px solid #ef4444;color:#ef4444;padding:8px 0;border-radius:7px;font-size:13px;font-weight:600;cursor:pointer">💬 Request Changes</button>
+      </div>` : ''}
     </div>`;
 
   // Render comments panel
@@ -7497,6 +7513,29 @@ function renderPresentComments(post) {
     </div>`;
   }).join('');
   el.scrollTop = el.scrollHeight;
+}
+
+async function presentApprove(postId) {
+  try {
+    const res = await apiPost('/api/calendar', { action: 'approve', id: postId, actor: state.actor, actorEmail: state.userEmail });
+    showToast(res.allApproved ? '✅ Fully approved!' : '✓ Your approval recorded', 'success');
+    calState.presentPosts[calState.presentIdx] = res.post;
+    await loadCalendar();
+    renderPresentSlide();
+  } catch (e) { showToast(e.message, 'error'); }
+}
+
+async function presentRequestChanges(postId) {
+  const text = prompt('Describe what needs to change:');
+  if (!text?.trim()) return;
+  try {
+    const res = await apiPost('/api/calendar', { action: 'request_changes', id: postId, comment: text.trim(), actor: state.actor, actorEmail: state.userEmail });
+    showToast('Changes requested', 'success');
+    calState.presentPosts[calState.presentIdx] = res.post;
+    await loadCalendar();
+    renderPresentSlide();
+    renderPresentComments(res.post);
+  } catch (e) { showToast(e.message, 'error'); }
 }
 
 async function calPresentAddNote() {
@@ -7549,6 +7588,27 @@ function printCalPresent() {
   window.print();
   document.body.classList.remove('cal-printing');
   div.remove();
+}
+
+// ── Bulk submit all drafts ─────────────────────────────────────────────────────
+async function submitAllDrafts() {
+  const drafts = calState.posts.filter(p => ['draft','changes_requested'].includes(p.status));
+  if (!drafts.length) { showToast('No draft posts to submit for this month', 'error'); return; }
+  const withoutApprovers = drafts.filter(p => !(p.requiredApprovers||[]).length);
+  if (withoutApprovers.length) {
+    showToast(`${withoutApprovers.length} post(s) have no required approvers — open them and add approvers first`, 'error');
+    return;
+  }
+  if (!confirm(`Submit ${drafts.length} draft post${drafts.length > 1 ? 's' : ''} for review? Approvers will be notified.`)) return;
+  try {
+    const res = await apiPost('/api/calendar', {
+      action: 'bulk_submit',
+      ids: drafts.map(p => p.id),
+      actor: state.actor, actorEmail: state.userEmail,
+    });
+    showToast(`✅ ${res.submitted} post${res.submitted > 1 ? 's' : ''} submitted for review`, 'success');
+    await loadCalendar();
+  } catch (e) { showToast('Submit failed: ' + e.message, 'error'); }
 }
 
 // ── Badge count ────────────────────────────────────────────────────────────────
