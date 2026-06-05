@@ -411,7 +411,8 @@
         </div>
         <div style="display:flex;gap:8px">
           <button class="btn btn-outline" onclick="openCalPresent()" style="white-space:nowrap">📊 Present</button>
-          <button class="btn btn-outline" onclick="submitAllDrafts()" style="white-space:nowrap" title="Submit all draft posts for the current brand &amp; month for review">📤 Submit All Drafts</button>
+          <button class="btn btn-outline" onclick="submitAllDrafts()" style="white-space:nowrap" title="Submit all draft posts for the current brand &amp; month for review">📨 Submit All Drafts</button>
+          <button class="btn btn-outline" id="cal-push-all-btn" onclick="pushAllApproved()" style="white-space:nowrap;display:none">📤 Push All Approved</button>
           <button class="btn btn-primary" onclick="openCalForm(null)" style="white-space:nowrap">+ New Post</button>
         </div>
       </div>
@@ -6370,6 +6371,28 @@ const CAL_STATUS_LABELS = {
 const CAL_POST_TYPES = ['reel','carousel','story','static','copy_only'];
 const CAL_TYPE_LABELS = { reel:'Reel', carousel:'Carousel', story:'Story', static:'Static Image', copy_only:'Copy Only' };
 
+// SocialPilot account existence map — used for pre-push validation (client-side)
+// Mirrors SP_ACCOUNTS in calendar.js. Keep in sync when adding new markets.
+const SP_HAS_ACCOUNT = {
+  pickl: {
+    UAE:     new Set(['youtube','facebook','instagram','tiktok','linkedin']),
+    Bahrain: new Set(['facebook','instagram']),
+    Egypt:   new Set(['facebook','instagram','tiktok']),
+    Jordan:  new Set(['facebook','instagram']),
+    KSA:     new Set(['facebook','instagram','tiktok']),
+    Oman:    new Set(['facebook','instagram']),
+    Qatar:   new Set(['facebook','instagram']),
+  },
+  bonbird: {
+    UAE:      new Set(['youtube','facebook','instagram','linkedin','tiktok']),
+    Oman:     new Set(['facebook','instagram']),
+    Pakistan: new Set(['facebook','instagram']),
+    Qatar:    new Set(['facebook','instagram']),
+    UK:       new Set(['facebook','instagram','tiktok']),
+  },
+  southpour: { UAE: new Set(['facebook','instagram']) },
+};
+
 // ⚠️ Adding a new market? Add its IANA timezone here too — see SETUP.md
 const CAL_MARKET_TIMEZONES = {
   UAE: 'Asia/Dubai', KSA: 'Asia/Riyadh', Bahrain: 'Asia/Bahrain',
@@ -6407,6 +6430,7 @@ const calState = {
   detailPost: null,       // post open in detail panel
   carouselSlides: [],     // [{ url, note }] — carousel slide state (URL-based, no uploads)
   allUsers: [],           // loaded from /api/users for approver picker
+  selectedPosts: new Set(), // post IDs selected in list view
   loaded:   false,
   presentIdx: 0,          // current slide index in presentation mode
   presentPosts: [],       // posts shown in presentation
@@ -6498,6 +6522,10 @@ function renderCalendar() {
 function renderCalStats(posts) {
   const el = document.getElementById('cal-stats-bar');
   if (!el) return;
+  // Show/hide Push All Approved button
+  const approvedCount = posts.filter(p => p.status === 'approved').length;
+  const pushAllBtn = document.getElementById('cal-push-all-btn');
+  if (pushAllBtn) pushAllBtn.style.display = approvedCount > 0 && ['admin','manager'].includes(state.userRole) ? '' : 'none';
   if (!posts.length) { el.style.display = 'none'; return; }
   el.style.display = '';
 
@@ -6588,24 +6616,19 @@ function renderCalMonthGrid(posts) {
 
 function renderCalList(posts) {
   const body = document.getElementById('cal-list-body');
+  calState.selectedPosts.clear();
+  updateCalListBar();
   if (!posts.length) {
     body.innerHTML = '<div style="text-align:center;padding:60px 24px;color:var(--text-muted)"><div style="font-size:40px;margin-bottom:12px">📅</div><div style="font-weight:600">No posts this month</div></div>';
     return;
   }
-
   const grouped = {};
-  for (const p of posts) {
-    const d = p.scheduledDate || 'Unscheduled';
-    if (!grouped[d]) grouped[d] = [];
-    grouped[d].push(p);
-  }
-
+  for (const p of posts) { const d = p.scheduledDate || 'Unscheduled'; if (!grouped[d]) grouped[d] = []; grouped[d].push(p); }
   let html = '';
   for (const [date, datePosts] of Object.entries(grouped).sort()) {
     const label = date === 'Unscheduled' ? 'Unscheduled' :
       new Date(date + 'T12:00:00').toLocaleDateString('en-GB', { weekday:'long', day:'numeric', month:'long' });
-    html += `<div style="margin-bottom:24px">
-      <div style="font-size:13px;font-weight:700;color:var(--text-muted);text-transform:uppercase;letter-spacing:0.04em;margin-bottom:8px;padding-bottom:6px;border-bottom:1px solid var(--border)">${label}</div>`;
+    html += `<div style="margin-bottom:24px"><div style="font-size:13px;font-weight:700;color:var(--text-muted);text-transform:uppercase;letter-spacing:0.04em;margin-bottom:8px;padding-bottom:6px;border-bottom:1px solid var(--border)">${label}</div>`;
     for (const p of datePosts) {
       const statusInfo = CAL_STATUS_LABELS[p.status] || { label: p.status, color: '#64748b' };
       const pfLabels   = (p.platforms || []).map(pl => CAL_PLATFORMS[pl]?.label || pl).join(' · ');
@@ -6613,26 +6636,93 @@ function renderCalList(posts) {
       const hasMedia   = (p.mediaFiles || []).length > 0 || !!p.imageUrl;
       const _mf0       = (p.mediaFiles||[])[0];
       const thumbSrc   = _mf0 ? (_mf0.url || (_mf0.id ? `/api/calendar-media?id=${_mf0.id}` : '')) : (p.imageUrl || '');
-      html += `<div onclick="openCalDetail('${p.id}')" style="background:var(--bg-surface);border:1px solid var(--border);border-radius:8px;padding:14px 16px;margin-bottom:8px;cursor:pointer;display:flex;gap:14px;align-items:flex-start;transition:box-shadow 0.15s" onmouseover="this.style.boxShadow='0 2px 8px rgba(0,0,0,0.08)'" onmouseout="this.style.boxShadow='none'">
-        ${hasMedia && thumbSrc ? `<div style="width:52px;height:52px;border-radius:6px;overflow:hidden;flex-shrink:0;border:1px solid var(--border)"><img src="${thumbSrc}" style="width:100%;height:100%;object-fit:cover" onerror="this.style.display='none'"></div>` : `<div style="width:52px;height:52px;border-radius:6px;background:var(--bg-base);flex-shrink:0;display:flex;align-items:center;justify-content:center;border:1px solid var(--border)">${firstPf ? pfIcon(firstPf, 22) : '<span style="font-size:18px">📋</span>'}</div>`}
-        <div style="flex:1;min-width:0">
-          <div style="display:flex;align-items:center;gap:8px;margin-bottom:4px;flex-wrap:wrap">
-            <span style="font-size:11px;font-weight:600;color:${statusInfo.color};background:${statusInfo.color}18;padding:2px 8px;border-radius:10px">${statusInfo.label}</span>
-            <span style="font-size:11px;color:var(--text-muted)">${pfLabels}</span>
-            <span style="font-size:11px;color:var(--text-muted)">${p.market || ''}</span>
-            ${p.scheduledTime ? `<span style="font-size:11px;color:var(--text-muted)">🕐 ${p.scheduledTime}</span>` : ''}
+      html += `<div id="list-row-${p.id}" style="background:var(--bg-surface);border:1px solid var(--border);border-radius:8px;padding:12px 16px;margin-bottom:8px;display:flex;gap:10px;align-items:flex-start;transition:box-shadow 0.15s,border-color 0.15s">
+        <input type="checkbox" style="margin-top:16px;flex-shrink:0;accent-color:var(--primary);width:15px;height:15px;cursor:pointer" onchange="toggleCalListSelect('${p.id}',this.checked)" onclick="event.stopPropagation()">
+        <div onclick="openCalDetail('${p.id}')" style="display:flex;gap:12px;align-items:flex-start;flex:1;cursor:pointer;min-width:0" onmouseover="this.parentElement.style.boxShadow='0 2px 8px rgba(0,0,0,0.08)'" onmouseout="this.parentElement.style.boxShadow='none'">
+          ${hasMedia && thumbSrc ? `<div style="width:52px;height:52px;border-radius:6px;overflow:hidden;flex-shrink:0;border:1px solid var(--border)"><img src="${thumbSrc}" style="width:100%;height:100%;object-fit:cover" onerror="this.style.display='none'"></div>` : `<div style="width:52px;height:52px;border-radius:6px;background:var(--bg-base);flex-shrink:0;display:flex;align-items:center;justify-content:center;border:1px solid var(--border)">${firstPf ? pfIcon(firstPf, 22) : '<span style="font-size:18px">📋</span>'}</div>`}
+          <div style="flex:1;min-width:0">
+            <div style="display:flex;align-items:center;gap:8px;margin-bottom:4px;flex-wrap:wrap">
+              <span style="font-size:11px;font-weight:600;color:${statusInfo.color};background:${statusInfo.color}18;padding:2px 8px;border-radius:10px">${statusInfo.label}</span>
+              <span style="font-size:11px;color:var(--text-muted)">${pfLabels}</span>
+              <span style="font-size:11px;color:var(--text-muted)">${p.market || ''}</span>
+              ${p.scheduledTime ? `<span style="font-size:11px;color:var(--text-muted)">🕐 ${p.scheduledTime}${getMarketTzNote(p.market, p.scheduledDate)}</span>` : ''}
+            </div>
+            <div style="font-size:13px;color:var(--text-main);line-height:1.4;overflow:hidden;text-overflow:ellipsis;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical">${esc(p.caption || '(no caption)')}</div>
+            ${p.assignedName ? `<div style="font-size:11px;color:var(--text-muted);margin-top:4px">Assigned: ${esc(p.assignedName)}</div>` : ''}
           </div>
-          <div style="font-size:13px;color:var(--text-main);line-height:1.4;overflow:hidden;text-overflow:ellipsis;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical">${esc(p.caption || '(no caption)')}</div>
-          ${p.assignedName ? `<div style="font-size:11px;color:var(--text-muted);margin-top:4px">Assigned: ${esc(p.assignedName)}</div>` : ''}
-        </div>
-        <div style="flex-shrink:0">
-          ${(p.requiredApprovers||[]).length ? `<div style="font-size:10px;color:var(--text-muted);text-align:right">${(p.approvals||[]).length}/${(p.requiredApprovers||[]).length} approved</div>` : ''}
+          <div style="flex-shrink:0;text-align:right">
+            ${(p.requiredApprovers||[]).length ? `<div style="font-size:10px;color:var(--text-muted)">${(p.approvals||[]).length}/${(p.requiredApprovers||[]).length} approved</div>` : ''}
+          </div>
         </div>
       </div>`;
     }
     html += '</div>';
   }
+  html += `<div id="cal-list-bar" style="display:none;position:sticky;bottom:16px;background:var(--bg-surface);border:1px solid var(--border);border-radius:10px;padding:10px 16px;box-shadow:0 4px 16px rgba(0,0,0,0.12);align-items:center;gap:10px;flex-wrap:wrap;z-index:50">
+    <span id="cal-list-bar-count" style="font-size:13px;font-weight:600;color:var(--text-main)"></span>
+    <div style="flex:1"></div>
+    <button id="cal-bar-submit" class="btn btn-outline" onclick="bulkCalAction('submit')" style="font-size:12px;padding:5px 12px;display:none">📨 Submit for Review</button>
+    <button id="cal-bar-push"   class="btn btn-primary" onclick="bulkCalAction('push')"   style="font-size:12px;padding:5px 12px;background:#7c3aed;border-color:#7c3aed;display:none">📤 Push to SocialPilot</button>
+    <button id="cal-bar-delete" class="btn btn-ghost"   onclick="bulkCalAction('delete')" style="font-size:12px;padding:5px 12px;color:#ef4444;display:none">🗑 Delete</button>
+    <button class="btn btn-ghost" onclick="calState.selectedPosts.clear();updateCalListBar();document.querySelectorAll('#cal-list-body input[type=checkbox]').forEach(cb=>cb.checked=false);document.querySelectorAll('[id^=list-row-]').forEach(r=>r.style.borderColor='var(--border)')" style="font-size:12px;padding:5px 10px;color:var(--text-muted)">✕ Clear</button>
+  </div>`;
   body.innerHTML = html;
+}
+
+function toggleCalListSelect(postId, checked) {
+  const row = document.getElementById(`list-row-${postId}`);
+  if (checked) { calState.selectedPosts.add(postId); if (row) row.style.borderColor = 'var(--primary)'; }
+  else          { calState.selectedPosts.delete(postId); if (row) row.style.borderColor = 'var(--border)'; }
+  updateCalListBar();
+}
+
+function updateCalListBar() {
+  const bar    = document.getElementById('cal-list-bar');
+  const count  = document.getElementById('cal-list-bar-count');
+  const btnSub = document.getElementById('cal-bar-submit');
+  const btnPush= document.getElementById('cal-bar-push');
+  const btnDel = document.getElementById('cal-bar-delete');
+  if (!bar) return;
+  const n = calState.selectedPosts.size;
+  if (!n) { bar.style.display = 'none'; return; }
+  bar.style.display = 'flex';
+  if (count) count.textContent = `${n} post${n > 1 ? 's' : ''} selected`;
+  const selPosts  = calState.posts.filter(p => calState.selectedPosts.has(p.id));
+  const hasDrafts = selPosts.some(p => ['draft','changes_requested'].includes(p.status));
+  const hasApproved = selPosts.some(p => p.status === 'approved');
+  const isAdmin   = ['admin','manager'].includes(state.userRole);
+  if (btnSub)  btnSub.style.display  = hasDrafts ? '' : 'none';
+  if (btnPush) btnPush.style.display = hasApproved && isAdmin ? '' : 'none';
+  if (btnDel)  btnDel.style.display  = isAdmin ? '' : 'none';
+}
+
+async function bulkCalAction(action) {
+  const ids = [...calState.selectedPosts];
+  if (!ids.length) return;
+  const selPosts = calState.posts.filter(p => ids.includes(p.id));
+  if (action === 'submit') {
+    const eligible = selPosts.filter(p => ['draft','changes_requested'].includes(p.status));
+    const noApprovers = eligible.filter(p => !(p.requiredApprovers||[]).length);
+    if (noApprovers.length) { showToast(`${noApprovers.length} post(s) have no approvers set`, 'error'); return; }
+    if (!confirm(`Submit ${eligible.length} post${eligible.length>1?'s':''} for review?`)) return;
+    const res = await apiPost('/api/calendar', { action:'bulk_submit', ids:eligible.map(p=>p.id), actor:state.actor, actorEmail:state.userEmail });
+    showToast(`✅ ${res.submitted} submitted`, 'success');
+  } else if (action === 'push') {
+    const approved = selPosts.filter(p => p.status === 'approved');
+    if (!confirm(`Push ${approved.length} post${approved.length>1?'s':''} to SocialPilot?`)) return;
+    let pushed=0, failed=0;
+    for (const p of approved) {
+      try { await apiPost('/api/calendar', {action:'push_socialpilot',id:p.id,actor:state.actor,actorEmail:state.userEmail}); pushed++; }
+      catch(_) { failed++; }
+    }
+    showToast(`📤 ${pushed} pushed${failed?`, ${failed} failed`:''}`, pushed>0?'success':'error');
+  } else if (action === 'delete') {
+    if (!confirm(`Delete ${ids.length} post${ids.length>1?'s':''}? Cannot be undone.`)) return;
+    for (const id of ids) await apiPost('/api/calendar',{action:'delete',id,actor:state.actor,actorEmail:state.userEmail}).catch(()=>null);
+    showToast(`🗑 ${ids.length} deleted`, 'success');
+  }
+  calState.selectedPosts.clear();
+  await loadCalendar();
 }
 
 // ── Post Creation / Edit Form ──────────────────────────────────────────────────
@@ -6764,10 +6854,16 @@ async function openCalForm(postId, prefillDate) {
       </div>
       <div class="form-group" style="margin-bottom:0">
         <label class="form-label">Required Approver(s)</label>
-        <select id="cf-approvers" class="form-input" style="font-family:var(--font-sans)" multiple size="4">
-          ${approverOpts || '<option disabled>No managers/admins found</option>'}
-        </select>
-        <div style="font-size:11px;color:var(--text-muted);margin-top:2px">Hold Ctrl/Cmd to select multiple</div>
+        <div id="cf-approvers" style="border:1px solid var(--border);border-radius:6px;max-height:130px;overflow-y:auto;padding:4px 10px;background:var(--bg-base)">
+          ${calState.allUsers.filter(u => ['admin','manager'].includes(u.role)).map(u => {
+            const checked = (post?.requiredApprovers || []).some(a => a.email === u.email) ? 'checked' : '';
+            return `<label style="display:flex;align-items:center;gap:8px;padding:6px 0;cursor:pointer;font-size:13px;border-bottom:1px solid var(--border)">
+              <input type="checkbox" value="${esc(u.email)}|${esc(u.name||u.email)}" ${checked} style="accent-color:var(--primary);width:14px;height:14px;flex-shrink:0">
+              <span>${esc(u.name||u.email)}</span>
+              <span style="font-size:11px;color:var(--text-muted);margin-left:auto">${u.role}</span>
+            </label>`;
+          }).join('') || '<div style="font-size:13px;color:var(--text-muted);padding:8px 0">No managers or admins found</div>'}
+        </div>
       </div>
     </div>
   `;
@@ -6808,6 +6904,7 @@ function updateCalFormMarkets() {
   const markets = CAL_MARKETS[brand] || ['UAE'];
   const sel     = document.getElementById('cf-market');
   if (sel) sel.innerHTML = markets.map(m => `<option value="${m}">${m}</option>`).join('');
+  loadHashtagPresets(brand); // reload presets for the new brand
 }
 
 function toggleCalPlatform(el) {
@@ -7081,14 +7178,9 @@ async function saveCalPost(mode) {
 
   const platforms = [...document.querySelectorAll('#cal-platform-pills .cal-platform-pill.active')].map(el => el.dataset.platform);
 
-  // Approvers
-  const approverSel = document.getElementById('cf-approvers');
-  const requiredApprovers = approverSel
-    ? [...approverSel.selectedOptions].map(o => {
-        const [email, name] = o.value.split('|');
-        return { email, name };
-      })
-    : [];
+  // Approvers — read from checkbox list
+  const requiredApprovers = [...document.querySelectorAll('#cf-approvers input[type="checkbox"]:checked')]
+    .map(cb => { const [email, name] = cb.value.split('|'); return { email, name }; });
 
   // Assignee
   const assignedSel  = document.getElementById('cf-assigned');
@@ -7165,6 +7257,10 @@ async function openCalDetail(postId) {
   const post = await apiGet(`/api/calendar?id=${postId}`).catch(() => null);
   if (!post) { showToast('Post not found', 'error'); return; }
   calState.detailPost = post;
+  // Ensure users are loaded for @mentions
+  if (!calState.allUsers.length) {
+    try { const ud = await apiGet('/api/users'); calState.allUsers = ud.users || []; } catch (_) {}
+  }
   renderCalDetailPanel(post);
   document.getElementById('cal-detail-overlay').style.display = '';
   document.getElementById('cal-detail-panel').style.display   = '';
@@ -7399,6 +7495,11 @@ function renderCalDetailPanel(post) {
     ${copyDupBar}
     ${commentInput}
     ${actionBar}
+    ${/* Admin delete — always visible regardless of status */
+      ['admin'].includes(state.userRole) && !['draft','changes_requested'].includes(post.status)
+        ? `<div style="padding:6px 16px;border-top:1px solid var(--border);text-align:right;flex-shrink:0">
+             <button class="btn btn-ghost" style="font-size:12px;color:#ef4444" onclick="calDeletePost('${post.id}')">🗑 Delete post</button>
+           </div>` : ''}
   `;
 }
 
@@ -7459,24 +7560,25 @@ async function calAddComment(postId) {
     });
     if (input) input.value = '';
     if (res.post) renderCalDetailPanel(res.post);
-    // Fire-and-forget Slack notifications for @mentions
-    const mentions = [...text.matchAll(/@([\w\s]+?)(?=\s|$|[@,])/g)].map(m => m[1].trim());
-    for (const name of mentions) {
-      const user = (calState.allUsers || []).find(u => (u.name || u.email) === name);
-      if (user && user.email !== state.userEmail) {
-        const post = res.post;
-        fetch('/.netlify/functions/slack-notify', {
-          method: 'POST', headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            type: 'calendar_mention',
-            brand: post.brand, market: post.market, postId,
-            mentionedName: name, mentionedBy: state.actor,
-            commentText: text, platforms: post.platforms,
-            postType: post.postType, scheduledDate: post.scheduledDate,
-            imageUrl: post.imageUrl || '',
-          }),
-        }).catch(() => null);
-      }
+    // Fire-and-forget Slack notifications for @mentions — match against known user names
+    const mentionedUsers = (calState.allUsers || []).filter(u => {
+      const name = u.name || u.email;
+      return text.includes(`@${name}`) && u.email !== state.userEmail;
+    });
+    for (const mentionedUser of mentionedUsers) {
+      const mName = mentionedUser.name || mentionedUser.email;
+      const post  = res.post;
+      fetch('/.netlify/functions/slack-notify', {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          type: 'calendar_mention',
+          brand: post.brand, market: post.market, postId,
+          mentionedName: mName, mentionedBy: state.actor,
+          commentText: text, platforms: post.platforms,
+          postType: post.postType, scheduledDate: post.scheduledDate,
+          imageUrl: post.imageUrl || '',
+        }),
+      }).catch(() => null);
     }
   } catch (e) { showToast(e.message, 'error'); }
 }
@@ -7505,16 +7607,53 @@ async function calDeletePost(postId) {
 }
 
 async function calPushSocialPilot(postId) {
+  // Pre-push account check
+  const post = calState.detailPost?.id === postId ? calState.detailPost : calState.posts.find(p => p.id === postId);
+  if (post) {
+    const marketAccts = SP_HAS_ACCOUNT[post.brand]?.[post.market] || new Set();
+    const platforms   = post.platforms || [];
+    const willPush    = platforms.filter(p => marketAccts.has(p));
+    const willSkip    = platforms.filter(p => !marketAccts.has(p));
+    if (willPush.length === 0) {
+      showToast(`No SocialPilot accounts configured for ${post.brand} · ${post.market}. Add account IDs to SP_ACCOUNTS in calendar.js.`, 'error');
+      return;
+    }
+    if (willSkip.length > 0) {
+      const pushNames = willPush.map(p => CAL_PLATFORMS[p]?.label || p).join(', ');
+      const skipNames = willSkip.map(p => CAL_PLATFORMS[p]?.label || p).join(', ');
+      if (!confirm(`Push to SocialPilot?\n\n✅ Will schedule: ${pushNames}\n⚠️ No account configured for: ${skipNames}\n\nContinue with available accounts?`)) return;
+    }
+  }
   try {
-    const res = await apiPost('/api/calendar', {
-      action: 'push_socialpilot', id: postId,
-      actor: state.actor, actorEmail: state.userEmail,
-    });
-    const missing = res.missingPlatforms?.length ? ` (no SP account for: ${res.missingPlatforms.join(', ')})` : '';
-    showToast(`📤 Pushed to SocialPilot — scheduled to ${res.accountIds?.length || '?'} account(s)${missing}`, 'success');
+    const res = await apiPost('/api/calendar', { action:'push_socialpilot', id:postId, actor:state.actor, actorEmail:state.userEmail });
+    showToast(`📤 Pushed to ${res.accountIds?.length || '?'} account(s)`, 'success');
     await loadCalendar();
-    if (res.post) renderCalDetailPanel(res.post);
+    if (res.post) { calState.detailPost = res.post; renderCalDetailPanel(res.post); }
   } catch (e) { showToast(e.message, 'error'); }
+}
+
+async function pushAllApproved() {
+  const approved = calState.posts.filter(p => p.status === 'approved');
+  if (!approved.length) { showToast('No approved posts to push this month', 'error'); return; }
+  // Pre-check accounts
+  const noAccounts = approved.filter(p => {
+    const accts = SP_HAS_ACCOUNT[p.brand]?.[p.market] || new Set();
+    return !(p.platforms||[]).some(pl => accts.has(pl));
+  });
+  if (noAccounts.length === approved.length) {
+    showToast('No SocialPilot accounts configured for any approved post this month', 'error'); return;
+  }
+  const msg = noAccounts.length
+    ? `Push ${approved.length} approved posts?\n\n⚠️ ${noAccounts.length} post(s) have no SP accounts and will fail — check their brand/market/platform config.\n\nContinue?`
+    : `Push all ${approved.length} approved posts to SocialPilot?`;
+  if (!confirm(msg)) return;
+  let pushed=0, failed=0;
+  for (const p of approved) {
+    try { await apiPost('/api/calendar',{action:'push_socialpilot',id:p.id,actor:state.actor,actorEmail:state.userEmail}); pushed++; }
+    catch(_) { failed++; }
+  }
+  showToast(`📤 ${pushed} pushed${failed?`, ${failed} failed`:''}`, pushed>0?'success':'error');
+  await loadCalendar();
 }
 
 async function calMarkPublished(postId) {
@@ -7649,7 +7788,7 @@ async function testSocialPilotConn() {
   try {
     const res = await apiGet('/api/calendar?sp_test=1');
     if (el) el.innerHTML = res.ok
-      ? `<span style="color:#16a34a;font-size:12px">✅ Connected — ${res.accounts} account(s) found</span>`
+      ? `<span style="color:#16a34a;font-size:12px">✅ ${esc(res.message || 'API key configured')}</span>`
       : `<span style="color:#ef4444;font-size:12px">❌ ${esc(res.error || 'Connection failed')}</span>`;
   } catch (e) {
     if (el) el.innerHTML = `<span style="color:#ef4444;font-size:12px">❌ ${esc(e.message)}</span>`;
