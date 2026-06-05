@@ -258,7 +258,7 @@ function buildCalendarReviewNeeded({ brand, market, postId, caption, scheduledDa
   }
 
   if (captionPreview) {
-    blocks.push({ type: 'section', text: { type: 'mrkdwn', text: `*Caption:*\n_${captionPreview}_` } });
+    blocks.push({ type: 'section', text: { type: 'mrkdwn', text: `*Caption:*\n${captionPreview}` } });
   }
 
   blocks.push(
@@ -287,7 +287,7 @@ function buildCalendarApproved({ brand, market, postId, caption, scheduledDate, 
     blocks.push({ type: 'image', image_url: imageUrl, alt_text: `${brand} post` });
   }
   if (captionPreview) {
-    blocks.push({ type: 'section', text: { type: 'mrkdwn', text: `_${captionPreview}_` } });
+    blocks.push({ type: 'section', text: { type: 'mrkdwn', text: captionPreview } });
   }
   blocks.push(
     { type: 'context', elements: [{ type: 'mrkdwn', text: `Approved by *${approvedBy||'someone'}*` }] },
@@ -312,7 +312,7 @@ function buildCalendarChangesRequested({ brand, market, postId, caption, schedul
     blocks.push({ type: 'image', image_url: imageUrl, alt_text: `${brand} post` });
   }
   if (captionPreview) {
-    blocks.push({ type: 'section', text: { type: 'mrkdwn', text: `_"${captionPreview}"_` } });
+    blocks.push({ type: 'section', text: { type: 'mrkdwn', text: `"${captionPreview}"` } });
   }
   blocks.push(
     { type: 'section', text: { type: 'mrkdwn', text: `*Feedback from ${requestedBy||'reviewer'}:*\n> ${comment||'No comment provided'}` } },
