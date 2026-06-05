@@ -51,13 +51,14 @@
 
 ---
 
-## Current Version: v6.9u
+## Current Version: v6.9v
 
 See SETUP.md → "Done (Full History)" for complete build log.
 
 **Next up (from SETUP.md roadmap):**
-- Social media workflow refinements → SocialPilot account mapping UI
-- Multi-brand expansion — Southpour, Shadowburg, Shadowbird (Week 6)
+- Media storage settings card (Drive links / Cloudinary / GCS as configurable options)
+- SocialPilot account mapping UI
+- Multi-brand expansion — Southpour full pipeline
 - Delivery platform SEO — Talabat, Deliveroo, Noon Food keyword optimisation
 
 ---

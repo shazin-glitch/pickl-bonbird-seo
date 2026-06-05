@@ -1446,6 +1446,8 @@ draft → in_review → changes_requested ↔ in_review → approved → schedul
 - Pickl: UAE, KSA, Bahrain, Qatar, Egypt, Jordan, Oman
 - Bonbird: UAE, Oman, Pakistan, Qatar
 - Southpour: UAE
+- Shadowburg: UAE
+- Shadowbird: UAE
 
 **Required env vars (new):**
 | Variable | Purpose |
@@ -1454,4 +1456,27 @@ draft → in_review → changes_requested ↔ in_review → approved → schedul
 
 **Note on videos:** Videos > ~4MB can't be base64-uploaded through Netlify functions. Use the Video URL field (YouTube/Google Drive/OneDrive) for video content. Image uploads work for all standard social images (1–4MB).
 
-*Last updated: June 2026 — v6.9u: Content Calendar (full social content operations — plan, upload, approve, schedule. Month/list views, image upload, approval workflow, SocialPilot push, Slack notifications, brand/market/platform/status filters)*
+---
+
+## Session: June 2026 — v6.9v Content Calendar Upgrade
+
+### Changes
+- **Shadowburg + Shadowbird added to Content Calendar** — both brands now appear in filter dropdown and form brand select; markets: UAE for both
+- **Post-type-specific upload UX** — form media section is now fully dynamic based on selected post type:
+  - `copy_only` — no media fields shown
+  - `static` — single image upload (1:1 or 4:5 ratio tip)
+  - `story` — single vertical image (9:16 · 1080×1920px tip)
+  - `reel` — video URL as primary required field (Google Drive / OneDrive / YouTube link), optional thumbnail upload
+  - `carousel` — numbered slide manager: add up to 10 slides, each with image upload + caption note + up/down reorder buttons
+- **Carousel slide ordering** — `calState.carouselSlides[]` tracks ordered slides; `mediaFiles` saved in correct order; existing carousel posts load slides correctly on edit
+- **Presentation / Review Mode** — "📊 Present" button in calendar header opens full-screen dark overlay:
+  - All non-draft posts for current brand+month shown as slides
+  - Slide navigation (← → buttons + keyboard arrow keys + Escape to close)
+  - Slide shows: status badge, platform pills, post type, scheduled date/time, media (carousel numbered), caption, hashtags, visual notes
+  - Right panel: full comment/feedback thread for each post, "Add Note" sends comment to post's thread
+  - Bottom thumbnail strip — click to jump to any post
+  - "🖨 Export PDF" — prints all posts as clean white-background slides via window.print()
+- `calState` extended with `carouselSlides`, `presentIdx`, `presentPosts`
+- `updateCalMediaSection()` wired to post type `<select>` onchange so media section rebuilds live
+
+*Last updated: June 2026 — v6.9v: Content Calendar upgrade — Shadowburg/Shadowbird brands, post-type-specific upload UX (carousel/reel/story/static/copy_only), carousel slide ordering, Presentation Mode with comment thread + PDF export*
