@@ -819,13 +819,26 @@ The Nest is the **central marketing operations platform for Yolk Brands** — no
 - Leadership sees Reports tab — traffic, rankings, AI search presence, market breakdown
 - Eventually covers Southpour, Shadowburg, Shadowbird as additional brands
 
-**The social + SocialPilot integration (Week 5 roadmap):**
-This is NOT a basic social scheduling tool. The design is:
-1. Social media team creates content calendar inside The Nest (posts, captions, visuals, schedule)
-2. All content follows brand voice guidelines and goes through the same approval flow as SEO content
-3. Once approved, posts are auto-pushed to SocialPilot via API for auto-scheduling
-4. The Perch handles campaign tasks, asset requests, and cross-team coordination
-5. The Nest becomes the single source of truth for all marketing activity — replaces Trello, Buffer/Hootsuite, and agency management in one platform
+**Content Calendar — current status and roadmap:**
+The Nest handles the full social content workflow: creation → assignment → approval → ready to post.
+
+**Current posting flow (Option C):**
+1. Social team creates posts in The Nest with captions, images (GCS), hashtags, scheduled date/time
+2. Posts go through approval workflow (Slack notifications, Approve/Request Changes)
+3. Once approved, "Mark Ready for SocialPilot" sets status to Scheduled — team manually schedules in SocialPilot
+4. Zapier auto-push can be enabled later: add `ZAPIER_WEBHOOK_URL` env var → The Nest fires webhook → Zapier creates SP post
+
+**SocialPilot direct API — investigated, blocked:**
+SocialPilot's internal REST API (`rest.socialpilot.co/v4/`) requires AWS Cognito JWTs that expire every 24h.
+The API key in SocialPilot account settings does NOT work for server-to-server auth.
+Contact SocialPilot support asking for long-lived server-to-server credentials if needed.
+
+**Long-term vision (build in-house, replace SocialPilot entirely):**
+- Direct posting via platform APIs (Meta Graph, TikTok, LinkedIn, YouTube)
+- Community management (comments, DMs) in The Nest
+- Client roles (view-only, can't post — manager approves before publish)
+- Analytics pulled directly from platform APIs
+- Full social media OS for Yolk Brands — no tool-switching needed
 
 ### What the tool covers today ✅
 - Google organic search (text): full automated pipeline — keyword discovery, content creation, meta rewrites, page updates, publishing to WordPress

@@ -7401,9 +7401,15 @@ function renderCalDetailPanel(post) {
       </div>`;
   } else if (post.status === 'approved' && ['admin','manager'].includes(state.userRole)) {
     actionBar = `
-      <div style="padding:12px 16px;border-top:1px solid var(--border);background:var(--bg-surface);flex-shrink:0;display:flex;gap:10px;flex-wrap:wrap;align-items:center">
-        <button class="btn btn-primary" style="background:#7c3aed;border-color:#7c3aed" onclick="calPushSocialPilot('${post.id}')">📤 Push to SocialPilot</button>
-        <button class="btn btn-outline" onclick="calMarkPublished('${post.id}')">✅ Mark Published</button>
+      <div style="padding:12px 16px;border-top:1px solid var(--border);background:var(--bg-surface);flex-shrink:0">
+        <div style="display:flex;gap:10px;flex-wrap:wrap;align-items:center;margin-bottom:10px">
+          <button class="btn btn-primary" style="background:#7c3aed;border-color:#7c3aed" onclick="calPushSocialPilot('${post.id}')">📤 Mark Ready for SocialPilot</button>
+          <button class="btn btn-outline" onclick="calMarkPublished('${post.id}')">✅ Mark Published</button>
+        </div>
+        <div style="background:var(--bg-base);border:1px solid var(--border);border-radius:8px;padding:10px 12px;font-size:12px;color:var(--text-muted)">
+          💡 <strong style="color:var(--text-main)">Manual scheduling:</strong> Copy the caption + image URL above and schedule in SocialPilot.
+          Zapier auto-scheduling can be enabled later — ask leadership.
+        </div>
       </div>`;
   } else if (post.status === 'scheduled' && ['admin','manager'].includes(state.userRole)) {
     actionBar = `
@@ -7628,7 +7634,7 @@ async function calPushSocialPilot(postId) {
   }
   try {
     const res = await apiPost('/api/calendar', { action:'push_socialpilot', id:postId, actor:state.actor, actorEmail:state.userEmail });
-    showToast(`📤 Pushed to ${res.accountIds?.length || '?'} account(s)`, 'success');
+    showToast(`✅ Marked ready for SocialPilot — schedule manually or connect Zapier to automate`, 'success');
     await loadCalendar();
     if (res.post) { calState.detailPost = res.post; renderCalDetailPanel(res.post); }
   } catch (e) { showToast(e.message, 'error'); }
