@@ -456,44 +456,46 @@ exports.handler = async (event) => {
         const MCP_URL = `https://mcp.socialpilot.co/${encodeURIComponent(apiKey)}/mcp`;
         let mcpSessionId = null;
 
-        // Parse SSE or JSON response, extract session ID from event id: field
-        function parseMcpResponse(text) {
-          const lines = text.split('\n');
-          // Extract SSE event ID (= MCP session ID)
-          const idLine   = lines.find(l => l.startsWith('id:'));
-          if (idLine) mcpSessionId = idLine.replace(/^id:\s*/, '').trim();
-          // Extract JSON data
+        function parseMcpText(res, text) {
+          // 1. Check response header first (MCP spec says session ID comes here)
+          const hdr = res.headers.get('mcp-session-id') || res.headers.get('Mcp-Session-Id');
+          if (hdr) { mcpSessionId = hdr; }
+          // 2. Fallback: SSE id: line
+          const lines   = text.split('\n');
+          const idLine  = lines.find(l => l.startsWith('id:'));
+          if (idLine && !mcpSessionId) mcpSessionId = idLine.replace(/^id:\s*/, '').trim();
+          // 3. Parse JSON from data: line or raw body
           const dataLine = lines.find(l => l.startsWith('data: ') || (l.trim().startsWith('{') && l.includes('"jsonrpc"')));
           try { return JSON.parse(dataLine ? dataLine.replace(/^data:\s*/, '') : text); }
           catch { return { rawError: text.slice(0, 200) }; }
         }
 
         async function mcpCall(method, params, id) {
-          const headers = {
-            'Content-Type': 'application/json',
-            'Accept':       'application/json, text/event-stream',
-          };
+          const headers = { 'Content-Type': 'application/json', 'Accept': 'application/json, text/event-stream' };
           if (mcpSessionId) headers['Mcp-Session-Id'] = mcpSessionId;
-
           const res  = await fetch(MCP_URL, {
-            method: 'POST',
-            headers,
-            body:   JSON.stringify({ jsonrpc: '2.0', id: id || 1, method, params }),
+            method: 'POST', headers,
+            body: JSON.stringify({ jsonrpc: '2.0', id: id || 1, method, params: params || {} }),
           });
           const text = await res.text();
-          console.log(`[SP MCP] ${method} ${res.status} session=${mcpSessionId?.slice(0,20)||'none'}: ${text.slice(0, 300)}`);
-          return parseMcpResponse(text);
+          // Log headers for debugging
+          const allHdrs = [...res.headers.entries()].map(([k,v])=>`${k}:${v}`).join(' | ');
+          console.log(`[SP MCP] ${method} ${res.status} session=${mcpSessionId?.slice(0,16)||'none'} hdrs=${allHdrs.slice(0,150)}: ${text.slice(0,250)}`);
+          return parseMcpText(res, text);
         }
 
-        // Initialize session — response contains the session ID in SSE id: field
+        // Step 1: Initialize
         const init = await mcpCall('initialize', {
           protocolVersion: '2024-11-05',
           capabilities:    {},
           clientInfo:      { name: 'the-nest', version: '1.0' },
         }, 1);
         if (init.rawError || init.error) throw new Error('MCP init failed: ' + JSON.stringify(init.error || init.rawError));
-        if (!mcpSessionId) throw new Error('MCP init succeeded but no session ID returned');
-        console.log('[SP MCP] session established:', mcpSessionId);
+        if (!mcpSessionId) throw new Error('MCP init: no session ID in headers or SSE id: line');
+        console.log('[SP MCP] session:', mcpSessionId);
+
+        // Step 2: Send initialized notification (required by MCP spec before further calls)
+        await mcpCall('notifications/initialized', {}, 2);
 
         // Discover tools
         const toolsList = await mcpCall('tools/list', {}, 2);
