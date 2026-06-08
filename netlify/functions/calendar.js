@@ -523,7 +523,7 @@ exports.handler = async (event) => {
           text:         { postDescription: fullText },
           loginIds:     accountIds.map(Number),
           scheduleTime: schedISO,
-          ...(imageUrls.length ? { image: { images: imageUrls.map(url => ({ url })) } } : {}),
+          ...(imageUrls.length ? { image: { images: imageUrls } } : {}),
           ...(post.videoUrl && post.postType === 'reel' ? { video: { url: post.videoUrl } } : {}),
         };
 
