@@ -503,7 +503,6 @@ exports.handler = async (event) => {
         console.log('[SP MCP] available tools:', tools.map(t => t.name).join(', ') || '(none listed)');
 
         // Tool confirmed: CreatePost
-        const schedUnix = marketLocalToUnix(post.scheduledDate, post.scheduledTime || '10:00', post.market || 'UAE');
         const caption   = [post.caption, post.hashtags].filter(Boolean).join('\n\n');
         const imageUrls = [];
         if (post.imageUrl) imageUrls.push(post.imageUrl);
@@ -511,21 +510,26 @@ exports.handler = async (event) => {
           for (const f of post.mediaFiles || []) { if (f.url) imageUrls.push(f.url); }
         }
 
-        const postType   = imageUrls.length ? 'image' : (post.postType === 'reel' ? 'video' : 'text');
-        const toolSchema = tools.find(t => t.name === 'CreatePost')?.inputSchema;
-        // Log FULL schema to confirm scheduleTime field type
-        console.log('[SP MCP] CreatePost schema:', JSON.stringify(toolSchema));
+        const postType = imageUrls.length ? 'image' : (post.postType === 'reel' ? 'video' : 'text');
 
+        // scheduleDateTime = "YYYY-MM-DD HH:mm" in market local time — SP handles timezone from account settings
+        const schedDT = `${post.scheduledDate} ${post.scheduledTime || '10:00'}`;
+
+        // Build args per schema:
+        // - image posts: caption in image.postDescription, text object unused
+        // - text posts: caption in text.postDescription
+        // - shareType 3 = schedule for specified time (0=queue, 1=now, 2=next, 3=scheduled)
         const toolArgs = {
-          type:         postType,
-          text:         { postDescription: caption },
-          loginIds:     accountIds.map(Number),
-          scheduleTime: schedUnix,          // Unix integer (not ISO) — matches old SP API format
-          ...(imageUrls.length ? { image: { images: imageUrls } } : {}),
-          ...(post.videoUrl && post.postType === 'reel' ? { video: { url: post.videoUrl } } : {}),
+          type:             postType,
+          loginIds:         accountIds.map(Number),
+          scheduleDateTime: [schedDT],
+          shareType:        3,
+          ...(postType === 'image' ? { image: { images: imageUrls, postDescription: caption } } : {}),
+          ...(postType === 'text'  ? { text:  { postDescription: caption } } : {}),
+          ...(post.videoUrl && post.postType === 'reel' ? { video: { url: post.videoUrl, postDescription: caption } } : {}),
         };
 
-        console.log('[SP MCP] args:', JSON.stringify({ type: toolArgs.type, loginIds: toolArgs.loginIds, scheduleTime: toolArgs.scheduleTime, caption: caption.slice(0,60) }));
+        console.log('[SP MCP] args:', JSON.stringify({ type: toolArgs.type, loginIds: toolArgs.loginIds, scheduleDateTime: toolArgs.scheduleDateTime, caption: caption.slice(0,60) }));
 
         const callRes = await mcpCall('tools/call', { name: 'CreatePost', arguments: toolArgs }, 3);
         if (callRes.error || callRes.result?.isError) {
