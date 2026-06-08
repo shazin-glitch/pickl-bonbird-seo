@@ -423,36 +423,106 @@ exports.handler = async (event) => {
     }
 
     try {
-      // ── SocialPilot direct API: pending Zapier setup by leadership ────────
-      // Current workflow (Option C): mark post as "ready_to_post" so team
-      // knows to manually schedule in SocialPilot. Zapier automation can be
-      // wired in later by changing this block.
-      //
-      // Future: when ZAPIER_WEBHOOK_URL env var is set, POST to it instead.
+      // ── SocialPilot direct API ────────────────────────────────────────────
+      // Endpoint + body structure confirmed from browser network inspection.
+      // Auth: Bearer token = SOCIALPILOT_API_KEY (settings key, NOT Cognito JWT)
+      // Was blocked by a security incident that invalidated the key — use fresh key.
+      // Zapier fallback: if ZAPIER_WEBHOOK_URL is set, POST to it instead.
+
       const zapierUrl = process.env.ZAPIER_WEBHOOK_URL;
+
       if (zapierUrl) {
-        const webhookPayload = {
-          brand: post.brand, market: post.market,
-          platforms: post.platforms, postType: post.postType,
-          caption: post.caption, hashtags: post.hashtags,
-          imageUrl: post.imageUrl, videoUrl: post.videoUrl,
-          scheduledDate: post.scheduledDate, scheduledTime: post.scheduledTime,
-          mediaFiles: (post.mediaFiles || []).map(f => f.url).filter(Boolean),
-          accountIds,
-        };
+        // ── Zapier webhook path ─────────────────────────────────────────────
         const zRes = await fetch(zapierUrl, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify(webhookPayload),
+          body: JSON.stringify({
+            brand: post.brand, market: post.market,
+            platforms: post.platforms, postType: post.postType,
+            caption: post.caption, hashtags: post.hashtags,
+            imageUrl: post.imageUrl, videoUrl: post.videoUrl,
+            scheduledDate: post.scheduledDate, scheduledTime: post.scheduledTime,
+            mediaFiles: (post.mediaFiles || []).map(f => f.url).filter(Boolean),
+            accountIds,
+          }),
         });
         if (!zRes.ok) throw new Error(`Zapier webhook returned ${zRes.status}`);
         console.log('[SP] Zapier webhook fired OK');
+
+      } else {
+        // ── Direct SocialPilot API path ────────────────────────────────────
+        const SP_GW_KEY = 'yFxaTyRTiH7YBUYeYiEeCYBMRGZA8wk5fsCJxVy1';
+        const SP_URL    = 'https://rest.socialpilot.co/v4/draft/autosave';
+        const spHeaders = {
+          'Content-Type':  'application/json',
+          'authorization': `Bearer ${apiKey}`,
+          'x-api-key':     SP_GW_KEY,
+          'origin':        'https://app.socialpilot.co',
+          'referer':       'https://app.socialpilot.co/',
+        };
+
+        const schedUnix = marketLocalToUnix(post.scheduledDate, post.scheduledTime || '10:00', post.market || 'UAE');
+        const tz        = MARKET_TIMEZONES[post.market] || 'Asia/Dubai';
+        const fullText  = [post.caption, post.hashtags].filter(Boolean).join('\n\n');
+
+        const spMedia = [];
+        if (post.imageUrl) spMedia.push({ url: post.imageUrl, type: 'I' });
+        if (post.postType === 'carousel') {
+          for (const f of post.mediaFiles || []) { if (f.url) spMedia.push({ url: f.url, type: 'I' }); }
+        }
+        const isCarousel = post.postType === 'carousel';
+        const spPostType = post.postType === 'reel' ? 'V' : (spMedia.length ? 'I' : 'T');
+        const selAccounts = Object.fromEntries(accountIds.map((id, i) => [id, i]));
+
+        const buildData = (schedDate) => ({
+          createPostReducer: { tagIds: [], draftScheduleDate: schedDate },
+          captionDataReducer: {
+            utmData: {}, linkShortening: false, customize: false, activeTab: 'original',
+            postData: { original: { caption: fullText } }, mentions: {},
+          },
+          mediaReducer: {
+            media: spMedia, postType: spPostType, mediaMetadata: [],
+            ctaButton: null, isFbCarouselPost: isCarousel, linkPreview: null,
+            customThumbnail: '', thumbnail: '', previewRemove: false,
+          },
+          advanceOptionsReducer: {
+            instagram: { instagramPostType: 'post', publishVia: 'direct', firstComment: '', shareToFeed: true },
+            facebook:  { instagramPostType: 'post', publishVia: 'direct', firstComment: '' },
+            tiktok:    { instagramPostType: 'post', publishVia: 'direct', tiktokDirectPublish: true, tiktokPrivacy: 'PUBLIC_TO_EVERYONE' },
+            linkedin:  { instagramPostType: 'post', publishVia: 'direct', firstComment: '' },
+            youtube:   { instagramPostType: 'post', publishVia: 'direct', youtubePrivacy: 'public', youtubeMadeForKids: false },
+          },
+          accountSelectionReducer: { selectedAccounts: selAccounts, staticAccountIds: accountIds },
+        });
+
+        // Step 1: Create draft
+        const createRes  = await fetch(SP_URL, {
+          method: 'POST', headers: spHeaders,
+          body: JSON.stringify({ action: 'create', data: buildData({}), contentIds: [] }),
+        });
+        const createData = await createRes.json().catch(() => ({}));
+        console.log('[SP] create:', createRes.status, JSON.stringify(createData).slice(0, 200));
+        if (!createRes.ok) throw new Error(createData.message || createData.error || `SP create ${createRes.status}`);
+
+        const draftId = createData.draftId || createData.id || createData.data?.draftId;
+        if (!draftId) throw new Error('SP returned no draftId: ' + JSON.stringify(createData).slice(0, 150));
+
+        // Step 2: Schedule draft
+        const schedRes  = await fetch(SP_URL, {
+          method: 'POST', headers: spHeaders,
+          body: JSON.stringify({
+            draftId, action: 'schedule', contentIds: [],
+            data: buildData({ timestamp: schedUnix, timezone: tz }),
+          }),
+        });
+        const schedData = await schedRes.json().catch(() => ({}));
+        console.log('[SP] schedule:', schedRes.status, JSON.stringify(schedData).slice(0, 200));
+        if (!schedRes.ok) throw new Error(schedData.message || schedData.error || `SP schedule ${schedRes.status}`);
       }
-      // Whether Zapier is wired or not, mark as scheduled so the team knows to act
 
       const spPostId = null;
       const note = [
-        zapierUrl ? 'Sent to Zapier for SP scheduling' : 'Marked ready — schedule manually in SocialPilot',
+        zapierUrl ? 'Sent via Zapier' : 'Pushed directly to SocialPilot',
         `Accounts: ${accountIds.join(', ')}`,
         missingPlatforms.length ? `⚠ No SP account for: ${missingPlatforms.join(', ')}` : '',
       ].filter(Boolean).join(' · ');
