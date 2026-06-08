@@ -423,10 +423,10 @@ exports.handler = async (event) => {
     }
 
     try {
-      // ── SocialPilot direct API ────────────────────────────────────────────
-      // Endpoint + body structure confirmed from browser network inspection.
-      // Auth: Bearer token = SOCIALPILOT_API_KEY (settings key, NOT Cognito JWT)
-      // Was blocked by a security incident that invalidated the key — use fresh key.
+      // ── SocialPilot via MCP server ────────────────────────────────────────
+      // SocialPilot exposes an MCP server at https://mcp.socialpilot.co/{API_KEY}/mcp
+      // This is available on current plan (REST API requires Enterprise).
+      // We call it using JSON-RPC 2.0 over HTTP (StreamableHTTP MCP transport).
       // Zapier fallback: if ZAPIER_WEBHOOK_URL is set, POST to it instead.
 
       const zapierUrl = process.env.ZAPIER_WEBHOOK_URL;
@@ -450,75 +450,68 @@ exports.handler = async (event) => {
         console.log('[SP] Zapier webhook fired OK');
 
       } else {
-        // ── Direct SocialPilot API path ────────────────────────────────────
-        const SP_URL    = 'https://rest.socialpilot.co/v4/draft/autosave';
-        // x-api-key = shared AWS gateway key (same for all SP users, confirmed from network)
-        // authorization Bearer = user's personal API key from SP Settings → Security → API Key
-        const spHeaders = {
-          'Content-Type':  'application/json',
-          'authorization': `Bearer ${apiKey}`,
-          'x-api-key':     'yFxaTyRTiH7YBUYeYiEeCYBMRGZA8wk5fsCJxVy1',
-          'origin':        'https://app.socialpilot.co',
-          'referer':       'https://app.socialpilot.co/',
+        // ── SocialPilot MCP server (available on current plan) ─────────────
+        // MCP endpoint: https://mcp.socialpilot.co/{API_KEY}/mcp
+        // Uses JSON-RPC 2.0 over HTTP (StreamableHTTP MCP transport)
+        const MCP_URL = `https://mcp.socialpilot.co/${encodeURIComponent(apiKey)}/mcp`;
+
+        async function mcpCall(method, params, id) {
+          const res  = await fetch(MCP_URL, {
+            method:  'POST',
+            headers: { 'Content-Type': 'application/json', 'Accept': 'application/json, text/event-stream' },
+            body:    JSON.stringify({ jsonrpc: '2.0', id: id || 1, method, params }),
+          });
+          const text = await res.text();
+          console.log(`[SP MCP] ${method} ${res.status}: ${text.slice(0, 400)}`);
+          // Handle SSE (text/event-stream) or plain JSON response
+          const line = text.split('\n').find(l => l.startsWith('data: ') || (l.trim().startsWith('{') && l.includes('"jsonrpc"')));
+          try { return JSON.parse(line ? line.replace(/^data:\s*/, '') : text); }
+          catch { return { rawError: text.slice(0, 200) }; }
+        }
+
+        // Initialize session
+        const init = await mcpCall('initialize', {
+          protocolVersion: '2024-11-05',
+          capabilities:    {},
+          clientInfo:      { name: 'the-nest', version: '1.0' },
+        }, 1);
+        if (init.rawError || init.error) throw new Error('MCP init failed: ' + JSON.stringify(init.error || init.rawError));
+
+        // Discover tools
+        const toolsList = await mcpCall('tools/list', {}, 2);
+        const tools     = toolsList.result?.tools || [];
+        console.log('[SP MCP] available tools:', tools.map(t => t.name).join(', ') || '(none listed)');
+
+        // Find scheduling tool
+        const scheduleTool = tools.find(t => /schedul|create.*post|add.*post|post/i.test(t.name))?.name;
+        if (!scheduleTool) throw new Error(`No scheduling tool found. Available: ${tools.map(t => t.name).join(', ')}`);
+
+        // Build and send the post
+        const schedUnix = marketLocalToUnix(post.scheduledDate, post.scheduledTime || '10:00', post.market || 'UAE');
+        const fullText  = [post.caption, post.hashtags].filter(Boolean).join('\n\n');
+        const imageUrls = [];
+        if (post.imageUrl) imageUrls.push(post.imageUrl);
+        if (post.postType === 'carousel') {
+          for (const f of post.mediaFiles || []) { if (f.url) imageUrls.push(f.url); }
+        }
+
+        // Try the tool — use the input schema to guide arguments if available
+        const toolSchema = tools.find(t => t.name === scheduleTool)?.inputSchema;
+        console.log('[SP MCP] tool schema:', JSON.stringify(toolSchema).slice(0, 300));
+
+        const toolArgs = {
+          accounts:      accountIds,
+          text:          fullText,
+          schedule_time: schedUnix,
+          ...(imageUrls.length ? { images: imageUrls, image_url: imageUrls[0] } : {}),
+          ...(post.videoUrl && post.postType === 'reel' ? { video_url: post.videoUrl } : {}),
         };
 
-        const schedUnix = marketLocalToUnix(post.scheduledDate, post.scheduledTime || '10:00', post.market || 'UAE');
-        const tz        = MARKET_TIMEZONES[post.market] || 'Asia/Dubai';
-        const fullText  = [post.caption, post.hashtags].filter(Boolean).join('\n\n');
-
-        const spMedia = [];
-        if (post.imageUrl) spMedia.push({ url: post.imageUrl, type: 'I' });
-        if (post.postType === 'carousel') {
-          for (const f of post.mediaFiles || []) { if (f.url) spMedia.push({ url: f.url, type: 'I' }); }
+        const callRes = await mcpCall('tools/call', { name: scheduleTool, arguments: toolArgs }, 3);
+        if (callRes.error || callRes.result?.isError) {
+          throw new Error('MCP tool error: ' + JSON.stringify(callRes.error || callRes.result?.content));
         }
-        const isCarousel = post.postType === 'carousel';
-        const spPostType = post.postType === 'reel' ? 'V' : (spMedia.length ? 'I' : 'T');
-        const selAccounts = Object.fromEntries(accountIds.map((id, i) => [id, i]));
-
-        const buildData = (schedDate) => ({
-          createPostReducer: { tagIds: [], draftScheduleDate: schedDate },
-          captionDataReducer: {
-            utmData: {}, linkShortening: false, customize: false, activeTab: 'original',
-            postData: { original: { caption: fullText } }, mentions: {},
-          },
-          mediaReducer: {
-            media: spMedia, postType: spPostType, mediaMetadata: [],
-            ctaButton: null, isFbCarouselPost: isCarousel, linkPreview: null,
-            customThumbnail: '', thumbnail: '', previewRemove: false,
-          },
-          advanceOptionsReducer: {
-            instagram: { instagramPostType: 'post', publishVia: 'direct', firstComment: '', shareToFeed: true },
-            facebook:  { instagramPostType: 'post', publishVia: 'direct', firstComment: '' },
-            tiktok:    { instagramPostType: 'post', publishVia: 'direct', tiktokDirectPublish: true, tiktokPrivacy: 'PUBLIC_TO_EVERYONE' },
-            linkedin:  { instagramPostType: 'post', publishVia: 'direct', firstComment: '' },
-            youtube:   { instagramPostType: 'post', publishVia: 'direct', youtubePrivacy: 'public', youtubeMadeForKids: false },
-          },
-          accountSelectionReducer: { selectedAccounts: selAccounts, staticAccountIds: accountIds },
-        });
-
-        // Step 1: Create draft
-        const createRes  = await fetch(SP_URL, {
-          method: 'POST', headers: spHeaders,
-          body: JSON.stringify({ action: 'create', data: buildData({}), contentIds: [] }),
-        });
-        const createData = await createRes.json().catch(() => ({}));
-        console.log('[SP] create:', createRes.status, JSON.stringify(createData).slice(0, 200));
-        if (!createRes.ok) throw new Error(createData.message || createData.error || `SP create ${createRes.status}`);
-
-        const draftId = createData.draftId || createData.id || createData.data?.draftId;
-        if (!draftId) throw new Error('SP returned no draftId: ' + JSON.stringify(createData).slice(0, 150));
-
-        // Step 2: Schedule draft
-        const schedRes  = await fetch(SP_URL, {
-          method: 'POST', headers: spHeaders,
-          body: JSON.stringify({
-            draftId, action: 'schedule', contentIds: [],
-            data: buildData({ timestamp: schedUnix, timezone: tz }),
-          }),
-        });
-        const schedData = await schedRes.json().catch(() => ({}));
-        console.log('[SP] schedule:', schedRes.status, JSON.stringify(schedData).slice(0, 200));
-        if (!schedRes.ok) throw new Error(schedData.message || schedData.error || `SP schedule ${schedRes.status}`);
+        console.log('[SP MCP] scheduled OK:', JSON.stringify(callRes.result).slice(0, 200));
       }
 
       const spPostId = null;

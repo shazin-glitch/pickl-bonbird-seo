@@ -67,6 +67,63 @@ async function getQueuedKeywords(brand) {
   return keywords;
 }
 
+// Pages already with a pending item of a given type — prevents duplicate meta updates
+async function getQueuedPages(brand, type) {
+  const pending = await listApprovals({ brand, limit: 200 });
+  const pages = new Set();
+  for (const item of pending) {
+    if (item.type !== type) continue;
+    const url = item.payload?.url;
+    if (url) pages.add(url.toLowerCase().replace(/\/$/, ''));
+  }
+  return pages;
+}
+
+// Returns false if keyword mentions a dish that doesn't exist on the brand's menu
+// Prevents hallucinated content like "butter chicken rice bowl" for Bonbird
+function keywordMatchesMenu(keyword, brandCtx) {
+  if (!brandCtx?.menu) return true;
+  const kw       = keyword.toLowerCase();
+  const menuText = JSON.stringify(brandCtx.menu).toLowerCase();
+  // Specific dishes that must be in the menu if mentioned in the keyword
+  const specificDishes = [
+    'butter chicken', 'biryani', 'kebab', 'shawarma', 'pizza', 'pasta',
+    'fish', 'shrimp', 'lamb', 'steak', 'hummus', 'falafel', 'sushi',
+    'tacos', 'burritos', 'noodles', 'ramen', 'dumplings',
+  ];
+  for (const dish of specificDishes) {
+    if (kw.includes(dish) && !menuText.includes(dish)) {
+      console.log(`[keyword filter] SKIP "${keyword}" — mentions "${dish}" which is not on the menu`);
+      return false;
+    }
+  }
+  return true;
+}
+
+// Returns false if the keyword's location intent clearly doesn't match the page URL
+// e.g. keyword "bonbird mirdif" should NOT be used to write meta for /dubai/ page
+function keywordMatchesPageUrl(keyword, pageUrl) {
+  const kw   = keyword.toLowerCase().replace(/-/g, ' ');
+  const slug = pageUrl.replace(/^https?:\/\/[^\/]+/, '').replace(/^\/|\/$/g, '')
+                      .replace(/-/g, ' ').toLowerCase();
+
+  const locations = [
+    'dubai', 'mirdif', 'motor city', 'city walk', 'aljada', 'sharjah',
+    'abu dhabi', 'jlt', 'jumeirah', 'marina', 'deira', 'bur dubai',
+    'bahrain', 'riyadh', 'jeddah', 'cairo', 'amman', 'muscat', 'doha',
+    'lahore', 'karachi', 'london', 'manchester',
+  ];
+
+  for (const loc of locations) {
+    if (kw.includes(loc) && slug.length > 0 && !slug.includes(loc)) {
+      // Keyword mentions a location that doesn't appear in the page slug
+      console.log(`[keyword filter] SKIP "${keyword}" for "${pageUrl}" — location "${loc}" doesn't match page slug`);
+      return false;
+    }
+  }
+  return true;
+}
+
 const SITE_URL = process.env.URL || 'https://yolkseo.netlify.app';
 
 const BRANDS = {
@@ -371,8 +428,10 @@ async function runQuickWins(brand, rows, dryRun, forceRun, brandCtx, brandPrompt
   const candidates = rows
     .filter(r => r.position >= 11 && r.position <= 20 && r.impressions >= 50)
     .filter(r => forceRun || !alreadyQueued.has(r.keyword.toLowerCase().trim()))
+    // Skip keywords referencing dishes not on the menu (prevents hallucinated content)
+    .filter(r => keywordMatchesMenu(r.keyword, brandCtx))
     .sort((a, b) => b.impressions - a.impressions)
-    .slice(0, forceRun ? 3 : 1); // 1 per run to stay within function timeout
+    .slice(0, forceRun ? 3 : 1);
   if (!candidates.length) return { queued: 0, candidates: 0, skipped: 'all candidates already queued' };
 
   if (dryRun) return { queued: 0, candidates: candidates.length, preview: candidates.map(r => r.keyword) };
@@ -485,13 +544,22 @@ async function runMetaRewrites(brand, _rows, dryRun, forceRun, brandCtx, brandPr
   }
 
   const expected     = pos => Math.max(0.005, 0.30 / pos);  // decimal: pos1=0.30, pos5=0.06, pos10=0.03
-  const alreadyQueued = await getQueuedKeywords(brand);
+  const alreadyQueued      = await getQueuedKeywords(brand);
+  const alreadyQueuedPages = await getQueuedPages(brand, 'meta_update');
 
   const candidates = Object.values(pageMap)
     .filter(r => r.position <= 20 && r.impressions >= 100)
     .map(r => ({ ...r, ctrGap: expected(r.position) - r.ctr }))
-    .filter(r => r.ctrGap > 0.015)   // gap > 1.5 percentage points (decimal scale)
+    .filter(r => r.ctrGap > 0.015)
+    // ── Quality filters ────────────────────────────────────────────────────
+    // 1. Don't re-queue keywords already pending
     .filter(r => forceRun || !alreadyQueued.has(r.keyword.toLowerCase().trim()))
+    // 2. Don't re-queue pages that already have a pending meta_update
+    .filter(r => forceRun || !alreadyQueuedPages.has(r.page.toLowerCase().replace(/\/$/, '')))
+    // 3. Skip keywords that mention dishes not on the brand's menu
+    .filter(r => keywordMatchesMenu(r.keyword, brandCtx))
+    // 4. Skip keywords whose location doesn't match the page URL
+    .filter(r => keywordMatchesPageUrl(r.keyword, r.page))
     .sort((a, b) => b.ctrGap - a.ctrGap)
     .slice(0, forceRun ? 6 : 4);
 
@@ -601,6 +669,12 @@ RULES — non-negotiable:
 - Each title must make ${brandName} sound like ${brandName} — not a generic restaurant
 - Lead with the keyword, end with a reason to click
 - Do NOT invent or change the URL — use the exact URL provided for each page
+- CRITICAL — page relevance: Write the meta specifically about what the PAGE is about, not just the keyword.
+  The page URL tells you the topic. /dubai/ = about Dubai locations. /mirdif-city-centre/ = about Mirdif.
+  Do NOT write a Mirdif-focused meta for the /dubai/ page even if the keyword mentions Mirdif.
+  Do NOT reference locations not in the page URL unless it's a brand-level page (homepage, /menu/).
+- CRITICAL — menu accuracy: ONLY mention dishes that appear in YOUR MENU below.
+  If the keyword implies a dish not on the menu, write the meta around the closest real menu item instead.
 
 PAGES TO REWRITE:
 ${validCandidates.map((r, i) => `${i+1}. URL: "${r.page}" | Keyword: "${r.keyword}" | Position: ${r.position} | CTR: ${(r.ctr * 100).toFixed(1)}% | ${r.impressions} impressions`).join('\n')}
