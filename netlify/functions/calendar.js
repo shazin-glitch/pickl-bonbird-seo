@@ -517,12 +517,13 @@ exports.handler = async (event) => {
         const toolSchema = tools.find(t => t.name === 'CreatePost')?.inputSchema;
         console.log('[SP MCP] CreatePost schema:', JSON.stringify(toolSchema).slice(0, 500));
 
+        // Schema: type, text.postDescription, image.images[], loginIds, scheduleTime
         const toolArgs = {
           type:         postType,
           text:         { postDescription: fullText },
           loginIds:     accountIds.map(Number),
           scheduleTime: schedISO,
-          ...(imageUrls.length ? { images: imageUrls.map(url => ({ url })) } : {}),
+          ...(imageUrls.length ? { image: { images: imageUrls.map(url => ({ url })) } } : {}),
           ...(post.videoUrl && post.postType === 'reel' ? { video: { url: post.videoUrl } } : {}),
         };
 
