@@ -502,36 +502,37 @@ exports.handler = async (event) => {
         const tools     = toolsList.result?.tools || [];
         console.log('[SP MCP] available tools:', tools.map(t => t.name).join(', ') || '(none listed)');
 
-        // Find scheduling tool
-        const scheduleTool = tools.find(t => /schedul|create.*post|add.*post|post/i.test(t.name))?.name;
-        if (!scheduleTool) throw new Error(`No scheduling tool found. Available: ${tools.map(t => t.name).join(', ')}`);
-
-        // Build and send the post
-        const schedUnix = marketLocalToUnix(post.scheduledDate, post.scheduledTime || '10:00', post.market || 'UAE');
-        const fullText  = [post.caption, post.hashtags].filter(Boolean).join('\n\n');
-        const imageUrls = [];
+        // Tool confirmed: CreatePost
+        // Schema: type (enum), text.postDescription, loginIds, scheduleTime, images[]
+        const schedUnix  = marketLocalToUnix(post.scheduledDate, post.scheduledTime || '10:00', post.market || 'UAE');
+        const schedISO   = new Date(schedUnix * 1000).toISOString();
+        const fullText   = [post.caption, post.hashtags].filter(Boolean).join('\n\n');
+        const imageUrls  = [];
         if (post.imageUrl) imageUrls.push(post.imageUrl);
         if (post.postType === 'carousel') {
           for (const f of post.mediaFiles || []) { if (f.url) imageUrls.push(f.url); }
         }
 
-        // Try the tool — use the input schema to guide arguments if available
-        const toolSchema = tools.find(t => t.name === scheduleTool)?.inputSchema;
-        console.log('[SP MCP] tool schema:', JSON.stringify(toolSchema).slice(0, 300));
+        const postType  = imageUrls.length ? 'image' : (post.postType === 'reel' ? 'video' : 'text');
+        const toolSchema = tools.find(t => t.name === 'CreatePost')?.inputSchema;
+        console.log('[SP MCP] CreatePost schema:', JSON.stringify(toolSchema).slice(0, 500));
 
         const toolArgs = {
-          accounts:      accountIds,
-          text:          fullText,
-          schedule_time: schedUnix,
-          ...(imageUrls.length ? { images: imageUrls, image_url: imageUrls[0] } : {}),
-          ...(post.videoUrl && post.postType === 'reel' ? { video_url: post.videoUrl } : {}),
+          type:         postType,
+          text:         { postDescription: fullText },
+          loginIds:     accountIds.map(Number),
+          scheduleTime: schedISO,
+          ...(imageUrls.length ? { images: imageUrls.map(url => ({ url })) } : {}),
+          ...(post.videoUrl && post.postType === 'reel' ? { video: { url: post.videoUrl } } : {}),
         };
 
-        const callRes = await mcpCall('tools/call', { name: scheduleTool, arguments: toolArgs }, 3);
+        console.log('[SP MCP] CreatePost args:', JSON.stringify({ ...toolArgs, text: toolArgs.text?.postDescription?.slice(0,50) }));
+
+        const callRes = await mcpCall('tools/call', { name: 'CreatePost', arguments: toolArgs }, 3);
         if (callRes.error || callRes.result?.isError) {
           throw new Error('MCP tool error: ' + JSON.stringify(callRes.error || callRes.result?.content));
         }
-        console.log('[SP MCP] scheduled OK:', JSON.stringify(callRes.result).slice(0, 200));
+        console.log('[SP MCP] scheduled OK:', JSON.stringify(callRes.result).slice(0, 300));
       }
 
       const spPostId = null;
