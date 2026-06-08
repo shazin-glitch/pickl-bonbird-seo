@@ -51,13 +51,14 @@
 
 ---
 
-## Current Version: v6.9v
+## Current Version: v6.9ae
 
 See SETUP.md → "Done (Full History)" for complete build log.
 
-**Next up (from SETUP.md roadmap):**
-- Media storage settings card (Drive links / Cloudinary / GCS as configurable options)
-- SocialPilot account mapping UI
+**Next up:**
+- SP MCP: Reels/Stories/TikTok/YouTube not yet supported — await SP MCP update
+- Zapier: leadership decision pending (auto-push for video types when SP MCP adds support)
+- Scheduler quality: international pipeline needs investigation
 - Multi-brand expansion — Southpour full pipeline
 - Delivery platform SEO — Talabat, Deliveroo, Noon Food keyword optimisation
 

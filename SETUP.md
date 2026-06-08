@@ -1501,3 +1501,35 @@ Without steps 2–3, SocialPilot will receive the wrong UTC timestamp. Full IANA
 - `updateCalMediaSection()` wired to post type `<select>` onchange so media section rebuilds live
 
 *Last updated: June 2026 — v6.9v: Content Calendar upgrade — Shadowburg/Shadowbird brands, post-type-specific upload UX (carousel/reel/story/static/copy_only), carousel slide ordering, Presentation Mode with comment thread + PDF export*
+
+---
+
+## Session: June 2026 — v6.9ae Calendar Polish + SP MCP Live
+
+### SocialPilot MCP Integration (live)
+- Direct post scheduling via `https://mcp.socialpilot.co/{API_KEY}/mcp` (JSON-RPC 2.0)
+- Supported: static image, carousel (multi-image), text/copy-only
+- NOT supported by SP MCP: Reels, Stories, TikTok videos, YouTube videos (SP confirmed)
+- Reel/Story posts blocked at push with clear error message → use CSV export instead
+- Tool: `CreatePost` with `type`, `image.images[]`, `text.postDescription`, `loginIds[]`, `scheduleDateTime` ("YYYY-MM-DD HH:mm"), `shareType: 3`
+- `SOCIALPILOT_API_KEY` from SP Settings → Profile → Security → API Key
+
+### Calendar workflow changes
+- **Submit Calendar** replaces "Submit All Drafts" — submits all drafts + sends ONE Slack summary notification (not per-post)
+- Per-post Slack on submit removed — too noisy
+- Slack still fires for: approved (fully), changes_requested
+- **Approved posts** can now be edited: "Edit & Re-submit" button reverts to draft, clears approvals
+- **Approve All** in Presentation Mode — confirmation list required, only for in-review posts
+- Perch is now always the default tab on load (calendar brand restores from localStorage)
+- Brand selection persists on calendar refresh
+- Platform validation: can't save/submit without selecting at least one platform
+- Carousel Slack preview: shows first slide image + "Carousel · N slides" context
+
+### New calendar.js actions
+- `submit_calendar` — bulk submit + one Slack notification
+- `revert_to_draft` — reset approved/in-review post to draft, clear approvals
+
+### New Blobs
+No new Blobs keys this session.
+
+*Last updated: June 2026 — v6.9ae: SP MCP live (image/text/carousel), scheduler quality fixes, calendar workflow polish*

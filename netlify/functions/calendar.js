@@ -209,6 +209,35 @@ exports.handler = async (event) => {
     return ok({ ok: true });
   }
 
+  // Helper: get best preview image for a post (imageUrl or first carousel slide)
+  function postPreviewImage(p) {
+    if (p.imageUrl) return p.imageUrl;
+    const slides = p.mediaFiles || [];
+    return slides.find(f => f.url)?.url || '';
+  }
+
+  // ── submit_calendar — submit all drafts + send one Slack summary ──────────
+  if (action === 'submit_calendar') {
+    const { ids, brand: calBrand, market: calMarket, month: calMonth } = body;
+    if (!ids?.length) return bad(400, 'ids required');
+    let submitted = 0;
+    for (const postId of ids) {
+      const p = await getPost(s, postId);
+      if (!p || !['draft','changes_requested'].includes(p.status)) continue;
+      const updated = { ...p, status: 'in_review', updatedAt: now,
+        history: [...(p.history || []), { at: now, actor, action: 'submitted_for_review' }] };
+      await savePost(s, updated);
+      submitted++;
+    }
+    // One Slack notification for the whole calendar
+    await notifySlack('calendar_submitted', {
+      brand: calBrand, market: calMarket, month: calMonth,
+      count: submitted, submittedBy: actor,
+      presentUrl: `${SITE_URL}/?tab=calendar`,
+    });
+    return ok({ ok: true, submitted });
+  }
+
   // ── bulk_submit — submit multiple posts for review at once ──────────────────
   if (action === 'bulk_submit') {
     const { ids } = body;
@@ -220,16 +249,6 @@ exports.handler = async (event) => {
       const updated = { ...p, status: 'in_review', updatedAt: now,
         history: [...(p.history || []), { at: now, actor, action: 'submitted_for_review' }] };
       await savePost(s, updated);
-      for (const approver of (p.requiredApprovers || [])) {
-        await notifySlack('calendar_review_needed', {
-          brand: p.brand, market: p.market, postId: postId,
-          caption: (p.caption || '').slice(0, 200),
-          scheduledDate: p.scheduledDate, scheduledTime: p.scheduledTime,
-          submittedBy: actor, approverName: approver.name,
-          platforms: p.platforms || [], postType: p.postType || 'static',
-          imageUrl: p.imageUrl || '',
-        });
-      }
       submitted++;
     }
     return ok({ ok: true, submitted });
@@ -268,16 +287,17 @@ exports.handler = async (event) => {
         note: resetApprovals ? 'Resubmitted after changes — approvals reset' : '' }] };
     await savePost(s, updated);
 
-    for (const approver of (post.requiredApprovers || [])) {
-      await notifySlack('calendar_review_needed', {
-        brand: post.brand, market: post.market, postId: id,
-        caption: (post.caption || '').slice(0, 200),
-        scheduledDate: post.scheduledDate, scheduledTime: post.scheduledTime,
-        submittedBy: actor, approverName: approver.name,
-        platforms: post.platforms || [], postType: post.postType || 'static',
-        imageUrl: post.imageUrl || '',
-      });
-    }
+    // Per-post Slack removed — notifications now sent via "Submit Calendar" bulk action only
+    return ok({ ok: true, post: updated });
+  }
+
+  // ── revert_to_draft — allow editing approved posts ───────────────────────
+  if (action === 'revert_to_draft') {
+    const updated = { ...post,
+      status: 'draft', approvals: [], updatedAt: now,
+      history: [...(post.history || []), { at: now, actor, action: 'reverted_to_draft',
+        note: 'Reverted to draft for editing' }] };
+    await savePost(s, updated);
     return ok({ ok: true, post: updated });
   }
 
@@ -309,7 +329,8 @@ exports.handler = async (event) => {
         caption: (post.caption || '').slice(0, 120),
         scheduledDate: post.scheduledDate, approvedBy: actor,
         platforms: post.platforms || [], postType: post.postType || 'static',
-        imageUrl: post.imageUrl || '',
+        imageUrl: postPreviewImage(post),
+        slideCount: post.postType === 'carousel' ? (post.mediaFiles||[]).filter(f=>f.url).length : null,
       });
     }
     return ok({ ok: true, post: updated, allApproved });
@@ -336,7 +357,8 @@ exports.handler = async (event) => {
       scheduledDate: post.scheduledDate,
       requestedBy: actor, assignedTo: post.assignedName, comment: text,
       platforms: post.platforms || [], postType: post.postType || 'static',
-      imageUrl: post.imageUrl || '',
+      imageUrl: postPreviewImage(post),
+      slideCount: post.postType === 'carousel' ? (post.mediaFiles||[]).filter(f=>f.url).length : null,
     });
     return ok({ ok: true, post: updated });
   }
@@ -510,7 +532,12 @@ exports.handler = async (event) => {
           for (const f of post.mediaFiles || []) { if (f.url) imageUrls.push(f.url); }
         }
 
-        const postType = imageUrls.length ? 'image' : (post.postType === 'reel' ? 'video' : 'text');
+        // SocialPilot MCP confirmed: only text/image/article/document supported
+        // Reels, Stories, TikTok videos, YouTube videos NOT supported in MCP
+        if (['reel', 'story'].includes(post.postType)) {
+          return bad(400, `${post.postType === 'reel' ? 'Reel' : 'Story'} posts cannot be pushed via SocialPilot MCP — video and story content types are not yet supported. Use "📥 Export CSV" to schedule manually in SocialPilot.`);
+        }
+        const postType = imageUrls.length ? 'image' : 'text';
 
         // scheduleDateTime = "YYYY-MM-DD HH:mm" in market local time — SP handles timezone from account settings
         const schedDT = `${post.scheduledDate} ${post.scheduledTime || '10:00'}`;
@@ -526,7 +553,6 @@ exports.handler = async (event) => {
           shareType:        3,
           ...(postType === 'image' ? { image: { images: imageUrls, postDescription: caption } } : {}),
           ...(postType === 'text'  ? { text:  { postDescription: caption } } : {}),
-          ...(post.videoUrl && post.postType === 'reel' ? { video: { url: post.videoUrl, postDescription: caption } } : {}),
         };
 
         console.log('[SP MCP] args:', JSON.stringify({ type: toolArgs.type, loginIds: toolArgs.loginIds, scheduleDateTime: toolArgs.scheduleDateTime, caption: caption.slice(0,60) }));

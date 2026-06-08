@@ -43,6 +43,7 @@ exports.handler = async (event) => {
     else if (type === 'calendar_approved')         payload = buildCalendarApproved(body);
     else if (type === 'calendar_changes_requested') payload = buildCalendarChangesRequested(body);
     else if (type === 'calendar_mention')           payload = buildCalendarMention(body);
+    else if (type === 'calendar_submitted')         payload = buildCalendarSubmitted(body);
     else                                     payload = buildGeneric(body);
 
     const slackRes = await fetch(webhookUrl, {
@@ -255,6 +256,9 @@ function buildCalendarReviewNeeded({ brand, market, postId, caption, scheduledDa
 
   if (isEmbeddableImage(imageUrl)) {
     blocks.push({ type: 'image', image_url: imageUrl, alt_text: `${brand} ${postType} post` });
+    if (data.slideCount > 1) {
+      blocks.push({ type: 'context', elements: [{ type: 'mrkdwn', text: `🎠 Carousel · ${data.slideCount} slides — open The Nest to review all` }] });
+    }
   }
 
   if (captionPreview) {
@@ -345,6 +349,22 @@ function buildCalendarMention({ brand, market, postId, mentionedName, mentionedB
     ]}
   );
   return { blocks };
+}
+
+// ─── Calendar: full calendar submitted ───────────────────────────────────────
+function buildCalendarSubmitted({ brand, market, month, count, submittedBy, presentUrl }) {
+  const emoji   = BRAND_EMOJI[brand] || '🏷';
+  const bLabel  = `${emoji} *${(brand||'').charAt(0).toUpperCase()+(brand||'').slice(1)} · ${market||''}*`;
+  const monthLabel = month || '';
+  return { blocks: [
+    { type: 'header', text: { type: 'plain_text', text: `📅 Content calendar ready for review`, emoji: true } },
+    { type: 'section', text: { type: 'mrkdwn', text: `${bLabel}\n${monthLabel} · *${count} post${count!==1?'s':''}* submitted for approval` } },
+    { type: 'context', elements: [{ type: 'mrkdwn', text: `Submitted by *${submittedBy||'someone'}* · Open presentation mode to review all posts` }] },
+    { type: 'divider' },
+    { type: 'actions', elements: [
+      { type: 'button', text: { type: 'plain_text', text: '📊 Open Presentation View', emoji: true }, style: 'primary', url: presentUrl || SITE_URL },
+    ]},
+  ]};
 }
 
 // ─── Generic fallback ────────────────────────────────────────────────────────

@@ -411,9 +411,8 @@
         </div>
         <div style="display:flex;gap:8px">
           <button class="btn btn-outline" onclick="openCalPresent()" style="white-space:nowrap">📊 Present</button>
-          <button class="btn btn-outline" onclick="submitAllDrafts()" style="white-space:nowrap" title="Submit all draft posts for the current brand &amp; month for review">📨 Submit All Drafts</button>
-          <button class="btn btn-outline" id="cal-push-all-btn" onclick="pushAllApproved()" style="white-space:nowrap;display:none">📤 Push All Approved</button>
-          <button class="btn btn-ghost" onclick="exportSPCsv()" style="white-space:nowrap;font-size:12px" title="Download CSV for SocialPilot bulk import">📥 CSV</button>
+          <button class="btn btn-outline" onclick="submitCalendar()" style="white-space:nowrap" title="Submit full calendar for review — sends one Slack notification to leadership">📅 Submit Calendar</button>
+          <button class="btn btn-outline" id="cal-push-all-btn" onclick="exportSPCsv()" style="white-space:nowrap;display:none">📥 Export Approved CSV</button>
           <button class="btn btn-primary" onclick="openCalForm(null)" style="white-space:nowrap">+ New Post</button>
         </div>
       </div>
@@ -503,6 +502,7 @@
           <span id="cal-present-counter" style="font-size:12px;color:rgba(255,255,255,0.4)">1 / 1</span>
         </div>
         <div style="display:flex;gap:10px;align-items:center">
+          <button id="cal-present-approve-all" onclick="approveAllPresent()" style="background:#16a34a;border:1px solid #16a34a;color:#fff;padding:5px 14px;border-radius:6px;font-size:12px;cursor:pointer;display:none">✅ Approve All</button>
           <button onclick="printCalPresent()" style="background:rgba(255,255,255,0.1);border:1px solid rgba(255,255,255,0.2);color:#fff;padding:5px 14px;border-radius:6px;font-size:12px;cursor:pointer">🖨 Export PDF</button>
           <button onclick="closeCalPresent()" style="background:rgba(255,255,255,0.1);border:1px solid rgba(255,255,255,0.2);color:#fff;padding:5px 14px;border-radius:6px;font-size:12px;cursor:pointer">✕ Close</button>
         </div>
@@ -1799,10 +1799,10 @@ const TYPE_TAGS = {
   if (urlTab)  { window.history.replaceState({}, '', '/'); switchView(urlTab); }
   if (urlPost) { window.history.replaceState({}, '', '/'); switchView('calendar'); setTimeout(() => openCalDetail(urlPost), 900); }
   else {
-    // Restore last active tab from localStorage (so refresh doesn't always go to Perch)
+    // Restore last active tab (but always default to Perch — calendar restores brand separately)
     try {
       const saved = localStorage.getItem('nestActiveTab');
-      if (saved && saved !== 'perch') switchView(saved);
+      if (saved && saved !== 'perch' && saved !== 'calendar') switchView(saved);
     } catch {}
   }
 
@@ -6481,6 +6481,12 @@ const calState = {
 };
 
 function loadCalendarIfNeeded() {
+  // Restore saved brand from localStorage
+  const savedBrand = localStorage.getItem('nestCalBrand');
+  if (savedBrand) {
+    const sel = document.getElementById('cal-filter-brand');
+    if (sel) sel.value = savedBrand;
+  }
   const brand = document.getElementById('cal-filter-brand')?.value || 'pickl';
   calState.brand = brand;
   populateCalMarkets();
@@ -6491,6 +6497,7 @@ function loadCalendarIfNeeded() {
 function calBrandChanged() {
   calState.brand = document.getElementById('cal-filter-brand').value;
   calState.loaded = false;
+  try { localStorage.setItem('nestCalBrand', calState.brand); } catch {}
   populateCalMarkets();
   loadCalendar();
 }
@@ -6566,7 +6573,7 @@ function renderCalendar() {
 function renderCalStats(posts) {
   const el = document.getElementById('cal-stats-bar');
   if (!el) return;
-  // Show/hide Push All Approved button
+  // Show/hide Export Approved CSV button
   const approvedCount = posts.filter(p => p.status === 'approved').length;
   const pushAllBtn = document.getElementById('cal-push-all-btn');
   if (pushAllBtn) pushAllBtn.style.display = approvedCount > 0 && ['admin','manager'].includes(state.userRole) ? '' : 'none';
@@ -7211,6 +7218,7 @@ async function saveCalPost(mode) {
   const videoUrl  = document.getElementById('cf-video-url')?.value?.trim() || '';
   const imageUrl  = document.getElementById('cf-image-url')?.value?.trim() || '';
 
+  if (!platforms.length) { showToast('Please select at least one platform', 'error'); return; }
   if (!date) { showToast('Please set a scheduled date', 'error'); return; }
   const todayStr = new Date().toISOString().slice(0, 10);
   if (date < todayStr) {
@@ -7441,10 +7449,13 @@ function renderCalDetailPanel(post) {
   } else if (post.status === 'approved' && ['admin','manager'].includes(state.userRole)) {
     actionBar = `
       <div style="padding:12px 16px;border-top:1px solid var(--border);background:var(--bg-surface);flex-shrink:0">
-        <div style="display:flex;gap:10px;flex-wrap:wrap;align-items:center">
+        <div style="display:flex;gap:10px;flex-wrap:wrap;align-items:center;margin-bottom:8px">
           <button class="btn btn-primary" style="background:#7c3aed;border-color:#7c3aed" onclick="calPushSocialPilot('${post.id}')">📤 Push to SocialPilot</button>
           <button class="btn btn-outline" onclick="exportSPCsvSingle('${post.id}')">📥 Export CSV</button>
           <button class="btn btn-outline" onclick="calMarkPublished('${post.id}')">✅ Mark Published</button>
+        </div>
+        <div style="display:flex;gap:8px">
+          <button class="btn btn-ghost" style="font-size:12px;padding:4px 10px" onclick="revertToDraft('${post.id}')">✏️ Edit & Re-submit</button>
         </div>
       </div>`;
   } else if (post.status === 'scheduled' && ['admin','manager'].includes(state.userRole)) {
@@ -7866,8 +7877,40 @@ function openCalPresent() {
   const overlay = document.getElementById('cal-present-overlay');
   overlay.style.display = 'flex';
   overlay.focus();
+  // Show Approve All if user is approver and there are in_review posts
+  const canApproveAll = ['admin','manager'].includes(state.userRole) ||
+    posts.some(p => (p.requiredApprovers||[]).some(a => a.email === state.userEmail));
+  const inReviewCount = posts.filter(p => p.status === 'in_review' &&
+    !(p.approvals||[]).some(a => a.email === state.userEmail)).length;
+  const approveAllBtn = document.getElementById('cal-present-approve-all');
+  if (approveAllBtn) approveAllBtn.style.display = canApproveAll && inReviewCount > 0 ? '' : 'none';
   renderPresentSlide();
   renderPresentStrip();
+}
+
+async function approveAllPresent() {
+  const eligible = calState.presentPosts.filter(p =>
+    p.status === 'in_review' && !(p.approvals||[]).some(a => a.email === state.userEmail)
+  );
+  if (!eligible.length) { showToast('No posts left to approve', 'error'); return; }
+  // Show confirmation listing all posts
+  const list = eligible.map(p => `• ${p.brand?.toUpperCase()} ${p.market} — ${(p.caption||'').slice(0,50)}${p.caption?.length>50?'…':''}`).join('\n');
+  if (!confirm(`Approve all ${eligible.length} in-review posts?\n\n${list}`)) return;
+  let approved = 0;
+  for (const p of eligible) {
+    try {
+      const res = await apiPost('/api/calendar', { action: 'approve', id: p.id, actor: state.actor, actorEmail: state.userEmail });
+      if (res.post) calState.presentPosts[calState.presentPosts.findIndex(x => x.id === p.id)] = res.post;
+      approved++;
+    } catch (_) {}
+  }
+  showToast(`✅ ${approved} post${approved>1?'s':''} approved`, 'success');
+  await loadCalendar();
+  // Refresh present posts from updated calState
+  calState.presentPosts = calState.posts.filter(p => p.status !== 'draft' || state.userRole === 'admin').sort((a,b)=>(a.scheduledDate||'').localeCompare(b.scheduledDate||''));
+  renderPresentSlide();
+  renderPresentStrip();
+  document.getElementById('cal-present-approve-all').style.display = 'none';
 }
 
 function closeCalPresent() {
@@ -8157,25 +8200,44 @@ function exportSPCsvSingle(postId) {
   showToast(`📥 CSV downloaded — import via SocialPilot → Bulk Import`, 'success');
 }
 
-// ── Bulk submit all drafts ─────────────────────────────────────────────────────
-async function submitAllDrafts() {
+// ── Submit full calendar for review (one Slack notification) ──────────────────
+async function submitCalendar() {
   const drafts = calState.posts.filter(p => ['draft','changes_requested'].includes(p.status));
-  if (!drafts.length) { showToast('No draft posts to submit for this month', 'error'); return; }
+  if (!drafts.length) { showToast('No draft posts to submit this month', 'error'); return; }
   const withoutApprovers = drafts.filter(p => !(p.requiredApprovers||[]).length);
   if (withoutApprovers.length) {
-    showToast(`${withoutApprovers.length} post(s) have no required approvers — open them and add approvers first`, 'error');
+    showToast(`${withoutApprovers.length} post(s) have no approvers set — open them and add approvers first`, 'error');
     return;
   }
-  if (!confirm(`Submit ${drafts.length} draft post${drafts.length > 1 ? 's' : ''} for review? Approvers will be notified.`)) return;
+  const monthLabel = new Date(calState.year, calState.month, 1)
+    .toLocaleDateString('en-GB', { month: 'long', year: 'numeric' });
+  if (!confirm(`Submit the ${calState.brand} ${monthLabel} calendar for review?\n\n${drafts.length} post(s) will be submitted. Approvers will receive one Slack notification.`)) return;
   try {
     const res = await apiPost('/api/calendar', {
-      action: 'bulk_submit',
+      action: 'submit_calendar',
       ids: drafts.map(p => p.id),
+      brand: calState.brand, market: document.getElementById('cal-filter-market')?.value || 'UAE',
+      month: monthLabel,
       actor: state.actor, actorEmail: state.userEmail,
     });
-    showToast(`✅ ${res.submitted} post${res.submitted > 1 ? 's' : ''} submitted for review`, 'success');
+    showToast(`✅ ${res.submitted} post${res.submitted > 1 ? 's' : ''} submitted — team notified via Slack`, 'success');
     await loadCalendar();
   } catch (e) { showToast('Submit failed: ' + e.message, 'error'); }
+}
+
+// ── Revert approved post to draft for editing ──────────────────────────────────
+async function revertToDraft(postId) {
+  if (!confirm('Revert this post to draft? Approvals will be cleared and it will need to go through review again.')) return;
+  try {
+    const res = await apiPost('/api/calendar', {
+      action: 'revert_to_draft', id: postId,
+      actor: state.actor, actorEmail: state.userEmail,
+    });
+    showToast('Post reverted to draft', 'success');
+    await loadCalendar();
+    closeCalDetail();
+    openCalForm(postId);
+  } catch (e) { showToast(e.message, 'error'); }
 }
 
 // ── Badge count ────────────────────────────────────────────────────────────────
