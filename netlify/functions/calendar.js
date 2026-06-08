@@ -451,12 +451,13 @@ exports.handler = async (event) => {
 
       } else {
         // ── Direct SocialPilot API path ────────────────────────────────────
-        const SP_GW_KEY = 'yFxaTyRTiH7YBUYeYiEeCYBMRGZA8wk5fsCJxVy1';
         const SP_URL    = 'https://rest.socialpilot.co/v4/draft/autosave';
+        // Try apiKey as both Bearer AND x-api-key — the x-api-key captured from browser
+        // network inspection may have been the old account key (now reset by SP security incident)
         const spHeaders = {
           'Content-Type':  'application/json',
           'authorization': `Bearer ${apiKey}`,
-          'x-api-key':     SP_GW_KEY,
+          'x-api-key':     apiKey,
           'origin':        'https://app.socialpilot.co',
           'referer':       'https://app.socialpilot.co/',
         };
