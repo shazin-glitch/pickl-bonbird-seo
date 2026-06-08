@@ -7067,7 +7067,7 @@ function renderCalMediaSection(post) {
 }
 
 function updateCalImagePreview() {
-  const url  = document.getElementById('cf-image-url')?.value.trim() || '';
+  const url  = document.getElementById('cf-image-url')?.value?.trim() || '';
   const prev = document.getElementById('cf-image-preview');
   if (!prev) return;
   prev.innerHTML = url
@@ -7208,8 +7208,8 @@ async function saveCalPost(mode) {
   const time      = document.getElementById('cf-time')?.value    || '10:00';
   const hashtags  = document.getElementById('cf-hashtags')?.value.trim() || '';
   const visualNotes = document.getElementById('cf-visual-notes')?.value || '';
-  const videoUrl  = document.getElementById('cf-video-url')?.value.trim() || '';
-  const imageUrl  = document.getElementById('cf-image-url')?.value.trim() || '';
+  const videoUrl  = document.getElementById('cf-video-url')?.value?.trim() || '';
+  const imageUrl  = document.getElementById('cf-image-url')?.value?.trim() || '';
 
   if (!date) { showToast('Please set a scheduled date', 'error'); return; }
   const todayStr = new Date().toISOString().slice(0, 10);
