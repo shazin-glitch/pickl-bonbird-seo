@@ -5,15 +5,45 @@
 //   - Due today
 //   - Due in the next 3 days (due soon)
 //
+// Also checks for Story/Reel calendar posts scheduled for today that are approved
+// but not yet published, and sends a manual-post reminder.
+//
 // Sends one grouped Slack notification covering all three buckets.
 // Skips silently if no Slack webhook is configured.
 
 const { getSetting } = require('./_lib/store');
 
 const SITE_URL = process.env.URL || 'https://yolkseo.netlify.app';
+const BRANDS   = ['pickl', 'bonbird', 'southpour', 'shadowburg', 'shadowbird'];
 
 exports.handler = async () => {
   try {
+    // ── Story/Reel manual post reminder ──────────────────────────────────────
+    const todayStr = new Date().toISOString().slice(0, 10); // YYYY-MM-DD
+    const manualDue = [];
+    for (const brand of BRANDS) {
+      const calIndex = await getSetting(`calendarIndex:${brand}`).catch(() => []);
+      if (!calIndex || !calIndex.length) continue;
+      for (const id of calIndex) {
+        try {
+          const post = await getSetting(`calendarPost:${id}`);
+          if (!post) continue;
+          if (post.status !== 'approved') continue;
+          if (post.postType !== 'story' && post.postType !== 'reel') continue;
+          if (post.scheduledDate !== todayStr) continue;
+          manualDue.push(post);
+        } catch { /* skip missing */ }
+      }
+    }
+    if (manualDue.length) {
+      await fetch(`${SITE_URL}/.netlify/functions/slack-notify`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ type: 'calendar_manual_reminder', posts: manualDue }),
+      });
+      console.log(`[perch-notify] Sent manual reminder for ${manualDue.length} story/reel post(s).`);
+    }
+
     const index = await getSetting('perchIndex').catch(() => []);
     if (!index || !index.length) return;
 

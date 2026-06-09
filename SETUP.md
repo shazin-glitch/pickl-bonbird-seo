@@ -1662,3 +1662,36 @@ To revert: restore the old polling constants and loop. Remove `DATAFORSEO_READY_
 - Keywords data: `https://api.dataforseo.com/v3/keywords_data/google_ads/search_volume/tasks_ready` (not yet used)
 
 *Last updated: June 2026 — v6.9ai: tasks_ready polling, competitor matrix blob overwrite fix, backlinks placeholder*
+
+---
+
+## Session: June 2026 — v6.9aj Story/Reel Manual Post Fixes
+
+### Three fixes
+
+#### Fix 1: CSV export excludes Story + Reel ✅
+`index.html` — `buildSpCsvRows()`:
+- Added early `continue` for `postType === 'story'` or `postType === 'reel'` — these types are silently skipped from the generated CSV rows since SocialPilot bulk import doesn't support them
+- `exportSPCsvSingle()` now shows an error toast immediately if called on a story/reel post, rather than generating an empty CSV
+
+#### Fix 2: Story/Reel approved state — "Post Manually" instructions ✅
+`index.html` — approved action bar in `renderCalDetail()`:
+- Added `isManualPost` check: `postType === 'story' || postType === 'reel'`
+- If true: replaces Push to SocialPilot + Export CSV buttons with an amber info box showing:
+  - Post type label (Story / Reel)
+  - Scheduled date + time
+  - Platforms to post on
+  - Video URL link (if set)
+  - Explanation: "Stories and Reels can't be auto-scheduled via SocialPilot — post directly in the app."
+  - Only "✅ Mark Published" and "✏️ Edit & Re-submit" buttons remain
+- If false (static/carousel/copy_only): existing Push to SocialPilot + Export CSV buttons unchanged
+
+#### Fix 3: Slack reminder when Story/Reel is due today ✅
+`perch-notify-background.js` (runs daily 5am UTC = 9am Dubai):
+- Before the Perch due-date check, now loops all brands' `calendarIndex:<brand>` posts
+- Filters: `status === 'approved'` + `postType` in `['story','reel']` + `scheduledDate === today`
+- If any found: POSTs `calendar_manual_reminder` to slack-notify with the full posts array
+
+`slack-notify.js`:
+- New notification type: `calendar_manual_reminder` → `buildCalendarManualReminder()`
+- Shows: header "📱 Manual post due today", one line per post (brand/market/platforms/time/video link), context note, "Open Content Calendar" button

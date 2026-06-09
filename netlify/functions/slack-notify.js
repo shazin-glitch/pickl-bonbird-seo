@@ -44,6 +44,7 @@ exports.handler = async (event) => {
     else if (type === 'calendar_changes_requested') payload = buildCalendarChangesRequested(body);
     else if (type === 'calendar_mention')           payload = buildCalendarMention(body);
     else if (type === 'calendar_submitted')         payload = buildCalendarSubmitted(body);
+    else if (type === 'calendar_manual_reminder')   payload = buildCalendarManualReminder(body);
     else                                     payload = buildGeneric(body);
 
     const slackRes = await fetch(webhookUrl, {
@@ -363,6 +364,28 @@ function buildCalendarSubmitted({ brand, market, month, count, submittedBy, pres
     { type: 'divider' },
     { type: 'actions', elements: [
       { type: 'button', text: { type: 'plain_text', text: '📊 Open Presentation View', emoji: true }, style: 'primary', url: presentUrl || SITE_URL },
+    ]},
+  ]};
+}
+
+// ─── Calendar: manual post reminder (Story/Reel due today) ───────────────────
+function buildCalendarManualReminder({ posts }) {
+  if (!posts || !posts.length) return buildGeneric({});
+  const lines = posts.map(p => {
+    const emoji  = BRAND_EMOJI[p.brand] || '🏷';
+    const type   = TYPE_LABEL[p.postType] || p.postType || 'Post';
+    const pf     = (p.platforms || []).join(', ') || '—';
+    const time   = p.scheduledTime || 'today';
+    const video  = p.videoUrl ? `\n   🎬 <${p.videoUrl}|Video link>` : '';
+    return `${emoji} *${type}* · ${(p.brand||'').charAt(0).toUpperCase()+(p.brand||'').slice(1)} · ${p.market||''} · ${pf} · *${time}*${video}`;
+  });
+  return { blocks: [
+    { type: 'header', text: { type: 'plain_text', text: '📱 Manual post due today', emoji: true } },
+    { type: 'section', text: { type: 'mrkdwn', text: `*${posts.length} Story/Reel post${posts.length !== 1 ? 's are' : ' is'} scheduled for today* — post directly in the app.\n\n${lines.join('\n')}` } },
+    { type: 'context', elements: [{ type: 'mrkdwn', text: 'Stories and Reels cannot be auto-scheduled via SocialPilot. Post manually, then mark as Published in The Nest.' }] },
+    { type: 'divider' },
+    { type: 'actions', elements: [
+      { type: 'button', text: { type: 'plain_text', text: '📅 Open Content Calendar', emoji: true }, style: 'primary', url: SITE_URL },
     ]},
   ]};
 }

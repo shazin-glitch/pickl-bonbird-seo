@@ -7674,17 +7674,43 @@ function renderCalDetailPanel(post) {
         <button class="btn btn-ghost" style="margin-left:auto;color:#ef4444" onclick="calDeletePost('${post.id}')">🗑 Delete</button>
       </div>`;
   } else if (post.status === 'approved' && ['admin','manager'].includes(state.userRole)) {
-    actionBar = `
-      <div style="padding:12px 16px;border-top:1px solid var(--border);background:var(--bg-surface);flex-shrink:0">
-        <div style="display:flex;gap:10px;flex-wrap:wrap;align-items:center;margin-bottom:8px">
-          <button class="btn btn-primary" style="background:#7c3aed;border-color:#7c3aed" onclick="calPushSocialPilot('${post.id}')">📤 Push to SocialPilot</button>
-          <button class="btn btn-outline" onclick="exportSPCsvSingle('${post.id}')">📥 Export CSV</button>
-          <button class="btn btn-outline" onclick="calMarkPublished('${post.id}')">✅ Mark Published</button>
-        </div>
-        <div style="display:flex;gap:8px">
-          <button class="btn btn-ghost" style="font-size:12px;padding:4px 10px" onclick="revertToDraft('${post.id}')">✏️ Edit & Re-submit</button>
-        </div>
-      </div>`;
+    const isManualPost = post.postType === 'story' || post.postType === 'reel';
+    if (isManualPost) {
+      const typeLabel = post.postType === 'story' ? 'Story' : 'Reel';
+      const schedInfo = post.scheduledDate
+        ? new Date(post.scheduledDate + 'T12:00:00').toLocaleDateString('en-GB', { weekday: 'short', day: 'numeric', month: 'short' }) +
+          (post.scheduledTime ? ' at ' + post.scheduledTime : '')
+        : 'No date set';
+      const pfList = (post.platforms || []).join(', ') || 'No platforms set';
+      const videoLine = post.videoUrl
+        ? `<div style="font-size:12px;color:#78350f;margin-top:4px">🎬 Video: <a href="${esc(post.videoUrl)}" target="_blank" style="color:#7c3aed;word-break:break-all">${esc(post.videoUrl)}</a></div>`
+        : '';
+      actionBar = `
+        <div style="padding:12px 16px;border-top:1px solid var(--border);background:var(--bg-surface);flex-shrink:0">
+          <div style="background:#fef3c7;border:1px solid #fbbf24;border-radius:8px;padding:10px 14px;margin-bottom:10px">
+            <div style="font-size:13px;font-weight:600;color:#92400e;margin-bottom:4px">📱 Post Manually — ${typeLabel}</div>
+            <div style="font-size:12px;color:#78350f">📅 ${schedInfo} · ${pfList}</div>
+            ${videoLine}
+            <div style="font-size:11px;color:#92400e;margin-top:6px;opacity:0.8">Stories and Reels can't be auto-scheduled via SocialPilot — post directly in the app.</div>
+          </div>
+          <div style="display:flex;gap:8px;flex-wrap:wrap">
+            <button class="btn btn-outline" onclick="calMarkPublished('${post.id}')">✅ Mark Published</button>
+            <button class="btn btn-ghost" style="font-size:12px;padding:4px 10px" onclick="revertToDraft('${post.id}')">✏️ Edit & Re-submit</button>
+          </div>
+        </div>`;
+    } else {
+      actionBar = `
+        <div style="padding:12px 16px;border-top:1px solid var(--border);background:var(--bg-surface);flex-shrink:0">
+          <div style="display:flex;gap:10px;flex-wrap:wrap;align-items:center;margin-bottom:8px">
+            <button class="btn btn-primary" style="background:#7c3aed;border-color:#7c3aed" onclick="calPushSocialPilot('${post.id}')">📤 Push to SocialPilot</button>
+            <button class="btn btn-outline" onclick="exportSPCsvSingle('${post.id}')">📥 Export CSV</button>
+            <button class="btn btn-outline" onclick="calMarkPublished('${post.id}')">✅ Mark Published</button>
+          </div>
+          <div style="display:flex;gap:8px">
+            <button class="btn btn-ghost" style="font-size:12px;padding:4px 10px" onclick="revertToDraft('${post.id}')">✏️ Edit & Re-submit</button>
+          </div>
+        </div>`;
+    }
   } else if (post.status === 'scheduled' && ['admin','manager'].includes(state.userRole)) {
     actionBar = `
       <div style="padding:12px 16px;border-top:1px solid var(--border);background:var(--bg-surface);flex-shrink:0">
@@ -8360,6 +8386,9 @@ function buildSpCsvRows(posts) {
   const rows = [];
 
   for (const p of posts) {
+    // Story and Reel must be posted manually — not supported by SocialPilot bulk import
+    if (p.postType === 'story' || p.postType === 'reel') continue;
+
     const idMap     = SP_ACCOUNTS_FLAT[p.brand]?.[p.market] || {};
     const platforms = p.platforms || [];
     const message   = [p.caption, p.hashtags].filter(Boolean).join('\n\n');
@@ -8423,6 +8452,10 @@ function exportSPCsv() {
 function exportSPCsvSingle(postId) {
   const post = calState.posts.find(p => p.id === postId) || calState.detailPost;
   if (!post) { showToast('Post not found', 'error'); return; }
+  if (post.postType === 'story' || post.postType === 'reel') {
+    showToast('Stories and Reels must be posted manually — CSV export not available for this type', 'error');
+    return;
+  }
   downloadCsv(buildSpCsvRows([post]), `socialpilot-${post.brand}-${post.scheduledDate || 'post'}.csv`);
   showToast(`📥 CSV downloaded — import via SocialPilot → Bulk Import`, 'success');
 }
