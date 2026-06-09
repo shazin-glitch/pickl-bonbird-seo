@@ -1609,3 +1609,56 @@ None — uses existing `DATAFORSEO_LOGIN` / `DATAFORSEO_PASSWORD`
 - **SERP Standard**: pay-per-use — `serp/google/organic` task_post + task_get
 
 *Last updated: June 2026 — v6.9ah: analytics fixes, backlinks placeholder, competitor matrix empty state, deep audit ReferenceError*
+
+---
+
+## Session: June 2026 — v6.9ai DataForSEO Polling Overhaul
+
+### What changed and why
+
+**Problem:** `competitor-matrix-background.js` was using per-task polling every 5 seconds.
+With 107 tasks × 120 attempts = up to 12,840 individual API calls per run.
+When DataForSEO is slow (evening/peak hours), this was costing ~$1.50/run instead of pennies.
+
+**Fix:** Switched to `tasks_ready` endpoint which returns ALL completed task IDs in a single call.
+Then we only fetch results for tasks that are actually ready. ~95% cost reduction.
+
+**New approach:**
+- POST all tasks → get task IDs
+- Every 30s: call `tasks_ready` (one API call) → get list of completed task IDs
+- Fetch results only for newly-ready tasks
+- Max 20 checks = 10 minutes total
+
+**Old approach (for reverting if needed):**
+```javascript
+// Old polling constants (competitor-matrix-background.js)
+const POLL_INTERVAL_MS   = 5000;   // 5 seconds between each batch of polls
+const POLL_MAX_ATTEMPTS  = 120;    // max 10 minutes
+
+// Old poll loop: checked each pending task individually every 5s
+while (pending.size > 0 && attempts < POLL_MAX_ATTEMPTS) {
+  attempts++;
+  await new Promise(r => setTimeout(r, POLL_INTERVAL_MS));
+  for (const taskId of [...pending]) {
+    const res = await fetch(`${DATAFORSEO_GET_URL}/${taskId}`, ...);
+    // parse result, remove from pending if done
+  }
+}
+```
+
+To revert: restore the old polling constants and loop. Remove `DATAFORSEO_READY_URL` and the `tasks_ready` while loop.
+
+**Functions updated:**
+- `competitor-matrix-background.js` — was worst offender (107 tasks × 120 attempts)
+- `ai-overview-background.js` — updated to tasks_ready with 20s intervals
+
+**Functions NOT updated (polling cost already negligible):**
+- `citations.js` — 1 task, 18 attempts max
+- `scheduler-background.js` CPC enrichment — 1 task, 24 attempts max
+- `backlinks-background.js` / `backlinks.js` — requires $100/month balance, irrelevant
+
+**DataForSEO tasks_ready endpoints:**
+- SERP: `https://api.dataforseo.com/v3/serp/google/organic/tasks_ready`
+- Keywords data: `https://api.dataforseo.com/v3/keywords_data/google_ads/search_volume/tasks_ready` (not yet used)
+
+*Last updated: June 2026 — v6.9ai: tasks_ready polling, competitor matrix blob overwrite fix, backlinks placeholder*

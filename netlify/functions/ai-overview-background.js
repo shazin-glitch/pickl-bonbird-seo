@@ -88,48 +88,50 @@ function extractAiOverviewText(aiItem) {
   return '';
 }
 
-// ── Poll all task IDs in parallel until done or timeout ─────────────────────
-async function pollAll(taskMap, authHeader, maxWaitMs = 90000) {
-  const pollInterval = 5000;
-  const maxAttempts  = Math.ceil(maxWaitMs / pollInterval);
-  const pending      = new Set(Object.keys(taskMap));
-  const results      = {};
+// ── Poll using tasks_ready — one call returns all completed task IDs ──────────
+// Cheaper than polling each task individually every 5s
+const DATAFORSEO_READY_URL = 'https://api.dataforseo.com/v3/serp/google/organic/tasks_ready';
 
-  for (let attempt = 0; attempt < maxAttempts && pending.size > 0; attempt++) {
+async function pollAll(taskMap, authHeader, maxWaitMs = 120000) {
+  const taskIdSet    = new Set(Object.keys(taskMap));
+  const results      = {};
+  const pollInterval = 20000; // check every 20s
+  const maxAttempts  = Math.ceil(maxWaitMs / pollInterval);
+
+  for (let attempt = 0; attempt < maxAttempts && Object.keys(results).length < taskIdSet.size; attempt++) {
     await new Promise(r => setTimeout(r, pollInterval));
 
-    await Promise.all([...pending].map(async (taskId) => {
-      try {
-        const res  = await fetch(`${DATAFORSEO_GET_URL}/${taskId}`, {
-          headers: { Authorization: authHeader },
-        });
-        const data = await res.json();
-        if (data.status_code !== 20000) return;
+    try {
+      const readyRes  = await fetch(DATAFORSEO_READY_URL, { headers: { Authorization: authHeader } });
+      if (!readyRes.ok) continue;
+      const readyData = await readyRes.json();
+      if (readyData.status_code !== 20000) continue;
 
-        const task = data.tasks?.[0];
-        if (!task) return;
+      const readyIds = (readyData.tasks?.[0]?.result || [])
+        .map(t => t.id)
+        .filter(id => taskIdSet.has(id) && !results[id]);
 
-        if (task.status_code === 20000 && task.result) {
-          results[taskId] = task.result[0] || null;
-          pending.delete(taskId);
-        } else if (task.status_code === 40501 || task.status_code === 40601) {
-          results[taskId] = null;
-          pending.delete(taskId);
-        }
-        // 40602 = still processing — keep polling
-      } catch (e) {
-        // Transient error — retry next cycle
-      }
-    }));
+      await Promise.all(readyIds.map(async (taskId) => {
+        try {
+          const res  = await fetch(`${DATAFORSEO_GET_URL}/${taskId}`, { headers: { Authorization: authHeader } });
+          const data = await res.json();
+          if (data.status_code !== 20000) return;
+          const task = data.tasks?.[0];
+          if (task?.status_code === 20000 && task.result) {
+            results[taskId] = task.result[0] || null;
+          } else {
+            results[taskId] = null; // hard error, mark done
+          }
+        } catch (e) { /* retry next cycle */ }
+      }));
 
-    if (attempt % 3 === 2) {
-      console.log(`[ai-overview-bg] ${pending.size} tasks still pending (attempt ${attempt + 1})`);
-    }
+      console.log(`[ai-overview-bg] ${Object.keys(results).length}/${taskIdSet.size} tasks done (check ${attempt + 1})`);
+    } catch (e) { /* transient — retry */ }
   }
 
-  if (pending.size > 0) {
-    console.warn(`[ai-overview-bg] ${pending.size} tasks timed out — using partial results`);
-    for (const id of pending) results[id] = null;
+  // Any tasks that never appeared in tasks_ready — mark null
+  for (const id of taskIdSet) {
+    if (!results[id]) results[id] = null;
   }
 
   return results;

@@ -51,7 +51,7 @@
 
 ---
 
-## Current Version: v6.9ah
+## Current Version: v6.9ai
 
 See SETUP.md → "Done (Full History)" for complete build log.
 
