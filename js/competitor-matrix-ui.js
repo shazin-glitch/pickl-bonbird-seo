@@ -383,7 +383,13 @@
       </tr></thead><tbody>`;
 
     if (!rows.length) {
-      html += `<tr><td colspan="${5 + competitors.length}" class="cm-empty">No data. Click <strong>Refresh Now</strong> to fetch from DataForSEO.</td></tr>`;
+      const fetchedAt = matrixData?.pickl?.fetchedAt || matrixData?.bonbird?.fetchedAt;
+      const lastRun   = fetchedAt ? `Last run: ${new Date(fetchedAt).toLocaleDateString('en-GB',{day:'numeric',month:'short',hour:'2-digit',minute:'2-digit'})}` : 'Never run';
+      html += `<tr><td colspan="${5 + competitors.length}" class="cm-empty" style="padding:32px 16px">
+        <div style="font-weight:600;margin-bottom:6px">No keyword data found</div>
+        <div style="font-size:12px;color:#64748b;margin-bottom:12px">${lastRun} — the Monday cron may have encountered a DataForSEO error. Click Refresh Now to re-run (takes ~5–10 minutes).</div>
+        <button onclick="document.getElementById('cm-refresh-btn')?.click()" style="background:var(--primary,#2563eb);color:#fff;border:none;border-radius:6px;padding:6px 14px;font-size:12px;cursor:pointer">↻ Refresh Now</button>
+      </td></tr>`;
     } else {
       for (const row of rows) {
         const brandColor   = BRAND_COLORS[row.brand]?.primary || "#f59e0b";
