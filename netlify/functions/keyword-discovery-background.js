@@ -16,6 +16,7 @@
 const { getStore }        = require('@netlify/blobs');
 const { getBrandContext } = require('./_lib/brand');
 const { callClaude, extractJson } = require('./_lib/store');
+const { INTERNATIONAL_MARKETS } = require('./_lib/international-config');
 
 const DATAFORSEO_BASE = 'https://api.dataforseo.com/v3';
 
@@ -210,30 +211,44 @@ function getTier(ourPosition, competitorBest, score) {
   return 'monitor';
 }
 
-// ── Main discovery per brand ──────────────────────────────────────────────────
-async function discoverKeywords(brand, store, authHeader, force = false) {
-  const tag = `[kw-discovery/${brand}]`;
+// ── Main discovery per brand (optionally per market) ─────────────────────────
+async function discoverKeywords(brand, store, authHeader, force = false, marketKey = null) {
+  const isIntl   = marketKey && marketKey !== 'uae';
+  const market   = isIntl ? INTERNATIONAL_MARKETS[marketKey] : null;
+  const tag      = isIntl ? `[kw-discovery/${brand}/${marketKey}]` : `[kw-discovery/${brand}]`;
+  const storeKey = isIntl ? `keywordOpportunities:${brand}:${marketKey}` : `keywordOpportunities:${brand}`;
   console.log(`${tag} starting discovery`);
 
   const brandCtx = await getBrandContext(brand);
+  const brandName = brand.charAt(0).toUpperCase() + brand.slice(1);
 
-  // Load GSC cache for position lookup
+  // For international: use market seed keywords; for UAE: use brand seeds
+  const seeds         = isIntl
+    ? [...(market.seedKeywords?.en || []), `best burger in ${market.label}`, `best fried chicken in ${market.label}`, `burger restaurant ${market.label}`, `fast food ${market.label}`].filter(Boolean)
+    : (BRAND_SEEDS[brand] || []);
+  const locationCode  = isIntl ? market.location_code : MARKET_LOCATIONS.UAE;
+  const marketLabel   = isIntl ? market.label : 'UAE';
+
+  // Load GSC cache — international pages live on same GSC property
   const GSC_URL   = brand === 'pickl' ? 'https://eatpickl.com/' : 'https://bonbirdchicken.com/';
   const gscCache  = await store.get(`gscCache:${GSC_URL}`, { type: 'json' }).catch(() => null);
   const gscMap    = {};
   if (gscCache?.rows) {
     for (const row of gscCache.rows) {
-      if (row.keyword) gscMap[row.keyword.toLowerCase()] = row.position;
+      if (!row.keyword) continue;
+      // For international: only include rows matching the market URL pattern
+      if (isIntl && row.page && !row.page.includes(`/${market.marketSlug}`)) continue;
+      gscMap[row.keyword.toLowerCase()] = row.position;
     }
   }
   console.log(`${tag} GSC positions loaded: ${Object.keys(gscMap).length} keywords`);
 
-  // Load competitor ranked keywords
+  // Load competitor ranked keywords (UAE only — international competitor data TBD)
   const compData = await store.get(`competitorRankedKeywords:${brand}`, { type: 'json' }).catch(() => null);
   const compMap  = {}; // keyword → [positions from competitors]
-  if (Array.isArray(compData)) {
-    for (const comp of compData) {
-      for (const kw of comp.keywords || []) {
+  if (!isIntl && compData?.competitors) {
+    for (const [, kwList] of Object.entries(compData.competitors)) {
+      for (const kw of kwList || []) {
         const key = kw.keyword?.toLowerCase();
         if (key) {
           if (!compMap[key]) compMap[key] = [];
@@ -244,14 +259,10 @@ async function discoverKeywords(brand, store, authHeader, force = false) {
   }
   console.log(`${tag} competitor keywords loaded: ${Object.keys(compMap).length} unique`);
 
-  // Get keyword ideas for UAE (primary market, richest volume data)
-  const seeds    = BRAND_SEEDS[brand] || [];
-  const ideas    = await getKeywordIdeas(seeds, MARKET_LOCATIONS.UAE, authHeader);
-  console.log(`${tag} DataForSEO returned ${ideas.length} keyword ideas`);
+  const ideas = await getKeywordIdeas(seeds, locationCode, authHeader);
+  console.log(`${tag} DataForSEO returned ${ideas.length} keyword ideas (${marketLabel})`);
 
-  // Claude relevancy filter — model understands brand context, rejects off-menu
-  // and competitor brands far more reliably than a static list
-  const brandName = brand.charAt(0).toUpperCase() + brand.slice(1);
+  // Claude relevancy filter
   const filteredIdeas = await filterKeywordsWithClaude(ideas, brandName, brandCtx);
 
   // Also add competitor keywords we don't yet track
@@ -310,6 +321,8 @@ async function discoverKeywords(brand, store, authHeader, force = false) {
 
   const result = {
     brand,
+    market:        marketKey || 'uae',
+    marketLabel,
     updatedAt:     new Date().toISOString(),
     opportunities,
     summary,
@@ -317,7 +330,7 @@ async function discoverKeywords(brand, store, authHeader, force = false) {
     ideasFetched:  ideas.length,
   };
 
-  await store.set(`keywordOpportunities:${brand}`, JSON.stringify(result));
+  await store.set(storeKey, JSON.stringify(result));
   console.log(`${tag} stored ${opportunities.length} opportunities:`, JSON.stringify(summary));
   return result;
 }
@@ -328,17 +341,44 @@ exports.handler = async (event) => {
 
   const store      = getStore({ name: 'seo-tool', siteID: process.env.NETLIFY_SITE_ID, token: process.env.NETLIFY_AUTH_TOKEN });
   const authHeader = getAuth();
-  const force      = event.queryStringParameters?.force === 'true';
-  const brandParam = event.queryStringParameters?.brand;
-  const brands     = brandParam ? [brandParam] : ['pickl', 'bonbird'];
+  const qs         = event.queryStringParameters || {};
+  const force      = qs.force === 'true';
+  const brandParam = qs.brand;
+  const marketParam= qs.market; // specific market e.g. 'pickl_bahrain', or omit for UAE
+
+  const brands = brandParam ? [brandParam] : ['pickl', 'bonbird'];
 
   const results = {};
   for (const brand of brands) {
     try {
-      results[brand] = await discoverKeywords(brand, store, authHeader, force);
+      // Run UAE discovery
+      results[`${brand}:uae`] = await discoverKeywords(brand, store, authHeader, force, null);
     } catch (e) {
-      console.error(`[kw-discovery] ${brand} failed:`, e.message);
-      results[brand] = { error: e.message };
+      console.error(`[kw-discovery] ${brand}/uae failed:`, e.message);
+      results[`${brand}:uae`] = { error: e.message };
+    }
+
+    // Run international markets for this brand (skip if specific market requested)
+    if (!marketParam) {
+      const intlMarkets = Object.entries(INTERNATIONAL_MARKETS)
+        .filter(([, m]) => m.brand === brand)
+        .map(([key]) => key);
+
+      for (const mk of intlMarkets) {
+        try {
+          results[`${brand}:${mk}`] = await discoverKeywords(brand, store, authHeader, force, mk);
+        } catch (e) {
+          console.error(`[kw-discovery] ${brand}/${mk} failed:`, e.message);
+          results[`${brand}:${mk}`] = { error: e.message };
+        }
+      }
+    } else if (marketParam !== 'uae') {
+      // Single market requested
+      try {
+        results[`${brand}:${marketParam}`] = await discoverKeywords(brand, store, authHeader, force, marketParam);
+      } catch (e) {
+        results[`${brand}:${marketParam}`] = { error: e.message };
+      }
     }
   }
 

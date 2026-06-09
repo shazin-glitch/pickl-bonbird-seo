@@ -2434,3 +2434,49 @@ Applied in:
 - Delivery Platform SEO: deprioritised (can't track app-internal ranking, only listing health)
 - Brand Voice Interview: covered by existing Settings → Brand Context + Brand Voice Examples
 - Southpour: part of one-click brand setup build (site is now live)
+
+---
+
+## Session: June 2026 — v6.9bh Per-Market Keywords + International Hub + Action Engine
+
+### Manual triggers needed after this deploy
+- Competitor Matrix → Manage Competitors tab (triggers domain migration) → then Refresh Now
+- Keyword Opportunities → Refresh Now (new Claude filter + market-aware)  
+- AI Overview → Reports tab → Refresh Now (conversational queries)
+
+### Per-Market Keyword Discovery ✅
+`netlify/functions/keyword-discovery-background.js`:
+- `discoverKeywords()` accepts optional `marketKey` param
+- International: uses `market.seedKeywords.en` + market location_code instead of UAE
+- GSC cross-reference filters by market URL path (e.g. rows with `/bh/`)
+- Stores as `keywordOpportunities:pickl:pickl_bahrain`
+- Handler: runs UAE + all international markets for each brand on Monday cron
+- Supports `?market=pickl_bahrain` for single-market manual trigger
+
+`netlify/functions/keyword-opportunities.js`:
+- GET supports `?market=pickl_bahrain` → reads market-specific blob
+- POST accepts `{ brand, market }` → passes market to background trigger
+
+`index.html` — Keyword Opportunities tab:
+- Added market dropdown (🇦🇪 UAE / all 9 international markets)
+- All load/refresh calls pass market param
+- Action column: content_gap shows "📝 AI" + "📋 Perch" buttons; push/quick_win shows "📝 Queue"
+- `queueOppKeyword()` — adds to seed list
+- `perchOppKeyword()` — creates Perch task for content team
+
+### International SEO Tab → Market Hub ✅
+`index.html` — `loadIntlDashboard()`:
+- Now fetches: approval counts, GSC rankings per market (matched by URL path), keyword opportunity summaries
+- All 9 markets loaded in parallel
+
+`renderIntlDashboard()`:
+- Cards show 3 metrics: Top 10 rankings, Keyword Opportunities, Queued items
+- 4 action buttons per card: ▶ Run, 📋 Queue (view approvals), 🎯 Keywords (opens KW Opps for this market), 🔍 Audit (opens Competitor Analysis pre-filled with market)
+- `intlOpenKwOpps(brand, marketKey)` — switches to Analytics, sets brand + market filter, loads opportunities
+- `intlOpenAudit(brand, marketKey)` — switches to Analytics → Competitor Analysis, pre-fills brand + market
+
+### Action Engine — Keyword Opportunities ✅
+Opportunity table: content_gap rows now show two action buttons:
+- 📝 AI → queues keyword to content pipeline (Monday run)
+- 📋 Perch → creates Perch task assigned to content team with keyword context
+Push/quick_win rows show single 📝 Queue button.

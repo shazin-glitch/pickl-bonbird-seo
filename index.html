@@ -772,6 +772,22 @@
                 <option value="pickl">Pickl</option>
                 <option value="bonbird">Bonbird</option>
               </select>
+              <select id="opp-market-filter" class="form-input" style="font-size:13px;width:150px" onchange="loadKeywordOpportunities()">
+                <option value="uae">🇦🇪 UAE</option>
+                <optgroup label="Pickl">
+                  <option value="pickl_bahrain">🇧🇭 Bahrain</option>
+                  <option value="pickl_ksa">🇸🇦 Saudi Arabia</option>
+                  <option value="pickl_qatar">🇶🇦 Qatar</option>
+                  <option value="pickl_egypt">🇪🇬 Egypt</option>
+                  <option value="pickl_jordan">🇯🇴 Jordan</option>
+                  <option value="pickl_oman">🇴🇲 Oman</option>
+                </optgroup>
+                <optgroup label="Bonbird">
+                  <option value="bonbird_oman">🇴🇲 Oman</option>
+                  <option value="bonbird_pakistan">🇵🇰 Pakistan</option>
+                  <option value="bonbird_qatar">🇶🇦 Qatar</option>
+                </optgroup>
+              </select>
               <select id="opp-tier-filter" class="form-input" style="font-size:13px;width:140px" onchange="renderOpportunitiesTable()">
                 <option value="">All Tiers</option>
                 <option value="content_gap">🚀 Content Gaps</option>
@@ -3646,10 +3662,12 @@ const INTL_MARKETS = {
 };
 
 let intlState = {
-  activeBrand:  'all',
-  activeMarket: 'all',
-  runStatus:    {}, // marketKey -> { lastRun, itemsQueued }
-  loaded:       false,
+  activeBrand:     'all',
+  activeMarket:    'all',
+  runStatus:       {},
+  marketRankings:  {},
+  kwOpps:          {},
+  loaded:          false,
 };
 
 // ═══════════════════════════════════════════════════════════════
@@ -6037,24 +6055,60 @@ async function loadIntlDashboard() {
   if (intlState.loaded) { renderIntlDashboard(); return; }
   const grid = document.getElementById('intl-market-grid');
   if (grid) grid.innerHTML =
-    '<div style="text-align:center;padding:40px;color:var(--text-muted);grid-column:1/-1">Loading market status…</div>';
+    '<div style="text-align:center;padding:40px;color:var(--text-muted);grid-column:1/-1">Loading market intelligence…</div>';
 
   try {
     // Pull approval items to count per market
-    const data = await apiGet('/api/approvals?status=pending').catch(() => ({ items: [] }));
-    const items = data.items || [];
+    const [approvalsData, gscPickl, gscBonbird] = await Promise.all([
+      apiGet('/api/approvals?status=pending').catch(() => ({ items: [] })),
+      apiGet('/api/db/get').then(d => d?.['gscCache:https://eatpickl.com/'] || d?.['gscCache:https://eatpickl.com/'] || null).catch(() => null),
+      apiGet('/api/db/get').then(d => d?.['gscCache:sc-domain:bonbirdchicken.com'] || null).catch(() => null),
+    ]);
+
+    const items = approvalsData.items || [];
 
     // Count queued items per market
     const marketCounts = {};
     for (const item of items) {
-      if (item.source === 'international_seo' && item.market) {
+      if (item.market) {
         const key = `${item.brand}_${item.market}`;
         marketCounts[key] = (marketCounts[key] || 0) + 1;
       }
     }
 
-    intlState.runStatus   = marketCounts;
-    intlState.loaded      = true;
+    // Count GSC rankings per market (by URL path matching market slug)
+    const marketRankings = {};
+    const gscSources = { pickl: gscPickl, bonbird: gscBonbird };
+    for (const [brand, gsc] of Object.entries(gscSources)) {
+      for (const row of gsc?.rows || []) {
+        if (!row.page || !row.position) continue;
+        // Match against each market's slug
+        for (const [mk, m] of Object.entries(INTL_MARKETS)) {
+          if (m.brand !== brand) continue;
+          if (row.page.includes(`/${m.marketSlug}`)) {
+            const key = mk;
+            if (!marketRankings[key]) marketRankings[key] = { top10: 0, total: 0 };
+            marketRankings[key].total++;
+            if (row.position <= 10) marketRankings[key].top10++;
+          }
+        }
+      }
+    }
+
+    // Load keyword opportunities summaries per market (parallel)
+    const kwOpps = {};
+    const oppFetches = Object.entries(INTL_MARKETS).map(async ([mk, m]) => {
+      try {
+        const d = await apiGet(`/api/keyword-opportunities?brand=${m.brand}&market=${mk}`);
+        if (d?.summary) kwOpps[mk] = d.summary;
+      } catch { /* non-critical */ }
+    });
+    await Promise.all(oppFetches);
+
+    intlState.runStatus    = marketCounts;
+    intlState.marketRankings = marketRankings;
+    intlState.kwOpps       = kwOpps;
+    intlState.loaded       = true;
     renderIntlDashboard();
   } catch (e) {
     document.getElementById('intl-market-grid').innerHTML =
@@ -6079,51 +6133,90 @@ function renderIntlDashboard() {
 
   grid.innerHTML = entries.map(([key, m]) => {
     const count    = intlState.runStatus[key] || 0;
+    const rankings = intlState.marketRankings?.[key] || {};
+    const opps     = intlState.kwOpps?.[key] || {};
     const bgCol    = m.brand === 'pickl' ? '#DF0070' : '#C5161A';
     const brandLbl = m.brand === 'pickl' ? 'Pickl' : 'Bonbird';
     const langs    = m.languages.map(l => l === 'ar' ? 'Arabic' : 'English').join(' + ');
-    const queuedTxt = count > 0 ? `${count} item${count > 1 ? 's' : ''} queued` : 'No items queued';
+    const gaps     = (opps.content_gap || 0) + (opps.push || 0) + (opps.quick_win || 0);
 
     return `<div style="background:${bgCol};border-radius:12px;overflow:hidden;position:relative;display:flex;flex-direction:column">
       ${m.isNew ? `<div style="position:absolute;top:14px;right:14px;background:#fff;color:${bgCol};font-size:10px;font-weight:800;padding:2px 8px;border-radius:4px;letter-spacing:0.05em">NEW</div>` : ''}
 
-      <!-- Card top: flag + name + brand + languages -->
-      <div style="padding:20px 20px 16px">
-        <div style="display:flex;align-items:center;gap:12px;margin-bottom:14px">
-          <span style="font-size:32px;line-height:1">${m.flag}</span>
+      <div style="padding:18px 18px 12px">
+        <div style="display:flex;align-items:center;gap:12px;margin-bottom:12px">
+          <span style="font-size:28px;line-height:1">${m.flag}</span>
           <div>
-            <div style="font-weight:700;font-size:17px;color:#fff">${m.label}</div>
-            <div style="font-size:11px;color:rgba(255,255,255,0.75);font-weight:500;margin-top:1px">${brandLbl}</div>
+            <div style="font-weight:700;font-size:16px;color:#fff">${m.label}</div>
+            <div style="font-size:11px;color:rgba(255,255,255,0.7);margin-top:1px">${brandLbl} · ${langs}</div>
           </div>
         </div>
-        <div style="display:flex;justify-content:space-between;align-items:center">
-          <div style="font-size:12px;color:rgba(255,255,255,0.8)">${langs}</div>
-          <div style="font-size:12px;font-weight:600;color:${count > 0 ? '#fff' : 'rgba(255,255,255,0.5)'}">
-            ${count > 0 ? `✓ ${queuedTxt}` : queuedTxt}
+
+        <!-- Intelligence metrics row -->
+        <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:8px;margin-bottom:12px">
+          <div style="background:rgba(0,0,0,0.2);border-radius:6px;padding:8px;text-align:center">
+            <div style="font-size:18px;font-weight:800;color:#fff">${rankings.top10 || 0}</div>
+            <div style="font-size:10px;color:rgba(255,255,255,0.6);margin-top:1px">Top 10</div>
+          </div>
+          <div style="background:rgba(0,0,0,0.2);border-radius:6px;padding:8px;text-align:center">
+            <div style="font-size:18px;font-weight:800;color:${gaps > 0 ? '#fbbf24' : '#fff'}">${gaps}</div>
+            <div style="font-size:10px;color:rgba(255,255,255,0.6);margin-top:1px">Opportunities</div>
+          </div>
+          <div style="background:rgba(0,0,0,0.2);border-radius:6px;padding:8px;text-align:center">
+            <div style="font-size:18px;font-weight:800;color:${count > 0 ? '#4ade80' : '#fff'}">${count}</div>
+            <div style="font-size:10px;color:rgba(255,255,255,0.6);margin-top:1px">Queued</div>
           </div>
         </div>
       </div>
 
-      <!-- Card bottom: action buttons -->
-      <div style="padding:12px 16px 16px;display:flex;gap:8px;margin-top:auto">
+      <!-- Action buttons -->
+      <div style="padding:10px 12px 14px;display:flex;gap:6px;margin-top:auto;flex-wrap:wrap">
         <button onclick="runIntlMarket('${key}')"
-          style="flex:1;padding:8px 0;border-radius:8px;border:1.5px solid rgba(255,255,255,0.5);background:transparent;color:#fff;font-size:12px;font-weight:600;cursor:pointer;transition:all 0.15s"
-          onmouseover="this.style.background='rgba(255,255,255,0.15)'" onmouseout="this.style.background='transparent'">
-          ▶ Run
-        </button>
-        <button onclick="runIntlMarket('${key}', true)"
-          style="flex:1;padding:8px 0;border-radius:8px;border:1.5px solid rgba(255,255,255,0.5);background:transparent;color:#fff;font-size:12px;font-weight:600;cursor:pointer;transition:all 0.15s"
-          onmouseover="this.style.background='rgba(255,255,255,0.15)'" onmouseout="this.style.background='transparent'">
-          ⟳ Force
-        </button>
+          style="flex:1;min-width:60px;padding:6px 0;border-radius:6px;border:1px solid rgba(255,255,255,0.4);background:transparent;color:#fff;font-size:11px;font-weight:600;cursor:pointer"
+          onmouseover="this.style.background='rgba(255,255,255,0.15)'" onmouseout="this.style.background='transparent'">▶ Run</button>
         <button onclick="filterDashboardByMarket('${m.flag} ${m.label}')"
-          style="flex:1;padding:8px 0;border-radius:8px;border:none;background:rgba(255,255,255,0.2);color:#fff;font-size:12px;font-weight:600;cursor:pointer;transition:all 0.15s"
-          onmouseover="this.style.background='rgba(255,255,255,0.35)'" onmouseout="this.style.background='rgba(255,255,255,0.2)'">
-          View Queue
-        </button>
+          style="flex:1;min-width:60px;padding:6px 0;border-radius:6px;border:1px solid rgba(255,255,255,0.4);background:transparent;color:#fff;font-size:11px;font-weight:600;cursor:pointer"
+          onmouseover="this.style.background='rgba(255,255,255,0.15)'" onmouseout="this.style.background='transparent'">📋 Queue</button>
+        <button onclick="intlOpenKwOpps('${m.brand}','${key}')"
+          style="flex:1;min-width:60px;padding:6px 0;border-radius:6px;border:none;background:rgba(255,255,255,0.2);color:#fff;font-size:11px;font-weight:600;cursor:pointer"
+          onmouseover="this.style.background='rgba(255,255,255,0.3)'" onmouseout="this.style.background='rgba(255,255,255,0.2)'">🎯 Keywords</button>
+        <button onclick="intlOpenAudit('${m.brand}','${key}')"
+          style="flex:1;min-width:60px;padding:6px 0;border-radius:6px;border:none;background:rgba(255,255,255,0.2);color:#fff;font-size:11px;font-weight:600;cursor:pointer"
+          onmouseover="this.style.background='rgba(255,255,255,0.3)'" onmouseout="this.style.background='rgba(255,255,255,0.2)'">🔍 Audit</button>
       </div>
     </div>`;
   }).join('');
+}
+
+// Open Keyword Opportunities for a specific market
+function intlOpenKwOpps(brand, marketKey) {
+  switchView('analytics');
+  setTimeout(() => {
+    const pill = document.querySelector('[data-view="opportunities"]');
+    if (pill) { switchAnalyticsView(pill); }
+    setTimeout(() => {
+      const brandEl  = document.getElementById('opp-brand-filter');
+      const marketEl = document.getElementById('opp-market-filter');
+      if (brandEl)  { brandEl.value  = brand;     }
+      if (marketEl) { marketEl.value = marketKey; }
+      loadKeywordOpportunities();
+    }, 100);
+  }, 200);
+}
+
+// Open Competitor Analysis pre-filled with market context
+function intlOpenAudit(brand, marketKey) {
+  switchView('analytics');
+  setTimeout(() => {
+    const pill = document.querySelector('[data-view="audit"]');
+    if (pill) { switchAnalyticsView(pill); }
+    setTimeout(() => {
+      const brandEl  = document.getElementById('audit-brand-select');
+      const marketEl = document.getElementById('audit-market-select');
+      if (brandEl)  { brandEl.value  = brand;     }
+      if (marketEl) { marketEl.value = marketKey; }
+    }, 100);
+  }, 200);
 }
 
 function switchIntlView(pill, type) {
@@ -6785,6 +6878,37 @@ async function executeAuditAction(route, title, action, finding, keyword, brand,
   }
 }
 
+// Queue a keyword from Keyword Opportunities into the content pipeline
+async function queueOppKeyword(keyword, brand, btn) {
+  btn.disabled = true; btn.textContent = '…';
+  try {
+    const res = await apiGet('/api/seed-keywords');
+    const existing = res[brand] || [];
+    if (!existing.includes(keyword)) {
+      await apiPost('/api/seed-keywords', { brand, keywords: [...existing, keyword] });
+    }
+    btn.textContent = '✓'; btn.style.color = '#059669';
+    showToast(`"${keyword}" added to ${brand} content pipeline — runs Monday`, 'success');
+  } catch (e) { btn.disabled = false; btn.textContent = '📝 Queue'; showToast('Failed: ' + e.message, 'error'); }
+}
+
+// Create a Perch task for a content gap keyword
+async function perchOppKeyword(keyword, brand, btn) {
+  btn.disabled = true; btn.textContent = '…';
+  try {
+    await apiPost('/api/perch', {
+      title:       `Content gap: "${keyword}"`,
+      description: `Keyword opportunity identified by The Nest.\n\nKeyword: ${keyword}\nBrand: ${brand}\nAction: Create a blog post or landing page targeting this keyword.\n\nSource: Keyword Opportunities`,
+      brand,
+      department: 'content',
+      priority:   'medium',
+      source:     'action_engine',
+    });
+    btn.textContent = '✓'; btn.style.color = '#059669';
+    showToast(`Perch task created for "${keyword}"`, 'success');
+  } catch (e) { btn.disabled = false; btn.textContent = '📋 Perch'; showToast('Failed: ' + e.message, 'error'); }
+}
+
 async function queueAuditKeyword(keyword) {
   try {
     const brand = state.activeAnalyticsBrand === 'bonbird' ? 'bonbird' : 'pickl';
@@ -6801,14 +6925,16 @@ async function queueAuditKeyword(keyword) {
 let kwOppData = null;
 
 async function loadKeywordOpportunities() {
-  const brand = document.getElementById('opp-brand-filter')?.value || 'pickl';
+  const brand  = document.getElementById('opp-brand-filter')?.value  || 'pickl';
+  const market = document.getElementById('opp-market-filter')?.value || 'uae';
   const summary = document.getElementById('opp-summary');
   const table   = document.getElementById('opp-table-wrap');
   const updated = document.getElementById('opp-updated');
   if (!table) return;
   table.innerHTML = '<div style="text-align:center;padding:40px;color:var(--text-muted)">Loading…</div>';
   try {
-    kwOppData = await apiGet(`/api/keyword-opportunities?brand=${brand}`);
+    const mq = market && market !== 'uae' ? `&market=${market}` : '';
+    kwOppData = await apiGet(`/api/keyword-opportunities?brand=${brand}${mq}`);
     renderOpportunitiesTable();
     if (kwOppData.updatedAt && updated) {
       updated.textContent = `Last updated: ${new Date(kwOppData.updatedAt).toLocaleDateString('en-GB',{weekday:'short',day:'numeric',month:'short',hour:'2-digit',minute:'2-digit'})}`;
@@ -6881,9 +7007,12 @@ function renderOpportunitiesTable() {
           <td style="padding:7px 12px;text-align:right;color:var(--text-muted)">${k.cpc ? 'AED '+((k.cpc||0)*3.67).toFixed(2) : '—'}</td>
           <td style="padding:7px 12px;text-align:right"><span style="background:var(--bg-base);padding:2px 6px;border-radius:4px;font-size:11px;font-weight:700">${k.score?.toFixed(2)||'—'}</span></td>
           <td style="padding:7px 12px;text-align:center">
-            ${['content_gap','push','quick_win'].includes(k.tier)
-              ? `<button onclick="queueAuditKeyword('${esc(k.keyword).replace(/'/g,"\\'")}');this.textContent='✓';this.disabled=true" class="btn btn-outline" style="font-size:11px;padding:2px 8px">➕ Queue</button>`
-              : ''}
+            ${k.tier === 'content_gap' ? `
+              <div style="display:flex;gap:4px">
+                <button onclick="queueOppKeyword('${esc(k.keyword).replace(/'/g,"\\'")}','${brand}',this)" class="btn btn-outline" style="font-size:10px;padding:2px 7px" title="Add to AI content pipeline">📝 AI</button>
+                <button onclick="perchOppKeyword('${esc(k.keyword).replace(/'/g,"\\'")}','${brand}',this)" class="btn btn-outline" style="font-size:10px;padding:2px 7px" title="Create Perch task for content team">📋 Perch</button>
+              </div>` :
+            ['push','quick_win'].includes(k.tier) ? `<button onclick="queueOppKeyword('${esc(k.keyword).replace(/'/g,"\\'")}','${brand}',this)" class="btn btn-outline" style="font-size:11px;padding:2px 8px">📝 Queue</button>` : ''}
           </td>
         </tr>`).join('')}
       </tbody>
@@ -6891,7 +7020,8 @@ function renderOpportunitiesTable() {
 }
 
 async function refreshKeywordOpportunities() {
-  const brand   = document.getElementById('opp-brand-filter')?.value || 'pickl';
+  const brand   = document.getElementById('opp-brand-filter')?.value  || 'pickl';
+  const market  = document.getElementById('opp-market-filter')?.value || 'uae';
   const table   = document.getElementById('opp-table-wrap');
   const statusEl = document.getElementById('opp-refresh-status');
 
@@ -6899,12 +7029,13 @@ async function refreshKeywordOpportunities() {
   if (table) table.innerHTML = '<div style="text-align:center;padding:40px;color:var(--text-muted)"><span class="spinner" style="width:20px;height:20px;margin-right:10px"></span>Starting keyword discovery…</div>';
 
   try {
-    // Get current timestamp before triggering so we can detect when new data lands
-    const before = await apiGet(`/api/keyword-opportunities?brand=${brand}`)
+    const mq2   = market && market !== 'uae' ? `&market=${market}` : '';
+    // Get current timestamp before triggering
+    const before = await apiGet(`/api/keyword-opportunities?brand=${brand}${mq2}`)
       .then(d => d.updatedAt || null).catch(() => null);
 
     // Fire background job — returns 202 immediately
-    await apiPost('/api/keyword-opportunities', { brand });
+    await apiPost('/api/keyword-opportunities', { brand, market: market !== 'uae' ? market : undefined });
     setStatus('Running… checking every 15s (takes 1-3 min)');
 
     // Poll until updatedAt changes (new data written) or 3 min timeout
@@ -6914,7 +7045,7 @@ async function refreshKeywordOpportunities() {
       attempts++;
       setStatus(`Running… ${attempts * 15}s elapsed`);
       try {
-        const data = await apiGet(`/api/keyword-opportunities?brand=${brand}`);
+        const data = await apiGet(`/api/keyword-opportunities?brand=${brand}${mq2}`);
         const isNew = data.updatedAt && data.updatedAt !== before;
         if (isNew || attempts >= maxAttempts) {
           clearInterval(poll);

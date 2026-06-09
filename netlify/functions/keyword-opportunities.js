@@ -76,11 +76,15 @@ exports.handler = async (event) => {
         body: JSON.stringify({ audit: enriched, opportunities, gscKeywords: Object.keys(gscMap).length }) };
     }
 
-    // Standard: return stored opportunities
-    const data = await store.get(`keywordOpportunities:${brand}`, { type: 'json' }).catch(() => null);
+    // Standard: return stored opportunities (supports market param)
+    const marketKey = q.market; // e.g. 'pickl_bahrain'
+    const storeKey  = marketKey && marketKey !== 'uae'
+      ? `keywordOpportunities:${brand}:${marketKey}`
+      : `keywordOpportunities:${brand}`;
+    const data = await store.get(storeKey, { type: 'json' }).catch(() => null);
     if (!data) {
       return { statusCode: 200, headers: { ...CORS, 'Content-Type': 'application/json' },
-        body: JSON.stringify({ opportunities: [], summary: {}, updatedAt: null, brand }) };
+        body: JSON.stringify({ opportunities: [], summary: {}, updatedAt: null, brand, market: marketKey || 'uae' }) };
     }
     return { statusCode: 200, headers: { ...CORS, 'Content-Type': 'application/json' },
       body: JSON.stringify(data) };
@@ -91,12 +95,13 @@ exports.handler = async (event) => {
   // and return 202 immediately — the inline call was timing out at 10s.
   if (event.httpMethod === 'POST') {
     const body  = JSON.parse(event.body || '{}');
-    const brand = body.brand || 'pickl';
-    // Fire-and-forget — don't await, just kick it off
-    fetch(`${SITE_URL}/.netlify/functions/keyword-discovery-background?brand=${brand}&force=true`)
-      .catch(() => {}); // 202 Accepted is fine, errors are non-fatal here
+    const brand  = body.brand  || 'pickl';
+    const market = body.market || null;
+    const mq     = market && market !== 'uae' ? `&market=${market}` : '';
+    fetch(`${SITE_URL}/.netlify/functions/keyword-discovery-background?brand=${brand}&force=true${mq}`)
+      .catch(() => {});
     return { statusCode: 202, headers: { ...CORS, 'Content-Type': 'application/json' },
-      body: JSON.stringify({ ok: true, message: 'Discovery started', brand }) };
+      body: JSON.stringify({ ok: true, message: 'Discovery started', brand, market: market || 'uae' }) };
   }
 
   return { statusCode: 405, headers: { ...CORS, 'Content-Type': 'application/json' },
