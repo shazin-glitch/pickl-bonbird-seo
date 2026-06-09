@@ -2310,3 +2310,35 @@ The first implementation of the interconnected vision: every insight generates r
 
 #### Keyword Opportunities — Claude Filter Already Deployed
 The improved Claude filter prompt (v6.9az) is live. Hit **Refresh Now** in Keyword Opportunities tab to regenerate with the new filter. Old cached data won't update automatically.
+
+---
+
+## Session: June 2026 — v6.9bd Competitor Config Auto-Migration
+
+### What was built
+
+#### Competitor Config Auto-Migration ✅
+`netlify/functions/competitor-config.js` — full update:
+- `DEFAULT_COMPETITORS` updated to correct UAE domains
+- `DOMAIN_MIGRATIONS` map: old domain → correct domain (null = remove)
+- `migrateCompetitors()` runs on every GET call — if stored config has old domains, silently fixes them and saves corrected config back to Blobs
+- Preserves user additions (Black Tap etc.) — only touches domains in the migration map
+- Texas Chicken added to Bonbird defaults
+
+**Migrations applied automatically:**
+- saltuae.com → removed (no website)
+- highjoint.co → removed (no website)
+- shakeshack.com → shakeshackme.com
+- raisingcanes.com → raisingcanesme.com
+- jailbirddubai.com → jailbird.co
+- toitchicken.com → toit.vercel.app
+- nashhotchicken.com → removed
+- peppersuae.com → removed (no website)
+- jollibee.com.ph → jollibeeuae.com
+- kfc.com → uae.kfc.me
+- popeyes.com → popeyesuae.com
+
+No user action needed — runs automatically on first load after deploy.
+
+#### Other fixes in this batch
+- Removed "fine dining" from restaurant relevance filter (not relevant for Pickl/Bonbird)

@@ -78,7 +78,7 @@ const FOOD_TERMS = [
   "shake","juice","coffee","drink","smoothie",
   // Restaurant & dining category terms
   "restaurant","cafe","cafeteria","diner","bistro","dine","dining","fast food",
-  "quick service","food court","food truck","street food","casual dining","fine dining",
+  "quick service","food court","food truck","street food","casual dining",
   "takeaway","takeout","delivery","menu","kitchen","grill","food","eat","meal",
   "lunch","dinner","feast","cuisine","catering","branch","franchise",
 ];

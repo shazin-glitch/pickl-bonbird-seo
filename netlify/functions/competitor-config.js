@@ -9,25 +9,81 @@ const { getStore } = require("@netlify/blobs");
 
 const CONFIG_KEY_PREFIX = "competitorConfig:";
 
+// Correct UAE competitor domains (updated June 2026)
 const DEFAULT_COMPETITORS = {
   pickl: [
-    { name: "Salt",        domain: "saltuae.com"    },
-    { name: "High Joint",  domain: "highjoint.co"   },
-    { name: "Shake Shack", domain: "shakeshack.com" },
-    { name: "Five Guys",   domain: "fiveguys.ae"    },
+    { name: "Shake Shack",  domain: "shakeshackme.com" },
+    { name: "Five Guys",    domain: "fiveguys.ae"      },
   ],
   bonbird: [
-    { name: "Raising Cane's", domain: "raisingcanes.com"   },
-    { name: "Jailbird",       domain: "jailbirddubai.com"  },
-    { name: "Dave's Hot Chicken", domain: "daveshotchicken.com" },
-    { name: "Toit",           domain: "toitchicken.com"    },
-    { name: "Nash Hot Chicken", domain: "nashhotchicken.com" },
-    { name: "Peppers",        domain: "peppersuae.com"     },
-    { name: "Jollibee",       domain: "jollibee.com.ph"    },
-    { name: "KFC",            domain: "kfc.com"            },
-    { name: "Popeyes",        domain: "popeyes.com"        },
+    { name: "Raising Cane's",     domain: "raisingcanesme.com"    },
+    { name: "Jailbird",           domain: "jailbird.co"           },
+    { name: "Dave's Hot Chicken", domain: "daveshotchicken.com"   },
+    { name: "Toit",               domain: "toit.vercel.app"       },
+    { name: "Jollibee",           domain: "jollibeeuae.com"       },
+    { name: "KFC",                domain: "uae.kfc.me"            },
+    { name: "Popeyes",            domain: "popeyesuae.com"        },
+    { name: "Texas Chicken",      domain: "uae.texaschicken.com"  },
   ],
 };
+
+// Domains that are wrong and need to be corrected in stored configs.
+// null = remove entirely (no website / inactive), string = replace with this domain.
+const DOMAIN_MIGRATIONS = {
+  "saltuae.com":        null,
+  "highjoint.co":       null,
+  "shakeshack.com":     "shakeshackme.com",
+  "raisingcanes.com":   "raisingcanesme.com",
+  "jailbirddubai.com":  "jailbird.co",
+  "toitchicken.com":    "toit.vercel.app",
+  "nashhotchicken.com": null,
+  "peppersuae.com":     null,
+  "jollibee.com.ph":    "jollibeeuae.com",
+  "kfc.com":            "uae.kfc.me",
+  "popeyes.com":        "popeyesuae.com",
+};
+
+// Name corrections for migrated domains
+const NAME_CORRECTIONS = {
+  "shakeshackme.com":   "Shake Shack",
+  "raisingcanesme.com": "Raising Cane's",
+  "jailbird.co":        "Jailbird",
+  "toit.vercel.app":    "Toit",
+  "jollibeeuae.com":    "Jollibee",
+  "uae.kfc.me":         "KFC",
+  "popeyesuae.com":     "Popeyes",
+};
+
+// Migrate a stored competitor list — fix wrong domains, preserve user additions
+function migrateCompetitors(stored, brand) {
+  let changed = false;
+  let result = [];
+
+  for (const c of stored) {
+    const newDomain = DOMAIN_MIGRATIONS[c.domain];
+    if (newDomain === undefined) {
+      // Not in migration map — keep as-is (user addition like Black Tap)
+      result.push(c);
+    } else if (newDomain === null) {
+      // Remove — no website
+      changed = true;
+    } else {
+      // Replace with correct domain
+      result.push({ name: NAME_CORRECTIONS[newDomain] || c.name, domain: newDomain });
+      changed = true;
+    }
+  }
+
+  // Add any default competitors that aren't in the stored list at all
+  for (const def of DEFAULT_COMPETITORS[brand] || []) {
+    if (!result.some(c => c.domain === def.domain)) {
+      result.push(def);
+      changed = true;
+    }
+  }
+
+  return { competitors: result, changed };
+}
 
 exports.handler = async (event) => {
   const headers = {
@@ -55,16 +111,28 @@ exports.handler = async (event) => {
 
       for (const brand of brands) {
         let competitors = null;
+        let isDefault   = false;
         try {
           const stored = await store.get(`${CONFIG_KEY_PREFIX}${brand}`, { type: "json" });
-          competitors = stored?.competitors || null;
+          if (stored?.competitors?.length) {
+            // Auto-migrate any wrong/old domains on the way out
+            const { competitors: migrated, changed } = migrateCompetitors(stored.competitors, brand);
+            competitors = migrated;
+            if (changed) {
+              // Silently persist the corrected config so it's right for the next matrix run
+              await store.set(`${CONFIG_KEY_PREFIX}${brand}`,
+                JSON.stringify({ brand, competitors: migrated, updatedAt: new Date().toISOString() })
+              ).catch(() => {});
+            }
+          } else {
+            competitors = DEFAULT_COMPETITORS[brand];
+            isDefault   = true;
+          }
         } catch {
-          // not saved yet — use defaults
+          competitors = DEFAULT_COMPETITORS[brand];
+          isDefault   = true;
         }
-        result[brand] = {
-          competitors: competitors || DEFAULT_COMPETITORS[brand],
-          isDefault:   !competitors,
-        };
+        result[brand] = { competitors, isDefault };
       }
 
       return { statusCode: 200, headers, body: JSON.stringify(result) };
