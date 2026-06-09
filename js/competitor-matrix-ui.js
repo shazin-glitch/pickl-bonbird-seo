@@ -376,15 +376,22 @@
 
     // Empty state — rendered OUTSIDE the table for correct layout
     if (!rows.length) {
-      const fetchedAt = matrixData?.pickl?.fetchedAt || matrixData?.bonbird?.fetchedAt;
-      const lastRun   = fetchedAt ? new Date(fetchedAt).toLocaleDateString('en-GB',{day:'numeric',month:'short',hour:'2-digit',minute:'2-digit'}) : null;
+      const brand     = currentBrandFilter !== "all" ? currentBrandFilter : "pickl";
+      const brandData = matrixData?.[brand] || matrixData?.pickl || {};
+      const fetchedAt = brandData.fetchedAt;
+      const lastError = brandData.lastError;
+      const lastRun   = fetchedAt ? new Date(fetchedAt).toLocaleDateString('en-GB',{day:'numeric',month:'short',year:'numeric',hour:'2-digit',minute:'2-digit'}) : null;
+      const errorBlock = lastError
+        ? `<div style="background:#fef2f2;border:1px solid #fecaca;border-radius:6px;padding:10px 14px;margin-bottom:12px;font-size:12px;color:#991b1b;text-align:left;max-width:440px;margin-left:auto;margin-right:auto"><strong>Last error:</strong> ${esc(lastError)}</div>`
+        : '';
       html += `<div style="text-align:center;padding:48px 24px;background:#f8fafc;border-radius:10px;border:1px solid #e2e8f0;margin-top:12px">
         <div style="font-size:28px;margin-bottom:10px">📊</div>
         <div style="font-weight:700;font-size:15px;margin-bottom:6px;color:#1e293b">No keyword ranking data</div>
-        ${lastRun ? `<div style="font-size:12px;color:#64748b;margin-bottom:4px">Last run: ${lastRun}</div>` : ''}
+        ${lastRun ? `<div style="font-size:12px;color:#64748b;margin-bottom:8px">Last attempted: ${lastRun}</div>` : ''}
+        ${errorBlock}
         <div style="font-size:13px;color:#64748b;margin-bottom:16px;max-width:420px;margin-left:auto;margin-right:auto">
-          The cron may have encountered a DataForSEO error, or no keywords are configured.<br>
-          Check <strong>Manage Keywords</strong> tab to confirm keywords are set, then click Refresh.
+          Check <strong>Manage Keywords</strong> to confirm keywords are set, then click Refresh.<br>
+          If it keeps failing, check DataForSEO balance at <a href="https://app.dataforseo.com" target="_blank" style="color:#2563eb">app.dataforseo.com</a>.
         </div>
         <button onclick="document.getElementById('cm-refresh-btn')?.click()" style="background:#2563eb;color:#fff;border:none;border-radius:6px;padding:8px 20px;font-size:13px;cursor:pointer;font-weight:600">↻ Refresh Now</button>
       </div>`;

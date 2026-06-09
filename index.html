@@ -498,8 +498,6 @@
           <button class="btn btn-ghost" onclick="calMonthStep(1)" style="padding:4px 10px">&#8594;</button>
           <button class="btn btn-ghost" onclick="calGoToToday()" id="cal-today-btn" style="padding:4px 10px;font-size:12px;display:none">Today</button>
         </div>
-        <!-- My Posts toggle -->
-        <button id="cal-my-posts-btn" onclick="toggleCalMyPosts()" style="font-size:13px;padding:5px 14px;border-radius:8px;border:1px solid var(--border);background:var(--bg-surface);color:var(--text-muted);cursor:pointer;transition:all 0.15s">👤 My Posts</button>
         <!-- View toggle -->
         <div style="display:flex;border:1px solid var(--border);border-radius:6px;overflow:hidden">
           <button id="cal-view-month-btn" onclick="setCalView('month')" style="padding:5px 12px;font-size:12px;border:none;cursor:pointer;background:var(--primary);color:#fff">📅 Month</button>
@@ -6875,7 +6873,6 @@ const calState = {
   carouselSlides: [],     // [{ url, note }] — carousel slide state (URL-based, no uploads)
   allUsers: [],           // loaded from /api/users for approver picker
   selectedPosts: new Set(), // post IDs selected in list view
-  myPostsOnly: false,       // "My Posts" quick filter
   loaded:   false,
   presentIdx: 0,          // current slide index in presentation mode
   presentPosts: [],       // posts shown in presentation
@@ -6968,20 +6965,9 @@ function calGoToToday() {
 function clearCalFilters() {
   const ids = ['cal-filter-status','cal-filter-platform','cal-filter-type','cal-search'];
   ids.forEach(id => { const el = document.getElementById(id); if (el) el.value = ''; });
-  if (calState.myPostsOnly) toggleCalMyPosts();
-  else renderCalendar();
-}
-
-function toggleCalMyPosts() {
-  calState.myPostsOnly = !calState.myPostsOnly;
-  const btn = document.getElementById('cal-my-posts-btn');
-  if (btn) {
-    btn.style.background = calState.myPostsOnly ? 'var(--primary)' : 'var(--bg-surface)';
-    btn.style.color      = calState.myPostsOnly ? '#fff'           : 'var(--text-muted)';
-    btn.style.borderColor= calState.myPostsOnly ? 'var(--primary)' : 'var(--border)';
-  }
   renderCalendar();
 }
+
 
 function setCalView(v) {
   calState.view = v;
@@ -7004,9 +6990,6 @@ function renderCalendar() {
   if (statusFilter)         posts = posts.filter(p => p.status === statusFilter);
   if (platformFilter)       posts = posts.filter(p => (p.platforms || []).includes(platformFilter));
   if (typeFilter)           posts = posts.filter(p => (p.postType || 'static') === typeFilter);
-  if (calState.myPostsOnly) posts = posts.filter(p =>
-    p.createdBy === state.userEmail || p.assignedTo === state.userEmail
-  );
   if (searchTerm)           posts = posts.filter(p =>
     (p.caption   || '').toLowerCase().includes(searchTerm) ||
     (p.hashtags  || '').toLowerCase().includes(searchTerm) ||
@@ -7018,7 +7001,6 @@ function renderCalendar() {
   if (statusFilter)           activeFilters.push(statusFilter.replace(/_/g,' '));
   if (platformFilter)         activeFilters.push(platformFilter);
   if (typeFilter)             activeFilters.push(CAL_TYPE_LABELS[typeFilter] || typeFilter);
-  if (calState.myPostsOnly)   activeFilters.push('My Posts');
   if (searchTerm)             activeFilters.push(`"${searchTerm}"`);
   const filterBarEl = document.getElementById('cal-filter-bar');
   const filterSumEl = document.getElementById('cal-filter-summary');
@@ -9632,7 +9614,7 @@ function fmtRelativeDate(iso) {
   return new Date(iso).toLocaleDateString('en-GB', { day: 'numeric', month: 'short' });
 }
 </script>
-<script src="/js/competitor-matrix-ui.js?v=6.9n"></script>
+<script src="/js/competitor-matrix-ui.js?v=6.9av"></script>
 <!-- ═══ PERCH SIDE PANEL ═══ -->
 <div id="perch-side-panel">
   <div id="perch-panel-content" style="padding:0"></div>

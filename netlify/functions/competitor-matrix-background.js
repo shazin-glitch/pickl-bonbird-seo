@@ -668,6 +668,15 @@ exports.handler = async () => {
     } catch (err) {
       console.error(`[competitor-matrix] ${brand} failed:`, err.message);
       errors[brand] = err.message;
+      // Store error in Blobs so the UI can surface it
+      try {
+        const prev = await store.get(`${CACHE_KEY_PREFIX}${brand}`, { type: "json" }).catch(() => null);
+        await store.set(`${CACHE_KEY_PREFIX}${brand}`, JSON.stringify({
+          ...(prev || {}),
+          lastError:   err.message,
+          lastErrorAt: new Date().toISOString(),
+        }));
+      } catch { /* best effort */ }
     }
   }
 
