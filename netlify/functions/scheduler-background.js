@@ -15,7 +15,7 @@ const {
   getSetting, setSetting, fetchGscDirect, fetchGscWithPages,
   ok, bad, preflight, parseBody,
 } = require('./_lib/store');
-const { getBrandContext, buildBrandPrompt, runBrandVoiceCheck, getBrandExamples } = require('./_lib/brand');
+const { getBrandContext, buildBrandPrompt, runBrandVoiceCheck, fixBrandVoice, getBrandExamples } = require('./_lib/brand');
 const { getStore } = require('@netlify/blobs');
 
 // ── Keyword tier classification ────────────────────────────────────────────────
@@ -476,9 +476,14 @@ Return ONLY valid JSON:
     const parsed = extractJson(text);
     if (!parsed || !parsed.body) continue;
 
-    // Brand voice check
-    const voiceCheck = await runBrandVoiceCheck(parsed.body, brandCtx, (p, o) => callClaude(p, o)).catch(() => ({ score: 6, verdict: 'PASS' }));
+    // Brand voice check — auto-fix if score is 5-7 before queuing
+    let voiceCheck = await runBrandVoiceCheck(parsed.body, brandCtx, (p, o) => callClaude(p, o)).catch(() => ({ score: 6, verdict: 'PASS' }));
+    if (voiceCheck.score >= 5 && voiceCheck.score < 8) {
+      const fixed = await fixBrandVoice(parsed.body, voiceCheck, brandCtx, (p, o) => callClaude(p, o));
+      if (fixed.improved) { parsed.body = fixed.content; voiceCheck = fixed.voiceCheck; }
+    }
     console.log(`[quick_wins] ${r.keyword} — voice score: ${voiceCheck.score}/10 (${voiceCheck.verdict})`);
+    if (voiceCheck.score < 5) { console.warn(`[quick_wins] Score too low after fix attempt — skipping`); continue; }
 
     if (dryRun) { queued++; continue; }
 
@@ -617,7 +622,11 @@ Return ONLY valid JSON:
       const parsed = extractJson(text);
       if (!parsed?.body) continue;
 
-      const voiceCheck = await runBrandVoiceCheck(parsed.body, brandCtx, (p, o) => callClaude(p, o)).catch(() => ({ score: 6, verdict: 'PASS', issues: [] }));
+      let voiceCheck = await runBrandVoiceCheck(parsed.body, brandCtx, (p, o) => callClaude(p, o)).catch(() => ({ score: 6, verdict: 'PASS', issues: [] }));
+      if (voiceCheck.score >= 5 && voiceCheck.score < 8) {
+        const fixed = await fixBrandVoice(parsed.body, voiceCheck, brandCtx, (p, o) => callClaude(p, o));
+        if (fixed.improved) { parsed.body = fixed.content; voiceCheck = fixed.voiceCheck; }
+      }
       if (voiceCheck.score < 5) continue;
 
       await createApproval({
@@ -872,13 +881,17 @@ Return ONLY valid JSON, no markdown, no fences:
     return { queued: 0, candidates: candidates.length, error: 'Claude response could not be parsed — check function logs' };
   }
 
-  // Brand voice quality gate — score content before queuing
-  const voiceCheck = await runBrandVoiceCheck(parsed.body, brandCtx, (p, o) => callClaude(p, o)).catch(() => ({ score: 6, verdict: 'PASS', issues: [] }));
+  // Brand voice quality gate — auto-fix if in warning zone, then score
+  let voiceCheck = await runBrandVoiceCheck(parsed.body, brandCtx, (p, o) => callClaude(p, o)).catch(() => ({ score: 6, verdict: 'PASS', issues: [] }));
+  if (voiceCheck.score >= 5 && voiceCheck.score < 8) {
+    const fixed = await fixBrandVoice(parsed.body, voiceCheck, brandCtx, (p, o) => callClaude(p, o));
+    if (fixed.improved) { parsed.body = fixed.content; voiceCheck = fixed.voiceCheck; }
+  }
   console.log(`[content_gaps] "${parsed.targetKeyword}" — voice score: ${voiceCheck.score}/10 (${voiceCheck.verdict})`);
 
   if (voiceCheck.score < 5) {
-    console.warn(`[content_gaps] Score ${voiceCheck.score}/10 — too low to queue. Issues: ${voiceCheck.issues.join(', ')}`);
-    return { queued: 0, candidates: candidates.length, error: `Brand voice score too low (${voiceCheck.score}/10) — content not queued. Issues: ${voiceCheck.issues.join('; ')}` };
+    console.warn(`[content_gaps] Score ${voiceCheck.score}/10 after fix attempt — too low to queue.`);
+    return { queued: 0, candidates: candidates.length, error: `Brand voice score too low (${voiceCheck.score}/10) after auto-fix attempt — not queued.` };
   }
 
   // Find which tier this keyword belongs to
@@ -981,9 +994,13 @@ Return ONLY a JSON object:
     if (!parsed || !parsed.body || !parsed.title) continue;
     if (dryRun) { queued++; continue; }
 
-    // Voice quality gate — same as blog_draft and page_update
-    const voiceCheck = await runBrandVoiceCheck(parsed.body, brandCtx, (p, o) => callClaude(p, o))
+    // Voice quality gate — auto-fix if in warning zone
+    let voiceCheck = await runBrandVoiceCheck(parsed.body, brandCtx, (p, o) => callClaude(p, o))
       .catch(() => ({ score: 6, verdict: 'PASS', issues: [], topFix: null }));
+    if (voiceCheck.score >= 5 && voiceCheck.score < 8) {
+      const fixed = await fixBrandVoice(parsed.body, voiceCheck, brandCtx, (p, o) => callClaude(p, o));
+      if (fixed.improved) { parsed.body = fixed.content; voiceCheck = fixed.voiceCheck; }
+    }
     console.log(`[page_creation] "${r.keyword}" — voice score: ${voiceCheck.score}/10 (${voiceCheck.verdict})`);
     if (voiceCheck.score < 5) {
       console.warn(`[page_creation] Score ${voiceCheck.score}/10 too low — not queued`);

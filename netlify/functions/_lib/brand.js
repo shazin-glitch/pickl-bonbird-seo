@@ -385,4 +385,50 @@ Be harsh. Em dashes = automatic deduction. Generic = low score.`;
   }
 }
 
-module.exports = { getBrandContext, setBrandContext, getBrandExamples, buildBrandPrompt, runBrandVoiceCheck, PICKL_DEFAULT, BONBIRD_DEFAULT };
+// ── Auto-fix brand voice before queuing ──────────────────────────────────────
+// Called when score is 5-7 (warning zone). Attempts a targeted rewrite to fix
+// the specific issues Claude identified, then re-scores. If the rewrite scores
+// better, returns the improved content. If it's still poor, returns original.
+async function fixBrandVoice(content, voiceCheck, brandCtx, callClaudeFn) {
+  const brandName  = brandCtx.name || 'the brand';
+  const issues     = (voiceCheck.issues || []).join('\n- ');
+  const topFix     = voiceCheck.topFix || '';
+  const examples   = brandCtx.examples?.slice(0, 800) || '';
+
+  const fixPrompt = `You are rewriting content for ${brandName} to fix specific brand voice issues.
+
+ISSUES TO FIX:
+- ${issues}
+
+MOST IMPORTANT FIX: ${topFix}
+
+RULES:
+- Keep all factual content, structure, headings, and SEO keywords exactly the same
+- Only change the TONE and PHRASING to match ${brandName}'s voice
+- Remove any em dashes (—), generic phrases, or AI-sounding language
+- Do NOT add new facts, locations, or claims
+- Do NOT change the word count significantly
+${examples ? `\nEXAMPLES OF ${brandName.toUpperCase()} VOICE:\n${examples}` : ''}
+
+CONTENT TO REWRITE:
+${content}
+
+Return ONLY the rewritten content — no explanation, no preamble.`;
+
+  try {
+    const result  = await callClaudeFn(fixPrompt, { max_tokens: 2500 });
+    const fixed   = result.text || result;
+    if (!fixed || fixed.length < 100) return { content, improved: false };
+
+    // Re-score the fixed version
+    const recheck = await runBrandVoiceCheck(fixed, brandCtx, callClaudeFn);
+    const improved = recheck.score > voiceCheck.score;
+    console.log(`[brand-voice] Auto-fix: ${voiceCheck.score} → ${recheck.score}/10 (${improved ? 'improved' : 'no change'})`);
+    return { content: improved ? fixed : content, voiceCheck: improved ? recheck : voiceCheck, improved };
+  } catch (e) {
+    console.warn('[brand-voice] Auto-fix failed:', e.message);
+    return { content, improved: false };
+  }
+}
+
+module.exports = { getBrandContext, setBrandContext, getBrandExamples, buildBrandPrompt, runBrandVoiceCheck, fixBrandVoice, PICKL_DEFAULT, BONBIRD_DEFAULT };

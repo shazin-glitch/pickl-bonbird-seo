@@ -13,7 +13,7 @@
 
 const { getStore } = require('@netlify/blobs');
 const { INTERNATIONAL_MARKETS, getMarketsForBrand, buildMarketPrompt, getWpCredentials, buildPostUrl } = require('./_lib/international-config');
-const { getBrandContext, buildBrandPrompt, runBrandVoiceCheck } = require('./_lib/brand');
+const { getBrandContext, buildBrandPrompt, runBrandVoiceCheck, fixBrandVoice } = require('./_lib/brand');
 const { fetchGscDirect, fetchGscWithPages, listApprovals, createApproval, extractJson } = require('./_lib/store');
 
 const ANTHROPIC_API = 'https://api.anthropic.com/v1/messages';
@@ -317,9 +317,13 @@ Return EXACTLY this structure:
     focusKeyword:    parseSection(raw, 'FOCUS_KEYWORD'),
   };
 
-  // Brand voice quality check
+  // Brand voice quality check — auto-fix if in warning zone
   if (result.content) {
-    const voiceCheck = await runBrandVoiceCheck(result.content, brandCtx, callClaude).catch(() => ({ score: 6, verdict: 'PASS', issues: [] }));
+    let voiceCheck = await runBrandVoiceCheck(result.content, brandCtx, callClaude).catch(() => ({ score: 6, verdict: 'PASS', issues: [] }));
+    if (voiceCheck.score >= 5 && voiceCheck.score < 8) {
+      const fixed = await fixBrandVoice(result.content, voiceCheck, brandCtx, callClaude);
+      if (fixed.improved) { result.content = fixed.content; voiceCheck = fixed.voiceCheck; }
+    }
     result.voiceScore  = voiceCheck.score;
     result.voiceIssues = voiceCheck.issues;
     result.voiceTopFix = voiceCheck.topFix;

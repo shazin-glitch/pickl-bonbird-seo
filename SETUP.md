@@ -2398,3 +2398,39 @@ No user action needed — runs automatically on first load after deploy.
   (loop variable is `{ domain, brand, name, keywords }`, not `comp`)
 - Fix: use `(name||domain).replace(/\W/g,'_')` via IIFE to derive the key correctly
 - This was causing a TypeError that made the Gaps tab fail to render entirely
+
+---
+
+## Session: June 2026 — v6.9bg Brand Voice Auto-Fix + Page Creation Preview
+
+### Changes Made
+
+#### Brand Voice Auto-Fix Before Queue ✅
+`netlify/functions/_lib/brand.js`:
+- New `fixBrandVoice(content, voiceCheck, brandCtx, callClaudeFn)` function
+- Called when voice score is 5-7 (warning zone) — attempts targeted rewrite of specific issues
+- Keeps all facts, structure, SEO keywords identical — only fixes tone and phrasing
+- Re-scores the fixed version; if improved, uses fixed content; if not, uses original
+- Falls back gracefully if Claude call fails
+
+Applied in:
+- `scheduler-background.js`: quick_wins, content_gaps, page_creation all get auto-fix step
+- `international-seo-background.js`: blog drafts get auto-fix step
+
+**New flow:**
+- Score < 5 → reject (unchanged)
+- Score 5-7 → auto-fix → re-score → if improved queue fixed version; if still 5-7 queue with warning; if drops below 5 reject
+- Score 8-10 → queue green (unchanged)
+
+#### Page Creation Preview — Matches Blog Draft ✅
+`index.html` — `buildPreview()` for `page_creation` type:
+- Replaced clunky `<details>` with 200px max-height and 1200-char truncation
+- Now shows: Title, Meta Description, Target Keyword + slug, Excerpt
+- "📄 Read Full Content (~X words)" button — same as blog_draft
+- Voice note amber warning (same as other types)
+- Removed raw content dump
+
+#### Roadmap Update
+- Delivery Platform SEO: deprioritised (can't track app-internal ranking, only listing health)
+- Brand Voice Interview: covered by existing Settings → Brand Context + Brand Voice Examples
+- Southpour: part of one-click brand setup build (site is now live)
