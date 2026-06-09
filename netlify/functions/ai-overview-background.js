@@ -1,27 +1,55 @@
 // netlify/functions/ai-overview-background.js
 // Weekly AI Overview Visibility check — Monday 4am UTC = 8am Dubai.
 //
-// Reads top 20 non-branded keywords from gscCache per brand,
-// submits SERP tasks to DataForSEO Standard mode (batch submit + parallel poll),
-// checks for ai_overview item type and brand mention in result text.
-// Stores results in aiOverviewData:<brand> + rolling 12-week history.
+// Strategy: AI Overviews trigger on CONVERSATIONAL decision-intent queries
+// ("where can i find the best fried chicken in dubai"), not short head terms
+// ("best fried chicken dubai"). We use a mixed set:
+//   - 10 top non-branded GSC keywords (what users actually search)
+//   - 10 curated conversational queries per brand (known AI Overview triggers)
+// Total: 20 keywords per brand. Cost: ~$0.012/brand/run.
 //
 // Also accepts ?brand=pickl|bonbird for single-brand manual refresh.
-//
-// DataForSEO: Standard mode ONLY — task_post batch + task_get/advanced parallel polling.
-// Cost: ~$0.0006/keyword × 20 = ~$0.012/brand/run.
 
 const { getStore } = require('@netlify/blobs');
 
 const DATAFORSEO_POST_URL = 'https://api.dataforseo.com/v3/serp/google/organic/task_post';
 const DATAFORSEO_GET_URL  = 'https://api.dataforseo.com/v3/serp/google/organic/task_get/advanced';
 
+// ── Conversational queries that reliably trigger AI Overviews ─────────────────
+// These are decision-intent queries Google summarises with an AI Overview.
+// Short head terms ("best burger dubai") often don't trigger AI Overviews.
+const CONVERSATIONAL_QUERIES = {
+  pickl: [
+    'where can i find the best burger in dubai',
+    'what is the best burger restaurant in dubai',
+    'best smash burger restaurant in dubai',
+    'where to eat a good burger in dubai',
+    'best burger place in dubai for lunch',
+    'where can i find the best chicken burger in dubai',
+    'what is the best fast food burger in dubai',
+    'best burger restaurant near me dubai',
+    'where to get a smash burger in dubai',
+    'best burger spots in dubai 2025',
+  ],
+  bonbird: [
+    'where can i find the best fried chicken in dubai',
+    'what is the best fried chicken restaurant in dubai',
+    'best crispy fried chicken in dubai',
+    'where to eat fried chicken in dubai',
+    'best chicken restaurant in dubai',
+    'where can i find the best chicken sandwich in dubai',
+    'what is the best halal fried chicken in dubai',
+    'best fried chicken near me dubai',
+    'where to get crispy chicken tenders in dubai',
+    'best fried chicken spots in dubai 2025',
+  ],
+};
+
 const BRAND_CONFIG = {
   pickl: {
     gscKey:    'gscCache:https://eatpickl.com/',
     brandName: 'Pickl',
     ownDomain: 'eatpickl.com',
-    // English variants + misspellings + Arabic transliterations
     brandTerms: ['pickl', 'pickel', 'pikle', 'pickels', 'بيكل', 'بكلز', 'بيكلز', 'بيكل برجر'],
   },
   bonbird: {
@@ -38,17 +66,26 @@ function getAuthHeader() {
   return 'Basic ' + Buffer.from(`${login}:${password}`).toString('base64');
 }
 
-// ── Get top 20 non-branded keywords from gscCache ────────────────────────────
+// ── Build keyword list: top 10 GSC + 10 conversational queries ───────────────
 async function getTopKeywords(brand, store) {
   const config  = BRAND_CONFIG[brand];
   const cached  = await store.get(config.gscKey, { type: 'json' }).catch(() => null);
   const rows    = cached?.rows || [];
 
-  return rows
+  // Top 10 non-branded GSC keywords
+  const gscKeywords = rows
     .filter(r => r.keyword && !config.brandTerms.some(t => r.keyword.toLowerCase().includes(t)))
     .sort((a, b) => (b.impressions || 0) - (a.impressions || 0))
-    .slice(0, 20)
-    .map(r => ({ keyword: r.keyword, ourPosition: r.position || null, impressions: r.impressions || 0 }));
+    .slice(0, 10)
+    .map(r => ({ keyword: r.keyword, ourPosition: r.position || null, impressions: r.impressions || 0, source: 'gsc' }));
+
+  // 10 curated conversational queries (known AI Overview triggers)
+  const conversational = (CONVERSATIONAL_QUERIES[brand] || [])
+    .map(kw => ({ keyword: kw, ourPosition: null, impressions: 0, source: 'conversational' }));
+
+  const combined = [...gscKeywords, ...conversational];
+  console.log(`[ai-overview-bg] ${brand} — ${gscKeywords.length} GSC keywords + ${conversational.length} conversational queries = ${combined.length} total`);
+  return combined;
 }
 
 // ── Submit all keywords as a single batch POST ───────────────────────────────
@@ -78,14 +115,35 @@ async function submitBatch(keywords, authHeader) {
   return taskMap;
 }
 
-// ── Extract text content from an ai_overview item ───────────────────────────
-function extractAiOverviewText(aiItem) {
-  if (!aiItem) return '';
-  if (typeof aiItem.text === 'string') return aiItem.text;
-  if (Array.isArray(aiItem.items)) {
-    return aiItem.items.map(sub => sub.text || sub.content || '').filter(Boolean).join(' ');
+// ── Extract all text + cited domains from an ai_overview item ────────────────
+function extractAiOverviewContent(aiItem) {
+  if (!aiItem) return { text: '', domains: [] };
+
+  const textParts = [];
+  const domains   = [];
+
+  function walk(node) {
+    if (!node) return;
+    if (typeof node === 'string') { textParts.push(node); return; }
+    if (typeof node.text    === 'string') textParts.push(node.text);
+    if (typeof node.content === 'string') textParts.push(node.content);
+    if (typeof node.title   === 'string') textParts.push(node.title);
+    // Cited source domains
+    if (node.url) {
+      try { domains.push(new URL(node.url).hostname.replace(/^www\./, '')); } catch {}
+    }
+    if (node.domain)      domains.push(node.domain.replace(/^www\./, ''));
+    if (node.source_url)  {
+      try { domains.push(new URL(node.source_url).hostname.replace(/^www\./, '')); } catch {}
+    }
+    // Recurse into sub-items
+    if (Array.isArray(node.items)) node.items.forEach(walk);
+    if (Array.isArray(node.references)) node.references.forEach(walk);
+    if (Array.isArray(node.sources)) node.sources.forEach(walk);
   }
-  return '';
+
+  walk(aiItem);
+  return { text: textParts.filter(Boolean).join(' '), domains: [...new Set(domains)] };
 }
 
 // ── Poll using tasks_ready — one call returns all completed task IDs ──────────
@@ -162,14 +220,21 @@ async function processBrand(brand, store, authHeader) {
     const items        = serpResult?.items || [];
     const serpFeatures = serpResult?.serp_info?.serp_features || [];
 
-    const aiItem       = items.find(i => i.type === 'ai_overview');
+    const aiItem        = items.find(i => i.type === 'ai_overview');
     const hasAiOverview = !!aiItem || serpFeatures.includes('ai_overview');
 
-    // Check brand mention inside AI overview text
+    // Check brand mention — text content AND cited source domains
     let brandMentioned = false;
     if (hasAiOverview && aiItem) {
-      const text = extractAiOverviewText(aiItem);
-      brandMentioned = text.toLowerCase().includes(config.brandName.toLowerCase());
+      const { text, domains } = extractAiOverviewContent(aiItem);
+      const textLower = text.toLowerCase();
+      const brandLower = config.brandName.toLowerCase();
+      // Match in text
+      const inText = textLower.includes(brandLower) ||
+        config.brandTerms.some(t => textLower.includes(t.toLowerCase()));
+      // Match in cited domains
+      const inDomains = domains.some(d => d.includes(config.ownDomain.replace('www.','')));
+      brandMentioned = inText || inDomains;
     }
 
     // Our organic position from SERP (more current than gscCache avg position)
@@ -182,6 +247,7 @@ async function processBrand(brand, store, authHeader) {
       brandMentioned,
       ourPosition:   serpPosition || kwObj.ourPosition,
       impressions:   kwObj.impressions,
+      source:        kwObj.source || 'gsc', // 'gsc' | 'conversational'
       checkedAt:     new Date().toISOString(),
     });
   }

@@ -1997,3 +1997,90 @@ Updated 4 stale `claude-sonnet-4-20250514` references to `claude-sonnet-4-6`:
 | Key | Contents |
 |---|---|
 | `auditHistory` | Array of last 10 audit runs: `{ domain, brand, fetchedAt }` |
+
+---
+
+## Roadmap Item: International Keyword Opportunities
+
+**Discussed:** June 2026 session — postponed, to be built next.
+
+**What it is:** Extend the Keyword Discovery Engine to run per international market, not just UAE. Currently `keyword-discovery-background.js` only discovers opportunities for UAE (location code `2784`).
+
+**Plan:**
+- Run `dataforseo_labs/google/keyword_ideas/live` per market using per-market location codes (same codes already defined in `MARKET_LOCATIONS` in keyword-discovery-background.js)
+- Cross-reference ideas against each market's GSC data (Pickl's international pages are all on the same GSC property `https://eatpickl.com/` — filter by URL path e.g. `/bh/`, `/ksa/`, `/qatar/`)
+- Score and tier per market (same logic as UAE)
+- Store as `keywordOpportunities:<brand>:<market>` in Blobs
+- Add market selector to the Keyword Opportunities tab in Analytics (currently brand-only)
+
+**Markets to cover:**
+- Pickl: Bahrain (17000), KSA (2682), Qatar (179), Egypt (2818), Jordan (2144), Oman (2114)
+- Bonbird: Oman (2114), Pakistan (2586), Qatar (179)
+
+**Existing location codes** already defined in `keyword-discovery-background.js` `MARKET_LOCATIONS` constant — just need to loop over them.
+
+**GSC filtering for international pages:** use `fetchGscWithPages` (already in `_lib/store.js`) and filter by market URL pattern — same approach as `international-seo-background.js` uses `marketPageMatcher()`.
+
+---
+
+## Session Corrections & Clarifications (June 2026)
+
+### SocialPilot — Correct Current State
+**v6.9ae incorrectly describes SP MCP as "live for image/text/carousel".** Actual state:
+- All post types (static, carousel, copy-only, reel, story) use **CSV export** for SocialPilot Bulk Import
+- The "Push to SocialPilot" MCP button still exists in the code but is not the primary workflow
+- Reels and Stories show "Post Manually" instructions (no CSV/push) — Instagram limitation, not SocialPilot
+- Daily 9am Slack reminder fires for approved Reels/Stories scheduled that day
+
+### AI Overview Tracker — Shows 0, Not Broken
+The tracker (Reports tab) correctly returns 0 AI Overviews triggered because **Google has not rolled out AI Overviews for UAE restaurant search queries**. Searched "smash burger dubai" and similar queries from Canada — no AI Overview boxes appear. This is expected behaviour, not a bug. The tracker will start showing data if/when Google expands AI Overviews to UAE local food searches.
+
+### "My Posts" Toggle — Removed
+Added in v6.9al, **removed in v6.9av**. Reason: calendar already has brand/market/status/type/search filters; "My Posts" was redundant for social content (unlike Perch tasks which are personally assigned).
+
+### DataForSEO Labs Location Code Fix (June 2026)
+All DataForSEO **Labs** endpoints (`ranked_keywords/live`, `keyword_ideas/live`) require **country-level** location codes, not city-level:
+- Wrong: `21191` (Dubai city) — silently returns 0 results from Labs
+- Right: `2784` (UAE country)
+- SERP Standard (`task_post`) correctly keeps `21191` — city code is valid there
+- Fixed in: `competitor-audit.js`, `competitor-matrix-background.js` (Labs calls only), `keyword-discovery-background.js`
+
+### Keyword Discovery — Field Path Fix (June 2026)
+`keyword_ideas/live` uses **flat** field paths (confirmed by DataForSEO support):
+- Filter: `keyword_info.search_volume` (NOT `keyword_data.keyword_info.search_volume`)
+- Item reading: `item.keyword`, `item.keyword_info`
+`ranked_keywords/live` correctly uses `keyword_data.keyword_info.search_volume` — different endpoint, different schema.
+
+### Roadmap Item: International Keyword Opportunities
+Run keyword discovery per international market (not just UAE). Location codes already defined in `MARKET_LOCATIONS`. Store as `keywordOpportunities:<brand>:<market>`. Add market selector to Keyword Opportunities tab. Full plan documented in separate roadmap entry above.
+
+---
+
+## Session: June 2026 — v6.9ax AI Overview Tracker Fix + SETUP.md Corrections
+
+### AI Overview Tracker — Conversational Queries Fix ✅
+`netlify/functions/ai-overview-background.js`:
+
+**Root cause:** Tracker was only checking short GSC head terms ("best fried chicken dubai") which rarely trigger AI Overviews. AI Overviews fire on **conversational, decision-intent queries** ("where can i find the best fried chicken in dubai"). Confirmed by screenshot showing Bonbird mentioned in AI Overview for the conversational query.
+
+**Fix — Mixed keyword set (20 total, same cost):**
+- Top 10 non-branded GSC keywords (existing, marked `source: 'gsc'`)
+- 10 curated conversational queries per brand (new, marked `source: 'conversational'`)
+
+**Conversational queries added:**
+- Pickl: "where can i find the best burger in dubai", "what is the best burger restaurant in dubai", "best smash burger restaurant in dubai" + 7 more
+- Bonbird: "where can i find the best fried chicken in dubai", "what is the best fried chicken restaurant in dubai" + 8 more
+
+**Brand mention detection improved:**
+- Replaced `extractAiOverviewText()` with `extractAiOverviewContent()` — now extracts text AND walks cited source domains/URLs recursively
+- Brand match: checks text content OR own domain in cited sources (catches cases where brand appears as cited link but not in text body)
+
+**UI:** Conversational query rows show a purple "conversational" badge in the keyword column
+
+### SETUP.md Corrections Applied
+- SocialPilot: all types use CSV export (not MCP direct push)
+- AI Overview tracker: shows 0 because short keywords don't trigger AIs Overviews — now fixed with conversational queries
+- "My Posts" toggle: documented removal (was added v6.9al, removed v6.9av)
+- DataForSEO Labs location code fix: `21191` → `2784` for all Labs endpoints
+- Keyword field path fix: `keyword_ideas` uses flat paths, `ranked_keywords` uses `keyword_data.*`
+- International keyword opportunities: roadmap item documented

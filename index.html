@@ -9331,7 +9331,10 @@ function renderAiOverview(el, data, history, brandName, brand) {
 
   const tableRows = data.map((r, i) => `
     <tr style="border-bottom:1px solid var(--border);background:${i%2 ? 'transparent' : 'rgba(0,0,0,0.015)'}">
-      <td style="padding:8px 12px;font-weight:500;font-size:13px">${esc(r.keyword)}</td>
+      <td style="padding:8px 12px;font-weight:500;font-size:13px">
+        ${esc(r.keyword)}
+        ${r.source === 'conversational' ? '<span style="font-size:10px;background:#ede9fe;color:#6d28d9;padding:1px 5px;border-radius:4px;margin-left:5px;font-weight:600">conversational</span>' : ''}
+      </td>
       <td style="padding:8px 12px;text-align:center">
         ${r.ourPosition
           ? `<span style="background:${r.ourPosition<=10?'#dcfce7':r.ourPosition<=20?'#fef3c7':'var(--bg-base)'};color:${r.ourPosition<=10?'#166534':r.ourPosition<=20?'#92400e':'var(--text-muted)'};font-weight:700;padding:2px 8px;border-radius:4px;font-size:12px">#${r.ourPosition}</span>`
