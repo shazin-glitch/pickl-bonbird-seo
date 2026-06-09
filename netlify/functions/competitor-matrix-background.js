@@ -163,12 +163,14 @@ async function loadBrandConfig(store, brand) {
 }
 
 // ── DataForSEO Standard mode ─────────────────────────────────────────────────
-const DATAFORSEO_POST_URL = "https://api.dataforseo.com/v3/serp/google/organic/task_post";
-const DATAFORSEO_GET_URL  = "https://api.dataforseo.com/v3/serp/google/organic/task_get/advanced";
-const BATCH_SIZE          = 100;
-const POLL_INTERVAL_MS    = 5000;
-const POLL_MAX_ATTEMPTS   = 120;
-const TASK_TAG_PREFIX     = "yolkseo_";
+const DATAFORSEO_POST_URL  = "https://api.dataforseo.com/v3/serp/google/organic/task_post";
+const DATAFORSEO_READY_URL = "https://api.dataforseo.com/v3/serp/google/organic/tasks_ready";
+const DATAFORSEO_GET_URL   = "https://api.dataforseo.com/v3/serp/google/organic/task_get/advanced";
+const BATCH_SIZE           = 100;
+const TASK_TAG_PREFIX      = "yolkseo_";
+// tasks_ready approach: one call returns ALL ready task IDs — far cheaper than polling each individually
+const READY_POLL_INTERVAL  = 30000;  // check every 30s (not 5s per-task)
+const READY_POLL_MAX       = 20;     // max 20 checks = 10 minutes total
 
 async function fetchSerpRankings(brand, config) {
   const login    = process.env.DATAFORSEO_LOGIN;
@@ -214,51 +216,61 @@ async function fetchSerpRankings(brand, config) {
     }
   }
 
-  console.log(`[competitor-matrix] ${brand} — ${taskIds.length} tasks posted, polling…`);
+  const taskIdSet = new Set(taskIds);
+  console.log(`[competitor-matrix] ${brand} — ${taskIds.length} tasks posted, using tasks_ready endpoint…`);
 
-  // ── Step 2: Poll until all tasks complete ─────────────────────────────────
+  // ── Step 2: Use tasks_ready — ONE call returns ALL completed task IDs ─────
+  // Much cheaper than polling each task individually (was costing ~$1.50/run)
   const results  = {};
-  let   pending  = new Set(taskIds);
-  let   attempts = 0;
+  let   attempt  = 0;
 
-  while (pending.size > 0 && attempts < POLL_MAX_ATTEMPTS) {
-    attempts++;
-    await new Promise(r => setTimeout(r, POLL_INTERVAL_MS));
+  while (Object.keys(results).length < taskIds.length && attempt < READY_POLL_MAX) {
+    attempt++;
+    await new Promise(r => setTimeout(r, READY_POLL_INTERVAL));
 
-    for (const taskId of [...pending].slice(0, 50)) {
-      try {
-        const res  = await fetch(`${DATAFORSEO_GET_URL}/${taskId}`, { headers: { Authorization: authHeader } });
-        if (!res.ok) continue;
-        const data = await res.json();
-        if (data.status_code !== 20000) continue;
+    try {
+      // tasks_ready returns IDs of ALL completed SERP tasks for this account
+      const readyRes  = await fetch(DATAFORSEO_READY_URL, { headers: { Authorization: authHeader } });
+      if (!readyRes.ok) { console.warn(`[competitor-matrix] tasks_ready HTTP ${readyRes.status}`); continue; }
+      const readyData = await readyRes.json();
+      if (readyData.status_code !== 20000) { console.warn(`[competitor-matrix] tasks_ready error: ${readyData.status_message}`); continue; }
 
-        for (const task of data.tasks || []) {
-          if (task.status_code === 20000 && task.result) {
-            results[taskId] = {
-              keyword:     task.data?.keyword || "",
-              items:       task.result?.[0]?.items || [],
-              keywordInfo: task.result?.[0]?.keyword_info || null,
-            };
-            pending.delete(taskId);
-          } else if (task.status_code === 40501) {
-            // Hard error — task failed, stop waiting
-            pending.delete(taskId);
-            console.warn(`[competitor-matrix] task ${taskId} failed: ${task.status_message}`);
-          }
-          // 40601 "Task Handed" = still processing — keep in pending, keep polling
-        }
-      } catch (e) {
-        console.warn(`[competitor-matrix] poll error ${taskId}: ${e.message}`);
+      const readyIds = (readyData.tasks?.[0]?.result || [])
+        .map(t => t.id)
+        .filter(id => taskIdSet.has(id) && !results[id]); // only our tasks, not yet fetched
+
+      if (!readyIds.length) {
+        console.log(`[competitor-matrix] ${brand} — ${Object.keys(results).length}/${taskIds.length} done (check ${attempt})`);
+        continue;
       }
-    }
 
-    if (attempts % 6 === 0) {
-      console.log(`[competitor-matrix] ${brand} — ${pending.size} tasks remaining (attempt ${attempts})`);
+      // Fetch results for ready tasks only — no wasted calls
+      for (const taskId of readyIds) {
+        try {
+          const res  = await fetch(`${DATAFORSEO_GET_URL}/${taskId}`, { headers: { Authorization: authHeader } });
+          if (!res.ok) continue;
+          const data = await res.json();
+          if (data.status_code !== 20000) continue;
+          for (const task of data.tasks || []) {
+            if (task.status_code === 20000 && task.result) {
+              results[taskId] = {
+                keyword:     task.data?.keyword || "",
+                items:       task.result?.[0]?.items || [],
+                keywordInfo: task.result?.[0]?.keyword_info || null,
+              };
+            }
+          }
+        } catch (e) { console.warn(`[competitor-matrix] fetch error ${taskId}: ${e.message}`); }
+      }
+
+      console.log(`[competitor-matrix] ${brand} — ${Object.keys(results).length}/${taskIds.length} done (check ${attempt})`);
+    } catch (e) {
+      console.warn(`[competitor-matrix] tasks_ready error: ${e.message}`);
     }
   }
 
-  if (pending.size > 0) {
-    console.warn(`[competitor-matrix] ${brand} — ${pending.size} tasks pending after max polls, proceeding`);
+  if (Object.keys(results).length < taskIds.length) {
+    console.warn(`[competitor-matrix] ${brand} — only ${Object.keys(results).length}/${taskIds.length} tasks completed after ${attempt} checks`);
   }
 
   // ── Step 3: Parse results ─────────────────────────────────────────────────
