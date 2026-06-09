@@ -81,6 +81,11 @@ async function getKeywordIdeas(seeds, locationCode, authHeader) {
     });
 
     const data = await res.json();
+    const taskId     = data.tasks?.[0]?.id || 'no-task-id';
+    const taskStatus = data.tasks?.[0]?.status_code;
+    const taskMsg    = data.tasks?.[0]?.status_message;
+    console.log(`[kw-discovery] keyword_ideas top-level: ${data.status_code} | task id: ${taskId} | task status: ${taskStatus} | task msg: ${taskMsg}`);
+
     if (data.status_code !== 20000) {
       console.warn(`[kw-discovery] keyword_ideas failed ${data.status_code}: ${data.status_message}`);
       return [];
