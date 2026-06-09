@@ -374,6 +374,25 @@
       </div>`;
     }
 
+    // Empty state — rendered OUTSIDE the table for correct layout
+    if (!rows.length) {
+      const fetchedAt = matrixData?.pickl?.fetchedAt || matrixData?.bonbird?.fetchedAt;
+      const lastRun   = fetchedAt ? new Date(fetchedAt).toLocaleDateString('en-GB',{day:'numeric',month:'short',hour:'2-digit',minute:'2-digit'}) : null;
+      html += `<div style="text-align:center;padding:48px 24px;background:#f8fafc;border-radius:10px;border:1px solid #e2e8f0;margin-top:12px">
+        <div style="font-size:28px;margin-bottom:10px">📊</div>
+        <div style="font-weight:700;font-size:15px;margin-bottom:6px;color:#1e293b">No keyword ranking data</div>
+        ${lastRun ? `<div style="font-size:12px;color:#64748b;margin-bottom:4px">Last run: ${lastRun}</div>` : ''}
+        <div style="font-size:13px;color:#64748b;margin-bottom:16px;max-width:420px;margin-left:auto;margin-right:auto">
+          The cron may have encountered a DataForSEO error, or no keywords are configured.<br>
+          Check <strong>Manage Keywords</strong> tab to confirm keywords are set, then click Refresh.
+        </div>
+        <button onclick="document.getElementById('cm-refresh-btn')?.click()" style="background:#2563eb;color:#fff;border:none;border-radius:6px;padding:8px 20px;font-size:13px;cursor:pointer;font-weight:600">↻ Refresh Now</button>
+      </div>`;
+      container.innerHTML = html;
+      bindMatrixEvents(container);
+      return;
+    }
+
     // Table
     html += `<div class="cm-table-wrap"><table class="cm-table">
       <thead><tr>
@@ -382,15 +401,7 @@
         <th>SERP Features</th><th>Movement</th>
       </tr></thead><tbody>`;
 
-    if (!rows.length) {
-      const fetchedAt = matrixData?.pickl?.fetchedAt || matrixData?.bonbird?.fetchedAt;
-      const lastRun   = fetchedAt ? `Last run: ${new Date(fetchedAt).toLocaleDateString('en-GB',{day:'numeric',month:'short',hour:'2-digit',minute:'2-digit'})}` : 'Never run';
-      html += `<tr><td colspan="${5 + competitors.length}" class="cm-empty" style="padding:32px 16px">
-        <div style="font-weight:600;margin-bottom:6px">No keyword data found</div>
-        <div style="font-size:12px;color:#64748b;margin-bottom:12px">${lastRun} — the Monday cron may have encountered a DataForSEO error. Click Refresh Now to re-run (takes ~5–10 minutes).</div>
-        <button onclick="document.getElementById('cm-refresh-btn')?.click()" style="background:var(--primary,#2563eb);color:#fff;border:none;border-radius:6px;padding:6px 14px;font-size:12px;cursor:pointer">↻ Refresh Now</button>
-      </td></tr>`;
-    } else {
+    {
       for (const row of rows) {
         const brandColor   = BRAND_COLORS[row.brand]?.primary || "#f59e0b";
         const ourRankClass = row.brand === "bonbird" ? "cm-rank bonbird-rank" : "cm-rank cm-rank-our";

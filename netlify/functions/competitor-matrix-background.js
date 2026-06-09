@@ -179,6 +179,10 @@ async function fetchSerpRankings(brand, config) {
   const keywords   = config.targetKeywords;
   const ourDomain  = new URL(config.siteUrl).hostname.replace(/^www\./, "");
 
+  if (!keywords.length) {
+    console.error(`[competitor-matrix] ${brand} — NO TRACKED KEYWORDS. Add keywords in Manage Keywords tab.`);
+    return { rows: [], sovCurrent: {}, ourDomain };
+  }
   console.log(`[competitor-matrix] ${brand} — posting ${keywords.length} keywords`);
 
   // ── Step 1: POST all keywords in batches ──────────────────────────────────
@@ -623,20 +627,28 @@ exports.handler = async () => {
       }
 
       // ── Store main matrix payload ─────────────────────────────────────────
-      const payload = {
-        brand,
-        rows,
-        competitors:  config.competitors.map(c => c.name),
-        sovCurrent,
-        ourDomain,
-        fetchedAt:    new Date().toISOString(),
-        keywordCount: rows.length,
-        schedule:     "Monday 04:00 UTC / 08:00 Dubai",
-      };
-
-      await store.set(`${CACHE_KEY_PREFIX}${brand}`, JSON.stringify(payload));
-      results[brand] = { success: true, keywordCount: rows.length, autoDetected: autoDetected.length };
-      console.log(`[competitor-matrix] ${brand} done — ${rows.length} keywords, ${autoDetected.length} unknown competitors found`);
+      // ONLY overwrite blob if we got actual rows — preserve previous data on empty run
+      if (rows.length === 0) {
+        const reason = config.targetKeywords.length === 0
+          ? 'No tracked keywords configured — add keywords in Manage Keywords tab'
+          : 'DataForSEO returned 0 results — may be a temporary API issue';
+        console.warn(`[competitor-matrix] ${brand} — 0 rows, NOT overwriting previous data. Reason: ${reason}`);
+        results[brand] = { success: false, keywordCount: 0, reason, preserved: true };
+      } else {
+        const payload = {
+          brand,
+          rows,
+          competitors:  config.competitors.map(c => c.name),
+          sovCurrent,
+          ourDomain,
+          fetchedAt:    new Date().toISOString(),
+          keywordCount: rows.length,
+          schedule:     "Monday 04:00 UTC / 08:00 Dubai",
+        };
+        await store.set(`${CACHE_KEY_PREFIX}${brand}`, JSON.stringify(payload));
+        results[brand] = { success: true, keywordCount: rows.length, autoDetected: autoDetected.length };
+        console.log(`[competitor-matrix] ${brand} done — ${rows.length} keywords, ${autoDetected.length} unknown competitors found`);
+      }
 
     } catch (err) {
       console.error(`[competitor-matrix] ${brand} failed:`, err.message);
