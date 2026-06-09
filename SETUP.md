@@ -1844,3 +1844,22 @@ Full codebase review for cohesiveness, missing features, and UX gaps. Priority i
 - `renderPerchBoard()` sorts `perchFiltered` array after filtering, before column rendering
 - Sort order: Priority (high→medium→low→none), Due date ascending/descending (nulls last/first), Created descending
 - Drag-and-drop still works — sort reorders the render, not the stored task order
+
+---
+
+## Session: June 2026 — v6.9ap Calendar Today Button + Queue Sort
+
+### Changes Made
+
+#### Content Calendar: "Today" Navigation Button ✅
+`index.html`:
+- "Today" button added next to month nav arrows (hidden when already on current month)
+- `calGoToToday()` — resets `calState.year/month` to current date, calls `updateCalMonthLabel()` + `loadCalendar()`
+- `updateCalMonthLabel()` now shows/hides the Today button based on whether current month matches today
+
+#### Approvals Queue: Sort Dropdown ✅
+`index.html` — queue header:
+- Sort dropdown with options: Default order / Voice score ↑ / Position (best first) / Impressions ↑ / By brand
+- `renderQueue()` applies sort after filtering, before rendering cards
+- Voice score reads `payload.voiceScore`; position reads `payload.currentPos || payload.ranking`; impressions reads `payload.impressions`
+- Non-destructive — uses `[...items].sort()` so original state.queue order preserved

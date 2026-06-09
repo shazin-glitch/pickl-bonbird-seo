@@ -482,6 +482,7 @@
           <button class="btn btn-ghost" onclick="calMonthStep(-1)" style="padding:4px 10px">&#8592;</button>
           <span id="cal-month-label" style="font-weight:600;font-size:14px;min-width:130px;text-align:center"></span>
           <button class="btn btn-ghost" onclick="calMonthStep(1)" style="padding:4px 10px">&#8594;</button>
+          <button class="btn btn-ghost" onclick="calGoToToday()" id="cal-today-btn" style="padding:4px 10px;font-size:12px;display:none">Today</button>
         </div>
         <!-- My Posts toggle -->
         <button id="cal-my-posts-btn" onclick="toggleCalMyPosts()" style="font-size:13px;padding:5px 14px;border-radius:8px;border:1px solid var(--border);background:var(--bg-surface);color:var(--text-muted);cursor:pointer;transition:all 0.15s">👤 My Posts</button>
@@ -611,7 +612,14 @@
           <div class="section-title">Your Action Items</div>
           <div class="section-desc">Review, edit, or reject AI-generated optimizations before they go live.</div>
         </div>
-        <div style="display:flex;gap:8px;align-items:center">
+        <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap">
+          <select id="queue-sort" class="form-input" onchange="renderQueue()" style="font-size:12px;padding:5px 10px;width:auto;font-family:var(--font-sans)">
+            <option value="">Default order</option>
+            <option value="voice_desc">Voice score ↑</option>
+            <option value="position_asc">Position (best first)</option>
+            <option value="impressions_desc">Impressions ↑</option>
+            <option value="brand">By brand</option>
+          </select>
           <button id="queue-dismiss-selected-btn" class="btn btn-outline" onclick="dismissSelected(this)" style="font-size:12px;color:#ef4444;border-color:#ef4444;display:none">🗑 Dismiss Selected (<span id="queue-selected-count">0</span>)</button>
           <button class="btn btn-outline" onclick="dismissVisible(this)" style="font-size:12px;color:#ef4444;border-color:#ef4444" title="Dismiss all currently visible items. With no filters active, this clears the entire queue.">🗑 Dismiss Visible</button>
           <button class="btn btn-primary" onclick="runAuditNow(this)">
@@ -2231,6 +2239,18 @@ function renderQueue() {
     const label = p.textContent.replace(/ \(\d+\)/, '');
     p.textContent = count > 0 ? `${label} (${count})` : label;
   });
+
+  // Sort
+  const qSort = document.getElementById('queue-sort')?.value || '';
+  if (qSort) {
+    items = [...items].sort((a, b) => {
+      if (qSort === 'voice_desc')      return (b.payload?.voiceScore ?? 0) - (a.payload?.voiceScore ?? 0);
+      if (qSort === 'position_asc')    return (a.payload?.currentPos ?? a.payload?.ranking ?? 999) - (b.payload?.currentPos ?? b.payload?.ranking ?? 999);
+      if (qSort === 'impressions_desc') return (b.payload?.impressions ?? 0) - (a.payload?.impressions ?? 0);
+      if (qSort === 'brand')           return (a.brand || '').localeCompare(b.brand || '');
+      return 0;
+    });
+  }
 
   if (!items.length) {
     list.innerHTML = `<div class="empty-state">
@@ -6880,6 +6900,18 @@ function updateCalMonthLabel() {
     label.textContent = new Date(calState.year, calState.month, 1)
       .toLocaleDateString('en-GB', { month: 'long', year: 'numeric' });
   }
+  const now = new Date();
+  const isCurrentMonth = calState.year === now.getFullYear() && calState.month === now.getMonth();
+  const todayBtn = document.getElementById('cal-today-btn');
+  if (todayBtn) todayBtn.style.display = isCurrentMonth ? 'none' : '';
+}
+
+function calGoToToday() {
+  const now = new Date();
+  calState.year  = now.getFullYear();
+  calState.month = now.getMonth();
+  updateCalMonthLabel();
+  loadCalendar();
 }
 
 function toggleCalMyPosts() {
