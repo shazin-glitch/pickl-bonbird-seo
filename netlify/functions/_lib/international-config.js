@@ -417,20 +417,31 @@ function buildPostUrl(market, type, slug, language = 'en') {
 // Build Claude prompt context for a market
 function buildMarketPrompt(market, brandCtx, language = 'en') {
   const isArabic = language === 'ar';
+  const marketUrl = buildPostUrl(market, 'page', '', language).replace(/\/$/, '');
   return `
 === INTERNATIONAL MARKET CONTEXT ===
 Brand: ${market.brand === 'pickl' ? 'Pickl' : 'Bonbird'}
 Market: ${market.label} ${market.flag}
 Language: ${isArabic ? 'Arabic (local dialect — NOT Modern Standard Arabic)' : 'English'}
-Market page: ${buildPostUrl(market, 'page', '', language).replace(/\/$/, '')}
-Journal URL pattern: ${buildPostUrl(market, 'blog_draft', '<post-slug>', language)}
-Currency: ${market.currency}
-${market.isNew ? '⚡ NEW MARKET — just opened May 2026. Content should celebrate the opening and drive first-visit traffic.' : ''}
+${market.isNew ? '⚡ NEW MARKET — just opened. Content should celebrate the opening and drive first-visit traffic.' : ''}
 
-CONFIRMED LOCATIONS IN THIS MARKET:
-${market.locations.length > 0 ? market.locations.join(', ') : 'Locations TBC — do NOT invent or guess location names in content'}
+URL STRUCTURE (critical — use these exact patterns):
+- Market root:     ${marketUrl}/
+- Journal posts:   ${buildPostUrl(market, 'blog_draft', '<post-slug>', language)}
+- Market slug:     /${market.marketSlug}/ — this identifies ALL pages for ${market.label}
+- Any URL containing /${market.marketSlug}/ is a ${market.label} page, NOT a UAE page
+- Write ONLY for the ${market.label} market — do not reference UAE, Dubai, or other markets
 
-TARGET KEYWORDS (${language.toUpperCase()}):
+WHAT THIS MARKET NEEDS FROM CONTENT:
+- Keywords must reference ${market.label} specifically (e.g. "best burger in ${market.label === 'Saudi Arabia' ? 'Riyadh' : market.label}")
+- All location references must be from CONFIRMED LOCATIONS below — never invent locations
+- CTA should drive visitors to the ${market.label} location(s), not UAE
+- Tone and cultural references must match ${market.label} audience (see Cultural Notes)
+
+CONFIRMED LOCATIONS IN ${market.label.toUpperCase()}:
+${market.locations.length > 0 ? market.locations.join(', ') : 'Locations TBC — do NOT invent or guess any location names'}
+
+TARGET KEYWORDS FOR THIS MARKET (${language.toUpperCase()}):
 ${(market.seedKeywords[language] || market.seedKeywords['en'] || []).join(', ')}
 
 CULTURAL & CONTENT NOTES (follow strictly):
@@ -446,8 +457,17 @@ ${isArabic ? `ARABIC WRITING RULES:
 ${brandCtx}`.trim();
 }
 
+// Flat map of marketKey → location_code for quick lookup by any function
+const MARKET_LOCATION_CODES = Object.fromEntries(
+  Object.entries(INTERNATIONAL_MARKETS).map(([key, m]) => [key, m.location_code])
+);
+// Also expose UAE as a base reference
+MARKET_LOCATION_CODES['uae'] = 21191;
+MARKET_LOCATION_CODES['uae_country'] = 2784;
+
 module.exports = {
   INTERNATIONAL_MARKETS,
+  MARKET_LOCATION_CODES,
   getMarketsForBrand,
   getAllMarketKeys,
   getMarket,

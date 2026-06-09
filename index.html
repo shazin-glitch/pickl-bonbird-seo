@@ -806,6 +806,25 @@
                 <option value="both">Both Brands</option>
               </select>
             </div>
+            <div>
+              <label style="font-size:11px;font-weight:600;color:var(--text-muted);display:block;margin-bottom:4px">MARKET</label>
+              <select id="audit-market-select" class="form-input" style="font-family:var(--font-sans);width:150px">
+                <option value="uae_country">🇦🇪 UAE</option>
+                <optgroup label="Pickl">
+                  <option value="pickl_bahrain">🇧🇭 Bahrain</option>
+                  <option value="pickl_ksa">🇸🇦 Saudi Arabia</option>
+                  <option value="pickl_qatar">🇶🇦 Qatar (Pickl)</option>
+                  <option value="pickl_egypt">🇪🇬 Egypt</option>
+                  <option value="pickl_jordan">🇯🇴 Jordan</option>
+                  <option value="pickl_oman">🇴🇲 Oman (Pickl)</option>
+                </optgroup>
+                <optgroup label="Bonbird">
+                  <option value="bonbird_oman">🇴🇲 Oman (Bonbird)</option>
+                  <option value="bonbird_pakistan">🇵🇰 Pakistan</option>
+                  <option value="bonbird_qatar">🇶🇦 Qatar (Bonbird)</option>
+                </optgroup>
+              </select>
+            </div>
             <button class="btn btn-primary" onclick="runCompetitorAudit()" id="audit-run-btn">Run Audit</button>
           </div>
           <div id="audit-status" style="font-size:12px;color:var(--text-muted)"></div>
@@ -6495,6 +6514,7 @@ async function runCompetitorAudit(useCache) {
   const status  = document.getElementById('audit-status');
   const results = document.getElementById('audit-results');
   const brand   = document.getElementById('audit-brand-select')?.value || 'pickl';
+  const market  = document.getElementById('audit-market-select')?.value || 'uae_country';
   const domain  = (input?.value || '').trim();
   if (!domain) { if (status) { status.textContent = 'Enter a domain first.'; status.style.color = '#ef4444'; } return; }
 
@@ -6506,7 +6526,7 @@ async function runCompetitorAudit(useCache) {
   try {
     // Try cache first (or when loading from history)
     if (useCache !== false) {
-      const cached = await apiGet(`/api/competitor-audit?domain=${encodeURIComponent(domain)}`).catch(() => ({ notFound: true }));
+      const cached = await apiGet(`/api/competitor-audit?domain=${encodeURIComponent(domain)}&market=${market}`).catch(() => ({ notFound: true }));
       if (!cached.notFound && cached.domain) {
         renderAuditResults(cached, results);
         status.textContent = `Cached ${new Date(cached.fetchedAt).toLocaleDateString('en-GB',{day:'numeric',month:'short'})} · `;
@@ -6519,7 +6539,7 @@ async function runCompetitorAudit(useCache) {
       }
     }
 
-    const data = await apiPost('/api/competitor-audit', { domain, brand });
+    const data = await apiPost('/api/competitor-audit', { domain, brand, market });
     renderAuditResults(data, results);
     status.textContent = data.labsError ? `⚠ Keywords: ${data.labsError}` : '✓ Audit complete';
     status.style.color = data.labsError ? '#f59e0b' : '#059669';
@@ -6641,7 +6661,7 @@ function renderAuditResults(data, container) {
     <div class="card">
       <div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:4px">
         <div style="font-weight:700;font-size:15px">📊 ${esc(data.domain)}</div>
-        <div style="font-size:11px;color:var(--text-muted)">vs ${compareLabel} · UAE · DataForSEO Labs</div>
+        <div style="font-size:11px;color:var(--text-muted)">vs ${compareLabel} · ${data.market && data.market !== 'uae_country' ? data.market.replace(/_/g,' ') : 'UAE'} · DataForSEO Labs</div>
       </div>
       <!-- Action Engine section — populated asynchronously -->
       <div id="audit-actions-wrap" style="margin-bottom:16px">
@@ -9838,7 +9858,7 @@ function fmtRelativeDate(iso) {
   return new Date(iso).toLocaleDateString('en-GB', { day: 'numeric', month: 'short' });
 }
 </script>
-<script src="/js/competitor-matrix-ui.js?v=6.9bc"></script>
+<script src="/js/competitor-matrix-ui.js?v=6.9bf"></script>
 <!-- ═══ PERCH SIDE PANEL ═══ -->
 <div id="perch-side-panel">
   <div id="perch-panel-content" style="padding:0"></div>

@@ -33,8 +33,9 @@
   }
 
   // ── State ──────────────────────────────────────────────────────────────────
-  let currentBrandFilter = "all";
-  let matrixData         = null;
+  let currentBrandFilter  = "all";
+  let currentMarketFilter = "uae"; // 'uae' | market key e.g. 'pickl_bahrain'
+  let matrixData          = null;
   let keywordData        = null;
   let competitorData     = null;
   let isLoading          = false;
@@ -275,8 +276,27 @@
     ).join("")}</div>`;
   }
 
+  function marketFilterHtml() {
+    const markets = [
+      { key:'uae',             label:'🇦🇪 UAE' },
+      { key:'pickl_bahrain',   label:'🇧🇭 Bahrain' },
+      { key:'pickl_ksa',       label:'🇸🇦 KSA' },
+      { key:'pickl_qatar',     label:'🇶🇦 Qatar (P)' },
+      { key:'pickl_egypt',     label:'🇪🇬 Egypt' },
+      { key:'pickl_jordan',    label:'🇯🇴 Jordan' },
+      { key:'pickl_oman',      label:'🇴🇲 Oman (P)' },
+      { key:'bonbird_oman',    label:'🇴🇲 Oman (B)' },
+      { key:'bonbird_pakistan',label:'🇵🇰 Pakistan' },
+      { key:'bonbird_qatar',   label:'🇶🇦 Qatar (B)' },
+    ];
+    return `<select id="cm-market-filter" style="padding:4px 8px;border-radius:6px;border:1px solid rgba(255,255,255,0.12);background:var(--bg-surface,#fff);color:var(--text-secondary,#475569);font-size:0.8rem;cursor:pointer" onchange="cmMarketChanged(this.value)">
+      ${markets.map(m => `<option value="${m.key}" ${currentMarketFilter===m.key?'selected':''}>${m.label}</option>`).join('')}
+    </select>`;
+  }
+
   function brandFilterHtml() {
     return `
+      ${marketFilterHtml()}
       <button class="cm-filter-btn ${currentBrandFilter === "all"     ? "active" : ""}" data-filter="all">All</button>
       <button class="cm-filter-btn ${currentBrandFilter === "pickl"   ? "active" : ""}" data-filter="pickl">Pickl</button>
       <button class="cm-filter-btn ${currentBrandFilter === "bonbird" ? "active" : ""}" data-filter="bonbird">Bonbird</button>`;
@@ -752,14 +772,13 @@
             <table class="cm-table" style="margin-top:0"><thead><tr>
               <th>Keyword</th><th>Their Position</th><th>Search Volume</th><th>CPC</th><th></th>
             </tr></thead><tbody>
-            ${notRanking.map((k, idx) => `<tr class="cm-gap-row-${comp.replace(/\W/g,'_')}" ${idx >= 20 ? 'style="display:none"' : ''}>
+            ${(()=>{ const compKey = (name||domain).replace(/\W/g,'_'); return notRanking.map((k, idx) => `<tr class="cm-gap-row-${compKey}" ${idx >= 20 ? 'style="display:none"' : ''}>
               <td style="font-weight:600">${esc(k.keyword)}</td>
               <td><span class="cm-rank ${k.position <= 3 ? "cm-rank-top3" : k.position <= 10 ? "cm-rank-top10" : "cm-rank-comp"}">#${k.position || "?"}</span></td>
               <td style="color:var(--text-muted)">${k.searchVolume ? k.searchVolume.toLocaleString() : "—"}</td>
               <td style="color:var(--text-muted)">${k.cpc ? "$" + k.cpc.toFixed(2) : "—"}</td>
               <td><button class="cm-queue-btn" data-keyword="${esc(k.keyword)}" data-brand="${brand}" title="Add to priority queue for Monday">📝 Queue</button></td>
-            </tr>`).join("")}
-            ${notRanking.length > 20 ? `<tr id="cm-show-more-${comp.replace(/\W/g,'_')}"><td colspan="5" style="padding:6px 14px"><button onclick="cmShowAllGaps('${comp.replace(/\W/g,'_')}',this)" style="font-size:12px;color:var(--primary);background:none;border:none;cursor:pointer;padding:0;font-weight:600">+ Show ${notRanking.length - 20} more keywords ▾</button></td></tr>` : ""}
+            </tr>`).join("") + (notRanking.length > 20 ? `<tr id="cm-show-more-${compKey}"><td colspan="5" style="padding:6px 14px"><button onclick="cmShowAllGaps('${compKey}',this)" style="font-size:12px;color:var(--primary);background:none;border:none;cursor:pointer;padding:0;font-weight:600">+ Show ${notRanking.length - 20} more keywords ▾</button></td></tr>` : ""); })()}
             </tbody></table>`;
         }
 
@@ -1225,7 +1244,10 @@
 
     if (forceRefresh) {
       container.innerHTML = `<div class="cm-loading"><div class="cm-loading-spinner"></div><div>Refresh triggered — fetching live rankings…</div><div class="cm-poll-status" id="cm-poll-status">Starting background job…</div></div>`;
-      try { await fetch(BACKGROUND_URL, { method: "GET" }); } catch { /* 202 is fine */ }
+      try {
+        const mq = currentMarketFilter && currentMarketFilter !== 'uae' ? `?market=${currentMarketFilter}` : '';
+        await fetch(`${BACKGROUND_URL}${mq}`, { method: "GET" });
+      } catch { /* 202 is fine */ }
 
       const triggerTime = Date.now();
       pollTimer = setInterval(async () => {
@@ -1234,7 +1256,8 @@
         if (statusEl) statusEl.textContent = `Checking for results… (${pollAttempts * 30}s)`;
 
         try {
-          const res  = await fetch(`${FUNCTION_URL}?brand=all`);
+          const mq2  = currentMarketFilter && currentMarketFilter !== 'uae' ? `&market=${currentMarketFilter}` : '';
+          const res  = await fetch(`${FUNCTION_URL}?brand=all${mq2}`);
           if (!res.ok) return;
           const data = await res.json();
           const picklFresh   = data?.pickl?.rows?.length   && new Date(data.pickl.fetchedAt).getTime()   > triggerTime;
@@ -1255,7 +1278,8 @@
     } else {
       container.innerHTML = `<div class="cm-loading"><div class="cm-loading-spinner"></div><div>Loading competitor matrix…</div></div>`;
       try {
-        const [matrixRes] = await Promise.all([fetch(`${FUNCTION_URL}?brand=all`), loadKeywordConfig(), loadCompetitorConfig()]);
+        const marketQ = currentMarketFilter && currentMarketFilter !== 'uae' ? `&market=${currentMarketFilter}` : '';
+        const [matrixRes] = await Promise.all([fetch(`${FUNCTION_URL}?brand=all${marketQ}`), loadKeywordConfig(), loadCompetitorConfig()]);
         if (!matrixRes.ok) throw new Error(`HTTP ${matrixRes.status}`);
         matrixData = await matrixRes.json();
       } catch (err) {
@@ -1283,10 +1307,23 @@
   else init();
 
   window.competitorMatrix = {
-    init: () => { const c = document.getElementById("competitor-matrix-live"); if (c && !matrixData) loadData(c, false); },
-    reload: () => { const c = document.getElementById("competitor-matrix-live"); if (c) loadData(c, true); },
+    init:      () => { const c = document.getElementById("competitor-matrix-live"); if (c && !matrixData) loadData(c, false); },
+    reload:    () => { const c = document.getElementById("competitor-matrix-live"); if (c) loadData(c, true); },
+    setMarket: (mk) => {
+      currentMarketFilter = mk || 'uae';
+      matrixData = null; // clear cached data so new market loads fresh
+      const c = document.getElementById("competitor-matrix-live");
+      if (c) loadData(c, false);
+    },
   };
 })();
+
+// ── Market filter change handler (called from select onchange) ────────────────
+function cmMarketChanged(marketKey) {
+  if (window.competitorMatrix?.setMarket) {
+    window.competitorMatrix.setMarket(marketKey);
+  }
+}
 
 // ── Competitor auto-discovery (called from Manage Competitors UI) ─────────────
 async function cmDiscoverCompetitors(brand, btn) {

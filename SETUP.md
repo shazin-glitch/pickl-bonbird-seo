@@ -2351,3 +2351,50 @@ No user action needed — runs automatically on first load after deploy.
 - On GET, if stored keywords < 15, auto-merges with defaults and saves back
 - Fixes the case where 6 menu-item keywords overwrote the full 30+ default list
 - Triggered by opening Manage Keywords tab (or any call to /api/keyword-config)
+
+---
+
+## Session: June 2026 — v6.9bf International Intelligence Layer
+
+### What was built
+
+#### Claude Prompt — Better International Context ✅
+`netlify/functions/_lib/international-config.js` — `buildMarketPrompt()`:
+- Explicit URL structure rule: "URL /bh/ = Bahrain market, NOT UAE page"
+- Clear directive: "Write ONLY for [Market] — do not reference UAE, Dubai, or other markets"
+- "What this market needs from content" section with specific requirements per market
+- Confirmed locations section: "never invent location names"
+- New export: `MARKET_LOCATION_CODES` — `marketKey → location_code` for any function to use
+
+#### Competitor Analysis — Market-Aware ✅
+`netlify/functions/competitor-audit.js`:
+- Accepts `market` param: `POST { domain, brand, market: 'pickl_bahrain' }`
+- Uses `MARKET_LOCATION_CODES[market]` for DataForSEO Labs location code
+- Cache stored per domain+market: `competitorAuditCache:domain:pickl_bahrain` vs UAE default
+
+`index.html` — Competitor Analysis form:
+- "MARKET" dropdown alongside brand selector — all 9 markets + UAE
+- Results header shows market: "vs Pickl · Bahrain · DataForSEO Labs"
+
+#### Competitor Matrix — Market-Aware ✅
+`netlify/functions/competitor-matrix-background.js`:
+- `loadBrandConfig()` accepts optional `marketKey`
+- When market specified: uses market `location_code` + market seed keywords
+- Cache stored per market: `competitorMatrix:pickl:pickl_bahrain`
+- Handler accepts `?market=pickl_bahrain` query param
+
+`netlify/functions/competitor-matrix.js`:
+- Read endpoint accepts `?market=pickl_bahrain` → reads market-specific blob
+
+`js/competitor-matrix-ui.js`:
+- Market dropdown in toolbar (🇦🇪 UAE / 🇧🇭 Bahrain / 🇸🇦 KSA / etc.)
+- `currentMarketFilter` state, `cmMarketChanged()` global handler
+- `setMarket()` exposed on `window.competitorMatrix` for cross-scope access
+- Refresh Now and poll URLs include market param when non-UAE selected
+
+#### Gaps Tab Bug Fix ✅
+`js/competitor-matrix-ui.js` line ~775:
+- Bug: `comp.replace(/\W/g,'_')` in the show-more row — `comp` was undefined in this scope
+  (loop variable is `{ domain, brand, name, keywords }`, not `comp`)
+- Fix: use `(name||domain).replace(/\W/g,'_')` via IIFE to derive the key correctly
+- This was causing a TypeError that made the Gaps tab fail to render entirely

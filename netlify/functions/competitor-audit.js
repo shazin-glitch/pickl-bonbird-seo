@@ -8,6 +8,7 @@
 
 const { getStore } = require('@netlify/blobs');
 const { callClaude, extractJson } = require('./_lib/store');
+const { MARKET_LOCATION_CODES } = require('./_lib/international-config');
 
 const DATAFORSEO_BASE  = 'https://api.dataforseo.com/v3';
 const PAGESPEED_BASE   = 'https://www.googleapis.com/pagespeedonline/v5/runPagespeed';
@@ -103,13 +104,13 @@ async function getPageSpeed(domain) {
 }
 
 // ── DataForSEO ranked keywords ────────────────────────────────────────────────
-async function runKeywordAudit(domain, authHeader) {
+async function runKeywordAudit(domain, authHeader, locationCode = 2784) {
   const res = await fetch(`${DATAFORSEO_BASE}/dataforseo_labs/google/ranked_keywords/live`, {
     method:  'POST',
     headers: { 'Content-Type': 'application/json', Authorization: authHeader },
     body: JSON.stringify([{
       target:        domain,
-      location_code: 2784,
+      location_code: locationCode,
       language_code: 'en',
       limit:         50,
       order_by:      ['keyword_data.keyword_info.search_volume,desc'],
@@ -263,10 +264,14 @@ exports.handler = async (event) => {
       }
 
       // Return cached audit
-      const domain = cleanDomain(q.domain || '');
+      const domain    = cleanDomain(q.domain || '');
+      const marketKey = q.market || 'uae_country';
       if (!domain) return { statusCode: 400, headers, body: JSON.stringify({ error: 'domain required' }) };
 
-      const cached = await store.get(`competitorAuditCache:${domain}`, { type: 'json' }).catch(() => null);
+      const cacheKey = marketKey && marketKey !== 'uae_country'
+        ? `competitorAuditCache:${domain}:${marketKey}`
+        : `competitorAuditCache:${domain}`;
+      const cached = await store.get(cacheKey, { type: 'json' }).catch(() => null);
       if (cached && (Date.now() - new Date(cached.fetchedAt).getTime()) < CACHE_TTL_MS) {
         return { statusCode: 200, headers, body: JSON.stringify(cached) };
       }
@@ -286,8 +291,10 @@ exports.handler = async (event) => {
         return { statusCode: 200, headers, body: JSON.stringify({ recommendations }) };
       }
 
-      const domain = cleanDomain(body.domain || '');
-      const brand  = ['pickl','bonbird','both'].includes(body.brand) ? body.brand : 'pickl';
+      const domain       = cleanDomain(body.domain || '');
+      const brand        = ['pickl','bonbird','both'].includes(body.brand) ? body.brand : 'pickl';
+      const marketKey    = body.market || 'uae_country'; // e.g. 'pickl_bahrain', 'uae_country'
+      const locationCode = MARKET_LOCATION_CODES[marketKey] || 2784;
 
       if (!domain) return { statusCode: 400, headers, body: JSON.stringify({ error: 'domain required' }) };
 
@@ -295,7 +302,7 @@ exports.handler = async (event) => {
 
       // Run all three in parallel — don't let one failure block others
       const [kwResult, pageData, pageSpeed, gscPositions] = await Promise.all([
-        runKeywordAudit(domain, getAuthHeader()).catch(e => ({ keywords: [], metrics: null, error: e.message })),
+        runKeywordAudit(domain, getAuthHeader(), locationCode).catch(e => ({ keywords: [], metrics: null, error: e.message })),
         crawlPage(domain),
         getPageSpeed(domain),
         getGscPositions(brand, store),
@@ -312,7 +319,7 @@ exports.handler = async (event) => {
       });
 
       const result = {
-        domain, brand, keywords,
+        domain, brand, market: marketKey, locationCode, keywords,
         metrics:   kwResult.metrics || null,
         labsError: kwResult.error   || null,
         pageData,
@@ -320,8 +327,11 @@ exports.handler = async (event) => {
         fetchedAt: new Date().toISOString(),
       };
 
-      // Cache the result
-      await store.set(`competitorAuditCache:${domain}`, JSON.stringify(result));
+      // Cache per domain+market so UAE and Bahrain audits of same domain are separate
+      const cacheKey = marketKey && marketKey !== 'uae_country'
+        ? `competitorAuditCache:${domain}:${marketKey}`
+        : `competitorAuditCache:${domain}`;
+      await store.set(cacheKey, JSON.stringify(result));
 
       // Update audit history
       try {

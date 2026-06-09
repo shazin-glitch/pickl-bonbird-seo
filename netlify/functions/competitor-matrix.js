@@ -103,14 +103,18 @@ exports.handler = async (event) => {
   });
 
   const brandParam = q.brand || "all";
+  const marketParam = q.market || null; // e.g. 'pickl_bahrain'
   const brands     = brandParam === "all" ? ["pickl", "bonbird"] : [brandParam];
 
   try {
     const result = {};
     for (const brand of brands) {
+      const matrixKey = marketParam ? `competitorMatrix:${brand}:${marketParam}` : `competitorMatrix:${brand}`;
+      const sovKey    = marketParam ? `sovHistory:${brand}:${marketParam}` : `sovHistory:${brand}`;
+
       const [matrix, sovHistory, autoDetected, rankedKeywords] = await Promise.all([
-        store.get(`competitorMatrix:${brand}`,            { type: "json" }).catch(() => null),
-        store.get(`sovHistory:${brand}`,                  { type: "json" }).catch(() => []),
+        store.get(matrixKey,                              { type: "json" }).catch(() => null),
+        store.get(sovKey,                                 { type: "json" }).catch(() => []),
         store.get(`autoDetectedCompetitors:${brand}`,     { type: "json" }).catch(() => null),
         store.get(`competitorRankedKeywords:${brand}`,    { type: "json" }).catch(() => null),
       ]);
