@@ -617,6 +617,11 @@
           <div class="metric-val" id="metric-queue">— <span class="metric-sub">pending</span></div>
           <div class="metric-trend" style="color:var(--text-muted)">Queued by Claude</div>
         </div>
+        <div class="metric-card" onclick="switchView('calendar')" style="cursor:pointer" title="Go to Content Calendar">
+          <div class="metric-title">📅 Posts Awaiting Approval</div>
+          <div class="metric-val" id="metric-cal-pending">— <span class="metric-sub">posts</span></div>
+          <div class="metric-trend" id="metric-cal-trend" style="color:var(--text-muted)">Loading…</div>
+        </div>
       </div>
 
       <div class="section-header">
@@ -8971,6 +8976,12 @@ async function loadCalendarBadge() {
       badge.textContent = count;
       badge.style.display = count > 0 ? '' : 'none';
     }
+    // Also update the dashboard metric card
+    const metricEl = document.getElementById('metric-cal-pending');
+    const trendEl  = document.getElementById('metric-cal-trend');
+    if (metricEl) metricEl.innerHTML = `${count} <span class="metric-sub">post${count !== 1 ? 's' : ''}</span>`;
+    if (trendEl)  trendEl.textContent = count > 0 ? 'Needs your review →' : 'All clear ✓';
+    if (trendEl)  trendEl.style.color = count > 0 ? '#d97706' : 'var(--text-muted)';
   } catch (_) {}
 }
 

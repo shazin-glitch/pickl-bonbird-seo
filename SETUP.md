@@ -1886,3 +1886,17 @@ Full codebase review for cohesiveness, missing features, and UX gaps. Priority i
 - Shows "Filtered: brand · dept · priority · assignee · label · "search" · Overdue · My Tasks"
 - "✕ Clear filters" link resets all dropdowns + toggle buttons, re-renders
 - `clearPerchFilters()` — resets all 7 filter inputs + both toggle flags + button styles
+
+---
+
+## Session: June 2026 — v6.9ar Dashboard Calendar Metric Card
+
+### Changes Made
+
+#### Dashboard: "Posts Awaiting Approval" Metric Card ✅
+`index.html`:
+- 4th metric card added to the dashboard metrics grid: "📅 Posts Awaiting Approval"
+- Populated by `loadCalendarBadge()` which already runs on page init + after every calendar load
+- Shows count + "Needs your review →" (amber) or "All clear ✓" (muted)
+- Card is clickable — navigates to Content Calendar tab
+- Zero extra API calls — piggybacks on the existing `pending_approver` endpoint call
