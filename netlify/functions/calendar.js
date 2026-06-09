@@ -254,6 +254,25 @@ exports.handler = async (event) => {
     return ok({ ok: true, submitted });
   }
 
+  // ── bulk_reschedule — change scheduled date/time for multiple posts ─────────
+  if (action === 'bulk_reschedule') {
+    const { ids, scheduledDate, scheduledTime } = body;
+    if (!ids?.length) return bad(400, 'ids required');
+    if (!scheduledDate) return bad(400, 'scheduledDate required');
+    let rescheduled = 0;
+    for (const postId of ids) {
+      const p = await getPost(s, postId);
+      if (!p) continue;
+      const patch = { scheduledDate, updatedAt: now,
+        history: [...(p.history || []), { at: now, actor, action: 'rescheduled',
+          note: `Moved to ${scheduledDate}${scheduledTime ? ' ' + scheduledTime : ''}` }] };
+      if (scheduledTime !== undefined) patch.scheduledTime = scheduledTime;
+      await savePost(s, { ...p, ...patch });
+      rescheduled++;
+    }
+    return ok({ ok: true, rescheduled });
+  }
+
   // All remaining actions need an existing post
   const { id } = body;
   if (!id) return bad(400, 'id required');

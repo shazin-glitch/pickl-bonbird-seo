@@ -1695,3 +1695,55 @@ To revert: restore the old polling constants and loop. Remove `DATAFORSEO_READY_
 `slack-notify.js`:
 - New notification type: `calendar_manual_reminder` → `buildCalendarManualReminder()`
 - Shows: header "📱 Manual post due today", one line per post (brand/market/platforms/time/video link), context note, "Open Content Calendar" button
+
+---
+
+## Session: June 2026 — v6.9ak Overnight UX Audit + Improvements
+
+### What was audited
+Full codebase review for cohesiveness, missing features, and UX gaps. Priority issues identified and fixed in this session.
+
+### Changes Made
+
+#### Content Calendar: Caption Search ✅
+`index.html` — filter bar:
+- New search input `🔍 Search captions…` between status filter and month nav
+- `renderCalendar()` filters by caption, hashtags, and market (client-side, no API call)
+- Empty state shows "No posts match X — clear search" link when search is active
+
+#### Content Calendar: Select All in List View ✅
+`index.html` — `renderCalList()`:
+- Header row with select-all checkbox and post count shown above date groups
+- `toggleCalSelectAll(checked)` — checks/unchecks all `.cal-list-cb` items, syncs `calState.selectedPosts`
+- `clearCalSelection()` centralised helper — clears set, unchecks all boxes including select-all
+
+#### Content Calendar: Bulk Reschedule ✅
+`netlify/functions/calendar.js` — new `bulk_reschedule` action: updates scheduledDate + scheduledTime for all IDs, writes history per post
+
+`index.html` — list bar:
+- "📅 Reschedule" button always shown when posts selected
+- Inline form expands below bar: date + time inputs + Apply/Cancel
+- `bulkCalAction('reschedule')` calls backend, shows "X posts moved to YYYY-MM-DD at HH:MM"
+
+#### Content Calendar: Bulk Action Improvements ✅
+- All buttons disabled during inflight (`setCalBulkBusy()`) — prevents double-submit
+- Delete: tracks per-item failure, reports "3 deleted · 1 failed" if partial
+- Submit: reports skipped count
+- CSV export toast: shows story/reel excluded count
+
+#### Content Calendar: Post Type Icons in Month Grid ✅
+- Pills show emoji prefix: 🎬 Reel, 📱 Story, 🎠 Carousel, 📝 Copy Only
+- Approved story/reel pills get gold outline to flag manual posting needed
+- Tooltip includes post type
+
+#### Content Calendar: Post Type Badge in List View ✅
+- Type icon + label shown in each row's metadata strip
+- "📱 Post manually" amber badge on approved story/reel rows
+
+#### Content Calendar: List View Loading State ✅
+- `cal-list-body` now shows "Loading…" during fetch (was blank/stale before)
+
+#### The Perch: Label Filter ✅
+- New "All Labels" dropdown with all 8 label types
+- `renderPerchBoard()` updated with `labelF` filter: `(t.labels||[]).includes(labelF)`
+- Combines with all existing filters
