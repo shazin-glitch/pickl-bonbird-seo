@@ -60,19 +60,22 @@ const OFF_MENU_DISHES = [
 // ── DataForSEO keyword ideas ──────────────────────────────────────────────────
 async function getKeywordIdeas(seeds, locationCode, authHeader) {
   try {
+    // Use UAE country code (2784) for keyword volume data — city code (21191) is for SERP only
+    const kwLocationCode = 2784; // United Arab Emirates country
     const res = await fetch(`${DATAFORSEO_BASE}/dataforseo_labs/google/keyword_ideas/live`, {
       method:  'POST',
       headers: { 'Content-Type': 'application/json', Authorization: authHeader },
       body: JSON.stringify([{
         keywords:       seeds,
-        location_code:  locationCode,
+        location_code:  kwLocationCode,
         language_code:  'en',
         limit:          200,
         include_serp_info: false,
         order_by:       ['keyword_data.keyword_info.search_volume,desc'],
         filters:        [
-          ['keyword_data.keyword_info.search_volume', '>', 20],
-          ['keyword_data.keyword_info.competition_level', 'in', ['low', 'medium', 'high']],
+          ['keyword_data.keyword_info.search_volume', '>', 10],
+          // Note: removed competition_level filter — DataForSEO returns uppercase (HIGH/MEDIUM/LOW)
+          // and lowercase filter was rejecting all results
         ],
       }]),
     });
@@ -84,6 +87,7 @@ async function getKeywordIdeas(seeds, locationCode, authHeader) {
     }
 
     const items = data.tasks?.[0]?.result?.[0]?.items || [];
+    console.log(`[kw-discovery] keyword_ideas raw items: ${items.length}`);
     return items.map(item => {
       const info = item.keyword_data?.keyword_info || {};
       return {
