@@ -6643,6 +6643,13 @@ function renderAuditResults(data, container) {
         <div style="font-weight:700;font-size:15px">📊 ${esc(data.domain)}</div>
         <div style="font-size:11px;color:var(--text-muted)">vs ${compareLabel} · UAE · DataForSEO Labs</div>
       </div>
+      <!-- Action Engine section — populated asynchronously -->
+      <div id="audit-actions-wrap" style="margin-bottom:16px">
+        <div style="font-size:11px;font-weight:700;color:var(--text-muted);text-transform:uppercase;letter-spacing:.04em;margin-bottom:8px">💡 Recommended Actions</div>
+        <div id="audit-actions-list" style="font-size:12px;color:var(--text-muted);display:flex;align-items:center;gap:6px">
+          <span class="spinner" style="width:12px;height:12px;display:inline-block"></span> Analysing with Claude…
+        </div>
+      </div>
       ${summaryCards}
       ${psSection}
       ${pageSection}
@@ -6661,6 +6668,102 @@ function renderAuditResults(data, container) {
         </table>
       </div>
     </div>`;
+
+  // Trigger Action Engine asynchronously — doesn't block rendering
+  apiPost('/api/competitor-audit', { action: 'recommend', domain: data.domain })
+    .then(res => renderAuditActions(res.recommendations || [], data.domain, brand))
+    .catch(() => {
+      const el = document.getElementById('audit-actions-list');
+      if (el) el.innerHTML = '<span style="color:var(--text-muted)">Could not generate recommendations</span>';
+    });
+}
+
+function renderAuditActions(recs, domain, brand) {
+  const el = document.getElementById('audit-actions-list');
+  if (!el) return;
+  if (!recs.length) { el.innerHTML = '<span style="color:var(--text-muted)">No specific recommendations generated</span>'; return; }
+
+  const IMPACT_COLORS = { high: { bg:'#fee2e2', color:'#991b1b' }, medium: { bg:'#fef3c7', color:'#92400e' }, low: { bg:'#f1f5f9', color:'#475569' } };
+  const EFFORT_COLORS = { low: { bg:'#dcfce7', color:'#166534' }, medium: { bg:'#fef3c7', color:'#92400e' }, high: { bg:'#fee2e2', color:'#991b1b' } };
+  const ROUTE_LABELS  = { queue: '📝 Queue for AI', perch: '📋 Add to Perch', dev: '🔧 Dev Task' };
+
+  el.innerHTML = `<div style="display:flex;flex-direction:column;gap:8px;width:100%">
+    ${recs.map((r, i) => {
+      const ic = IMPACT_COLORS[r.impact]  || IMPACT_COLORS.medium;
+      const ec = EFFORT_COLORS[r.effort]  || EFFORT_COLORS.medium;
+      const routeLabel = ROUTE_LABELS[r.route] || r.route;
+      const encodedTitle = esc(r.title).replace(/'/g,"\\'");
+      const encodedAction = esc(r.action).replace(/'/g,"\\'");
+      const encodedKeyword = esc(r.keyword||'').replace(/'/g,"\\'");
+      const encodedFinding = esc(r.finding).replace(/'/g,"\\'");
+      return `<div style="display:flex;gap:12px;padding:12px 14px;background:var(--bg-base);border:1px solid var(--border);border-radius:8px;align-items:flex-start">
+        <div style="flex:1;min-width:0">
+          <div style="font-weight:600;font-size:13px;margin-bottom:3px">${esc(r.title)}</div>
+          <div style="font-size:12px;color:var(--text-muted);margin-bottom:6px">${esc(r.finding)}</div>
+          <div style="font-size:12px;margin-bottom:8px">${esc(r.action)}</div>
+          <div style="display:flex;gap:6px;flex-wrap:wrap">
+            <span style="font-size:10px;font-weight:700;padding:2px 7px;border-radius:4px;background:${ic.bg};color:${ic.color}">⚡ ${(r.impact||'').toUpperCase()} IMPACT</span>
+            <span style="font-size:10px;font-weight:700;padding:2px 7px;border-radius:4px;background:${ec.bg};color:${ec.color}">${r.effort === 'low' ? '✓ LOW EFFORT' : r.effort === 'medium' ? 'MED EFFORT' : 'HIGH EFFORT'}</span>
+          </div>
+        </div>
+        <button onclick="executeAuditAction('${r.route}','${encodedTitle}','${encodedAction}','${encodedFinding}','${encodedKeyword}','${brand}',this)"
+          style="flex-shrink:0;padding:6px 12px;border-radius:6px;font-size:12px;font-weight:600;cursor:pointer;white-space:nowrap;background:${r.route==='queue'?'#6366f1':r.route==='dev'?'#0891b2':'#059669'};color:#fff;border:none">
+          ${routeLabel}
+        </button>
+      </div>`;
+    }).join('')}
+  </div>`;
+}
+
+async function executeAuditAction(route, title, action, finding, keyword, brand, btn) {
+  btn.disabled = true; btn.textContent = 'Working…';
+  const actualBrand = brand === 'both' ? 'pickl' : brand;
+  try {
+    if (route === 'queue') {
+      // Add keyword to seed list → picks up on next content run
+      const res = await apiGet('/api/seed-keywords');
+      const existing = res[actualBrand] || [];
+      const kw = keyword || title;
+      if (!existing.includes(kw)) {
+        await apiPost('/api/seed-keywords', { brand: actualBrand, keywords: [...existing, kw] });
+      }
+      btn.textContent = '✓ Queued';
+      btn.style.background = '#059669';
+      showToast(`"${kw}" added to ${actualBrand} content pipeline — runs next Monday or trigger manually`, 'success');
+
+    } else if (route === 'perch') {
+      // Create Perch task
+      const dept = 'seo';
+      await apiPost('/api/perch', {
+        title,
+        description: `Finding: ${finding}\n\nAction: ${action}${keyword ? '\n\nTarget keyword: ' + keyword : ''}\n\nSource: Competitor Analysis`,
+        brand:       actualBrand,
+        department:  dept,
+        priority:    'medium',
+        source:      'action_engine',
+      });
+      btn.textContent = '✓ Added to Perch';
+      btn.style.background = '#059669';
+      showToast(`Task added to The Perch — "${title}"`, 'success');
+
+    } else if (route === 'dev') {
+      // Create Developer Kanban task
+      await apiPost('/api/tech-tasks', {
+        title,
+        description: `Finding: ${finding}\n\nAction required: ${action}\n\nSource: Competitor Analysis`,
+        brand:       actualBrand,
+        priority:    'medium',
+        source:      'action_engine',
+      });
+      btn.textContent = '✓ Dev Task Created';
+      btn.style.background = '#059669';
+      showToast(`Dev task created — "${title}". View in Technical SEO tab.`, 'success');
+    }
+  } catch (e) {
+    btn.disabled = false;
+    btn.textContent = route === 'queue' ? '📝 Queue for AI' : route === 'dev' ? '🔧 Dev Task' : '📋 Add to Perch';
+    showToast('Failed: ' + e.message, 'error');
+  }
 }
 
 async function queueAuditKeyword(keyword) {

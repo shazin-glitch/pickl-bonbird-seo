@@ -1,12 +1,12 @@
 // netlify/functions/tech-tasks.js
 // Developer kanban for Technical SEO tab.
-// Tasks are auto-created by technical-seo-background.js — never manually.
 //
-// GET  /api/tech-tasks?brand=pickl         — list tasks for brand
-// PATCH /api/tech-tasks?id=<id>            — update status (todo/inprogress/done)
+// GET    /api/tech-tasks?brand=pickl        — list tasks for brand
+// POST   /api/tech-tasks                    — create task (from Action Engine or manual)
+// PATCH  /api/tech-tasks?id=<id>           — update status (todo/inprogress/done)
 // DELETE /api/tech-tasks?id=<id>           — delete task (admin only)
 
-const { getSetting, setSetting, ok, bad, preflight, parseBody } = require('./_lib/store');
+const { getSetting, setSetting, ok, bad, preflight, parseBody, newId } = require('./_lib/store');
 
 const VALID_STATUSES = ['todo', 'inprogress', 'done'];
 
@@ -31,6 +31,27 @@ exports.handler = async (event) => {
     } catch (e) {
       return bad(500, e.message);
     }
+  }
+
+  // ── POST: create task ────────────────────────────────────────────────────────
+  if (event.httpMethod === 'POST') {
+    try {
+      const body  = parseBody(event) || {};
+      const { title, description, brand, priority, source } = body;
+      if (!title?.trim()) return bad(400, 'title required');
+      if (!brand)         return bad(400, 'brand required');
+      const id   = newId('tech');
+      const task = {
+        id, title: title.trim(), description: description || '',
+        brand, priority: priority || 'medium', status: 'todo',
+        source: source || 'action_engine',
+        createdAt: Date.now(), updatedAt: Date.now(),
+      };
+      await setSetting(`techTask:${id}`, task);
+      const index = await getSetting(`techTaskIndex:${brand}`).catch(() => []);
+      await setSetting(`techTaskIndex:${brand}`, [...(index || []), id]);
+      return ok({ task });
+    } catch (e) { return bad(500, e.message); }
   }
 
   if (event.httpMethod === 'PATCH') {

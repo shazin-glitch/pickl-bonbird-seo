@@ -2250,3 +2250,40 @@ On AI judgment calls: failures so far (keyword filter, wrong location codes) wer
 - Deduplicated across brands
 - Click any → pre-fills domain input and runs audit immediately
 - `loadAuditHistory()` updated to also load known competitors
+
+---
+
+## Session: June 2026 — v6.9bb Action Engine (Competitor Analysis)
+
+### What was built
+
+#### Action Engine — Competitor Analysis ✅
+The first implementation of the interconnected vision: every insight generates recommended actions routed to the right place.
+
+`netlify/functions/competitor-audit.js`:
+- New `POST { action: 'recommend', domain }` handler
+- `generateRecommendations(auditData)` — builds a concise summary of keyword gaps (top 15) and technical gaps (schema, HTTPS, mobile, canonical, PageSpeed delta), sends to Claude
+- Claude returns structured JSON array of 5-7 recommendations, each with:
+  - `title`, `finding`, `action`, `impact` (high/medium/low), `effort` (low/medium/high)
+  - `route`: "queue" (AI can execute) | "perch" (human creativity needed) | "dev" (technical implementation)
+  - `keyword` (if applicable), `department` (for Perch routing)
+- Results sorted by impact + effort score (high impact + low effort → top)
+
+`netlify/functions/tech-tasks.js`:
+- Added `POST` support — creates a developer kanban task from the Action Engine
+- Fields: title, description, brand, priority, source ('action_engine')
+
+`index.html`:
+- `renderAuditResults()` renders "Recommended Actions" section immediately (with spinner)
+- Triggers `POST /api/competitor-audit { action:'recommend' }` asynchronously after audit renders
+- `renderAuditActions(recs, domain, brand)` — renders recommendation cards with impact/effort badges and route button
+- `executeAuditAction(route, title, action, finding, keyword, brand, btn)` — one-click execution:
+  - **queue**: adds keyword/title to seed list → next Monday's content pipeline
+  - **perch**: creates Perch task (POST /api/perch) with finding + action pre-filled
+  - **dev**: creates Developer Kanban task (POST /api/tech-tasks) with finding + action pre-filled
+- Button turns green "✓ Done" on success, toast confirms destination
+
+### Route Logic
+- `queue` → blog posts, meta rewrites, landing pages → AI drafts, appears in Approvals Queue
+- `perch` → campaigns, social series, strategic decisions → The Perch task, assigned to team
+- `dev` → PageSpeed, schema, canonical, HTTPS, mobile → Developer Kanban in Technical SEO

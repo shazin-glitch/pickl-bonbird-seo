@@ -1,15 +1,13 @@
 // netlify/functions/competitor-audit.js
 // Competitor Analysis — full audit of any competitor domain.
 //
-// GET ?history=1                 — list of past audited domains (last 10)
-// GET ?domain=xxx&brand=pickl    — cached audit result (24hr TTL)
-// POST { domain, brand }        — run fresh audit:
-//   - Top 50 ranking keywords vs our GSC positions (DataForSEO Labs)
-//   - On-page crawl: title, meta, H1/H2, schema, canonical, mobile, HTTPS
-//   - PageSpeed: mobile + desktop scores, LCP, CLS
-//   brand: 'pickl' | 'bonbird' | 'both'
+// GET ?history=1                        — list of past audited domains (last 10)
+// GET ?domain=xxx&brand=pickl           — cached audit result (24hr TTL)
+// POST { domain, brand }               — run fresh full audit
+// POST { action:'recommend', domain }  — run Action Engine on cached audit data
 
 const { getStore } = require('@netlify/blobs');
+const { callClaude, extractJson } = require('./_lib/store');
 
 const DATAFORSEO_BASE  = 'https://api.dataforseo.com/v3';
 const PAGESPEED_BASE   = 'https://www.googleapis.com/pagespeedonline/v5/runPagespeed';
@@ -152,6 +150,79 @@ async function runKeywordAudit(domain, authHeader) {
   return { keywords, metrics };
 }
 
+// ── Action Engine — generate recommended actions from audit data ──────────────
+async function generateRecommendations(auditData) {
+  const { domain, brand, keywords = [], pageData = {}, pageSpeed = {}, metrics = {} } = auditData;
+  const ourBrands = brand === 'both' ? ['pickl','bonbird'] : [brand];
+
+  // Build a concise summary for Claude
+  const kgaps = keywords
+    .filter(k => ourBrands.every(b => !k.ourPos?.[b] || k.ourPos[b] > 20))
+    .sort((a, b) => (b.volume || 0) - (a.volume || 0))
+    .slice(0, 15)
+    .map(k => `- "${k.keyword}" (${k.volume || 0}/mo, their pos #${k.position || '?'})`);
+
+  const ourMobileScore   = null; // We'd need our own score for comparison — skip for now
+  const theirMobileScore = pageSpeed?.mobile?.score  || null;
+  const theirDesktopScore= pageSpeed?.desktop?.score || null;
+
+  const techGaps = [];
+  if (!pageData.hasSchema)  techGaps.push('no schema markup (competitor has it)');
+  if (!pageData.hasMobile)  techGaps.push('no mobile viewport meta (competitor has it)');
+  if (!pageData.isHttps)    techGaps.push('not on HTTPS (competitor is)');
+  if (!pageData.canonical)  techGaps.push('no canonical tag (competitor has it)');
+  if (theirMobileScore && theirMobileScore > 60) techGaps.push(`competitor mobile PageSpeed: ${theirMobileScore}/100 — worth benchmarking`);
+
+  const prompt = `You are a marketing and SEO expert analysing a competitor audit for ${ourBrands.map(b => b.charAt(0).toUpperCase()+b.slice(1)).join(' and ')}, a UAE restaurant brand.
+
+Competitor audited: ${domain}
+Their metrics: ${metrics.totalKeywords || 0} ranking keywords, ${metrics.top10 || 0} in top 10
+
+Keyword gaps (they rank, we don't appear in top 20):
+${kgaps.length ? kgaps.join('\n') : 'None identified'}
+
+Technical gaps vs competitor:
+${techGaps.length ? techGaps.join('\n') : 'None identified'}
+
+Generate 5-7 recommended actions for the marketing team. For each action, assign:
+- route: "queue" (AI can write the content automatically), "perch" (needs human planning/creativity), or "dev" (technical implementation)
+- impact: "high", "medium", or "low"
+- effort: "low" (< 1 hour), "medium" (half day), or "high" (multiple days)
+
+ROUTE RULES:
+- "queue": blog posts, meta rewrites, landing pages, schema markup content — AI can draft these
+- "perch": campaigns, social series, PR pitches, strategic decisions, YouTube video ideas
+- "dev": page speed fixes, canonical tags, mobile viewport, HTTPS, schema implementation
+
+Respond with a JSON array only. Each item:
+{
+  "title": "Short action title",
+  "finding": "One sentence — what the data shows",
+  "action": "Specific thing to do",
+  "impact": "high|medium|low",
+  "effort": "low|medium|high",
+  "route": "queue|perch|dev",
+  "keyword": "target keyword if applicable, else null",
+  "department": "seo|social|design|content — most relevant for Perch tasks"
+}`;
+
+  try {
+    const { text } = await callClaude(prompt, { max_tokens: 1200 });
+    const recs = extractJson(text);
+    if (!Array.isArray(recs)) return [];
+    // Sort: high impact + low effort first
+    const impactScore = { high: 3, medium: 2, low: 1 };
+    const effortScore = { low: 3, medium: 2, high: 1 };
+    return recs.sort((a, b) =>
+      (impactScore[b.impact] + effortScore[b.effort]) -
+      (impactScore[a.impact] + effortScore[a.effort])
+    );
+  } catch (e) {
+    console.warn('[competitor-audit] Recommendations failed:', e.message);
+    return [];
+  }
+}
+
 // ── GSC position lookup ───────────────────────────────────────────────────────
 async function getGscPositions(brand, store) {
   const out = {};
@@ -204,6 +275,17 @@ exports.handler = async (event) => {
 
     if (event.httpMethod === 'POST') {
       const body   = JSON.parse(event.body || '{}');
+
+      // ── Recommendation engine — analyse cached audit ───────────────────────
+      if (body.action === 'recommend') {
+        const domain = cleanDomain(body.domain || '');
+        if (!domain) return { statusCode: 400, headers, body: JSON.stringify({ error: 'domain required' }) };
+        const cached = await store.get(`competitorAuditCache:${domain}`, { type: 'json' }).catch(() => null);
+        if (!cached) return { statusCode: 404, headers, body: JSON.stringify({ error: 'No audit data found — run audit first' }) };
+        const recommendations = await generateRecommendations(cached);
+        return { statusCode: 200, headers, body: JSON.stringify({ recommendations }) };
+      }
+
       const domain = cleanDomain(body.domain || '');
       const brand  = ['pickl','bonbird','both'].includes(body.brand) ? body.brand : 'pickl';
 
