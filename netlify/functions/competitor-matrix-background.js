@@ -39,20 +39,17 @@ const AGGREGATOR_DOMAINS = new Set([
 // abbreviations. When in doubt, exclude — false exclusion costs nothing.
 const BRAND_KEYWORD_FILTERS = {
   // Pickl competitors
-  "saltuae.com":          ["salt", "saltt", "salt burger", "salt uae", "salt restaurant", "salt dubai", "salt burgers"],
-  "highjoint.co":         ["high joint", "highjoint", "the high joint", "high joint dubai"],
-  "shakeshack.com":       ["shake shack", "shakeshack", "shack burger", "shake shack dubai", "shake shack abu dhabi", "theshack"],
+  "shakeshackme.com":     ["shake shack", "shakeshack", "shack burger", "shake shack dubai", "shake shack me", "theshack"],
   "fiveguys.ae":          ["five guys", "fiveguys", "5 guys", "five guys dubai", "five guys uae"],
   // Bonbird competitors
-  "raisingcanes.com":     ["raising cane", "raising canes", "raisingcanes", "cane's", "canes chicken", "raising cane's", "cane's chicken"],
-  "jailbirddubai.com":    ["jailbird", "jail bird", "jailbird dubai", "jailbird chicken"],
-  "daveshotchicken.com":  ["daves hot chicken", "dave's hot chicken", "daveshotchicken", "dhc", "dave hot chicken", "daves chicken"],
-  "toitchicken.com":      ["toit", "toit chicken", "toit dubai"],
-  "nashhotchicken.com":   ["nash hot chicken", "nashhotchicken", "nash chicken", "nash dubai", "nash hot"],
-  "peppersuae.com":       ["peppers", "peppers uae", "peppers chicken", "peppers dubai"],
-  "jollibee.com.ph":      ["jollibee", "jolibee", "jollibee dubai", "jollibee uae"],
-  "kfc.com":              ["kfc", "kentucky fried chicken", "kentucky chicken", "kfc dubai", "kfc uae", "kfc abu dhabi"],
-  "popeyes.com":          ["popeyes", "popeye", "popeyes chicken", "popeyes dubai", "popeyes uae"],
+  "raisingcanesme.com":   ["raising cane", "raising canes", "raisingcanes", "cane's", "canes chicken", "raising cane's"],
+  "jailbird.co":          ["jailbird", "jail bird", "jailbird dubai", "jailbird chicken"],
+  "daveshotchicken.com":  ["daves hot chicken", "dave's hot chicken", "daveshotchicken", "dhc", "dave hot chicken"],
+  "toit.vercel.app":      ["toit", "toit chicken", "toit dubai"],
+  "jollibeeuae.com":      ["jollibee", "jolibee", "jollibee dubai", "jollibee uae"],
+  "uae.kfc.me":           ["kfc", "kentucky fried chicken", "kentucky chicken", "kfc dubai", "kfc uae", "kfc abu dhabi"],
+  "popeyesuae.com":       ["popeyes", "popeye", "popeyes chicken", "popeyes dubai", "popeyes uae"],
+  "uae.texaschicken.com": ["texas chicken", "texaschicken", "texas chicken dubai", "texas chicken uae"],
 };
 
 // Get brand filter terms for a domain — falls back to extracting from domain name

@@ -2084,3 +2084,138 @@ Run keyword discovery per international market (not just UAE). Location codes al
 - DataForSEO Labs location code fix: `21191` → `2784` for all Labs endpoints
 - Keyword field path fix: `keyword_ideas` uses flat paths, `ranked_keywords` uses `keyword_data.*`
 - International keyword opportunities: roadmap item documented
+
+---
+
+## The Nest — Aligned Platform Vision (June 2026)
+
+### Core Principle
+The Nest is a closed-loop marketing operations platform. Every insight triggers a recommended action. Every action is routed to the right place. Every result feeds back into the next insight cycle. Currently strong on insights, weak on the insight→action bridge and action→result attribution.
+
+### The Three Layers
+- **Layer 1 — Intelligence** (what's happening) ✅ Strong
+- **Layer 2 — Action Engine** (what to do, routed automatically) 🔧 Building
+- **Layer 3 — Attribution** (did it work, what's the ROI) 📅 Planned
+
+---
+
+### Priority Build Queue
+
+#### 🔴 P0 — Build Now (highest daily impact)
+
+**Action Engine**
+Every insight module generates Claude-evaluated recommended actions ranked by impact + effort. Each action routes to the right destination:
+- AI can execute → Approvals Queue (blog, meta, page, schema)
+- Human creativity needed → The Perch (task pre-briefed, assigned to right person)
+- Technical implementation → Developer Kanban (issue described)
+- Social opportunity → Content Calendar (draft pre-filled)
+- Video opportunity → AI Content Studio (YouTube brief pre-generated)
+Confidence tiers: high-confidence → auto-queue; low-confidence → Perch with Claude's reasoning attached.
+Loop closes: 4 weeks after action, system checks if metric moved.
+Feeds from: Competitor Analysis, Keyword Opportunities, LLM Mentions, AI Overview, PageSpeed, GSC ranking drops, International gaps.
+
+**Competitor Auto-Discovery**
+`dataforseo_labs/google/competitors_domain/live` on eatpickl.com / bonbirdchicken.com.
+Returns competing domains ranked by keyword overlap score.
+Shows in TWO places: Competitor Matrix → Manage Competitors (for ongoing tracking) + Competitor Analysis (as quick-select cards, click to run full audit).
+Replaces manual competitor entry for discovery. Manual form stays for adding known domains.
+
+**Fix International — Data First, Permissions Later**
+- Competitor matrix: run per market with market-specific location codes
+- Deep audit: accept market param, use correct location code for that market
+- Keyword discovery: run per market (already in roadmap)
+- Claude prompts: inject market context explicitly — Claude should know /bh/ = Bahrain, /ksa/ = Saudi Arabia etc. from URL structure + brand context. No spoon-feeding needed.
+- International content: flows through main Approvals Queue filtered by market flag, not a separate tab
+- International SEO tab becomes: Market Configuration hub (set up markets, configure access, per-market performance) — not a content pipeline
+
+**CEO Monthly Business Review (PPTX + Email)**
+Auto-generated presentation for leadership:
+- What we accomplished (rankings gained, content published, AI presence)
+- Traffic value in AED with trend
+- Competitor movement
+- Opportunities identified vs actioned
+- Forward-looking: what's queued for next month
+Different from the existing PDF export (that's a data report). This is a narrative business review.
+Delivered as email (CEO) + PPTX file. Same data, leadership-ready format. No personal bias.
+
+#### 🟡 P1 — Build Next
+
+**Social Performance Pull-Back**
+Pull engagement data (likes, comments, shares, reach, saves) back into The Nest after a post publishes.
+Best time to post per brand/market from historical performance.
+Content mix insights: "carousels getting 3x saves vs reels — shift the mix."
+Campaign groups: bundle posts, see campaign-level performance.
+
+**Local SEO — Full Circle**
+GBP → Local SEO connection: GBP is the #1 local pack ranking signal. Local pack = map results above organic. GBP completeness, review velocity, posting frequency, photo freshness all affect local pack position directly.
+GBP posts from The Nest (offers, new items, events) — same approval workflow as social.
+Review management (once GBP API lands — highest team time saved).
+Zomato/TripAdvisor ratings tracker with competitor benchmark.
+
+**Per-Market Keyword Opportunities**
+Already documented as roadmap item. Run keyword_ideas/live per market with market location codes.
+
+**Content ROI / Goal Tracking (Reports tab)**
+Every published piece shows traffic contribution.
+Goal tracking: "60 keywords in top 10 by Q4 2026" — progress bar.
+Channel comparison: SEO vs paid vs social per brand.
+
+#### 🟢 P2 — Build Later
+
+**Weekly Intelligence Brief**
+RECOMMENDATION (not building now): Monday Slack + email covering wins, watch items, opportunities queued, competitor moves, posts due for manual posting. Decision: not needed yet, don't clutter leadership. Revisit when team is larger.
+
+**Competitor Content Monitoring**
+When Salt/Shake Shack publish new pages or blog posts, The Nest knows. Slack alert.
+New competitor alerts: "Hammer Burgers entered top 10 for 4 of your keywords — add to tracking?"
+
+**Brand Health — Sentiment + Context**
+When mentioned in AI responses: is it positive/neutral/negative?
+What context: "best burger" vs "popular chain" — brand positioning signal.
+Press/media monitoring: TimeOut, What's On coverage of competitors but not us → Perch task for content team.
+
+**The Perch — Team OS Upgrades**
+Auto-task creation from insights (ranking drops, competitor moves → Perch tasks).
+Recurring task templates.
+Workload view per team member.
+Task dependencies.
+Sprint view.
+
+**SocialPilot Replacement (Long-term)**
+Direct publishing via platform APIs (Meta Graph, TikTok, LinkedIn, YouTube).
+Phase 1: Facebook (easiest). Phase 2: Instagram static. Phase 3: Stories/Reels (Instagram API limitation, not SocialPilot).
+International markets get market-scoped calendar access: can create/submit, UAE team approves/schedules.
+Permissions mirror SocialPilot's model but inside The Nest.
+
+**Multi-Brand Operations**
+Brands are distinct — different voice, different menu, different competitors.
+One-click new brand setup inheriting all pipelines.
+Cross-brand calendar view for simultaneous campaigns (optional).
+
+---
+
+### On AI Content Quality
+The CEO not liking content = brand voice examples need more real writing. The brand voice examples feature exists (Settings → Brand Voice Examples). More real approved content pasted in → Claude's output sounds less AI. This is the primary lever. The platform is doing the right thing architecturally — the training data needs enriching.
+
+On AI judgment calls: failures so far (keyword filter, wrong location codes) were prompt engineering + config failures, not fundamental AI limitations. Fix: confidence tiers (high-confidence → auto-queue, low-confidence → Perch with reasoning attached for human review).
+
+---
+
+### Competitor Domains — Corrected (June 2026)
+| Brand | Competitor | Old Domain | Correct Domain |
+|---|---|---|---|
+| Pickl | Salt | saltuae.com | No website — removed |
+| Pickl | High Joint | highjoint.co | No website — removed |
+| Pickl | Shake Shack | shakeshack.com | shakeshackme.com |
+| Pickl | Five Guys | fiveguys.ae | fiveguys.ae ✓ |
+| Bonbird | Raising Cane's | raisingcanes.com | raisingcanesme.com |
+| Bonbird | Jailbird | jailbirddubai.com | jailbird.co |
+| Bonbird | Dave's Hot Chicken | daveshotchicken.com | daveshotchicken.com ✓ (no UAE site) |
+| Bonbird | Toit | toitchicken.com | toit.vercel.app |
+| Bonbird | Nash Hot Chicken | nashhotchicken.com | Removed (no active web presence) |
+| Bonbird | Peppers | peppersuae.com | Removed (no website found) |
+| Bonbird | Jollibee | jollibee.com.ph | jollibeeuae.com |
+| Bonbird | KFC | kfc.com | uae.kfc.me |
+| Bonbird | Popeyes | popeyes.com | popeyesuae.com |
+| Bonbird | Texas Chicken | — | uae.texaschicken.com (NEW) |
+| Bonbird | Black Tap | — | Added via UI by user |

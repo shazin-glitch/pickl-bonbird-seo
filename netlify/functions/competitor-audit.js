@@ -44,11 +44,18 @@ function stripTags(html) {
 async function crawlPage(domain) {
   const url = `https://${domain}`;
   try {
-    const res = await fetch(url, {
-      headers: { 'User-Agent': 'Mozilla/5.0 (compatible; YolkSEOBot/1.0)' },
-      redirect: 'follow',
-      signal: AbortSignal.timeout(8000),
-    });
+    const controller = new AbortController();
+    const timer = setTimeout(() => controller.abort(), 8000);
+    let res;
+    try {
+      res = await fetch(url, {
+        headers: { 'User-Agent': 'Mozilla/5.0 (compatible; YolkSEOBot/1.0)' },
+        redirect: 'follow',
+        signal: controller.signal,
+      });
+    } finally {
+      clearTimeout(timer);
+    }
     const isHttps = res.url.startsWith('https');
     const html    = await res.text();
 

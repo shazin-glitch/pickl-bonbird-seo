@@ -125,13 +125,33 @@ async function filterKeywordsWithClaude(keywords, brandName, brandCtx) {
 
 What ${brandName} sells: ${menuSummary}
 
-Below are ${keywords.length} keywords from a keyword research tool. Return ONLY the numbers of keywords that a potential customer of ${brandName} might realistically search when looking for food or restaurants like this one.
+Below are ${keywords.length} keywords. Return ONLY the numbers of keywords that are CATEGORY or INTENT searches — where someone is looking for a TYPE of food or restaurant, not a specific named place.
 
-EXCLUDE:
-- Competitor brand names (Salt, Five Guys, KFC, Shake Shack, Raising Cane's, Starbucks, etc.)
-- Food categories not on the menu (pizza, sushi, shawarma, coffee, etc.)
-- Unrelated businesses or services
-- Keywords clearly about a different type of restaurant
+KEEP examples:
+- "best burger in dubai" ✓ (category search)
+- "smash burger dubai" ✓ (food type search)
+- "burger delivery abu dhabi" ✓ (intent search)
+- "fried chicken restaurant dubai" ✓ (category search)
+
+REJECT examples:
+- "dime burger" ✗ (this is a restaurant name)
+- "goat burger" ✗ (restaurant name — Goat Burger is a UAE chain)
+- "just burger" ✗ (restaurant name)
+- "nice burger" ✗ (restaurant name — Nice Burger is a chain)
+- "firefly burger" ✗ (restaurant name)
+- "california burger" ✗ (restaurant name)
+- "in-n-out burger" ✗ (restaurant chain name)
+- "huff puff burger" ✗ (restaurant name)
+- "starbucks" ✗ (brand name, not our food type)
+- "order food dubai" ✗ (too generic, not food-category specific)
+- Any two-word phrase where the first word looks like a brand/place name
+
+RULE: If the keyword IS or CONTAINS a specific restaurant, chain, or brand name — reject it even if you're unsure. We only want searches where someone is looking for a category of food, not a specific named restaurant.
+
+Also REJECT:
+- Food not on our menu: ${menuSummary.includes('burger') ? 'pizza, sushi, shawarma, coffee, biryani, kebab' : 'pizza, sushi, burgers, coffee, biryani, kebab'}
+- Delivery platforms (talabat, deliveroo, zomato)
+- Near-duplicate keywords (keep only the clearest version)
 
 Return a JSON array of numbers only. Example: [1, 3, 7, 12]
 
@@ -139,7 +159,7 @@ Keywords:
 ${kwList}`;
 
   try {
-    const { text } = await callClaude(prompt, { max_tokens: 500 });
+    const { text } = await callClaude(prompt, { max_tokens: 800 });
     const indices = extractJson(text);
     if (!Array.isArray(indices)) {
       console.warn('[kw-discovery] Claude filter returned non-array, using all keywords');
