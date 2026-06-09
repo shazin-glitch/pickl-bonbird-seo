@@ -1592,3 +1592,20 @@ None — uses existing `DATAFORSEO_LOGIN` / `DATAFORSEO_PASSWORD`
 - Cron: `keyword-discovery-background` schedule `"0 4 * * 1"` (Monday 4am UTC)
 
 *Last updated: June 2026 — v6.9ag: data-driven keyword strategy, international SEO rebuilt, deep audit intelligence*
+
+---
+
+## Session: June 2026 — v6.9ah Analytics Fixes
+
+### Changes
+- **Backlinks placeholder** — when below $100/month DataForSEO threshold, shows realistic greyed-out placeholder data (referring domains, backlink counts, competitor comparison) with a clear banner explaining the requirement and a link to top up. Placeholder is clearly marked as non-live data.
+- **Competitor matrix empty state** — instead of blank table, shows last run timestamp + explains Monday cron may have failed + inline Refresh Now button
+- **Keyword opportunities empty state** — guides user to fix competitor matrix first, then run discovery (explains dependency)
+- **Deep audit ReferenceError fix** — `enrichedKws` was declared after it was used (`let` throws ReferenceError before initialization). Fixed: render table immediately with raw data, then enrich with gap analysis asynchronously in background without blocking the UI
+
+### DataForSEO plan notes
+- **Backlinks API**: requires $100/month minimum balance commitment — not included in standard pay-per-use
+- **DataForSEO Labs**: pay-per-use from standard balance, no minimum — `ranked_keywords/live`, `keyword_ideas/live`, `keyword_suggestions/live` all accessible
+- **SERP Standard**: pay-per-use — `serp/google/organic` task_post + task_get
+
+*Last updated: June 2026 — v6.9ah: analytics fixes, backlinks placeholder, competitor matrix empty state, deep audit ReferenceError*
