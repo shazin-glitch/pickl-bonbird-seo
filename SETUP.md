@@ -1823,3 +1823,24 @@ Full codebase review for cohesiveness, missing features, and UX gaps. Priority i
 - `setCalBulkBusy()` updated to include `cal-bar-copy` button
 - `updateCalListBar()` now also shows/hides copy button (always visible when selection > 0)
 - No backend changes — reuses existing `copy_to_markets` action in `calendar.js`
+
+---
+
+## Session: June 2026 — v6.9ao Perch Overdue Filter + Column Sort
+
+### Changes Made
+
+#### The Perch: Overdue Filter Button ✅
+`index.html`:
+- "⚠️ Overdue" toggle button added to filter bar (mirrors "My Tasks" styling)
+- `perchOverdue: false` flag on module scope
+- `togglePerchOverdue()` — toggles flag, updates button to red when active
+- `renderPerchBoard()` filters: `t.dueDate && new Date(t.dueDate).getTime() < Date.now() && t.status !== 'done'`
+- Works alongside all other filters (brand, dept, search, label, My Tasks, etc.)
+
+#### The Perch: Column Sort ✅
+`index.html`:
+- Sort dropdown added to filter bar: Default / Priority ↑ / Due date ↑ / Due date ↓ / Newest first
+- `renderPerchBoard()` sorts `perchFiltered` array after filtering, before column rendering
+- Sort order: Priority (high→medium→low→none), Due date ascending/descending (nulls last/first), Created descending
+- Drag-and-drop still works — sort reorders the render, not the stored task order
