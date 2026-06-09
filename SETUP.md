@@ -1806,3 +1806,20 @@ Full codebase review for cohesiveness, missing features, and UX gaps. Priority i
 - `generateCalCaption()` — calls `/api/claude`, parses HASHTAGS: delimiter, fills form fields
 - Modal closes automatically on success; error shown inline without losing typed topic
 - Bridges AI Content Studio and Content Calendar — no need to switch tabs
+
+---
+
+## Session: June 2026 — v6.9an Bulk Copy to Market
+
+### Changes Made
+
+#### Content Calendar: Bulk "Copy to Market" ✅
+`index.html`:
+- "🌍 Copy to Market" button added to list bar (always visible when posts selected, alongside Reschedule)
+- `toggleCalCopyForm(show)` — shows/hides inline form below bar; populates market checkboxes from `CAL_MARKETS[calState.brand]`, excludes the currently filtered market
+- Opening Copy form closes Reschedule form (and vice versa) — only one inline form visible at a time
+- `bulkCalAction('copy_market')` — reads checked markets, calls existing `copy_to_markets` action per selected post, aggregates total drafts created
+- Toast: "X drafts created across Market1, Market2"
+- `setCalBulkBusy()` updated to include `cal-bar-copy` button
+- `updateCalListBar()` now also shows/hides copy button (always visible when selection > 0)
+- No backend changes — reuses existing `copy_to_markets` action in `calendar.js`

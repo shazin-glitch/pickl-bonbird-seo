@@ -7058,6 +7058,7 @@ function renderCalList(posts) {
     <span id="cal-list-bar-count" style="font-size:13px;font-weight:600;color:var(--text-main)"></span>
     <div style="flex:1"></div>
     <button id="cal-bar-reschedule" class="btn btn-outline" onclick="toggleCalRescheduleForm()" style="font-size:12px;padding:5px 12px;display:none">📅 Reschedule</button>
+    <button id="cal-bar-copy"       class="btn btn-outline" onclick="toggleCalCopyForm()"       style="font-size:12px;padding:5px 12px;display:none">🌍 Copy to Market</button>
     <button id="cal-bar-submit"     class="btn btn-outline" onclick="bulkCalAction('submit')"     style="font-size:12px;padding:5px 12px;display:none">📨 Submit for Review</button>
     <button id="cal-bar-push"       class="btn btn-outline" onclick="bulkCalAction('push')"       style="font-size:12px;padding:5px 12px;display:none">📥 Export CSV</button>
     <button id="cal-bar-delete"     class="btn btn-ghost"   onclick="bulkCalAction('delete')"     style="font-size:12px;padding:5px 12px;color:#ef4444;display:none">🗑 Delete</button>
@@ -7069,6 +7070,14 @@ function renderCalList(posts) {
     <input type="time" id="cal-reschedule-time" class="form-input" style="width:110px;font-size:13px">
     <button class="btn btn-primary" onclick="bulkCalAction('reschedule')" style="font-size:12px;padding:5px 14px">Apply</button>
     <button class="btn btn-ghost"   onclick="toggleCalRescheduleForm(false)" style="font-size:12px;padding:5px 10px">Cancel</button>
+  </div>
+  <div id="cal-copy-form" style="display:none;margin-top:8px;background:var(--bg-base);border:1px solid var(--border);border-radius:8px;padding:12px 16px">
+    <div style="font-size:13px;font-weight:600;margin-bottom:8px">Copy to markets (creates new drafts):</div>
+    <div id="cal-copy-form-markets" style="display:flex;flex-wrap:wrap;gap:8px;margin-bottom:10px"></div>
+    <div style="display:flex;gap:8px">
+      <button class="btn btn-primary" onclick="bulkCalAction('copy_market')" style="font-size:12px;padding:5px 14px">Copy</button>
+      <button class="btn btn-ghost"   onclick="toggleCalCopyForm(false)"     style="font-size:12px;padding:5px 10px">Cancel</button>
+    </div>
   </div>`;
 
   body.innerHTML = html;
@@ -7102,8 +7111,29 @@ function toggleCalRescheduleForm(show) {
   const visible = show !== undefined ? show : form.style.display === 'none';
   form.style.display = visible ? 'flex' : 'none';
   if (visible) {
+    toggleCalCopyForm(false);
     const dateEl = document.getElementById('cal-reschedule-date');
     if (dateEl && !dateEl.value) dateEl.value = new Date().toISOString().slice(0, 10);
+  }
+}
+
+function toggleCalCopyForm(show) {
+  const form = document.getElementById('cal-copy-form');
+  if (!form) return;
+  const visible = show !== undefined ? show : form.style.display === 'none';
+  form.style.display = visible ? '' : 'none';
+  if (visible) {
+    toggleCalRescheduleForm(false);
+    // Populate market checkboxes for current brand
+    const marketsEl = document.getElementById('cal-copy-form-markets');
+    if (marketsEl) {
+      const allMarkets = CAL_MARKETS[calState.brand] || [];
+      const currentMarket = document.getElementById('cal-filter-market')?.value || '';
+      marketsEl.innerHTML = allMarkets
+        .filter(m => m !== currentMarket)
+        .map(m => `<label style="display:flex;align-items:center;gap:5px;font-size:13px;cursor:pointer"><input type="checkbox" class="bulk-copy-market-cb" value="${esc(m)}"> ${esc(m)}</label>`)
+        .join('');
+    }
   }
 }
 
@@ -7117,15 +7147,17 @@ function toggleCalListSelect(postId, checked) {
 function updateCalListBar() {
   const bar    = document.getElementById('cal-list-bar');
   const count  = document.getElementById('cal-list-bar-count');
-  const btnRsc = document.getElementById('cal-bar-reschedule');
-  const btnSub = document.getElementById('cal-bar-submit');
-  const btnPush= document.getElementById('cal-bar-push');
-  const btnDel = document.getElementById('cal-bar-delete');
+  const btnRsc  = document.getElementById('cal-bar-reschedule');
+  const btnCopy = document.getElementById('cal-bar-copy');
+  const btnSub  = document.getElementById('cal-bar-submit');
+  const btnPush = document.getElementById('cal-bar-push');
+  const btnDel  = document.getElementById('cal-bar-delete');
   if (!bar) return;
   const n = calState.selectedPosts.size;
   if (!n) {
     bar.style.display = 'none';
     toggleCalRescheduleForm(false);
+    toggleCalCopyForm(false);
     const allCb = document.getElementById('cal-select-all-cb');
     if (allCb) allCb.checked = false;
     return;
@@ -7136,14 +7168,15 @@ function updateCalListBar() {
   const hasDrafts   = selPosts.some(p => ['draft','changes_requested'].includes(p.status));
   const hasApproved = selPosts.some(p => p.status === 'approved');
   const isAdmin     = ['admin','manager'].includes(state.userRole);
-  if (btnRsc)  btnRsc.style.display  = '';                               // always show reschedule
+  if (btnRsc)  btnRsc.style.display  = '';
+  if (btnCopy) btnCopy.style.display = '';
   if (btnSub)  btnSub.style.display  = hasDrafts   ? '' : 'none';
   if (btnPush) btnPush.style.display = hasApproved && isAdmin ? '' : 'none';
   if (btnDel)  btnDel.style.display  = isAdmin     ? '' : 'none';
 }
 
 function setCalBulkBusy(busy) {
-  ['cal-bar-reschedule','cal-bar-submit','cal-bar-push','cal-bar-delete'].forEach(id => {
+  ['cal-bar-reschedule','cal-bar-copy','cal-bar-submit','cal-bar-push','cal-bar-delete'].forEach(id => {
     const el = document.getElementById(id);
     if (el) el.disabled = busy;
   });
@@ -7188,6 +7221,24 @@ async function bulkCalAction(action) {
     try {
       const res = await apiPost('/api/calendar', { action:'bulk_reschedule', ids, scheduledDate:date, scheduledTime:time, actor:state.actor, actorEmail:state.userEmail });
       showToast(`📅 ${res.rescheduled} post${res.rescheduled!==1?'s':''} moved to ${date}${time?' at '+time:''}`, 'success');
+    } finally { setCalBulkBusy(false); }
+
+  } else if (action === 'copy_market') {
+    const markets = [...document.querySelectorAll('.bulk-copy-market-cb:checked')].map(cb => cb.value);
+    if (!markets.length) { showToast('Select at least one market', 'error'); return; }
+    if (!confirm(`Copy ${ids.length} post${ids.length>1?'s':''} to: ${markets.join(', ')}?`)) return;
+    setCalBulkBusy(true);
+    let totalCopied = 0;
+    try {
+      for (const id of ids) {
+        const res = await apiPost('/api/calendar', {
+          action: 'copy_to_markets', id, markets,
+          actor: state.actor, actorEmail: state.userEmail,
+        }).catch(() => null);
+        if (res?.count) totalCopied += res.count;
+      }
+      showToast(`🌍 ${totalCopied} draft${totalCopied !== 1 ? 's' : ''} created across ${markets.join(', ')}`, 'success');
+      toggleCalCopyForm(false);
     } finally { setCalBulkBusy(false); }
 
   } else if (action === 'delete') {
