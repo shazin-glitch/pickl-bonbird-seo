@@ -4803,7 +4803,8 @@ async function renderBacklinks(data) {
 
   const pickl    = data.pickl;
   const bonbird  = data.bonbird;
-  const hasData  = pickl || bonbird;
+  // Only treat as "has data" if we have actual referring domain numbers — not just error records
+  const hasData  = (pickl?.own?.referringDomains > 0) || (bonbird?.own?.referringDomains > 0);
 
   let html = `
     <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:20px;flex-wrap:wrap;gap:12px">
