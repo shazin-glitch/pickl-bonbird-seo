@@ -240,9 +240,12 @@ async function fetchSerpRankings(brand, config) {
               keywordInfo: task.result?.[0]?.keyword_info || null,
             };
             pending.delete(taskId);
-          } else if (task.status_code === 40501 || task.status_code === 40601) {
+          } else if (task.status_code === 40501) {
+            // Hard error — task failed, stop waiting
             pending.delete(taskId);
+            console.warn(`[competitor-matrix] task ${taskId} failed: ${task.status_message}`);
           }
+          // 40601 "Task Handed" = still processing — keep in pending, keep polling
         }
       } catch (e) {
         console.warn(`[competitor-matrix] poll error ${taskId}: ${e.message}`);
