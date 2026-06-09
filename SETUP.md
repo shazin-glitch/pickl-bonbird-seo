@@ -2219,3 +2219,34 @@ On AI judgment calls: failures so far (keyword filter, wrong location codes) wer
 | Bonbird | Popeyes | popeyes.com | popeyesuae.com |
 | Bonbird | Texas Chicken | — | uae.texaschicken.com (NEW) |
 | Bonbird | Black Tap | — | Added via UI by user |
+
+---
+
+## Session: June 2026 — v6.9ba Competitor Auto-Discovery
+
+### What was built
+
+#### Competitor Auto-Discovery ✅
+`netlify/functions/competitor-matrix.js`:
+- New route: `GET ?discover=1&brand=pickl|bonbird`
+- Calls `dataforseo_labs/google/competitors_domain/live` on eatpickl.com / bonbirdchicken.com
+- Location code: 2784 (UAE country)
+- Filters: intersections > 5 shared keywords, order by intersections desc, limit 20
+- Strips aggregators, social media, delivery platforms from results
+- Returns: domain, shared keyword count, their total keywords, avg position
+- No caching — live call so user always gets fresh data
+
+`js/competitor-matrix-ui.js` — Manage Competitors view:
+- New "Auto-Discover" panel above manual add form
+- "Discover Pickl" / "Discover Bonbird" buttons trigger live DataForSEO call
+- Results show as cards: domain, shared keyword count, "Already tracked" or "+ Add" button
+- `cmDiscoverCompetitors(brand, btn)` — fetches and renders discovery results
+- `cmAddDiscoveredCompetitor(brand, domain, btn)` — loads current config, appends, saves via competitor-config endpoint
+- Display name auto-derived from domain (e.g. `jailbird.co` → "Jailbird")
+
+`index.html` — Competitor Analysis panel:
+- New "KNOWN COMPETITORS — click to audit" section above audit history
+- Loads all configured competitors from competitor-config endpoint
+- Deduplicated across brands
+- Click any → pre-fills domain input and runs audit immediately
+- `loadAuditHistory()` updated to also load known competitors

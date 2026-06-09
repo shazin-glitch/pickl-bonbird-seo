@@ -919,7 +919,22 @@
     injectStyles();
     let html = renderHeader("competitors") + `
       <div style="padding:20px 0">
-        <p style="font-size:13px;color:#64748b;margin-bottom:20px">Add or remove tracked competitors. Changes apply on next Refresh Now.</p>`;
+        <p style="font-size:13px;color:#64748b;margin-bottom:16px">Add or remove tracked competitors. Changes apply on next Refresh Now.</p>
+
+        <!-- Auto-discovery section -->
+        <div style="background:linear-gradient(135deg,rgba(99,102,241,0.06),rgba(245,158,11,0.06));border:1px solid rgba(99,102,241,0.2);border-radius:10px;padding:16px 20px;margin-bottom:24px">
+          <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px">
+            <div>
+              <div style="font-weight:700;font-size:13px;margin-bottom:2px">🔍 Auto-Discover Competitors</div>
+              <div style="font-size:12px;color:#64748b">DataForSEO finds who's competing for your keywords — no manual entry needed</div>
+            </div>
+            <div style="display:flex;gap:8px">
+              <button id="cm-discover-pickl" onclick="cmDiscoverCompetitors('pickl',this)" style="padding:6px 14px;background:#f59e0b;color:#fff;border:none;border-radius:6px;font-size:12px;font-weight:600;cursor:pointer">Discover Pickl</button>
+              <button id="cm-discover-bonbird" onclick="cmDiscoverCompetitors('bonbird',this)" style="padding:6px 14px;background:#ef4444;color:#fff;border:none;border-radius:6px;font-size:12px;font-weight:600;cursor:pointer">Discover Bonbird</button>
+            </div>
+          </div>
+          <div id="cm-discover-results" style="margin-top:8px"></div>
+        </div>`;
 
     for (const brand of ["pickl","bonbird"]) {
       const competitors = competitorData?.[brand]?.competitors || [];
@@ -1272,3 +1287,79 @@
     reload: () => { const c = document.getElementById("competitor-matrix-live"); if (c) loadData(c, true); },
   };
 })();
+
+// ── Competitor auto-discovery (called from Manage Competitors UI) ─────────────
+async function cmDiscoverCompetitors(brand, btn) {
+  const resultsEl = document.getElementById("cm-discover-results");
+  if (!resultsEl) return;
+  const origText = btn.textContent;
+  btn.disabled = true; btn.textContent = "Discovering…";
+  resultsEl.innerHTML = `<div style="font-size:12px;color:#64748b;padding:8px 0">Asking DataForSEO who's competing for ${brand === 'pickl' ? 'eatpickl.com' : 'bonbirdchicken.com'} keywords…</div>`;
+
+  try {
+    const res  = await fetch(`/.netlify/functions/competitor-matrix?discover=1&brand=${brand}`, { credentials: "include" });
+    const data = await res.json();
+    if (data.error) throw new Error(data.error);
+
+    const competitors = data.competitors || [];
+    if (!competitors.length) {
+      resultsEl.innerHTML = `<div style="font-size:12px;color:#64748b;padding:8px 0">No new competitors found — DataForSEO may need more keyword data first. Try after a Refresh Now.</div>`;
+      return;
+    }
+
+    const existingDomains = new Set(
+      (window.competitorMatrix && document.querySelectorAll(`#cm-comp-grid-${brand} .cm-kw-tag`).length
+        ? [...document.querySelectorAll(`#cm-comp-grid-${brand} .cm-kw-tag span:nth-child(2)`)].map(s => s.textContent.trim())
+        : [])
+    );
+
+    resultsEl.innerHTML = `
+      <div style="font-size:11px;font-weight:700;color:#64748b;text-transform:uppercase;letter-spacing:.04em;margin-bottom:8px">${competitors.length} competitors found for ${brand} — ranked by keyword overlap</div>
+      <div style="display:flex;flex-direction:column;gap:6px">
+        ${competitors.map(c => {
+          const alreadyTracked = existingDomains.has(c.domain);
+          return `<div style="display:flex;align-items:center;gap:10px;padding:8px 12px;background:#fff;border:1px solid #e2e8f0;border-radius:8px">
+            <div style="flex:1;min-width:0">
+              <div style="font-weight:600;font-size:13px">${esc(c.domain)}</div>
+              <div style="font-size:11px;color:#64748b">${c.intersections} shared keywords · they rank for ${c.compCount} total</div>
+            </div>
+            ${alreadyTracked
+              ? `<span style="font-size:11px;color:#059669;font-weight:600">✓ Already tracked</span>`
+              : `<button onclick="cmAddDiscoveredCompetitor('${brand}','${esc(c.domain)}',this)" style="padding:4px 12px;background:#6366f1;color:#fff;border:none;border-radius:6px;font-size:12px;font-weight:600;cursor:pointer;white-space:nowrap">+ Add</button>`
+            }
+          </div>`;
+        }).join("")}
+      </div>`;
+  } catch (e) {
+    resultsEl.innerHTML = `<div style="font-size:12px;color:#ef4444;padding:8px 0">Discovery failed: ${e.message}</div>`;
+  } finally {
+    btn.disabled = false; btn.textContent = origText;
+  }
+}
+
+async function cmAddDiscoveredCompetitor(brand, domain, btn) {
+  // Derive a display name from the domain
+  const name = domain.split(".")[0].replace(/-/g, " ").replace(/\b\w/g, l => l.toUpperCase());
+  btn.disabled = true; btn.textContent = "Adding…";
+
+  try {
+    // Load current competitors, append new one, save
+    const res  = await fetch(`/.netlify/functions/keyword-config?brand=${brand}`, { credentials: "include" });
+    // Use competitor-config endpoint
+    const cRes = await fetch("/.netlify/functions/competitor-config?brand=all", { credentials: "include" });
+    const cData = await cRes.json();
+    const existing = cData?.[brand]?.competitors || [];
+    if (existing.some(c => c.domain === domain)) { btn.textContent = "✓ Added"; return; }
+    const updated = [...existing, { name, domain }];
+    await fetch("/.netlify/functions/competitor-config", {
+      method: "POST", credentials: "include",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ brand, competitors: updated }),
+    });
+    btn.textContent = "✓ Added";
+    btn.style.background = "#059669";
+  } catch (e) {
+    btn.disabled = false; btn.textContent = "+ Add";
+    alert("Failed to add: " + e.message);
+  }
+}

@@ -809,9 +809,14 @@
             <button class="btn btn-primary" onclick="runCompetitorAudit()" id="audit-run-btn">Run Audit</button>
           </div>
           <div id="audit-status" style="font-size:12px;color:var(--text-muted)"></div>
+          <!-- Known competitors quick-select -->
+          <div id="audit-known-wrap" style="display:none;margin-top:12px;border-top:1px solid var(--border);padding-top:10px">
+            <div style="font-size:11px;font-weight:600;color:var(--text-muted);margin-bottom:6px">KNOWN COMPETITORS — click to audit</div>
+            <div id="audit-known-list" style="display:flex;flex-wrap:wrap;gap:6px"></div>
+          </div>
           <!-- Audit history -->
-          <div id="audit-history-wrap" style="display:none;margin-top:12px;border-top:1px solid var(--border);padding-top:10px">
-            <div style="font-size:11px;font-weight:600;color:var(--text-muted);margin-bottom:6px">RECENT AUDITS</div>
+          <div id="audit-history-wrap" style="display:none;margin-top:10px">
+            <div style="font-size:11px;font-weight:600;color:var(--text-muted);margin-bottom:6px">RECENTLY AUDITED</div>
             <div id="audit-history-list" style="display:flex;flex-wrap:wrap;gap:6px"></div>
           </div>
         </div>
@@ -6440,6 +6445,28 @@ async function removeSeedKeyword(kw) {
 // ── Competitor Analysis ───────────────────────────────────────────────────────
 
 async function loadAuditHistory() {
+  // Load known competitors as quick-select
+  try {
+    const brand = document.getElementById('audit-brand-select')?.value || 'pickl';
+    const cData = await apiGet('/api/competitor-config?brand=all').catch(() => null);
+    const known = [
+      ...(cData?.pickl?.competitors || []),
+      ...(cData?.bonbird?.competitors || []),
+    ].filter((c, i, arr) => c.domain && arr.findIndex(x => x.domain === c.domain) === i);
+    const knownWrap = document.getElementById('audit-known-wrap');
+    const knownList = document.getElementById('audit-known-list');
+    if (knownWrap && knownList && known.length) {
+      knownWrap.style.display = '';
+      knownList.innerHTML = known.map(c => `
+        <button onclick="document.getElementById('audit-domain-input').value='${esc(c.domain)}';runCompetitorAudit(false)"
+          style="font-size:12px;padding:4px 12px;border-radius:6px;border:1px solid var(--border);background:var(--bg-surface);cursor:pointer;color:var(--text-main)"
+          title="Audit ${esc(c.name)}">
+          ${esc(c.name)} <span style="font-size:10px;color:var(--text-muted)">${esc(c.domain)}</span>
+        </button>`).join('');
+    }
+  } catch { /* non-critical */ }
+
+  // Load audit history
   try {
     const { history } = await apiGet('/api/competitor-audit?history=1');
     const wrap = document.getElementById('audit-history-wrap');
