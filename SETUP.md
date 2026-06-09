@@ -2342,3 +2342,12 @@ No user action needed — runs automatically on first load after deploy.
 
 #### Other fixes in this batch
 - Removed "fine dining" from restaurant relevance filter (not relevant for Pickl/Bonbird)
+
+---
+
+## Session: June 2026 — v6.9be Keyword Config Auto-Fix
+
+`netlify/functions/keyword-config.js`:
+- On GET, if stored keywords < 15, auto-merges with defaults and saves back
+- Fixes the case where 6 menu-item keywords overwrote the full 30+ default list
+- Triggered by opening Manage Keywords tab (or any call to /api/keyword-config)

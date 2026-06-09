@@ -92,10 +92,21 @@ exports.handler = async (event) => {
         let keywords = null;
         try {
           const stored = await store.get(`${CONFIG_KEY_PREFIX}${brand}`, { type: "json" });
-          keywords = stored?.keywords || null;
-        } catch {
-          // not saved yet — use defaults
-        }
+          if (stored?.keywords?.length) {
+            // If stored list is suspiciously small (< 15), it got overwritten with a partial set.
+            // Merge with defaults so nothing is lost, then save back.
+            if (stored.keywords.length < 15) {
+              const defaults = DEFAULT_KEYWORDS[brand] || [];
+              const merged   = [...new Set([...stored.keywords, ...defaults])];
+              keywords = merged;
+              await store.set(`${CONFIG_KEY_PREFIX}${brand}`,
+                JSON.stringify({ brand, keywords: merged, updatedAt: new Date().toISOString() })
+              ).catch(() => {});
+            } else {
+              keywords = stored.keywords;
+            }
+          }
+        } catch { /* use defaults */ }
         result[brand] = { keywords: keywords || DEFAULT_KEYWORDS[brand] };
       }
 
