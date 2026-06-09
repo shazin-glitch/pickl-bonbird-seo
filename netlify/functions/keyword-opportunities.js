@@ -3,10 +3,12 @@
 //
 // GET  ?brand=pickl              — returns stored keywordOpportunities:<brand>
 // GET  ?brand=pickl&audit=xxx    — returns audit data cross-referenced with our GSC positions
-// POST { brand }                 — triggers fresh keyword discovery (background)
+// POST { brand }                 — fires keyword-discovery-background as a true background job
+//                                  and returns 202 immediately (no timeout risk)
 
 const { getStore } = require('@netlify/blobs');
-const { handler: runDiscovery } = require('./keyword-discovery-background');
+
+const SITE_URL = process.env.URL || 'https://yolkseo.netlify.app';
 
 const CORS = {
   'Access-Control-Allow-Origin':  '*',
@@ -85,18 +87,16 @@ exports.handler = async (event) => {
   }
 
   // ── POST: trigger fresh discovery ───────────────────────────────────────────
+  // Fire the background function as a true background job (15-min timeout)
+  // and return 202 immediately — the inline call was timing out at 10s.
   if (event.httpMethod === 'POST') {
     const body  = JSON.parse(event.body || '{}');
     const brand = body.brand || 'pickl';
-    try {
-      const fakeEvent = { queryStringParameters: { brand, force: 'true' } };
-      const result = await runDiscovery(fakeEvent);
-      return { statusCode: 200, headers: { ...CORS, 'Content-Type': 'application/json' },
-        body: result.body };
-    } catch (e) {
-      return { statusCode: 500, headers: { ...CORS, 'Content-Type': 'application/json' },
-        body: JSON.stringify({ error: e.message }) };
-    }
+    // Fire-and-forget — don't await, just kick it off
+    fetch(`${SITE_URL}/.netlify/functions/keyword-discovery-background?brand=${brand}&force=true`)
+      .catch(() => {}); // 202 Accepted is fine, errors are non-fatal here
+    return { statusCode: 202, headers: { ...CORS, 'Content-Type': 'application/json' },
+      body: JSON.stringify({ ok: true, message: 'Discovery started', brand }) };
   }
 
   return { statusCode: 405, headers: { ...CORS, 'Content-Type': 'application/json' },
