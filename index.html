@@ -384,6 +384,7 @@
           <option value="medium">🟡 Medium</option>
           <option value="low">🟢 Low</option>
         </select>
+        <input type="search" id="perch-search" placeholder="🔍 Search tasks…" oninput="renderPerchBoard()" style="font-size:13px;padding:6px 10px;border-radius:8px;border:1px solid var(--border);background:var(--bg-surface);color:var(--text);width:160px">
         <select id="perch-filter-label" onchange="renderPerchBoard()" style="font-size:13px;padding:6px 10px;border-radius:8px;border:1px solid var(--border);background:var(--bg-surface);color:var(--text);cursor:pointer">
           <option value="">All Labels</option>
           <option value="Urgent">🔴 Urgent</option>
@@ -466,6 +467,8 @@
           <span id="cal-month-label" style="font-weight:600;font-size:14px;min-width:130px;text-align:center"></span>
           <button class="btn btn-ghost" onclick="calMonthStep(1)" style="padding:4px 10px">&#8594;</button>
         </div>
+        <!-- My Posts toggle -->
+        <button id="cal-my-posts-btn" onclick="toggleCalMyPosts()" style="font-size:13px;padding:5px 14px;border-radius:8px;border:1px solid var(--border);background:var(--bg-surface);color:var(--text-muted);cursor:pointer;transition:all 0.15s">👤 My Posts</button>
         <!-- View toggle -->
         <div style="display:flex;border:1px solid var(--border);border-radius:6px;overflow:hidden">
           <button id="cal-view-month-btn" onclick="setCalView('month')" style="padding:5px 12px;font-size:12px;border:none;cursor:pointer;background:var(--primary);color:#fff">📅 Month</button>
@@ -593,6 +596,7 @@
           <div class="section-desc">Review, edit, or reject AI-generated optimizations before they go live.</div>
         </div>
         <div style="display:flex;gap:8px;align-items:center">
+          <button id="queue-dismiss-selected-btn" class="btn btn-outline" onclick="dismissSelected(this)" style="font-size:12px;color:#ef4444;border-color:#ef4444;display:none">🗑 Dismiss Selected (<span id="queue-selected-count">0</span>)</button>
           <button class="btn btn-outline" onclick="dismissVisible(this)" style="font-size:12px;color:#ef4444;border-color:#ef4444" title="Dismiss all currently visible items. With no filters active, this clears the entire queue.">🗑 Dismiss Visible</button>
           <button class="btn btn-primary" onclick="runAuditNow(this)">
             <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="23 4 23 10 17 10"/><path d="M20.49 15a9 9 0 1 1-2.12-9.36L23 10"/></svg>
@@ -1771,6 +1775,7 @@ const state = {
   activeAnalyticsView: 'gsc',
   currentTool: null,
   keywords: [],
+  queueSelected: new Set(),
 };
 
 const PICKL_GSC   = 'https://eatpickl.com/';
@@ -2188,6 +2193,8 @@ function filterQueue(pill) {
 }
 
 function renderQueue() {
+  state.queueSelected.clear();
+  updateQueueSelectBar();
   const list = document.getElementById('queue-list');
   let items = state.queue;
 
@@ -2451,6 +2458,7 @@ function buildActionCard(item) {
   return `<div class="card action-card" id="card-${esc(item.id)}" style="border-left:4px solid ${brandColor}">
     <div class="card-header">
       <div class="card-title" style="display:flex;align-items:center;width:100%;gap:8px">
+        <input type="checkbox" class="queue-cb" data-id="${esc(item.id)}" style="flex-shrink:0;accent-color:var(--primary);width:14px;height:14px;cursor:pointer" onchange="toggleQueueSelect('${esc(item.id)}',this.checked)" onclick="event.stopPropagation()">
         <div class="dot" style="background:${brandColor};flex-shrink:0"></div>
         <span style="flex:1;min-width:0">${esc(brandLabel)}: ${esc(item.title || typeLabel)}</span>
         ${tagHtml}
@@ -2607,6 +2615,42 @@ async function dismissVisible(btn) {
   btn.disabled = false;
   btn.textContent = '🗑 Dismiss Visible';
   renderQueue();
+  showToast(`${done} item${done !== 1 ? 's' : ''} dismissed`, '');
+}
+
+// ─── QUEUE MULTI-SELECT ─────────────────────────────────────────
+function toggleQueueSelect(id, checked) {
+  if (checked) state.queueSelected.add(id);
+  else         state.queueSelected.delete(id);
+  updateQueueSelectBar();
+}
+
+function updateQueueSelectBar() {
+  const n   = state.queueSelected.size;
+  const btn = document.getElementById('queue-dismiss-selected-btn');
+  const cnt = document.getElementById('queue-selected-count');
+  if (btn) btn.style.display = n > 0 ? '' : 'none';
+  if (cnt) cnt.textContent = n;
+}
+
+async function dismissSelected(btn) {
+  const ids = [...state.queueSelected];
+  if (!ids.length) return;
+  if (!confirm(`Dismiss ${ids.length} selected item${ids.length !== 1 ? 's' : ''}?`)) return;
+  btn.disabled = true;
+  let done = 0;
+  for (const id of ids) {
+    try {
+      await apiPost('/api/approvals', { action: 'delete', id, actor: state.actor });
+      state.queue = state.queue.filter(i => i.id !== id);
+      state.queueSelected.delete(id);
+      done++;
+    } catch { /* continue */ }
+  }
+  btn.disabled = false;
+  updateQueueSelectBar();
+  renderQueue();
+  updateQueueBadge();
   showToast(`${done} item${done !== 1 ? 's' : ''} dismissed`, '');
 }
 
@@ -3600,6 +3644,7 @@ function renderPerchBoard() {
   const priF      = document.getElementById('perch-filter-priority')?.value || '';
   const assigneeF = document.getElementById('perch-filter-assignee')?.value || '';
   const labelF    = document.getElementById('perch-filter-label')?.value    || '';
+  const searchF   = (document.getElementById('perch-search')?.value || '').toLowerCase().trim();
 
   perchFiltered = perchTasks.filter(t =>
     (!brandF    || t.brand      === brandF    || t.brand === 'all') &&
@@ -3607,6 +3652,7 @@ function renderPerchBoard() {
     (!priF      || t.priority   === priF) &&
     (!assigneeF || t.assignee   === assigneeF || (t.collaborators||[]).includes(assigneeF)) &&
     (!labelF    || (t.labels||[]).includes(labelF)) &&
+    (!searchF   || (t.title||'').toLowerCase().includes(searchF) || (t.description||'').toLowerCase().includes(searchF)) &&
     (!perchMyTasks || t.assignee === state.userEmail || t.createdBy === state.userEmail || (t.collaborators||[]).includes(state.userEmail))
   );
 
@@ -6716,6 +6762,7 @@ const calState = {
   carouselSlides: [],     // [{ url, note }] — carousel slide state (URL-based, no uploads)
   allUsers: [],           // loaded from /api/users for approver picker
   selectedPosts: new Set(), // post IDs selected in list view
+  myPostsOnly: false,       // "My Posts" quick filter
   loaded:   false,
   presentIdx: 0,          // current slide index in presentation mode
   presentPosts: [],       // posts shown in presentation
@@ -6789,6 +6836,17 @@ function updateCalMonthLabel() {
   }
 }
 
+function toggleCalMyPosts() {
+  calState.myPostsOnly = !calState.myPostsOnly;
+  const btn = document.getElementById('cal-my-posts-btn');
+  if (btn) {
+    btn.style.background = calState.myPostsOnly ? 'var(--primary)' : 'var(--bg-surface)';
+    btn.style.color      = calState.myPostsOnly ? '#fff'           : 'var(--text-muted)';
+    btn.style.borderColor= calState.myPostsOnly ? 'var(--primary)' : 'var(--border)';
+  }
+  renderCalendar();
+}
+
 function setCalView(v) {
   calState.view = v;
   document.getElementById('cal-month-grid').style.display = v === 'month' ? '' : 'none';
@@ -6806,9 +6864,12 @@ function renderCalendar() {
   const searchTerm     = (document.getElementById('cal-search')?.value || '').toLowerCase().trim();
 
   let posts = calState.posts;
-  if (statusFilter)   posts = posts.filter(p => p.status === statusFilter);
-  if (platformFilter) posts = posts.filter(p => (p.platforms || []).includes(platformFilter));
-  if (searchTerm)     posts = posts.filter(p =>
+  if (statusFilter)         posts = posts.filter(p => p.status === statusFilter);
+  if (platformFilter)       posts = posts.filter(p => (p.platforms || []).includes(platformFilter));
+  if (calState.myPostsOnly) posts = posts.filter(p =>
+    p.createdBy === state.userEmail || p.assignedTo === state.userEmail
+  );
+  if (searchTerm)           posts = posts.filter(p =>
     (p.caption   || '').toLowerCase().includes(searchTerm) ||
     (p.hashtags  || '').toLowerCase().includes(searchTerm) ||
     (p.market    || '').toLowerCase().includes(searchTerm)

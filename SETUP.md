@@ -1747,3 +1747,33 @@ Full codebase review for cohesiveness, missing features, and UX gaps. Priority i
 - New "All Labels" dropdown with all 8 label types
 - `renderPerchBoard()` updated with `labelF` filter: `(t.labels||[]).includes(labelF)`
 - Combines with all existing filters
+
+---
+
+## Session: June 2026 — v6.9al Queue + Perch + Calendar UX
+
+### Changes Made
+
+#### Approvals Queue: Multi-select + Bulk Dismiss ✅
+`index.html`:
+- Checkbox added to every approval card (`.queue-cb`, `data-id`)
+- `state.queueSelected: new Set()` tracks checked IDs
+- `toggleQueueSelect(id, checked)` — adds/removes from set, calls `updateQueueSelectBar()`
+- `updateQueueSelectBar()` — shows/hides "Dismiss Selected (N)" button in queue header
+- `dismissSelected(btn)` — dismisses only checked items, reports done/failed, clears selection
+- `renderQueue()` now clears `queueSelected` + hides the button on every re-render (prevents stale state after filter change)
+- "Dismiss Selected (N)" button sits next to existing "Dismiss Visible" — two distinct operations
+
+#### The Perch: Text Search ✅
+`index.html` — filter bar:
+- New `🔍 Search tasks…` input (`perch-search`) before label dropdown
+- `renderPerchBoard()` filters by `title` and `description` (case-insensitive, client-side)
+- Combines with all other filters (brand, dept, assignee, priority, label, My Tasks)
+
+#### Content Calendar: "My Posts" Quick Filter ✅
+`index.html`:
+- "👤 My Posts" button added next to view toggle in filter bar
+- `calState.myPostsOnly: false` flag on calState
+- `toggleCalMyPosts()` — toggles flag, updates button styling (primary when active), calls `renderCalendar()`
+- `renderCalendar()` filters by `createdBy === state.userEmail || assignedTo === state.userEmail`
+- Mirrors "My Tasks" button on The Perch for consistent UX
