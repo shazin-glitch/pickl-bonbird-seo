@@ -1950,3 +1950,50 @@ Updated 4 stale `claude-sonnet-4-20250514` references to `claude-sonnet-4-6`:
 - When the caption modal opens, if the topic field is empty AND the "Visual Notes" field has content, the topic is pre-filled with those notes
 - Only pre-fills when topic is empty — won't overwrite if user has already typed something
 - Visual Notes field ID: `cf-visual-notes` (confirmed in form HTML)
+
+---
+
+## Session: June 2026 — v6.9aw Competitor Analysis + Claude Keyword Filter + Matrix Save Fix
+
+### Changes Made
+
+#### Competitor Analysis — Full Audit Expansion ✅
+`netlify/functions/competitor-audit.js` — full rewrite:
+- **On-page crawl**: fetches competitor homepage HTML, extracts title, meta description, H1, H2s (first 6), schema markup presence, canonical tag, mobile viewport, HTTPS, approx word count
+- **PageSpeed**: runs PageSpeed Insights API (mobile + desktop) — score, LCP, CLS, TBT. Uses existing `GOOGLE_PAGESPEED_KEY` env var
+- **Brand selector**: accepts `brand: 'pickl' | 'bonbird' | 'both'` — GSC positions loaded for selected brand(s). When 'both', each keyword row shows two "Our Pos" columns
+- **Audit history**: stores last 10 audited domains in `auditHistory` Blobs key. GET `?history=1` returns the list
+- All three data sources (keywords, page crawl, PageSpeed) run in parallel via `Promise.all`
+- New Blobs key: `auditHistory` — `[{ domain, brand, fetchedAt }]` max 10 entries
+
+`index.html` — audit UI:
+- **Renamed** "Deep Audit" → "Competitor Analysis" (more accurate)
+- **Brand selector** dropdown: Pickl / Bonbird / Both Brands
+- **Audit history** — clickable past domain pills appear below form; click to re-load
+- `loadAuditHistory()` — fetches and renders history list; called when panel opens
+- `loadAuditFromHistory(domain, brand)` — pre-fills form and loads cached result
+- `renderAuditResults()` — rewritten to show PageSpeed cards, on-page signals checklist (HTTPS ✓/✗, Mobile ✓/✗, Schema ✓/✗, Canonical ✓/✗), title/description/H1/H2s, then keyword table
+- Keyword table: "Our Pos" column(s) now use `k.ourPos.pickl` / `k.ourPos.bonbird` from new data structure
+
+#### Keyword Discovery — Claude Relevance Filter ✅
+`netlify/functions/keyword-discovery-background.js`:
+- Removed static `isRelevantToMenu()` function and `OFF_MENU_DISHES` hardcoded list
+- New `filterKeywordsWithClaude(keywords, brandName, brandCtx)`:
+  - Sends all DataForSEO keyword ideas to Claude in one batch (single API call)
+  - Prompt includes brand name + menu summary
+  - Claude returns array of relevant index numbers
+  - Logs: "Claude filter: 200 → 45 keywords" 
+  - Falls back to full list if Claude call fails
+- Import path updated: `callClaude` and `extractJson` from `_lib/store`
+- Volume threshold lowered from 20 to 10
+
+#### Competitor Matrix — Save Button Reset ✅
+`js/competitor-matrix-ui.js`:
+- After successful save (keywords or competitors), button auto-resets to "Save Changes" (enabled, amber) after 3 seconds
+- Save bar hides after 3 seconds so user can keep adding without page reload
+- Applies to both Manage Keywords and Manage Competitors tabs
+
+### New Blobs Key
+| Key | Contents |
+|---|---|
+| `auditHistory` | Array of last 10 audit runs: `{ domain, brand, fetchedAt }` |

@@ -791,13 +791,29 @@
 
       <div id="panel-audit" style="display:none">
         <div class="card" style="margin-bottom:20px">
-          <div style="font-weight:600;font-size:15px;margin-bottom:4px">🔍 Deep Competitor Audit</div>
-          <div style="font-size:13px;color:var(--text-muted);margin-bottom:16px">Enter any competitor domain to see their top 50 keywords, traffic estimate, and domain metrics via DataForSEO Labs.</div>
-          <div style="display:flex;gap:10px;max-width:520px">
-            <input type="text" id="audit-domain-input" class="form-input" placeholder="e.g. salt.ae or highjoint.co" style="flex:1;font-family:var(--font-sans)">
+          <div style="font-weight:600;font-size:15px;margin-bottom:4px">🔍 Competitor Analysis</div>
+          <div style="font-size:13px;color:var(--text-muted);margin-bottom:16px">Enter any competitor domain — get their top 50 ranking keywords, on-page signals, and PageSpeed scores compared against your brand.</div>
+          <div style="display:flex;gap:10px;flex-wrap:wrap;align-items:flex-end;margin-bottom:10px">
+            <div style="flex:1;min-width:200px">
+              <label style="font-size:11px;font-weight:600;color:var(--text-muted);display:block;margin-bottom:4px">COMPETITOR DOMAIN</label>
+              <input type="text" id="audit-domain-input" class="form-input" placeholder="e.g. salt.ae or hammerburgers.com" style="font-family:var(--font-sans)">
+            </div>
+            <div>
+              <label style="font-size:11px;font-weight:600;color:var(--text-muted);display:block;margin-bottom:4px">COMPARE AGAINST</label>
+              <select id="audit-brand-select" class="form-input" style="font-family:var(--font-sans);width:140px">
+                <option value="pickl">Pickl</option>
+                <option value="bonbird">Bonbird</option>
+                <option value="both">Both Brands</option>
+              </select>
+            </div>
             <button class="btn btn-primary" onclick="runCompetitorAudit()" id="audit-run-btn">Run Audit</button>
           </div>
-          <div id="audit-status" style="font-size:12px;color:var(--text-muted);margin-top:6px"></div>
+          <div id="audit-status" style="font-size:12px;color:var(--text-muted)"></div>
+          <!-- Audit history -->
+          <div id="audit-history-wrap" style="display:none;margin-top:12px;border-top:1px solid var(--border);padding-top:10px">
+            <div style="font-size:11px;font-weight:600;color:var(--text-muted);margin-bottom:6px">RECENT AUDITS</div>
+            <div id="audit-history-list" style="display:flex;flex-wrap:wrap;gap:6px"></div>
+          </div>
         </div>
         <div id="audit-results"></div>
       </div>
@@ -2170,6 +2186,7 @@ function switchAnalyticsView(pill) {
   document.getElementById('panel-audit').style.display         = state.activeAnalyticsView === 'audit'         ? 'block' : 'none';
   document.getElementById('panel-opportunities').style.display = state.activeAnalyticsView === 'opportunities' ? 'block' : 'none';
   if (state.activeAnalyticsView === 'opportunities') loadKeywordOpportunities();
+  if (state.activeAnalyticsView === 'audit') loadAuditHistory();
 
   if (state.activeAnalyticsView === 'gsc') {
     if (state.gscConnected) {
@@ -6420,161 +6437,203 @@ async function removeSeedKeyword(kw) {
   }
 }
 
-// ── Deep Competitor Audit ─────────────────────────────────────────────────────
+// ── Competitor Analysis ───────────────────────────────────────────────────────
 
-async function runCompetitorAudit() {
-  const input  = document.getElementById('audit-domain-input');
-  const btn    = document.getElementById('audit-run-btn');
-  const status = document.getElementById('audit-status');
+async function loadAuditHistory() {
+  try {
+    const { history } = await apiGet('/api/competitor-audit?history=1');
+    const wrap = document.getElementById('audit-history-wrap');
+    const list = document.getElementById('audit-history-list');
+    if (!wrap || !list || !history?.length) return;
+    wrap.style.display = '';
+    list.innerHTML = history.map(h => `
+      <button onclick="loadAuditFromHistory('${esc(h.domain)}','${esc(h.brand||'pickl')}')"
+        style="font-size:12px;padding:4px 12px;border-radius:6px;border:1px solid var(--border);background:var(--bg-surface);cursor:pointer;color:var(--text-main)">
+        ${esc(h.domain)}
+        <span style="font-size:10px;color:var(--text-muted);margin-left:4px">${new Date(h.fetchedAt).toLocaleDateString('en-GB',{day:'numeric',month:'short'})}</span>
+      </button>`).join('');
+  } catch { /* non-critical */ }
+}
+
+async function loadAuditFromHistory(domain, brand) {
+  document.getElementById('audit-domain-input').value = domain;
+  const sel = document.getElementById('audit-brand-select');
+  if (sel) sel.value = brand || 'pickl';
+  await runCompetitorAudit(true); // true = use cache
+}
+
+async function runCompetitorAudit(useCache) {
+  const input   = document.getElementById('audit-domain-input');
+  const btn     = document.getElementById('audit-run-btn');
+  const status  = document.getElementById('audit-status');
   const results = document.getElementById('audit-results');
-  const domain = (input?.value || '').trim();
-  if (!domain) { if (status) { status.textContent = 'Enter a domain first.'; status.style.color = 'var(--danger)'; } return; }
+  const brand   = document.getElementById('audit-brand-select')?.value || 'pickl';
+  const domain  = (input?.value || '').trim();
+  if (!domain) { if (status) { status.textContent = 'Enter a domain first.'; status.style.color = '#ef4444'; } return; }
 
   btn.disabled = true; btn.textContent = '⏳ Auditing…';
-  status.textContent = 'Running DataForSEO Labs query…'; status.style.color = 'var(--text-muted)';
+  status.textContent = 'Fetching keyword rankings, crawling page, running PageSpeed…';
+  status.style.color = 'var(--text-muted)';
   results.innerHTML  = '';
 
   try {
-    // Try cache first
-    const cached = await fetch(`/api/competitor-audit?domain=${encodeURIComponent(domain)}`, { credentials: 'include' }).then(r => r.json()).catch(() => ({ notFound: true }));
-    if (!cached.notFound && cached.domain) {
-      renderAuditResults(cached, results);
-      status.textContent = `Cached result from ${new Date(cached.fetchedAt).toLocaleDateString('en-GB',{day:'numeric',month:'short'})} — `;
-      const rerunLink = document.createElement('a');
-      rerunLink.textContent = 'Run fresh audit'; rerunLink.style.cssText = 'color:var(--primary);cursor:pointer';
-      rerunLink.onclick = async () => {
-        status.textContent = 'Running fresh audit…'; results.innerHTML = '';
-        const fresh = await fetch('/api/competitor-audit', { method:'POST', credentials:'include', headers:{'Content-Type':'application/json'}, body: JSON.stringify({ domain }) }).then(r => r.json());
-        renderAuditResults(fresh, results);
-        status.textContent = 'Fresh audit complete';
-      };
-      status.appendChild(rerunLink);
-      btn.disabled = false; btn.textContent = 'Run Audit';
-      return;
+    // Try cache first (or when loading from history)
+    if (useCache !== false) {
+      const cached = await apiGet(`/api/competitor-audit?domain=${encodeURIComponent(domain)}`).catch(() => ({ notFound: true }));
+      if (!cached.notFound && cached.domain) {
+        renderAuditResults(cached, results);
+        status.textContent = `Cached ${new Date(cached.fetchedAt).toLocaleDateString('en-GB',{day:'numeric',month:'short'})} · `;
+        const a = document.createElement('a');
+        a.textContent = 'Run fresh'; a.style.cssText = 'color:var(--primary);cursor:pointer';
+        a.onclick = () => runCompetitorAudit(false);
+        status.appendChild(a);
+        btn.disabled = false; btn.textContent = 'Run Audit';
+        return;
+      }
     }
 
-    const data = await fetch('/api/competitor-audit', {
-      method: 'POST', credentials: 'include',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ domain }),
-    }).then(r => r.json());
-
+    const data = await apiPost('/api/competitor-audit', { domain, brand });
     renderAuditResults(data, results);
-    status.textContent = data.labsError ? `⚠ ${data.labsError}` : 'Audit complete';
-    status.style.color = data.labsError ? 'var(--danger)' : 'var(--success)';
+    status.textContent = data.labsError ? `⚠ Keywords: ${data.labsError}` : '✓ Audit complete';
+    status.style.color = data.labsError ? '#f59e0b' : '#059669';
+    loadAuditHistory(); // refresh history list
   } catch (e) {
-    status.textContent = 'Error: ' + e.message; status.style.color = 'var(--danger)';
+    status.textContent = 'Error: ' + e.message; status.style.color = '#ef4444';
   }
   btn.disabled = false; btn.textContent = 'Run Audit';
 }
 
 function renderAuditResults(data, container) {
-  if (data.labsError && !data.keywords?.length) {
-    container.innerHTML = `<div class="card"><div style="color:var(--danger);font-size:13px;padding:8px 0">⚠ ${esc(data.labsError)}</div><div style="font-size:12px;color:var(--text-muted);margin-top:6px">DataForSEO Labs must be enabled on your account: <a href="https://app.dataforseo.com" target="_blank" style="color:var(--primary)">app.dataforseo.com → API Access</a></div></div>`;
-    return;
-  }
-
-  const m    = data.metrics || {};
-  const kws  = data.keywords || [];
-  const brand = state.activeAnalyticsBrand === 'bonbird' ? 'bonbird' : 'pickl';
+  const m      = data.metrics  || {};
+  const kws    = data.keywords || [];
+  const pd     = data.pageData || {};
+  const ps     = data.pageSpeed|| {};
+  const brand  = data.brand    || 'pickl';
+  const brands = brand === 'both' ? ['pickl','bonbird'] : [brand];
   const etvAed = m.etv ? Math.round(m.etv * 3.67) : 0;
 
+  // ── Keyword summary cards ───────────────────────────────────────────────────
   const summaryCards = `
-    <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(140px,1fr));gap:12px;margin-bottom:20px">
-      <div style="background:var(--bg-base);border-radius:8px;padding:14px;text-align:center">
-        <div style="font-size:22px;font-weight:800">${(m.totalKeywords||kws.length).toLocaleString()}</div>
-        <div style="font-size:11px;color:var(--text-muted);margin-top:3px">Total Keywords Ranking</div>
+    <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(130px,1fr));gap:10px;margin-bottom:16px">
+      <div style="background:var(--bg-base);border-radius:8px;padding:12px;text-align:center">
+        <div style="font-size:20px;font-weight:800">${(m.totalKeywords||kws.length).toLocaleString()}</div>
+        <div style="font-size:11px;color:var(--text-muted);margin-top:2px">Keywords Ranking</div>
       </div>
-      <div style="background:var(--bg-base);border-radius:8px;padding:14px;text-align:center">
-        <div style="font-size:22px;font-weight:800;color:#059669">${m.top10||0}</div>
-        <div style="font-size:11px;color:var(--text-muted);margin-top:3px">Top 10 Keywords</div>
+      <div style="background:var(--bg-base);border-radius:8px;padding:12px;text-align:center">
+        <div style="font-size:20px;font-weight:800;color:#059669">${m.top10||0}</div>
+        <div style="font-size:11px;color:var(--text-muted);margin-top:2px">Top 10</div>
       </div>
-      <div style="background:var(--bg-base);border-radius:8px;padding:14px;text-align:center">
-        <div style="font-size:22px;font-weight:800;color:#6366f1">${m.top3||0}</div>
-        <div style="font-size:11px;color:var(--text-muted);margin-top:3px">Top 3 Keywords</div>
+      <div style="background:var(--bg-base);border-radius:8px;padding:12px;text-align:center">
+        <div style="font-size:20px;font-weight:800;color:#6366f1">${m.top3||0}</div>
+        <div style="font-size:11px;color:var(--text-muted);margin-top:2px">Top 3</div>
       </div>
-      <div style="background:var(--bg-base);border-radius:8px;padding:14px;text-align:center">
-        <div style="font-size:22px;font-weight:800;color:#f59e0b">AED ${etvAed.toLocaleString()}</div>
-        <div style="font-size:11px;color:var(--text-muted);margin-top:3px">Est. Traffic Value/mo</div>
+      <div style="background:var(--bg-base);border-radius:8px;padding:12px;text-align:center">
+        <div style="font-size:20px;font-weight:800;color:#f59e0b">AED ${etvAed.toLocaleString()}</div>
+        <div style="font-size:11px;color:var(--text-muted);margin-top:2px">Est. Traffic Value</div>
       </div>
     </div>`;
 
-  // Render table immediately with raw data — no awaiting
-  function buildTableRows(rows) {
-    const TIER_STYLES = {
-      content_gap: { bg: '#fee2e2', color: '#991b1b', label: '🚀 Gap' },
-      push:        { bg: '#fef3c7', color: '#92400e', label: '📈 Push' },
-      quick_win:   { bg: '#dbeafe', color: '#1e40af', label: '⚡ Win'  },
-      top10:       { bg: '#dcfce7', color: '#166534', label: '✅ Top 10' },
-      top3:        { bg: '#d1fae5', color: '#065f46', label: '🏆 Top 3' },
-    };
-    return rows.map((k, i) => {
-      const ts = TIER_STYLES[k.tier] || {};
-      const tierBadge = ts.label ? `<span style="background:${ts.bg};color:${ts.color};padding:1px 6px;border-radius:4px;font-size:10px;font-weight:600">${ts.label}</span>` : '';
-      const ourPosCell = k.ourPosition
-        ? `<span style="color:${k.ourPosition<=10?'#059669':'#dc2626'};font-weight:700;font-size:12px">#${Math.round(k.ourPosition)}</span>`
-        : `<span style="font-size:11px;color:var(--text-muted)">–</span>`;
-      return `<tr style="border-bottom:1px solid var(--border);background:${i%2?'transparent':'rgba(0,0,0,0.015)'}">
-        <td style="padding:7px 12px;font-size:13px;font-weight:500">${esc(k.keyword)}</td>
-        <td style="padding:7px 12px;text-align:center"><span style="background:${k.position<=3?'#dcfce7':k.position<=10?'#dbeafe':'var(--bg-base)'};color:${k.position<=3?'#166534':k.position<=10?'#1e40af':'var(--text-muted)'};font-weight:700;padding:2px 8px;border-radius:4px;font-size:12px">#${k.position}</span></td>
-        <td style="padding:7px 12px;text-align:center">${ourPosCell}</td>
-        <td style="padding:7px 12px;text-align:center">${tierBadge}</td>
-        <td style="padding:7px 12px;text-align:right;font-size:13px">${(k.volume||0).toLocaleString()}</td>
-        <td style="padding:7px 12px;text-align:right;font-size:13px;color:var(--text-muted)">${k.cpc ? 'AED '+((k.cpc||0)*3.67).toFixed(2) : '—'}</td>
-        <td style="padding:7px 12px;text-align:center">${(!k.ourPosition || k.ourPosition > 10) ? `<button onclick="queueAuditKeyword('${esc(k.keyword).replace(/'/g,"\\'")}');this.textContent='✓';this.disabled=true" class="btn btn-outline" style="font-size:11px;padding:2px 8px">➕</button>` : ''}</td>
-      </tr>`;
+  // ── PageSpeed section ─────────────────────────────────────────────────────
+  function psBadge(score) {
+    if (score === null || score === undefined) return '<span style="color:var(--text-muted)">—</span>';
+    const color = score >= 90 ? '#059669' : score >= 50 ? '#f59e0b' : '#dc2626';
+    return `<span style="font-weight:800;font-size:18px;color:${color}">${score}</span><span style="font-size:10px;color:var(--text-muted)">/100</span>`;
+  }
+
+  const psSection = ps ? `
+    <div style="margin-bottom:20px;padding:16px;background:var(--bg-base);border-radius:10px;border:1px solid var(--border)">
+      <div style="font-size:12px;font-weight:700;color:var(--text-muted);text-transform:uppercase;letter-spacing:.04em;margin-bottom:12px">⚡ PageSpeed</div>
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px">
+        ${['mobile','desktop'].map(s => {
+          const d = ps[s] || {};
+          return `<div style="background:var(--bg-surface);border-radius:8px;padding:12px;border:1px solid var(--border)">
+            <div style="font-size:11px;font-weight:700;color:var(--text-muted);margin-bottom:8px">${s.toUpperCase()}</div>
+            <div style="margin-bottom:6px">${psBadge(d.score)}</div>
+            ${d.lcp ? `<div style="font-size:11px;color:var(--text-muted)">LCP: <strong>${d.lcp}</strong></div>` : ''}
+            ${d.cls ? `<div style="font-size:11px;color:var(--text-muted)">CLS: <strong>${d.cls}</strong></div>` : ''}
+            ${d.fid ? `<div style="font-size:11px;color:var(--text-muted)">TBT: <strong>${d.fid}</strong></div>` : ''}
+          </div>`;
+        }).join('')}
+      </div>
+    </div>` : '';
+
+  // ── On-page section ───────────────────────────────────────────────────────
+  function checkBadge(val, good) {
+    const ok = good ? val : !val;
+    return `<span style="color:${ok?'#059669':'#dc2626'};font-weight:700">${ok?'✓':'✗'}</span>`;
+  }
+
+  const pageSection = pd && !pd.error ? `
+    <div style="margin-bottom:20px;padding:16px;background:var(--bg-base);border-radius:10px;border:1px solid var(--border)">
+      <div style="font-size:12px;font-weight:700;color:var(--text-muted);text-transform:uppercase;letter-spacing:.04em;margin-bottom:12px">📄 On-Page Signals</div>
+      <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(120px,1fr));gap:8px;margin-bottom:12px">
+        <div style="text-align:center;padding:8px;background:var(--bg-surface);border-radius:6px;border:1px solid var(--border)">
+          ${checkBadge(pd.isHttps, true)}<div style="font-size:10px;color:var(--text-muted);margin-top:2px">HTTPS</div>
+        </div>
+        <div style="text-align:center;padding:8px;background:var(--bg-surface);border-radius:6px;border:1px solid var(--border)">
+          ${checkBadge(pd.hasMobile, true)}<div style="font-size:10px;color:var(--text-muted);margin-top:2px">Mobile</div>
+        </div>
+        <div style="text-align:center;padding:8px;background:var(--bg-surface);border-radius:6px;border:1px solid var(--border)">
+          ${checkBadge(pd.hasSchema, true)}<div style="font-size:10px;color:var(--text-muted);margin-top:2px">Schema</div>
+        </div>
+        <div style="text-align:center;padding:8px;background:var(--bg-surface);border-radius:6px;border:1px solid var(--border)">
+          ${checkBadge(pd.canonical, true)}<div style="font-size:10px;color:var(--text-muted);margin-top:2px">Canonical</div>
+        </div>
+      </div>
+      ${pd.title ? `<div style="font-size:12px;margin-bottom:4px"><strong>Title:</strong> ${esc(pd.title)}</div>` : ''}
+      ${pd.description ? `<div style="font-size:12px;margin-bottom:4px"><strong>Description:</strong> ${esc(pd.description)}</div>` : ''}
+      ${pd.h1 ? `<div style="font-size:12px;margin-bottom:4px"><strong>H1:</strong> ${esc(pd.h1)}</div>` : ''}
+      ${pd.h2s?.length ? `<div style="font-size:12px;color:var(--text-muted)"><strong>H2s:</strong> ${pd.h2s.map(h=>esc(h)).join(' · ')}</div>` : ''}
+    </div>` : (pd.error ? `<div style="font-size:12px;color:var(--text-muted);margin-bottom:12px">⚠ Couldn't crawl page: ${esc(pd.error)}</div>` : '');
+
+  // ── Keywords table ────────────────────────────────────────────────────────
+  const ourPosHeaders = brands.map(b => `<th style="text-align:center;padding:6px 10px;font-size:11px;color:var(--text-muted);font-weight:700;text-transform:uppercase">Our Pos (${b.charAt(0).toUpperCase()+b.slice(1)})</th>`).join('');
+
+  function ourPosCells(k) {
+    return brands.map(b => {
+      const pos = k.ourPos?.[b] || null;
+      return `<td style="padding:7px 10px;text-align:center">${pos ? `<span style="color:${pos<=10?'#059669':'#dc2626'};font-weight:700;font-size:12px">#${Math.round(pos)}</span>` : '<span style="font-size:11px;color:var(--text-muted)">–</span>'}</td>`;
     }).join('');
   }
 
-  // Render immediately with raw data
+  function buildTableRows(rows) {
+    if (!rows.length) return `<tr><td colspan="${5+brands.length}" style="text-align:center;padding:24px;color:var(--text-muted)">No keyword data returned</td></tr>`;
+    return rows.map((k, i) => `<tr style="border-bottom:1px solid var(--border);background:${i%2?'transparent':'rgba(0,0,0,0.015)'}">
+      <td style="padding:7px 12px;font-size:13px;font-weight:500">${esc(k.keyword)}</td>
+      <td style="padding:7px 10px;text-align:center"><span style="background:${(k.position||99)<=3?'#dcfce7':(k.position||99)<=10?'#dbeafe':'var(--bg-base)'};color:${(k.position||99)<=3?'#166534':(k.position||99)<=10?'#1e40af':'var(--text-muted)'};font-weight:700;padding:2px 8px;border-radius:4px;font-size:12px">${k.position ? '#'+k.position : '–'}</span></td>
+      ${ourPosCells(k)}
+      <td style="padding:7px 10px;text-align:right;font-size:13px">${(k.volume||0).toLocaleString()}</td>
+      <td style="padding:7px 10px;text-align:right;font-size:12px;color:var(--text-muted)">${k.cpc ? 'AED '+((k.cpc||0)*3.67).toFixed(2) : '—'}</td>
+      <td style="padding:7px 10px;text-align:center">${brands.every(b => (k.ourPos?.[b] || 101) <= 10) ? '' : `<button onclick="queueAuditKeyword('${esc(k.keyword).replace(/'/g,"\\'")}');this.textContent='✓';this.disabled=true" class="btn btn-outline" style="font-size:11px;padding:2px 8px">➕</button>`}</td>
+    </tr>`).join('');
+  }
+
+  const compareLabel = brand === 'both' ? 'Pickl & Bonbird' : brand.charAt(0).toUpperCase()+brand.slice(1);
+
   container.innerHTML = `
     <div class="card">
-      <div style="font-weight:600;font-size:14px;margin-bottom:4px">📊 ${esc(data.domain)}</div>
-      <div style="font-size:12px;color:var(--text-muted);margin-bottom:16px">Top 50 keywords by search volume · Dubai location · DataForSEO Labs</div>
-      <div id="audit-opp-bar" style="background:var(--bg-base);border-radius:8px;padding:10px 14px;margin-bottom:16px;border:1px solid var(--border);font-size:12px;color:var(--text-muted)">
-        <span class="spinner" style="width:12px;height:12px;margin-right:6px;display:inline-block"></span>Loading opportunity analysis…
+      <div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:4px">
+        <div style="font-weight:700;font-size:15px">📊 ${esc(data.domain)}</div>
+        <div style="font-size:11px;color:var(--text-muted)">vs ${compareLabel} · UAE · DataForSEO Labs</div>
       </div>
       ${summaryCards}
-      <table style="width:100%;border-collapse:collapse">
-        <thead><tr style="border-bottom:2px solid var(--border)">
-          <th style="text-align:left;padding:6px 12px;font-size:11px;color:var(--text-muted);font-weight:700;text-transform:uppercase">Keyword</th>
-          <th style="text-align:center;padding:6px 12px;font-size:11px;color:var(--text-muted);font-weight:700;text-transform:uppercase">Their Pos</th>
-          <th style="text-align:center;padding:6px 12px;font-size:11px;color:var(--text-muted);font-weight:700;text-transform:uppercase">Our Pos</th>
-          <th style="text-align:center;padding:6px 12px;font-size:11px;color:var(--text-muted);font-weight:700;text-transform:uppercase">Tier</th>
-          <th style="text-align:right;padding:6px 12px;font-size:11px;color:var(--text-muted);font-weight:700;text-transform:uppercase">Vol/mo</th>
-          <th style="text-align:right;padding:6px 12px;font-size:11px;color:var(--text-muted);font-weight:700;text-transform:uppercase">CPC</th>
-          <th style="text-align:center;padding:6px 12px;font-size:11px;color:var(--text-muted);font-weight:700;text-transform:uppercase">Action</th>
-        </tr></thead>
-        <tbody id="audit-table-body">${buildTableRows(kws) || '<tr><td colspan="7" style="text-align:center;padding:24px;color:var(--text-muted)">No keyword data returned</td></tr>'}</tbody>
-      </table>
+      ${psSection}
+      ${pageSection}
+      <div style="font-size:12px;font-weight:700;color:var(--text-muted);text-transform:uppercase;letter-spacing:.04em;margin-bottom:8px">🔑 Keyword Rankings</div>
+      <div style="overflow-x:auto">
+        <table style="width:100%;border-collapse:collapse;min-width:500px">
+          <thead><tr style="border-bottom:2px solid var(--border)">
+            <th style="text-align:left;padding:6px 12px;font-size:11px;color:var(--text-muted);font-weight:700;text-transform:uppercase">Keyword</th>
+            <th style="text-align:center;padding:6px 10px;font-size:11px;color:var(--text-muted);font-weight:700;text-transform:uppercase">Their Pos</th>
+            ${ourPosHeaders}
+            <th style="text-align:right;padding:6px 10px;font-size:11px;color:var(--text-muted);font-weight:700;text-transform:uppercase">Vol/mo</th>
+            <th style="text-align:right;padding:6px 10px;font-size:11px;color:var(--text-muted);font-weight:700;text-transform:uppercase">CPC</th>
+            <th style="text-align:center;padding:6px 10px;font-size:11px;color:var(--text-muted);font-weight:700;text-transform:uppercase">Action</th>
+          </tr></thead>
+          <tbody id="audit-table-body">${buildTableRows(kws)}</tbody>
+        </table>
+      </div>
     </div>`;
-
-  // Enrich asynchronously — updates the table without blocking initial render
-  apiGet(`/api/keyword-opportunities?brand=${brand}&audit=${encodeURIComponent(data.domain)}`)
-    .then(analysis => {
-      if (!analysis.audit) return;
-      const enriched = analysis.audit;
-      const tbody = document.getElementById('audit-table-body');
-      if (tbody) tbody.innerHTML = buildTableRows(enriched);
-      const gaps  = enriched.filter(k => k.tier === 'content_gap').length;
-      const pushes = enriched.filter(k => k.tier === 'push').length;
-      const qwins = enriched.filter(k => k.tier === 'quick_win').length;
-      const owns  = enriched.filter(k => ['top3','top10'].includes(k.tier)).length;
-      const bar = document.getElementById('audit-opp-bar');
-      if (bar) bar.innerHTML = `
-        <div style="font-size:12px;font-weight:700;color:var(--text-muted);text-transform:uppercase;letter-spacing:.04em;margin-bottom:8px">Opportunity Analysis vs your rankings</div>
-        <div style="display:flex;flex-wrap:wrap;gap:8px;margin-bottom:8px">
-          <span style="background:#fee2e2;color:#991b1b;padding:3px 10px;border-radius:8px;font-size:12px;font-weight:600">🚀 ${gaps} Gaps</span>
-          <span style="background:#fef3c7;color:#92400e;padding:3px 10px;border-radius:8px;font-size:12px;font-weight:600">📈 ${pushes} Push</span>
-          <span style="background:#dbeafe;color:#1e40af;padding:3px 10px;border-radius:8px;font-size:12px;font-weight:600">⚡ ${qwins} Quick Wins</span>
-          <span style="background:#dcfce7;color:#166534;padding:3px 10px;border-radius:8px;font-size:12px;font-weight:600">✅ ${owns} Ranking</span>
-        </div>
-        ${gaps + pushes + qwins > 0 ? `<button class="btn btn-primary" style="font-size:12px" onclick="queueAllAuditOpportunities('${esc(data.domain)}','${brand}')">📥 Queue All Opportunities (${gaps+pushes+qwins})</button>` : '<span style="font-size:12px;color:var(--text-muted)">You rank well for most of their keywords</span>'}`;
-    })
-    .catch(() => {
-      const bar = document.getElementById('audit-opp-bar');
-      if (bar) bar.innerHTML = '<span style="font-size:12px;color:var(--text-muted)">Opportunity analysis unavailable — run keyword discovery first</span>';
-    });
 }
 
 async function queueAuditKeyword(keyword) {

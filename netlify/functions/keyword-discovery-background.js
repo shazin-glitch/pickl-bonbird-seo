@@ -15,6 +15,7 @@
 
 const { getStore }        = require('@netlify/blobs');
 const { getBrandContext } = require('./_lib/brand');
+const { callClaude, extractJson } = require('./_lib/store');
 
 const DATAFORSEO_BASE = 'https://api.dataforseo.com/v3';
 
@@ -107,24 +108,52 @@ async function getKeywordIdeas(seeds, locationCode, authHeader) {
   }
 }
 
-// ── Relevancy filter ─────────────────────────────────────────────────────────
-function isRelevantToMenu(keyword, brandCtx) {
-  const kw       = keyword.toLowerCase();
-  const menuText = JSON.stringify(brandCtx?.menu || {}).toLowerCase();
+// ── Claude relevancy filter ───────────────────────────────────────────────────
+// Sends all keywords to Claude in one batch — model understands brand context and
+// filters out irrelevant keywords (wrong cuisine, competitor brand names, unrelated
+// businesses) far more reliably than a static list ever could.
+async function filterKeywordsWithClaude(keywords, brandName, brandCtx) {
+  if (!keywords.length) return keywords;
 
-  // Reject if keyword mentions specific off-menu dishes
-  for (const dish of OFF_MENU_DISHES) {
-    if (kw.includes(dish) && !menuText.includes(dish)) return false;
+  const menuSummary = Object.entries(brandCtx?.menu || {})
+    .map(([cat, items]) => `${cat}: ${Array.isArray(items) ? items.join(', ') : items}`)
+    .join('; ') || 'burgers and chicken';
+
+  const kwList = keywords.map((k, i) => `${i + 1}. ${k.keyword}`).join('\n');
+
+  const prompt = `You are filtering keyword research results for ${brandName}, a UAE restaurant.
+
+What ${brandName} sells: ${menuSummary}
+
+Below are ${keywords.length} keywords from a keyword research tool. Return ONLY the numbers of keywords that a potential customer of ${brandName} might realistically search when looking for food or restaurants like this one.
+
+EXCLUDE:
+- Competitor brand names (Salt, Five Guys, KFC, Shake Shack, Raising Cane's, Starbucks, etc.)
+- Food categories not on the menu (pizza, sushi, shawarma, coffee, etc.)
+- Unrelated businesses or services
+- Keywords clearly about a different type of restaurant
+
+Return a JSON array of numbers only. Example: [1, 3, 7, 12]
+
+Keywords:
+${kwList}`;
+
+  try {
+    const { text } = await callClaude(prompt, { max_tokens: 500 });
+    const indices = extractJson(text);
+    if (!Array.isArray(indices)) {
+      console.warn('[kw-discovery] Claude filter returned non-array, using all keywords');
+      return keywords;
+    }
+    const filtered = indices
+      .filter(n => typeof n === 'number' && n >= 1 && n <= keywords.length)
+      .map(n => keywords[n - 1]);
+    console.log(`[kw-discovery] Claude filter: ${keywords.length} → ${filtered.length} keywords`);
+    return filtered;
+  } catch (e) {
+    console.warn('[kw-discovery] Claude filter failed, using all keywords:', e.message);
+    return keywords;
   }
-
-  // Reject pure competitor brand mentions
-  const competitorBrands = ['shake shack', 'five guys', 'kfc', 'mcdonalds', 'burger king',
-    'raising canes', 'jollibee', 'popeyes', 'hardees', 'wendys'];
-  for (const brand of competitorBrands) {
-    if (kw.includes(brand)) return false;
-  }
-
-  return true;
 }
 
 // ── Opportunity scoring ───────────────────────────────────────────────────────
@@ -200,10 +229,15 @@ async function discoverKeywords(brand, store, authHeader, force = false) {
   const ideas    = await getKeywordIdeas(seeds, MARKET_LOCATIONS.UAE, authHeader);
   console.log(`${tag} DataForSEO returned ${ideas.length} keyword ideas`);
 
+  // Claude relevancy filter — model understands brand context, rejects off-menu
+  // and competitor brands far more reliably than a static list
+  const brandName = brand.charAt(0).toUpperCase() + brand.slice(1);
+  const filteredIdeas = await filterKeywordsWithClaude(ideas, brandName, brandCtx);
+
   // Also add competitor keywords we don't yet track
   const compKeywords = Object.entries(compMap)
     .filter(([kw]) => !gscMap[kw]) // not ranking for it at all
-    .map(([kw, positions]) => ({
+    .map(([kw]) => ({
       keyword:     kw,
       volume:      0, // volume unknown from competitor data
       cpc:         0,
@@ -212,7 +246,7 @@ async function discoverKeywords(brand, store, authHeader, force = false) {
     }));
 
   // Merge all sources
-  const allKeywords = [...ideas, ...compKeywords];
+  const allKeywords = [...filteredIdeas, ...compKeywords];
   const seen = new Set();
   const unique = allKeywords.filter(k => {
     if (!k.keyword || seen.has(k.keyword.toLowerCase())) return false;
@@ -220,10 +254,9 @@ async function discoverKeywords(brand, store, authHeader, force = false) {
     return true;
   });
 
-  // Filter, score, tier
+  // Score and tier (no static filter — Claude already cleaned the list)
   const opportunities = unique
-    .filter(k => isRelevantToMenu(k.keyword, brandCtx))
-    .filter(k => k.volume >= 20 || k.fromCompetitor) // low threshold for competitor keywords
+    .filter(k => k.volume >= 10 || k.fromCompetitor)
     .map(k => {
       const kw           = k.keyword.toLowerCase();
       const ourPosition  = gscMap[kw] || null;

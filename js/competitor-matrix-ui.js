@@ -1090,6 +1090,11 @@
             keywordData[brand] = { keywords: localKeywords[brand] };
             const bar = container.querySelector(`#cm-kw-savebar-${brand}`);
             if (bar) { bar.style.background="#f0fdf4"; bar.style.borderColor="#86efac"; bar.querySelector("span").style.color="#166534"; bar.querySelector("span").textContent="✓ Saved! Refresh rankings to apply."; saveBtn.style.background="#22c55e"; saveBtn.textContent="Saved ✓"; }
+            // Reset after 3s so user can keep adding keywords
+            setTimeout(() => {
+              saveBtn.disabled = false; saveBtn.textContent = "Save Changes"; saveBtn.style.background = "";
+              if (bar) { bar.style.display = "none"; bar.style.background = ""; bar.style.borderColor = ""; }
+            }, 3000);
           } catch { saveBtn.disabled = false; saveBtn.textContent = "Save Changes"; alert("Failed to save."); }
         });
       }
@@ -1160,6 +1165,11 @@
             competitorData[brand] = { competitors: localComps[brand] };
             const bar = container.querySelector(`#cm-comp-savebar-${brand}`);
             if (bar) { bar.style.background="#f0fdf4"; bar.style.borderColor="#86efac"; bar.querySelector("span").style.color="#166534"; bar.querySelector("span").textContent="✓ Saved! Changes apply on next Refresh Now."; saveBtn.style.background="#22c55e"; saveBtn.textContent="Saved ✓"; }
+            // Reset after 3s so user can keep adding competitors
+            setTimeout(() => {
+              saveBtn.disabled = false; saveBtn.textContent = "Save Changes"; saveBtn.style.background = "";
+              if (bar) { bar.style.display = "none"; bar.style.background = ""; bar.style.borderColor = ""; }
+            }, 3000);
           } catch { saveBtn.disabled = false; saveBtn.textContent = "Save Changes"; alert("Failed to save."); }
         });
       }
