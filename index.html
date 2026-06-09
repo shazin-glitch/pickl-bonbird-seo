@@ -7603,9 +7603,9 @@ function openCalCaptionModal() {
 }
 
 async function generateCalCaption() {
-  const topic     = document.getElementById('cal-caption-topic')?.value?.trim();
-  const statusEl  = document.getElementById('cal-caption-status');
-  const btn       = document.querySelector('#cal-caption-modal .btn-primary');
+  const topic    = document.getElementById('cal-caption-topic')?.value?.trim();
+  const statusEl = document.getElementById('cal-caption-status');
+  const btn      = document.querySelector('#cal-caption-modal .btn-primary');
   if (!topic) { if (statusEl) statusEl.textContent = 'Describe the post first'; return; }
 
   const brand    = document.getElementById('cf-brand')?.value || calState.brand || 'pickl';
@@ -7613,12 +7613,54 @@ async function generateCalCaption() {
   const postType = document.getElementById('cf-post-type')?.value || 'static';
   const platforms= [...document.querySelectorAll('#cal-platform-pills .cal-platform-pill.active')].map(el => el.dataset.platform);
   const typeLabel= CAL_TYPE_LABELS[postType] || postType;
+  const brandName= brand.charAt(0).toUpperCase() + brand.slice(1);
 
   if (btn)      { btn.disabled = true; btn.textContent = 'Generating…'; }
   if (statusEl) statusEl.textContent = '';
 
-  try {
-    const prompt = `You are writing social media captions for ${brand.charAt(0).toUpperCase()+brand.slice(1)}, a UAE restaurant brand.
+  // Try to get an image from the form — static image URL field or first carousel slide
+  const imageUrl = document.getElementById('cf-image-url')?.value?.trim()
+    || calState.carouselSlides?.[0]?.url
+    || '';
+
+  let imageBlock = null;
+  if (imageUrl) {
+    if (statusEl) statusEl.textContent = 'Reading image…';
+    try {
+      const imgRes = await fetch(imageUrl, { credentials: 'include' });
+      const blob   = await imgRes.blob();
+      const b64    = await new Promise((res, rej) => {
+        const r = new FileReader();
+        r.onload  = e => res(e.target.result.split(',')[1]);
+        r.onerror = rej;
+        r.readAsDataURL(blob);
+      });
+      imageBlock = { type: 'image', source: { type: 'base64', media_type: blob.type || 'image/jpeg', data: b64 } };
+      if (statusEl) statusEl.textContent = '🖼 Using image · generating…';
+    } catch (_) {
+      if (statusEl) statusEl.textContent = 'Generating…';
+    }
+  } else {
+    if (statusEl) statusEl.textContent = 'Generating…';
+  }
+
+  const promptText = imageBlock
+    ? `You are writing social media captions for ${brandName}, a UAE restaurant brand.
+
+Look at the image above. Write a caption for this post based on what you see in the image AND the context below.
+
+Post context:
+- Type: ${typeLabel}
+- Market: ${market}
+- Platforms: ${platforms.join(', ') || 'Instagram'}
+- Notes from creator: ${topic}
+
+Write:
+1. A caption that feels natural and is inspired by what's actually visible in the image — specific, not generic
+2. 10-15 relevant hashtags on a new line starting with "HASHTAGS:"
+
+Keep it authentic ${brandName} voice. No generic phrases. Do not include the word HASHTAGS in the caption itself.`
+    : `You are writing social media captions for ${brandName}, a UAE restaurant brand.
 
 Post details:
 - Type: ${typeLabel}
@@ -7627,13 +7669,22 @@ Post details:
 - Topic: ${topic}
 
 Write:
-1. A caption (max 2200 chars for Instagram, conversational, brand-voiced, no generic phrases)
+1. A punchy, authentic caption (max 2200 chars for Instagram, brand-voiced, no generic phrases)
 2. 10-15 relevant hashtags on a new line starting with "HASHTAGS:"
 
-Keep the caption punchy and authentic. Do not include the word HASHTAGS in the caption itself.`;
+Do not include the word HASHTAGS in the caption itself.`;
 
-    const res = await apiPost('/api/claude', { prompt, max_tokens: 600 });
-    const text = res.content || res.text || '';
+  const content = imageBlock
+    ? [imageBlock, { type: 'text', text: promptText }]
+    : [{ type: 'text', text: promptText }];
+
+  try {
+    const res  = await apiPost('/api/claude', {
+      model: 'claude-sonnet-4-6',
+      max_tokens: 800,
+      messages: [{ role: 'user', content }],
+    });
+    const text = (res.content || []).map(b => b.text || '').join('');
 
     const hashtagMatch = text.match(/HASHTAGS:([\s\S]*?)$/i);
     const hashtags = hashtagMatch ? hashtagMatch[1].trim() : '';
@@ -7641,7 +7692,7 @@ Keep the caption punchy and authentic. Do not include the word HASHTAGS in the c
 
     const captionEl  = document.getElementById('cf-caption');
     const hashtagsEl = document.getElementById('cf-hashtags');
-    if (captionEl)  { captionEl.value  = caption;  updateCalCharCount(); }
+    if (captionEl)  { captionEl.value = caption; updateCalCharCount(); }
     if (hashtagsEl && hashtags) hashtagsEl.value = hashtags;
 
     document.getElementById('cal-caption-modal').style.display = 'none';

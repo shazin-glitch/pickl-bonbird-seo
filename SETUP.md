@@ -1900,3 +1900,20 @@ Full codebase review for cohesiveness, missing features, and UX gaps. Priority i
 - Shows count + "Needs your review →" (amber) or "All clear ✓" (muted)
 - Card is clickable — navigates to Content Calendar tab
 - Zero extra API calls — piggybacks on the existing `pending_approver` endpoint call
+
+---
+
+## Session: June 2026 — v6.9as AI Caption Generator: Vision Support
+
+### What changed
+
+`generateCalCaption()` in `index.html`:
+- **Fixed messages format** — was incorrectly using `{ prompt }` field; now sends proper `messages: [{ role: 'user', content: [...] }]` array to match what `claude.js` expects
+- **Vision support** — before generating, checks for an uploaded image in the form:
+  - Static/story: reads `cf-image-url` input value
+  - Carousel: reads `calState.carouselSlides[0].url` (first slide)
+  - If image URL found: fetches it (same-origin, includes credentials), converts to base64 via FileReader, builds `{ type: 'image', source: { type: 'base64', ... } }` content block
+  - If image fetch fails: silently falls back to text-only generation
+- **Prompt adapts**: when image is present, prompt instructs Claude to look at what's visible and write a specific, image-grounded caption ("specific, not generic"). Without image, prompt is generic-topic based as before.
+- **Status indicator**: shows "🖼 Using image · generating…" when vision mode is active, "Generating…" for text-only
+- **Model**: updated to `claude-sonnet-4-6` (was using old `claude-sonnet-4-20250514`)
