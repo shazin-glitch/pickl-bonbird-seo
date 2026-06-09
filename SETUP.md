@@ -1917,3 +1917,36 @@ Full codebase review for cohesiveness, missing features, and UX gaps. Priority i
 - **Prompt adapts**: when image is present, prompt instructs Claude to look at what's visible and write a specific, image-grounded caption ("specific, not generic"). Without image, prompt is generic-topic based as before.
 - **Status indicator**: shows "🖼 Using image · generating…" when vision mode is active, "Generating…" for text-only
 - **Model**: updated to `claude-sonnet-4-6` (was using old `claude-sonnet-4-20250514`)
+
+---
+
+## Session: June 2026 — v6.9at AI Caption Generator: All Carousel Slides
+
+### What changed
+
+`generateCalCaption()` in `index.html`:
+- Carousel posts now send ALL slides (not just the first) as separate image blocks
+- `rawUrls` built from `calState.carouselSlides.map(s => s.url)` when postType is carousel
+- Each URL fetched independently; failures skipped silently
+- Prompt updated with slide count context: "this is an N-slide carousel — slides 1 through N in order"
+- Prompt instructs Claude to "reference the visual journey across the slides"
+- Status shows "🖼 Using N images · generating…" for multi-slide carousels
+
+---
+
+## Session: June 2026 — v6.9au Model Updates + Caption UX Polish
+
+### Changes Made
+
+#### Model string: claude-sonnet-4-6 everywhere ✅
+Updated 4 stale `claude-sonnet-4-20250514` references to `claude-sonnet-4-6`:
+- `index.html` — AI Content Studio tools (review responder, schema gen, etc.)
+- `netlify/functions/approvals.js` — rewrite-with-AI calls
+- `netlify/functions/claude.js` — fallback model in the API proxy
+- `netlify/functions/international-seo-background.js` — `MODEL` constant
+
+#### AI Caption Generator: Visual Notes auto-populate ✅
+`openCalCaptionModal()`:
+- When the caption modal opens, if the topic field is empty AND the "Visual Notes" field has content, the topic is pre-filled with those notes
+- Only pre-fills when topic is empty — won't overwrite if user has already typed something
+- Visual Notes field ID: `cf-visual-notes` (confirmed in form HTML)

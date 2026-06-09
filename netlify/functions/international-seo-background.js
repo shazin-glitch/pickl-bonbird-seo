@@ -17,7 +17,7 @@ const { getBrandContext, buildBrandPrompt, runBrandVoiceCheck } = require('./_li
 const { fetchGscDirect, fetchGscWithPages, listApprovals, createApproval, extractJson } = require('./_lib/store');
 
 const ANTHROPIC_API = 'https://api.anthropic.com/v1/messages';
-const MODEL         = 'claude-sonnet-4-20250514';
+const MODEL         = 'claude-sonnet-4-6';
 const CACHE_TTL_MS  = 7 * 24 * 60 * 60 * 1000; // 7 days — for seed keyword content only
 
 // ── Data-driven helpers (mirrors main scheduler logic) ────────────────────────

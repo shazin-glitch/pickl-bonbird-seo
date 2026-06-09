@@ -3017,7 +3017,7 @@ async function runTool() {
 
   try {
     const data = await apiPost('/api/claude', {
-      model: 'claude-sonnet-4-20250514',
+      model: 'claude-sonnet-4-6',
       max_tokens: 1000,
       messages: [{ role: 'user', content: prompt }],
     });
@@ -7599,7 +7599,15 @@ function openCalCaptionModal() {
   const modal = document.getElementById('cal-caption-modal');
   if (!modal) return;
   modal.style.display = modal.style.display === 'none' ? '' : 'none';
-  if (modal.style.display !== 'none') document.getElementById('cal-caption-topic')?.focus();
+  if (modal.style.display !== 'none') {
+    const topicEl = document.getElementById('cal-caption-topic');
+    // Pre-fill from Visual Notes if topic is empty
+    if (topicEl && !topicEl.value.trim()) {
+      const visualNotes = document.getElementById('cf-visual-notes')?.value?.trim();
+      if (visualNotes) topicEl.value = visualNotes;
+    }
+    topicEl?.focus();
+  }
 }
 
 async function generateCalCaption() {
