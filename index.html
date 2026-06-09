@@ -7618,36 +7618,44 @@ async function generateCalCaption() {
   if (btn)      { btn.disabled = true; btn.textContent = 'Generating…'; }
   if (statusEl) statusEl.textContent = '';
 
-  // Try to get an image from the form — static image URL field or first carousel slide
-  const imageUrl = document.getElementById('cf-image-url')?.value?.trim()
-    || calState.carouselSlides?.[0]?.url
-    || '';
+  // Collect all image URLs from the form
+  const isCarousel  = postType === 'carousel';
+  const rawUrls = isCarousel
+    ? (calState.carouselSlides || []).map(s => s.url).filter(Boolean)
+    : [document.getElementById('cf-image-url')?.value?.trim()].filter(Boolean);
 
-  let imageBlock = null;
-  if (imageUrl) {
-    if (statusEl) statusEl.textContent = 'Reading image…';
-    try {
-      const imgRes = await fetch(imageUrl, { credentials: 'include' });
-      const blob   = await imgRes.blob();
-      const b64    = await new Promise((res, rej) => {
-        const r = new FileReader();
-        r.onload  = e => res(e.target.result.split(',')[1]);
-        r.onerror = rej;
-        r.readAsDataURL(blob);
-      });
-      imageBlock = { type: 'image', source: { type: 'base64', media_type: blob.type || 'image/jpeg', data: b64 } };
-      if (statusEl) statusEl.textContent = '🖼 Using image · generating…';
-    } catch (_) {
-      if (statusEl) statusEl.textContent = 'Generating…';
+  // Fetch each image as base64 (skip any that fail)
+  const imageBlocks = [];
+  if (rawUrls.length) {
+    if (statusEl) statusEl.textContent = `Reading ${rawUrls.length > 1 ? rawUrls.length + ' images' : 'image'}…`;
+    for (const url of rawUrls) {
+      try {
+        const imgRes = await fetch(url, { credentials: 'include' });
+        const blob   = await imgRes.blob();
+        const b64    = await new Promise((res, rej) => {
+          const r = new FileReader();
+          r.onload  = e => res(e.target.result.split(',')[1]);
+          r.onerror = rej;
+          r.readAsDataURL(blob);
+        });
+        imageBlocks.push({ type: 'image', source: { type: 'base64', media_type: blob.type || 'image/jpeg', data: b64 } });
+      } catch (_) { /* skip failed images */ }
     }
-  } else {
-    if (statusEl) statusEl.textContent = 'Generating…';
   }
 
-  const promptText = imageBlock
+  const hasImages = imageBlocks.length > 0;
+  if (statusEl) statusEl.textContent = hasImages
+    ? `🖼 Using ${imageBlocks.length} image${imageBlocks.length > 1 ? 's' : ''} · generating…`
+    : 'Generating…';
+
+  const slideContext = isCarousel && imageBlocks.length > 1
+    ? `\nNote: this is a ${imageBlocks.length}-slide carousel — the images above are slides 1 through ${imageBlocks.length} in order.`
+    : '';
+
+  const promptText = hasImages
     ? `You are writing social media captions for ${brandName}, a UAE restaurant brand.
 
-Look at the image above. Write a caption for this post based on what you see in the image AND the context below.
+Look at the image${imageBlocks.length > 1 ? 's' : ''} above.${slideContext} Write a caption based on what you actually see AND the context below.
 
 Post context:
 - Type: ${typeLabel}
@@ -7656,10 +7664,10 @@ Post context:
 - Notes from creator: ${topic}
 
 Write:
-1. A caption that feels natural and is inspired by what's actually visible in the image — specific, not generic
+1. A caption grounded in what's visible — specific details, not generic food copy${isCarousel && imageBlocks.length > 1 ? '. Reference the visual journey across the slides.' : ''}
 2. 10-15 relevant hashtags on a new line starting with "HASHTAGS:"
 
-Keep it authentic ${brandName} voice. No generic phrases. Do not include the word HASHTAGS in the caption itself.`
+Keep it authentic ${brandName} voice. Do not include the word HASHTAGS in the caption itself.`
     : `You are writing social media captions for ${brandName}, a UAE restaurant brand.
 
 Post details:
@@ -7669,14 +7677,15 @@ Post details:
 - Topic: ${topic}
 
 Write:
-1. A punchy, authentic caption (max 2200 chars for Instagram, brand-voiced, no generic phrases)
+1. A punchy, authentic caption (brand-voiced, no generic phrases)
 2. 10-15 relevant hashtags on a new line starting with "HASHTAGS:"
 
 Do not include the word HASHTAGS in the caption itself.`;
 
-  const content = imageBlock
-    ? [imageBlock, { type: 'text', text: promptText }]
-    : [{ type: 'text', text: promptText }];
+  const content = [
+    ...imageBlocks,
+    { type: 'text', text: promptText },
+  ];
 
   try {
     const res  = await apiPost('/api/claude', {
