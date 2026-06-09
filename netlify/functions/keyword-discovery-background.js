@@ -71,11 +71,9 @@ async function getKeywordIdeas(seeds, locationCode, authHeader) {
         language_code:  'en',
         limit:          200,
         include_serp_info: false,
-        order_by:       ['keyword_data.keyword_info.search_volume,desc'],
+        order_by:       ['keyword_info.search_volume,desc'],
         filters:        [
-          ['keyword_data.keyword_info.search_volume', '>', 10],
-          // Note: removed competition_level filter — DataForSEO returns uppercase (HIGH/MEDIUM/LOW)
-          // and lowercase filter was rejecting all results
+          ['keyword_info.search_volume', '>', 10],
         ],
       }]),
     });
@@ -94,9 +92,9 @@ async function getKeywordIdeas(seeds, locationCode, authHeader) {
     const items = data.tasks?.[0]?.result?.[0]?.items || [];
     console.log(`[kw-discovery] keyword_ideas raw items: ${items.length}`);
     return items.map(item => {
-      const info = item.keyword_data?.keyword_info || {};
+      const info = item.keyword_info || {};
       return {
-        keyword:     item.keyword_data?.keyword || '',
+        keyword:     item.keyword || '',
         volume:      info.search_volume || 0,
         cpc:         info.cpc || 0,
         competition: info.competition_level || 'medium',
