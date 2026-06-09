@@ -2532,3 +2532,17 @@ Now: One "🤖 AI Search Presence" card with two sub-sections:
 Single Refresh button in the header. Same data, clearer narrative.
 
 Note: Technical SEO Developer Kanban stays separate from The Perch — developer is a third party, not an internal team member. That separation is intentional and correct.
+
+---
+
+## Session: June 2026 — v6.9av PDF + Cache + Competitor Matrix Fixes (undocumented until now)
+
+- **PDF Export fixed**: `@media print` overrides set `overflow:visible` + `height:auto` on body/main-content/views-wrapper — was clipping to one viewport
+- **Competitor matrix script cache bust**: `?v=6.9n` → `?v=6.9av` (June 8 UI changes were invisible to browsers)
+- **Error visibility**: background job now stores `lastError` + `lastErrorAt` in `competitorMatrix:<brand>` blob on failure — empty state shows exact DataForSEO error + link to check balance
+- **"My Posts" toggle removed from calendar**: was redundant given brand/market/status/type/search filters already cover the use case
+
+## Session: June 2026 — removeCalMedia bug fix
+
+- `removeCalMedia(mediaId, fromExisting)` function was missing entirely — clicking × on a calendar post's uploaded image thumbnail would throw a ReferenceError
+- Added: hides the DOM element and removes matching slide from `calState.carouselSlides`
