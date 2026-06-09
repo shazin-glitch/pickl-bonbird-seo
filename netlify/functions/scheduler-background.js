@@ -164,12 +164,13 @@ exports.handler = async (event) => {
       );
 
       // Background mode: run ALL requested jobs, no timeout concern
+      // Priority: keyword opportunities first, then GSC-based jobs
       for (const jobName of jobs) {
         try {
           let r;
           if (jobName === 'quick_wins')    r = await runQuickWins(brand, gscRows, dryRun, forceRun, brandCtx, brandPrompt);
           else if (jobName === 'meta_rewrites') r = await runMetaRewrites(brand, gscRows, dryRun, forceRun, brandCtx, brandPrompt);
-          else if (jobName === 'content_gaps')  r = await runContentGaps(brand, gscRows, dryRun, forceRun, brandCtx, brandPrompt);
+          else if (jobName === 'content_gaps')  r = await runContentGapsWithOpportunities(brand, gscRows, dryRun, forceRun, brandCtx, brandPrompt);
           else if (jobName === 'page_creation') r = await runPageCreation(brand, gscRows, dryRun, forceRun, brandCtx, brandPrompt);
           else r = { queued: 0, error: 'unknown job: ' + jobName };
           summary.brands[brand].jobs[jobName] = r;
@@ -771,6 +772,28 @@ async function wpPageHasContent(brand, pageUrl) {
 // Long Term:  pos 36-100 — barely visible, build from scratch
 // Queued as blog_draft → pushes via wordpress.js create_draft.
 // ════════════════════════════════════════════════════════════════
+// Wrapper: inject keyword opportunities as high-priority seed keywords
+async function runContentGapsWithOpportunities(brand, rows, dryRun, forceRun, brandCtx, brandPrompt) {
+  const s = getStore({ name: 'seo-tool', siteID: process.env.NETLIFY_SITE_ID, token: process.env.NETLIFY_AUTH_TOKEN });
+  try {
+    const oppData = await s.get(`keywordOpportunities:${brand}`, { type: 'json' }).catch(() => null);
+    if (oppData?.opportunities?.length) {
+      // Top 10 content gap / push opportunities → inject into seed keywords so runContentGaps picks them up
+      const topGaps = oppData.opportunities
+        .filter(k => ['content_gap', 'push'].includes(k.tier))
+        .slice(0, 10)
+        .map(k => k.keyword);
+      if (topGaps.length) {
+        console.log(`[${brand}] Injecting ${topGaps.length} keyword opportunities into content gaps`);
+        const existing = await loadSeedKeywords(brand);
+        const merged   = [...new Set([...topGaps, ...existing])];
+        await s.setJSON(`seedKeywords:${brand}`, merged);
+      }
+    }
+  } catch (e) { console.warn(`[${brand}] opportunities inject failed: ${e.message}`); }
+  return runContentGaps(brand, rows, dryRun, forceRun, brandCtx, brandPrompt);
+}
+
 async function runContentGaps(brand, rows, dryRun, forceRun, brandCtx, brandPrompt) {
   const cfg = BRANDS[brand];
   const alreadyQueued = await getQueuedKeywords(brand);

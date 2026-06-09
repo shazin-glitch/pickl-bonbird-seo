@@ -14,11 +14,221 @@
 const { getStore } = require('@netlify/blobs');
 const { INTERNATIONAL_MARKETS, getMarketsForBrand, buildMarketPrompt, getWpCredentials, buildPostUrl } = require('./_lib/international-config');
 const { getBrandContext, buildBrandPrompt, runBrandVoiceCheck } = require('./_lib/brand');
-const { fetchGscDirect } = require('./_lib/store');
+const { fetchGscDirect, fetchGscWithPages, listApprovals, createApproval, extractJson } = require('./_lib/store');
 
 const ANTHROPIC_API = 'https://api.anthropic.com/v1/messages';
 const MODEL         = 'claude-sonnet-4-20250514';
-const CACHE_TTL_MS  = 7 * 24 * 60 * 60 * 1000; // 7 days — don't regenerate weekly content
+const CACHE_TTL_MS  = 7 * 24 * 60 * 60 * 1000; // 7 days — for seed keyword content only
+
+// ── Data-driven helpers (mirrors main scheduler logic) ────────────────────────
+
+// Returns a function that checks if a GSC page URL belongs to this market
+// Handles both nested (/egypt/) and flat (/egypt, /egypt-menu) URL structures
+function marketPageMatcher(market) {
+  const slugs = [market.marketSlug.toLowerCase()];
+  if (market.arabicSlug) slugs.push(market.arabicSlug.toLowerCase());
+  return (pageUrl) => {
+    if (!pageUrl) return false;
+    const path = pageUrl.replace(/^https?:\/\/[^\/]+/, '').toLowerCase();
+    return slugs.some(slug =>
+      path === `/${slug}` ||
+      path === `/${slug}/` ||
+      path.startsWith(`/${slug}/`) ||
+      path.startsWith(`/${slug}-`)
+    );
+  };
+}
+
+// Market keyword terms — used to detect if a keyword is about a DIFFERENT market
+const MARKET_KEYWORD_TERMS = {
+  bahrain:  ['bahrain', 'manama'],
+  ksa:      ['saudi', 'riyadh', 'jeddah', 'ksa'],
+  qatar:    ['qatar', 'doha', 'lusail'],
+  egypt:    ['egypt', 'cairo'],
+  jordan:   ['jordan', 'amman'],
+  oman:     ['oman', 'muscat'],
+  pakistan: ['pakistan', 'karachi', 'lahore', 'islamabad'],
+};
+
+// Returns false if keyword clearly mentions a DIFFERENT market's cities
+function keywordMatchesMarket(keyword, marketKey) {
+  const kw = keyword.toLowerCase();
+  const thisTerms = MARKET_KEYWORD_TERMS[marketKey] || [];
+  for (const [mKey, terms] of Object.entries(MARKET_KEYWORD_TERMS)) {
+    if (mKey === marketKey) continue;
+    for (const term of terms) {
+      if (kw.includes(term) && !thisTerms.some(t => kw.includes(t))) {
+        return false; // keyword is about a different market
+      }
+    }
+  }
+  return true;
+}
+
+// Returns false if keyword mentions a dish not on the brand's menu
+function keywordMatchesMenu(keyword, brandCtx) {
+  if (!brandCtx?.menu) return true;
+  const kw = keyword.toLowerCase();
+  const menuText = JSON.stringify(brandCtx.menu).toLowerCase();
+  const offMenu = ['butter chicken','biryani','kebab','shawarma','pizza','pasta',
+    'fish and chips','shrimp','lamb chops','steak','hummus','falafel','sushi',
+    'tacos','burritos','noodles','ramen','dumplings'];
+  for (const dish of offMenu) {
+    if (kw.includes(dish) && !menuText.includes(dish)) return false;
+  }
+  return true;
+}
+
+// Pages already queued for a given brand + type — prevents duplicates
+async function getQueuedPagesForMarket(brand, type) {
+  try {
+    const pending = await listApprovals({ brand, limit: 300 });
+    const pages = new Set();
+    for (const item of pending) {
+      if (item.type !== type) continue;
+      const url = item.payload?.url;
+      if (url) pages.add(url.toLowerCase().replace(/\/$/, ''));
+    }
+    return pages;
+  } catch { return new Set(); }
+}
+
+async function getQueuedKeywordsForMarket(brand) {
+  try {
+    const pending = await listApprovals({ brand, limit: 300 });
+    const kws = new Set();
+    for (const item of pending) {
+      const kw = item.payload?.targetKeyword || item.payload?.keyword;
+      if (kw) kws.add(kw.toLowerCase().trim());
+    }
+    return kws;
+  } catch { return new Set(); }
+}
+
+// ── Core data-driven analysis per market ──────────────────────────────────────
+// Mirrors runMetaRewrites from scheduler-background.js but scoped to a market's pages.
+// Returns { queued, skipped, candidates }
+async function runMarketDataDrivenSEO(market, brandCtx, force = false) {
+  const BRAND_GSC = { pickl: 'https://eatpickl.com/', bonbird: 'https://bonbirdchicken.com/' };
+  const tag = `[intl-seo/${market.marketKey}]`;
+
+  // Fetch GSC data with page URLs
+  let rowsWithPages;
+  try {
+    rowsWithPages = await fetchGscWithPages(BRAND_GSC[market.brand]);
+  } catch (e) {
+    console.warn(`${tag} fetchGscWithPages failed: ${e.message}`);
+    return { queued: 0, skipped: 'gsc_failed' };
+  }
+
+  // Filter to this market's pages only
+  const isMarketPage = marketPageMatcher(market);
+  const marketRows   = rowsWithPages.filter(r => r.page && isMarketPage(r.page));
+  console.log(`${tag} GSC rows for market: ${marketRows.length} / ${rowsWithPages.length} total`);
+
+  if (marketRows.length < 3) {
+    return { queued: 0, skipped: 'insufficient_data', rows: marketRows.length };
+  }
+
+  // Group by page — pick highest-impression keyword per page
+  const pageMap = {};
+  for (const r of marketRows) {
+    const pageUrl = r.page.split('?')[0].split('#')[0];
+    if (!pageMap[pageUrl] || r.impressions > pageMap[pageUrl].impressions) {
+      pageMap[pageUrl] = { ...r, page: pageUrl };
+    }
+  }
+
+  const expected = pos => Math.max(0.005, 0.30 / pos);
+  const alreadyQueuedPages = await getQueuedPagesForMarket(market.brand, 'meta_update');
+  const alreadyQueuedKws   = await getQueuedKeywordsForMarket(market.brand);
+
+  const candidates = Object.values(pageMap)
+    .filter(r => r.position <= 20 && r.impressions >= 50) // lower threshold than UAE (50 not 100)
+    .map(r => ({ ...r, ctrGap: expected(r.position) - r.ctr }))
+    .filter(r => r.ctrGap > 0.010) // 1.0pp threshold (slightly lower than UAE's 1.5pp)
+    .filter(r => force || !alreadyQueuedKws.has(r.keyword.toLowerCase().trim()))
+    .filter(r => force || !alreadyQueuedPages.has(r.page.toLowerCase().replace(/\/$/, '')))
+    .filter(r => keywordMatchesMenu(r.keyword, brandCtx))
+    .filter(r => keywordMatchesMarket(r.keyword, market.marketKey))
+    .sort((a, b) => b.ctrGap - a.ctrGap)
+    .slice(0, 3); // max 3 meta rewrites per market per run
+
+  if (!candidates.length) {
+    console.log(`${tag} no CTR gap candidates after filtering (${Object.keys(pageMap).length} pages checked)`);
+    return { queued: 0, skipped: 'no_candidates', pages: Object.keys(pageMap).length };
+  }
+
+  // Build prompt for international meta rewrites
+  const brandPrompt  = buildBrandPrompt(brandCtx);
+  const marketCtx    = buildMarketPrompt(market, brandPrompt, 'en');
+  const brandName    = brandCtx?.name || market.brand;
+  const menuItems    = brandCtx?.menu ? [
+    ...(brandCtx.menu.cheeseburgers || []).slice(0, 3),
+    ...(brandCtx.menu.chickenSandos || brandCtx.menu.sandwiches || []).slice(0, 2),
+    ...(brandCtx.menu.friesAndSides || brandCtx.menu.sides || []).slice(0, 2),
+  ].join(' | ') : '';
+
+  const userPrompt = `These ${brandName} ${market.label} pages rank well but have poor click-through rates. Rewrite each meta to be specific, on-brand and compelling.
+
+MARKET CONTEXT: ${market.label}
+CULTURAL NOTES: ${(market.culturalNotes || []).join(' | ')}
+
+RULES:
+- Title: 52-58 characters exactly
+- Description: 150-158 characters exactly
+- Only reference REAL menu items: ${menuItems || 'use items from brand context'}
+- No generic phrases ("great food", "best in ${market.label}", "quality ingredients")
+- CRITICAL: Write for the PAGE's topic based on its URL — not just the keyword
+- The URL tells you what the page is about. Match the meta to the page content.
+- Lead with the keyword naturally, end with a reason to click
+
+PAGES TO REWRITE:
+${candidates.map((r, i) => `${i+1}. URL: "${r.page}" | Keyword: "${r.keyword}" | Position: ${r.position.toFixed(1)} | CTR: ${(r.ctr * 100).toFixed(1)}% | ${r.impressions} impressions`).join('\n')}
+
+Return ONLY a JSON array:
+[{"keyword":"...","url":"exact URL from input","title":"52-58 chars","description":"150-158 chars","targetKeyword":"...","rationale":"one sentence why this improves CTR"}]`;
+
+  const raw    = await callClaude(marketCtx, userPrompt);
+  const parsed = extractJson(raw);
+  if (!Array.isArray(parsed)) {
+    console.warn(`${tag} Claude did not return JSON array`);
+    return { queued: 0, skipped: 'parse_error' };
+  }
+
+  let queued = 0;
+  const wp = getWpCredentials(market);
+  for (const p of parsed) {
+    const matched = candidates.find(r => r.page === p.url || r.keyword === p.keyword);
+    if (!matched) { console.warn(`${tag} unknown URL from Claude: ${p.url}`); continue; }
+    try {
+      await createApproval({
+        type:        'meta_update',
+        brand:       market.brand,
+        market:      market.marketKey,
+        actor:       'claude (intl-scheduler)',
+        locationTag: `${market.flag} ${market.label}`,
+        reason:      p.rationale || `Low CTR vs expected for position ${matched.position?.toFixed(1)} — ${market.label}`,
+        payload: {
+          url:           matched.page,
+          title:         p.title,
+          description:   p.description,
+          targetKeyword: p.targetKeyword || p.keyword,
+          currentPos:    matched.position,
+          impressions:   matched.impressions,
+          ctrGap:        matched.ctrGap != null ? (matched.ctrGap * 100).toFixed(1) : null,
+          wpAction:      'update_meta',
+          wpBase:        wp.base, wpUser: wp.user, wpPass: wp.pass,
+          language:      'en',
+        },
+      });
+      queued++;
+      console.log(`${tag} queued meta_update: ${matched.page} (${p.keyword})`);
+    } catch (e) { console.error(`${tag} createApproval failed: ${e.message}`); }
+  }
+
+  return { queued, candidates: candidates.length };
+}
 
 // ── Claude content generation ─────────────────────────────────────────────────
 async function callClaude(systemPrompt, userPrompt) {
@@ -275,17 +485,33 @@ async function markProcessed(store, marketKey, language) {
 // ── Process a single market+language ─────────────────────────────────────────
 async function processMarketLanguage(store, marketKey, market, language, force = false) {
   const tag = `[intl-seo] ${marketKey}/${language}`;
-
-  if (!force && await wasRecentlyProcessed(store, marketKey, language)) {
-    console.log(`${tag} — skipped (processed within 7 days)`);
-    return { skipped: true };
-  }
-
   console.log(`${tag} — starting`);
 
   const brandCtx = await getBrandContext(market.brand);
   const queued   = [];
   const errors   = [];
+
+  // ── DATA-DRIVEN ANALYSIS (always runs, no cache TTL) ───────────────────────
+  // Run GSC-based meta rewrites for this market's actual pages.
+  // Only runs once per market (not per language) — skip for non-English passes.
+  if (language === 'en') {
+    try {
+      const gscResult = await runMarketDataDrivenSEO(market, brandCtx, force);
+      console.log(`${tag} — data-driven result:`, JSON.stringify(gscResult));
+      if (gscResult.queued > 0) {
+        queued.push({ type: 'data_driven_meta', count: gscResult.queued });
+      }
+    } catch (e) {
+      console.error(`${tag} — data-driven analysis failed: ${e.message}`);
+      errors.push({ type: 'data_driven', error: e.message });
+    }
+  }
+
+  // ── SEED KEYWORD CONTENT (7-day cache — generates new blog content) ────────
+  if (!force && await wasRecentlyProcessed(store, marketKey, language)) {
+    console.log(`${tag} — seed content skipped (processed within 7 days)`);
+    return { queued, errors, seedSkipped: true };
+  }
 
   // Fetch GSC data for this brand to look up existing positions/impressions per keyword
   // International market pages share the same GSC property as the main site

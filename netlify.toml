@@ -164,6 +164,11 @@
   status = 200
 
 [[redirects]]
+  from = "/api/keyword-opportunities"
+  to = "/.netlify/functions/keyword-opportunities"
+  status = 200
+
+[[redirects]]
   from = "/api/email-digest"
   to = "/.netlify/functions/email-digest"
   status = 200
@@ -202,6 +207,9 @@
   schedule = "0 4 * * 1"
 
 [functions."ai-overview-background"]
+  schedule = "0 4 * * 1"
+
+[functions."keyword-discovery-background"]
   schedule = "0 4 * * 1"
 
 # Daily Perch due date digest — 5am UTC = 9am Dubai

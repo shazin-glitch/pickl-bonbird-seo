@@ -649,6 +649,7 @@
         <div class="pill" data-view="comp" data-brand="all" onclick="switchAnalyticsView(this)">Competitor Matrix (SERP API)</div>
         <div class="pill" data-view="backlinks" data-brand="all" onclick="switchAnalyticsView(this)">🔗 Backlinks</div>
         <div class="pill" data-view="audit" data-brand="all" onclick="switchAnalyticsView(this)">🔍 Deep Audit</div>
+        <div class="pill" data-view="opportunities" data-brand="all" onclick="switchAnalyticsView(this)">🎯 Keyword Opportunities</div>
       </div>
 
       <!-- GSC TABLE -->
@@ -696,6 +697,34 @@
       </div>
 
       <!-- DEEP AUDIT PANEL -->
+      <div id="panel-opportunities" style="display:none">
+        <div class="card" style="margin-bottom:16px">
+          <div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:12px;flex-wrap:wrap;gap:10px">
+            <div>
+              <h3 style="font-size:16px;font-weight:600;margin-bottom:4px">🎯 Keyword Opportunities</h3>
+              <div style="font-size:13px;color:var(--text-muted)">Data-driven keyword targets — discovered from your menu + competitor research. No manual input needed.</div>
+            </div>
+            <div style="display:flex;gap:8px;align-items:center">
+              <select id="opp-brand-filter" class="form-input" style="font-size:13px;width:120px" onchange="loadKeywordOpportunities()">
+                <option value="pickl">Pickl</option>
+                <option value="bonbird">Bonbird</option>
+              </select>
+              <select id="opp-tier-filter" class="form-input" style="font-size:13px;width:140px" onchange="renderOpportunitiesTable()">
+                <option value="">All Tiers</option>
+                <option value="content_gap">🚀 Content Gaps</option>
+                <option value="push">📈 Push to Top 10</option>
+                <option value="quick_win">⚡ Quick Wins</option>
+                <option value="top10">✅ Already Top 10</option>
+              </select>
+              <button class="btn btn-outline" onclick="refreshKeywordOpportunities()" style="font-size:12px;white-space:nowrap">🔄 Refresh Now</button>
+            </div>
+          </div>
+          <div id="opp-summary" style="display:flex;flex-wrap:wrap;gap:10px;margin-bottom:16px"></div>
+          <div id="opp-table-wrap"></div>
+          <div id="opp-updated" style="font-size:11px;color:var(--text-muted);margin-top:10px"></div>
+        </div>
+      </div>
+
       <div id="panel-audit" style="display:none">
         <div class="card" style="margin-bottom:20px">
           <div style="font-weight:600;font-size:15px;margin-bottom:4px">🔍 Deep Competitor Audit</div>
@@ -2070,10 +2099,12 @@ function switchAnalyticsView(pill) {
   state.activeAnalyticsBrand = pill.dataset.brand;
   state.activeAnalyticsView  = pill.dataset.view;
 
-  document.getElementById('panel-gsc').style.display       = state.activeAnalyticsView === 'gsc'       ? 'block' : 'none';
-  document.getElementById('panel-comp').style.display      = state.activeAnalyticsView === 'comp'      ? 'block' : 'none';
-  document.getElementById('panel-backlinks').style.display = state.activeAnalyticsView === 'backlinks' ? 'block' : 'none';
-  document.getElementById('panel-audit').style.display     = state.activeAnalyticsView === 'audit'     ? 'block' : 'none';
+  document.getElementById('panel-gsc').style.display           = state.activeAnalyticsView === 'gsc'           ? 'block' : 'none';
+  document.getElementById('panel-comp').style.display          = state.activeAnalyticsView === 'comp'          ? 'block' : 'none';
+  document.getElementById('panel-backlinks').style.display     = state.activeAnalyticsView === 'backlinks'     ? 'block' : 'none';
+  document.getElementById('panel-audit').style.display         = state.activeAnalyticsView === 'audit'         ? 'block' : 'none';
+  document.getElementById('panel-opportunities').style.display = state.activeAnalyticsView === 'opportunities' ? 'block' : 'none';
+  if (state.activeAnalyticsView === 'opportunities') loadKeywordOpportunities();
 
   if (state.activeAnalyticsView === 'gsc') {
     if (state.gscConnected) {
@@ -6235,7 +6266,7 @@ async function runCompetitorAudit() {
   btn.disabled = false; btn.textContent = 'Run Audit';
 }
 
-function renderAuditResults(data, container) {
+async function renderAuditResults(data, container) {
   if (data.labsError && !data.keywords?.length) {
     container.innerHTML = `<div class="card"><div style="color:var(--danger);font-size:13px;padding:8px 0">⚠ ${esc(data.labsError)}</div><div style="font-size:12px;color:var(--text-muted);margin-top:6px">DataForSEO Labs must be enabled on your account: <a href="https://app.dataforseo.com" target="_blank" style="color:var(--primary)">app.dataforseo.com → API Access</a></div></div>`;
     return;
@@ -6265,28 +6296,74 @@ function renderAuditResults(data, container) {
       </div>
     </div>`;
 
-  const tableRows = kws.map((k, i) => `
-    <tr style="border-bottom:1px solid var(--border);background:${i%2?'transparent':'rgba(0,0,0,0.015)'}">
+  const TIER_STYLES = {
+    content_gap: { bg: '#fee2e2', color: '#991b1b', label: '🚀 Gap' },
+    push:        { bg: '#fef3c7', color: '#92400e', label: '📈 Push' },
+    quick_win:   { bg: '#dbeafe', color: '#1e40af', label: '⚡ Win'  },
+    top10:       { bg: '#dcfce7', color: '#166534', label: '✅ Top 10' },
+    top3:        { bg: '#d1fae5', color: '#065f46', label: '🏆 Top 3' },
+  };
+
+  const tableRows = enrichedKws.map((k, i) => {
+    const tier      = k.tier;
+    const ts        = TIER_STYLES[tier] || {};
+    const tierBadge = ts.label ? `<span style="background:${ts.bg};color:${ts.color};padding:1px 6px;border-radius:4px;font-size:10px;font-weight:600;white-space:nowrap">${ts.label}</span>` : '';
+    const ourPosCell = k.ourPosition
+      ? `<span style="background:${k.ourPosition<=10?'#dbeafe':'var(--bg-base)'};color:${k.ourPosition<=10?'#1e40af':'var(--text-muted)'};font-weight:600;padding:2px 6px;border-radius:4px;font-size:11px">#${Math.round(k.ourPosition)}</span>`
+      : `<span style="font-size:11px;color:#dc2626;font-weight:600">–</span>`;
+    return `<tr style="border-bottom:1px solid var(--border);background:${i%2?'transparent':'rgba(0,0,0,0.015)'}">
       <td style="padding:7px 12px;font-size:13px;font-weight:500">${esc(k.keyword)}</td>
       <td style="padding:7px 12px;text-align:center">
         <span style="background:${k.position<=3?'#dcfce7':k.position<=10?'#dbeafe':'var(--bg-base)'};color:${k.position<=3?'#166534':k.position<=10?'#1e40af':'var(--text-muted)'};font-weight:700;padding:2px 8px;border-radius:4px;font-size:12px">#${k.position}</span>
       </td>
+      <td style="padding:7px 12px;text-align:center">${ourPosCell}</td>
+      <td style="padding:7px 12px;text-align:center">${tierBadge}</td>
       <td style="padding:7px 12px;text-align:right;font-size:13px">${(k.volume||0).toLocaleString()}</td>
       <td style="padding:7px 12px;text-align:right;font-size:13px;color:var(--text-muted)">${k.cpc ? 'AED '+((k.cpc||0)*3.67).toFixed(2) : '—'}</td>
       <td style="padding:7px 12px;text-align:center">
-        <button onclick="queueAuditKeyword('${esc(k.keyword).replace(/'/g,"\\'")}')" class="btn btn-outline" style="font-size:11px;padding:2px 8px">➕ Queue</button>
+        ${(!k.ourPosition || k.ourPosition > 10) ? `<button onclick="queueAuditKeyword('${esc(k.keyword).replace(/'/g,"\\'")}')" class="btn btn-outline" style="font-size:11px;padding:2px 8px">➕ Queue</button>` : ''}
       </td>
-    </tr>`).join('');
+    </tr>`;
+  }).join('');
+
+  // Load our GSC positions for these keywords
+  const brand = state.activeAnalyticsBrand === 'bonbird' ? 'bonbird' : 'pickl';
+  let enrichedKws = kws;
+  try {
+    const analysis = await apiGet(`/api/keyword-opportunities?brand=${brand}&audit=${encodeURIComponent(data.domain)}`);
+    if (analysis.audit) enrichedKws = analysis.audit;
+  } catch (_) {}
+
+  // Opportunity summary
+  const gaps   = enrichedKws.filter(k => k.tier === 'content_gap').length;
+  const pushes = enrichedKws.filter(k => k.tier === 'push').length;
+  const qwins  = enrichedKws.filter(k => k.tier === 'quick_win').length;
+  const owns   = enrichedKws.filter(k => ['top3','top10'].includes(k.tier)).length;
+
+  const opportunityBar = `
+    <div style="background:var(--bg-base);border-radius:8px;padding:12px 16px;margin-bottom:16px;border:1px solid var(--border)">
+      <div style="font-size:12px;font-weight:700;color:var(--text-muted);text-transform:uppercase;letter-spacing:.04em;margin-bottom:8px">Opportunity Analysis vs your current rankings</div>
+      <div style="display:flex;flex-wrap:wrap;gap:10px;margin-bottom:10px">
+        <span style="background:#fee2e2;color:#991b1b;padding:4px 10px;border-radius:8px;font-size:12px;font-weight:600">🚀 ${gaps} Content Gaps</span>
+        <span style="background:#fef3c7;color:#92400e;padding:4px 10px;border-radius:8px;font-size:12px;font-weight:600">📈 ${pushes} Push to Top 10</span>
+        <span style="background:#dbeafe;color:#1e40af;padding:4px 10px;border-radius:8px;font-size:12px;font-weight:600">⚡ ${qwins} Quick Wins</span>
+        <span style="background:#dcfce7;color:#166534;padding:4px 10px;border-radius:8px;font-size:12px;font-weight:600">✅ ${owns} Already ranking</span>
+      </div>
+      ${gaps + pushes + qwins > 0 ? `<button class="btn btn-primary" style="font-size:12px" onclick="queueAllAuditOpportunities('${esc(data.domain)}','${brand}')">📥 Queue All Opportunities (${gaps + pushes + qwins})</button>` : '<div style="font-size:12px;color:var(--text-muted)">You already rank well for most of their top keywords!</div>'}
+    </div>`;
 
   container.innerHTML = `
     <div class="card">
       <div style="font-weight:600;font-size:14px;margin-bottom:4px">📊 ${esc(data.domain)}</div>
       <div style="font-size:12px;color:var(--text-muted);margin-bottom:16px">Top 50 keywords by search volume · Dubai location · DataForSEO Labs</div>
+      ${opportunityBar}
       ${summaryCards}
       <table style="width:100%;border-collapse:collapse">
         <thead><tr style="border-bottom:2px solid var(--border)">
           <th style="text-align:left;padding:6px 12px;font-size:11px;color:var(--text-muted);font-weight:700;text-transform:uppercase;letter-spacing:.04em">Keyword</th>
-          <th style="text-align:center;padding:6px 12px;font-size:11px;color:var(--text-muted);font-weight:700;text-transform:uppercase;letter-spacing:.04em">Position</th>
+          <th style="text-align:center;padding:6px 12px;font-size:11px;color:var(--text-muted);font-weight:700;text-transform:uppercase;letter-spacing:.04em">Their Pos</th>
+          <th style="text-align:center;padding:6px 12px;font-size:11px;color:var(--text-muted);font-weight:700;text-transform:uppercase;letter-spacing:.04em">Our Pos</th>
+          <th style="text-align:center;padding:6px 12px;font-size:11px;color:var(--text-muted);font-weight:700;text-transform:uppercase;letter-spacing:.04em">Tier</th>
           <th style="text-align:right;padding:6px 12px;font-size:11px;color:var(--text-muted);font-weight:700;text-transform:uppercase;letter-spacing:.04em">Volume/mo</th>
           <th style="text-align:right;padding:6px 12px;font-size:11px;color:var(--text-muted);font-weight:700;text-transform:uppercase;letter-spacing:.04em">CPC (AED)</th>
           <th style="text-align:center;padding:6px 12px;font-size:11px;color:var(--text-muted);font-weight:700;text-transform:uppercase;letter-spacing:.04em">Action</th>
@@ -6306,6 +6383,116 @@ async function queueAuditKeyword(keyword) {
     await fetch('/api/seed-keywords', { method:'POST', credentials:'include', headers:{'Content-Type':'application/json'}, body: JSON.stringify({ brand, keywords: existing }) });
     showToast(`"${keyword}" added to ${brand} Priority Gap seed list`, '');
   } catch (e) { showToast('Failed to queue keyword', e.message); }
+}
+
+// ── Keyword Opportunities ──────────────────────────────────────────────────────
+let kwOppData = null;
+
+async function loadKeywordOpportunities() {
+  const brand = document.getElementById('opp-brand-filter')?.value || 'pickl';
+  const summary = document.getElementById('opp-summary');
+  const table   = document.getElementById('opp-table-wrap');
+  const updated = document.getElementById('opp-updated');
+  if (!table) return;
+  table.innerHTML = '<div style="text-align:center;padding:40px;color:var(--text-muted)">Loading…</div>';
+  try {
+    kwOppData = await apiGet(`/api/keyword-opportunities?brand=${brand}`);
+    renderOpportunitiesTable();
+    if (kwOppData.updatedAt && updated) {
+      updated.textContent = `Last updated: ${new Date(kwOppData.updatedAt).toLocaleDateString('en-GB',{weekday:'short',day:'numeric',month:'short',hour:'2-digit',minute:'2-digit'})}`;
+    }
+  } catch (e) {
+    if (table) table.innerHTML = `<div style="color:#ef4444;font-size:13px">Error: ${esc(e.message)}</div>`;
+  }
+}
+
+function renderOpportunitiesTable() {
+  if (!kwOppData) return;
+  const summary  = document.getElementById('opp-summary');
+  const table    = document.getElementById('opp-table-wrap');
+  const tierFilter = document.getElementById('opp-tier-filter')?.value || '';
+
+  const all   = kwOppData.opportunities || [];
+  const s     = kwOppData.summary || {};
+
+  // Summary badges
+  if (summary) {
+    summary.innerHTML = [
+      { label: '🚀 Content Gaps',  count: s.content_gap || 0, bg: '#fee2e2', color: '#991b1b' },
+      { label: '📈 Push to Top 10', count: s.push || 0,        bg: '#fef3c7', color: '#92400e' },
+      { label: '⚡ Quick Wins',    count: s.quick_win || 0,    bg: '#dbeafe', color: '#1e40af' },
+      { label: '✅ Top 10',        count: s.top10 || 0,        bg: '#dcfce7', color: '#166534' },
+    ].map(b => `<div style="background:${b.bg};color:${b.color};padding:6px 14px;border-radius:8px;font-size:13px;font-weight:600">${b.label}: ${b.count}</div>`).join('');
+  }
+
+  const rows = tierFilter ? all.filter(k => k.tier === tierFilter) : all;
+  if (!rows.length) {
+    table.innerHTML = '<div style="text-align:center;padding:40px;color:var(--text-muted)">No opportunities found yet. Click "Refresh Now" to run keyword discovery.</div>';
+    return;
+  }
+
+  const tierLabel = {
+    content_gap: '<span style="background:#fee2e2;color:#991b1b;padding:1px 6px;border-radius:4px;font-size:10px;font-weight:600">🚀 Gap</span>',
+    push:        '<span style="background:#fef3c7;color:#92400e;padding:1px 6px;border-radius:4px;font-size:10px;font-weight:600">📈 Push</span>',
+    quick_win:   '<span style="background:#dbeafe;color:#1e40af;padding:1px 6px;border-radius:4px;font-size:10px;font-weight:600">⚡ Win</span>',
+    top10:       '<span style="background:#dcfce7;color:#166534;padding:1px 6px;border-radius:4px;font-size:10px;font-weight:600">✅ Top 10</span>',
+    monitor:     '<span style="background:var(--bg-base);color:var(--text-muted);padding:1px 6px;border-radius:4px;font-size:10px">Monitor</span>',
+  };
+
+  table.innerHTML = `
+    <table style="width:100%;border-collapse:collapse;font-size:13px">
+      <thead><tr style="border-bottom:2px solid var(--border)">
+        <th style="text-align:left;padding:6px 12px;font-size:11px;color:var(--text-muted);font-weight:700;text-transform:uppercase">Keyword</th>
+        <th style="text-align:center;padding:6px 12px;font-size:11px;color:var(--text-muted);font-weight:700;text-transform:uppercase">Our Pos</th>
+        <th style="text-align:center;padding:6px 12px;font-size:11px;color:var(--text-muted);font-weight:700;text-transform:uppercase">Comp Pos</th>
+        <th style="text-align:center;padding:6px 12px;font-size:11px;color:var(--text-muted);font-weight:700;text-transform:uppercase">Tier</th>
+        <th style="text-align:right;padding:6px 12px;font-size:11px;color:var(--text-muted);font-weight:700;text-transform:uppercase">Volume</th>
+        <th style="text-align:right;padding:6px 12px;font-size:11px;color:var(--text-muted);font-weight:700;text-transform:uppercase">CPC</th>
+        <th style="text-align:right;padding:6px 12px;font-size:11px;color:var(--text-muted);font-weight:700;text-transform:uppercase">Score</th>
+        <th style="text-align:center;padding:6px 12px;font-size:11px;color:var(--text-muted);font-weight:700;text-transform:uppercase">Action</th>
+      </tr></thead>
+      <tbody>
+        ${rows.map((k, i) => `<tr style="border-bottom:1px solid var(--border);background:${i%2?'transparent':'rgba(0,0,0,0.015)'}">
+          <td style="padding:7px 12px;font-weight:500">${esc(k.keyword)}${k.fromCompetitor ? ' <span style="font-size:10px;color:var(--text-muted)">(comp)</span>' : ''}</td>
+          <td style="padding:7px 12px;text-align:center">${k.ourPosition ? `<span style="color:${k.ourPosition<=10?'#059669':'#dc2626'};font-weight:700">#${Math.round(k.ourPosition)}</span>` : '<span style="color:#dc2626;font-size:12px">–</span>'}</td>
+          <td style="padding:7px 12px;text-align:center;color:var(--text-muted)">${k.competitorBest ? `#${k.competitorBest}` : '–'}</td>
+          <td style="padding:7px 12px;text-align:center">${tierLabel[k.tier] || ''}</td>
+          <td style="padding:7px 12px;text-align:right">${(k.volume||0).toLocaleString()}</td>
+          <td style="padding:7px 12px;text-align:right;color:var(--text-muted)">${k.cpc ? 'AED '+((k.cpc||0)*3.67).toFixed(2) : '—'}</td>
+          <td style="padding:7px 12px;text-align:right"><span style="background:var(--bg-base);padding:2px 6px;border-radius:4px;font-size:11px;font-weight:700">${k.score?.toFixed(2)||'—'}</span></td>
+          <td style="padding:7px 12px;text-align:center">
+            ${['content_gap','push','quick_win'].includes(k.tier)
+              ? `<button onclick="queueAuditKeyword('${esc(k.keyword).replace(/'/g,"\\'")}');this.textContent='✓';this.disabled=true" class="btn btn-outline" style="font-size:11px;padding:2px 8px">➕ Queue</button>`
+              : ''}
+          </td>
+        </tr>`).join('')}
+      </tbody>
+    </table>`;
+}
+
+async function refreshKeywordOpportunities() {
+  const brand = document.getElementById('opp-brand-filter')?.value || 'pickl';
+  const table = document.getElementById('opp-table-wrap');
+  if (table) table.innerHTML = '<div style="text-align:center;padding:40px;color:var(--text-muted)"><span class="spinner" style="width:20px;height:20px;margin-right:10px"></span>Running keyword discovery… this may take 30-60 seconds</div>';
+  try {
+    await apiPost('/api/keyword-opportunities', { brand });
+    await loadKeywordOpportunities();
+    showToast('✅ Keyword discovery complete', 'success');
+  } catch (e) { showToast('Discovery failed: ' + e.message, 'error'); }
+}
+
+async function queueAllAuditOpportunities(domain, brand) {
+  try {
+    const analysis = await apiGet(`/api/keyword-opportunities?brand=${brand}&audit=${encodeURIComponent(domain)}`);
+    const gaps = (analysis.opportunities || []).filter(k => ['content_gap','push','quick_win'].includes(k.tier));
+    if (!gaps.length) { showToast('No actionable opportunities found', 'error'); return; }
+    let queued = 0;
+    const existing = (await apiGet('/api/seed-keywords'))[brand] || [];
+    const updated  = [...new Set([...existing, ...gaps.map(k => k.keyword)])];
+    await apiPost('/api/seed-keywords', { brand, keywords: updated });
+    queued = updated.length - existing.length;
+    showToast(`✅ ${queued} opportunities queued for ${brand}`, 'success');
+  } catch (e) { showToast('Failed: ' + e.message, 'error'); }
 }
 
 // ── CEO PDF Export ─────────────────────────────────────────────────────────────
