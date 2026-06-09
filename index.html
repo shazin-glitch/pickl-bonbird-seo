@@ -459,6 +459,14 @@
           <option value="scheduled">Scheduled</option>
           <option value="published">Published</option>
         </select>
+        <select id="cal-filter-type" class="form-input" style="width:130px;font-family:var(--font-sans);font-size:13px" onchange="renderCalendar()">
+          <option value="">All Types</option>
+          <option value="static">🖼 Static</option>
+          <option value="carousel">🎠 Carousel</option>
+          <option value="reel">🎬 Reel</option>
+          <option value="story">📱 Story</option>
+          <option value="copy_only">📝 Copy Only</option>
+        </select>
         <input type="search" id="cal-search" class="form-input" placeholder="🔍 Search captions…" oninput="renderCalendar()" style="width:160px;font-family:var(--font-sans);font-size:13px">
         <div style="flex:1"></div>
         <!-- Month navigation -->
@@ -6815,8 +6823,11 @@ async function loadCalendar() {
     calState.loaded = true;
     renderCalendar();
   } catch (e) {
-    document.getElementById('cal-grid-body').innerHTML =
-      `<div style="grid-column:span 7;padding:40px;text-align:center;color:#ef4444;font-size:13px">Error loading calendar: ${esc(e.message)}</div>`;
+    calState.posts = [];
+    calState.loaded = false;
+    const errHtml = `<div style="padding:40px;text-align:center;color:#ef4444;font-size:13px">Error loading calendar: ${esc(e.message)} — <a href="#" onclick="loadCalendar();return false" style="color:var(--primary)">retry</a></div>`;
+    document.getElementById('cal-grid-body').innerHTML = `<div style="grid-column:span 7">${errHtml}</div>`;
+    document.getElementById('cal-list-body').innerHTML = errHtml;
   }
 }
 
@@ -6861,11 +6872,13 @@ function setCalView(v) {
 function renderCalendar() {
   const statusFilter   = document.getElementById('cal-filter-status')?.value   || '';
   const platformFilter = document.getElementById('cal-filter-platform')?.value || '';
+  const typeFilter     = document.getElementById('cal-filter-type')?.value     || '';
   const searchTerm     = (document.getElementById('cal-search')?.value || '').toLowerCase().trim();
 
   let posts = calState.posts;
   if (statusFilter)         posts = posts.filter(p => p.status === statusFilter);
   if (platformFilter)       posts = posts.filter(p => (p.platforms || []).includes(platformFilter));
+  if (typeFilter)           posts = posts.filter(p => (p.postType || 'static') === typeFilter);
   if (calState.myPostsOnly) posts = posts.filter(p =>
     p.createdBy === state.userEmail || p.assignedTo === state.userEmail
   );
@@ -7290,9 +7303,26 @@ async function openCalForm(postId, prefillDate) {
 
     <!-- Caption -->
     <div class="form-group" style="margin-top:12px">
-      <label class="form-label">Caption</label>
+      <label class="form-label" style="display:flex;justify-content:space-between;align-items:center">
+        <span>Caption</span>
+        <button type="button" id="cf-gen-caption-btn" onclick="openCalCaptionModal()" style="font-size:11px;background:none;border:none;color:#7c3aed;cursor:pointer;padding:0;font-weight:600">✨ Generate with AI</button>
+      </label>
       <textarea id="cf-caption" class="form-input" rows="5" placeholder="Write the post caption…" style="font-family:var(--font-sans);resize:vertical" oninput="updateCalCharCount()">${esc(post?.caption || '')}</textarea>
       <div id="cf-char-count" class="cal-char-count"></div>
+    </div>
+
+    <!-- AI Caption Modal -->
+    <div id="cal-caption-modal" style="display:none;background:var(--bg-base);border:1px solid var(--border);border-radius:10px;padding:16px;margin-top:-8px;margin-bottom:12px">
+      <div style="font-size:13px;font-weight:600;color:#7c3aed;margin-bottom:10px">✨ AI Caption Generator</div>
+      <div class="form-group" style="margin-bottom:10px">
+        <label class="form-label" style="font-size:12px">What is this post about?</label>
+        <textarea id="cal-caption-topic" class="form-input" rows="2" placeholder="e.g. Launching our new Garlic Parm Tender, showing the sauce drip…" style="font-family:var(--font-sans);font-size:13px;resize:none"></textarea>
+      </div>
+      <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap">
+        <button class="btn btn-primary" style="background:#7c3aed;border-color:#7c3aed;font-size:12px;padding:5px 14px" onclick="generateCalCaption()">Generate</button>
+        <button class="btn btn-ghost" style="font-size:12px;padding:5px 10px" onclick="document.getElementById('cal-caption-modal').style.display='none'">Cancel</button>
+        <span id="cal-caption-status" style="font-size:12px;color:var(--text-muted)"></span>
+      </div>
     </div>
 
     <!-- Hashtags + presets -->
@@ -7380,6 +7410,65 @@ function updateCalFormMarkets() {
 function toggleCalPlatform(el) {
   el.classList.toggle('active');
   updateCalCharCount();
+}
+
+// ── AI Caption Generator (inline in post form) ────────────────────────────────
+function openCalCaptionModal() {
+  const modal = document.getElementById('cal-caption-modal');
+  if (!modal) return;
+  modal.style.display = modal.style.display === 'none' ? '' : 'none';
+  if (modal.style.display !== 'none') document.getElementById('cal-caption-topic')?.focus();
+}
+
+async function generateCalCaption() {
+  const topic     = document.getElementById('cal-caption-topic')?.value?.trim();
+  const statusEl  = document.getElementById('cal-caption-status');
+  const btn       = document.querySelector('#cal-caption-modal .btn-primary');
+  if (!topic) { if (statusEl) statusEl.textContent = 'Describe the post first'; return; }
+
+  const brand    = document.getElementById('cf-brand')?.value || calState.brand || 'pickl';
+  const market   = document.getElementById('cf-market')?.value || 'UAE';
+  const postType = document.getElementById('cf-post-type')?.value || 'static';
+  const platforms= [...document.querySelectorAll('#cal-platform-pills .cal-platform-pill.active')].map(el => el.dataset.platform);
+  const typeLabel= CAL_TYPE_LABELS[postType] || postType;
+
+  if (btn)      { btn.disabled = true; btn.textContent = 'Generating…'; }
+  if (statusEl) statusEl.textContent = '';
+
+  try {
+    const prompt = `You are writing social media captions for ${brand.charAt(0).toUpperCase()+brand.slice(1)}, a UAE restaurant brand.
+
+Post details:
+- Type: ${typeLabel}
+- Market: ${market}
+- Platforms: ${platforms.join(', ') || 'Instagram'}
+- Topic: ${topic}
+
+Write:
+1. A caption (max 2200 chars for Instagram, conversational, brand-voiced, no generic phrases)
+2. 10-15 relevant hashtags on a new line starting with "HASHTAGS:"
+
+Keep the caption punchy and authentic. Do not include the word HASHTAGS in the caption itself.`;
+
+    const res = await apiPost('/api/claude', { prompt, max_tokens: 600 });
+    const text = res.content || res.text || '';
+
+    const hashtagMatch = text.match(/HASHTAGS:([\s\S]*?)$/i);
+    const hashtags = hashtagMatch ? hashtagMatch[1].trim() : '';
+    const caption  = text.replace(/HASHTAGS:[\s\S]*$/i, '').trim();
+
+    const captionEl  = document.getElementById('cf-caption');
+    const hashtagsEl = document.getElementById('cf-hashtags');
+    if (captionEl)  { captionEl.value  = caption;  updateCalCharCount(); }
+    if (hashtagsEl && hashtags) hashtagsEl.value = hashtags;
+
+    document.getElementById('cal-caption-modal').style.display = 'none';
+    if (statusEl) statusEl.textContent = '';
+  } catch (e) {
+    if (statusEl) statusEl.textContent = 'Error: ' + e.message;
+  } finally {
+    if (btn) { btn.disabled = false; btn.textContent = 'Generate'; }
+  }
 }
 
 function updateCalCharCount() {

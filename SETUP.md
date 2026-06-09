@@ -1777,3 +1777,32 @@ Full codebase review for cohesiveness, missing features, and UX gaps. Priority i
 - `toggleCalMyPosts()` — toggles flag, updates button styling (primary when active), calls `renderCalendar()`
 - `renderCalendar()` filters by `createdBy === state.userEmail || assignedTo === state.userEmail`
 - Mirrors "My Tasks" button on The Perch for consistent UX
+
+---
+
+## Session: June 2026 — v6.9am Calendar Filters + AI Caption Generator
+
+### Changes Made
+
+#### Content Calendar: Post Type Filter ✅
+`index.html` — filter bar:
+- New "All Types" dropdown (🖼 Static / 🎠 Carousel / 🎬 Reel / 📱 Story / 📝 Copy Only)
+- `renderCalendar()` filters by `(p.postType || 'static') === typeFilter`
+- Combines with all other filters (status, platform, My Posts, search)
+
+#### Content Calendar: Error State Fix ✅
+`loadCalendar()` error handler:
+- Now clears `calState.posts = []` and sets `loaded = false` on API failure
+- Shows error + "retry" link in both month grid AND list view (was only grid before)
+- Prevents stale data persisting in list view after a failed reload
+
+#### Content Calendar: AI Caption Generator ✅
+`index.html` — calendar post form:
+- "✨ Generate with AI" button on Caption label opens inline modal below the caption textarea
+- User describes the post topic; Claude generates a caption + hashtag suggestions
+- Reads brand, market, post type, and active platforms from the form context
+- Splits response into caption (fills `cf-caption`) and hashtags (fills `cf-hashtags`)
+- `openCalCaptionModal()` — toggles the modal, focuses topic input
+- `generateCalCaption()` — calls `/api/claude`, parses HASHTAGS: delimiter, fills form fields
+- Modal closes automatically on success; error shown inline without losing typed topic
+- Bridges AI Content Studio and Content Calendar — no need to switch tabs
