@@ -70,11 +70,17 @@ function isBrandedKeyword(keyword, brandTerms) {
 // Rejects irrelevant keywords that competitors happen to rank for (e.g. "western union",
 // "cities in riyadh", "time in nyc") — free, instant, no API calls needed.
 const FOOD_TERMS = [
-  "burger","chicken","fries","wrap","sandwich","food","eat","restaurant","cafe","dining",
-  "delivery","meal","lunch","dinner","takeaway","takeout","menu","kitchen","grill","bbq",
-  "pizza","sushi","steak","crispy","smash","fried","grilled","tender","rice","bowl",
-  "salad","drink","shake","juice","coffee","brunch","breakfast","snack","hot dog","wings",
-  "tenders","strips","nuggets","combo","feast","portion","loaded","cheese","sauce","spicy",
+  // Food items
+  "burger","chicken","fries","wrap","sandwich","steak","pizza","sushi","hot dog","wings",
+  "tenders","strips","nuggets","rice","bowl","salad","cheese","sauce","spicy","crispy",
+  "smash","fried","grilled","bbq","loaded","brunch","breakfast","snack","combo",
+  // Drinks
+  "shake","juice","coffee","drink","smoothie",
+  // Restaurant & dining category terms
+  "restaurant","cafe","cafeteria","diner","bistro","dine","dining","fast food",
+  "quick service","food court","food truck","street food","casual dining","fine dining",
+  "takeaway","takeout","delivery","menu","kitchen","grill","food","eat","meal",
+  "lunch","dinner","feast","cuisine","catering","branch","franchise",
 ];
 const LOCATION_TERMS = [
   "dubai","abu dhabi","uae","sharjah","ajman","fujairah","ras al","umm al","khalifa",
