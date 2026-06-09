@@ -408,6 +408,12 @@
         <span id="perch-task-count" style="font-size:12px;color:var(--text-muted);margin-left:4px"></span>
       </div>
 
+      <!-- Active filter indicator -->
+      <div id="perch-filter-bar" style="display:none;font-size:12px;color:var(--text-muted);margin-bottom:12px;display:flex;align-items:center;gap:8px">
+        <span id="perch-filter-summary"></span>
+        <a href="#" onclick="clearPerchFilters();return false" style="color:var(--primary);font-weight:600">✕ Clear filters</a>
+      </div>
+
       <!-- Loading -->
       <div id="perch-loading" style="text-align:center;padding:40px;color:var(--text-muted)">Loading tasks…</div>
 
@@ -491,6 +497,12 @@
           <button id="cal-view-month-btn" onclick="setCalView('month')" style="padding:5px 12px;font-size:12px;border:none;cursor:pointer;background:var(--primary);color:#fff">📅 Month</button>
           <button id="cal-view-list-btn" onclick="setCalView('list')" style="padding:5px 12px;font-size:12px;border:none;cursor:pointer;background:transparent;color:var(--text-muted)">📋 List</button>
         </div>
+      </div>
+
+      <!-- Active filters indicator -->
+      <div id="cal-filter-bar" style="display:none;font-size:12px;color:var(--text-muted);margin-bottom:8px;display:flex;align-items:center;gap:8px">
+        <span id="cal-filter-summary"></span>
+        <a href="#" onclick="clearCalFilters();return false" style="color:var(--primary);font-weight:600">✕ Clear filters</a>
       </div>
 
       <!-- Stats bar -->
@@ -3672,6 +3684,14 @@ function togglePerchOverdue() {
   renderPerchBoard();
 }
 
+function clearPerchFilters() {
+  ['perch-filter-brand','perch-filter-dept','perch-filter-priority','perch-filter-assignee','perch-filter-label','perch-search','perch-sort']
+    .forEach(id => { const el = document.getElementById(id); if (el) el.value = ''; });
+  if (perchMyTasks) { perchMyTasks = false; const b = document.getElementById('perch-my-tasks-btn'); if (b) { b.style.background='var(--bg-surface)';b.style.color='var(--text-muted)';b.style.borderColor='var(--border)'; } }
+  if (perchOverdue) { perchOverdue = false; const b = document.getElementById('perch-overdue-btn');  if (b) { b.style.background='var(--bg-surface)';b.style.color='var(--text-muted)';b.style.borderColor='var(--border)'; } }
+  renderPerchBoard();
+}
+
 async function loadPerch() {
   document.getElementById('perch-loading').style.display = '';
   document.getElementById('perch-board').style.display   = 'none';
@@ -3721,6 +3741,23 @@ function renderPerchBoard() {
 
   const countEl = document.getElementById('perch-task-count');
   if (countEl) countEl.textContent = perchFiltered.length + ' task' + (perchFiltered.length !== 1 ? 's' : '');
+
+  // Active filters bar
+  const activePerchFilters = [];
+  if (brandF)    activePerchFilters.push(brandF);
+  if (deptF)     activePerchFilters.push(deptF);
+  if (priF)      activePerchFilters.push(priF + ' priority');
+  if (assigneeF) activePerchFilters.push(assigneeF.split('@')[0]);
+  if (labelF)    activePerchFilters.push(labelF);
+  if (searchF)   activePerchFilters.push(`"${searchF}"`);
+  if (perchOverdue)  activePerchFilters.push('Overdue');
+  if (perchMyTasks)  activePerchFilters.push('My Tasks');
+  const pfBarEl = document.getElementById('perch-filter-bar');
+  const pfSumEl = document.getElementById('perch-filter-summary');
+  if (pfBarEl && pfSumEl) {
+    pfBarEl.style.display = activePerchFilters.length ? 'flex' : 'none';
+    pfSumEl.textContent   = `Filtered: ${activePerchFilters.join(' · ')}`;
+  }
 
   document.getElementById('perch-loading').style.display = 'none';
 
@@ -6877,6 +6914,7 @@ async function loadCalendar() {
     calState.posts = data.posts || [];
     calState.loaded = true;
     renderCalendar();
+    loadCalendarBadge().catch(() => {});
   } catch (e) {
     calState.posts = [];
     calState.loaded = false;
@@ -6912,6 +6950,13 @@ function calGoToToday() {
   calState.month = now.getMonth();
   updateCalMonthLabel();
   loadCalendar();
+}
+
+function clearCalFilters() {
+  const ids = ['cal-filter-status','cal-filter-platform','cal-filter-type','cal-search'];
+  ids.forEach(id => { const el = document.getElementById(id); if (el) el.value = ''; });
+  if (calState.myPostsOnly) toggleCalMyPosts();
+  else renderCalendar();
 }
 
 function toggleCalMyPosts() {
@@ -6954,6 +6999,20 @@ function renderCalendar() {
     (p.hashtags  || '').toLowerCase().includes(searchTerm) ||
     (p.market    || '').toLowerCase().includes(searchTerm)
   );
+
+  // Update active-filters bar
+  const activeFilters = [];
+  if (statusFilter)           activeFilters.push(statusFilter.replace(/_/g,' '));
+  if (platformFilter)         activeFilters.push(platformFilter);
+  if (typeFilter)             activeFilters.push(CAL_TYPE_LABELS[typeFilter] || typeFilter);
+  if (calState.myPostsOnly)   activeFilters.push('My Posts');
+  if (searchTerm)             activeFilters.push(`"${searchTerm}"`);
+  const filterBarEl = document.getElementById('cal-filter-bar');
+  const filterSumEl = document.getElementById('cal-filter-summary');
+  if (filterBarEl && filterSumEl) {
+    filterBarEl.style.display = activeFilters.length ? 'flex' : 'none';
+    filterSumEl.textContent   = `Filtered: ${activeFilters.join(' · ')} · ${posts.length} post${posts.length!==1?'s':''} shown`;
+  }
 
   renderCalStats(calState.posts); // always stats over full unfiltered set
   if (calState.view === 'list') { renderCalList(posts); return; }

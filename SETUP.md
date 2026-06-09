@@ -1863,3 +1863,26 @@ Full codebase review for cohesiveness, missing features, and UX gaps. Priority i
 - `renderQueue()` applies sort after filtering, before rendering cards
 - Voice score reads `payload.voiceScore`; position reads `payload.currentPos || payload.ranking`; impressions reads `payload.impressions`
 - Non-destructive — uses `[...items].sort()` so original state.queue order preserved
+
+---
+
+## Session: June 2026 — v6.9aq Filter UX + Badge Fix
+
+### Changes Made
+
+#### Content Calendar: Live Badge Update ✅
+`loadCalendar()` now calls `loadCalendarBadge()` after every successful data fetch — nav badge updates after approve/submit/delete without requiring a page refresh or tab switch.
+
+#### Content Calendar: Active Filters Bar + Clear All ✅
+`index.html`:
+- `#cal-filter-bar` appears below filter row when any filter is active
+- Shows "Filtered: status · type · My Posts · "search term" · N posts shown"
+- "✕ Clear filters" link resets all filter inputs + My Posts toggle, re-renders
+- `clearCalFilters()` — resets status/platform/type/search dropdowns, calls `toggleCalMyPosts()` if active
+
+#### The Perch: Active Filters Bar + Clear All ✅
+`index.html`:
+- `#perch-filter-bar` appears below filter row when any filter is active
+- Shows "Filtered: brand · dept · priority · assignee · label · "search" · Overdue · My Tasks"
+- "✕ Clear filters" link resets all dropdowns + toggle buttons, re-renders
+- `clearPerchFilters()` — resets all 7 filter inputs + both toggle flags + button styles
