@@ -2480,3 +2480,32 @@ Opportunity table: content_gap rows now show two action buttons:
 - 📝 AI → queues keyword to content pipeline (Monday run)
 - 📋 Perch → creates Perch task assigned to content team with keyword context
 Push/quick_win rows show single 📝 Queue button.
+
+---
+
+## Session: June 2026 — v6.9bi Goal Tracking + Action Engine on Queue
+
+### Goal Tracking ✅
+`index.html` — Settings tab:
+- New "🎯 SEO Goals" card with per-brand goal configuration
+- Fields: Keywords in Top 10 (+ deadline), Monthly Traffic Value AED (+ deadline), AI Overview appearances, Content approved per month
+- Goals stored via `/api/db/save` as `seoGoals:pickl` and `seoGoals:bonbird`
+- `loadGoalSettings()` — loads on Settings open, pre-fills form
+- `saveGoalSettings()` — saves with confirmation toast
+
+`index.html` — Reports tab:
+- New "🎯 Goals & Progress" card rendered at top of report when goals configured
+- `renderGoalsCard(goals, top10, trafficValue, aiOverview, contentApproved)` — shows progress bars for each goal with on-track indicator
+- Data sourced from already-calculated report metrics (no extra API calls)
+- AI Overview count fetched from existing `/api/ai-overview` endpoint
+- "Edit goals in Settings" link
+
+### Action Engine on Approvals Queue ✅
+`index.html` — `buildContextBar()`:
+- New "Expected Impact" cell appended to context bar
+- Only shown when: position > 10 AND impressions available
+- Calculation: daily impressions × 30 × (targetCTR - currentCTR)
+  - Close-in (pos 11-20): target top 5 CTR = 5%
+  - Deeper (pos 21+): target top 10 CTR = 3%
+- Shows: "+X clicks/mo if reaches top N · AED Y/mo" (AED only if CPC data available)
+- Gives approvers clear impact context before reviewing content

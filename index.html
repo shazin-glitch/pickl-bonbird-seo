@@ -883,6 +883,9 @@
         <div class="pill" onclick="switchReportBrand('bonbird')">🔴 Bonbird</div>
       </div>
 
+      <!-- Goals Progress (shown when goals are configured) -->
+      <div id="report-goals" style="display:none;margin-bottom:24px"></div>
+
       <!-- Loading -->
       <div id="report-loading" style="text-align:center;padding:48px;color:var(--text-muted)">
         <div style="font-size:32px;margin-bottom:12px">📈</div>
@@ -1523,6 +1526,46 @@
           <div id="citation-nap-status" style="font-size:12px;color:var(--text-muted);margin-top:4px"></div>
         </div>
 
+      <!-- SEO Goals -->
+      <div class="card" style="grid-column:1/-1;margin-bottom:0">
+        <div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:20px">
+          <div>
+            <h3 style="font-size:16px;font-weight:600">🎯 SEO Goals</h3>
+            <p style="font-size:13px;color:var(--text-muted);margin-top:4px">Set targets for Reports tab progress tracking. These appear as progress bars in the Reports tab.</p>
+          </div>
+          <select id="goals-brand-select" class="form-input" style="width:140px;font-family:var(--font-sans)" onchange="loadGoalSettings()">
+            <option value="pickl">Pickl</option>
+            <option value="bonbird">Bonbird</option>
+          </select>
+        </div>
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:16px;margin-bottom:16px">
+          <div class="form-group" style="margin-bottom:0">
+            <label class="form-label">Keywords in Top 10 target</label>
+            <div style="display:flex;gap:8px;align-items:center">
+              <input type="number" id="goal-top10" class="form-input" placeholder="60" style="flex:1;font-family:var(--font-sans)" min="1" max="500">
+              <input type="date" id="goal-top10-deadline" class="form-input" style="flex:1;font-family:var(--font-sans)">
+            </div>
+          </div>
+          <div class="form-group" style="margin-bottom:0">
+            <label class="form-label">Monthly traffic value target (AED)</label>
+            <div style="display:flex;gap:8px;align-items:center">
+              <input type="number" id="goal-traffic" class="form-input" placeholder="50000" style="flex:1;font-family:var(--font-sans)" min="1">
+              <input type="date" id="goal-traffic-deadline" class="form-input" style="flex:1;font-family:var(--font-sans)">
+            </div>
+          </div>
+          <div class="form-group" style="margin-bottom:0">
+            <label class="form-label">AI Overview appearances target (weekly)</label>
+            <input type="number" id="goal-ai-overview" class="form-input" placeholder="10" style="font-family:var(--font-sans)" min="0" max="20">
+          </div>
+          <div class="form-group" style="margin-bottom:0">
+            <label class="form-label">Content items approved per month target</label>
+            <input type="number" id="goal-content" class="form-input" placeholder="20" style="font-family:var(--font-sans)" min="1">
+          </div>
+        </div>
+        <button class="btn btn-primary" onclick="saveGoalSettings()" style="font-size:13px">Save Goals</button>
+        <span id="goals-save-status" style="font-size:12px;color:var(--text-muted);margin-left:10px"></span>
+      </div>
+
       <!-- Audit Log -->
         <div class="card">
           <h3 style="font-size:16px;font-weight:600;margin-bottom:20px">Audit Log &amp; Rollbacks</h3>
@@ -2035,7 +2078,7 @@ function switchView(target) {
   if (target === 'reports')       loadReports();
   if (target === 'techseo')       { loadTechnicalSeo(); loadTechDevKanban(techSeoState.brand); }
   if (target === 'localseo')      { loadLocalSeo(); loadCitationData(); }
-  if (target === 'settings')      { renderAuditLog(); loadBrandCtx(); loadBrandExamples(); loadSlackWebhook(); checkGbpConnection(); checkGa4Connection(); loadCitationNap(); if (state.userRole === 'admin') { document.getElementById('users-panel').style.display = ''; loadUsersPanel(); } }
+  if (target === 'settings')      { renderAuditLog(); loadBrandCtx(); loadBrandExamples(); loadSlackWebhook(); checkGbpConnection(); checkGa4Connection(); loadCitationNap(); loadGoalSettings(); if (state.userRole === 'admin') { document.getElementById('users-panel').style.display = ''; loadUsersPanel(); } }
   if (target === 'international') loadIntlDashboard();
   if (target === 'howto')         loadHowItWorks();
 }
@@ -2546,10 +2589,26 @@ function buildContextBar(item) {
         <div style="font-size:12px;font-weight:600;color:var(--text-main)">${impressions}</div>
         ${p.gscKeyword && p.gscKeyword !== keyword ? `<div style="font-size:9px;color:var(--text-muted)">via "${esc(p.gscKeyword)}"</div>` : ''}
       </div>` : ''}
-      ${url ? `<div style="padding:8px 12px">
+      ${url ? `<div style="padding:8px 12px;border-right:1px solid var(--border)">
         <div style="font-size:10px;font-weight:700;color:var(--text-muted);text-transform:uppercase;letter-spacing:0.4px;margin-bottom:2px">Page</div>
         <div style="font-size:11px;color:var(--text-muted);word-break:break-all">${esc(url)}</div>
       </div>` : ''}
+      ${(()=>{
+        // Expected impact: only show when pos > 10 and impressions available
+        if (!pos || pos <= 10 || !p.impressions) return '';
+        const daily       = Number(p.impressions) / 90;
+        const currentCtr  = Math.max(0.005, 0.30 / pos);
+        const targetCtr   = pos <= 20 ? 0.05 : 0.03; // top 5 target for close-in, top 10 for deeper
+        const extraClicks = Math.round(daily * 30 * (targetCtr - currentCtr));
+        if (extraClicks < 1) return '';
+        const cpcAed = p.cpc_aed || (p.cpc ? Math.round(p.cpc * 3.67) : null);
+        const valueStr = cpcAed && extraClicks > 0 ? ` · AED ${Math.round(extraClicks * cpcAed).toLocaleString()}/mo` : '';
+        return `<div style="padding:8px 12px">
+          <div style="font-size:10px;font-weight:700;color:var(--text-muted);text-transform:uppercase;letter-spacing:0.4px;margin-bottom:2px">Expected Impact</div>
+          <div style="font-size:13px;font-weight:700;color:#059669">+${extraClicks} clicks/mo</div>
+          <div style="font-size:10px;color:var(--text-muted)">if reaches top ${pos <= 20 ? '5' : '10'}${valueStr}</div>
+        </div>`;
+      })()}
     </div>`;
 }
 
@@ -4310,6 +4369,79 @@ function switchReportBrand(brand) {
   loadReports();
 }
 
+// ── SEO Goals ─────────────────────────────────────────────────────────────────
+async function loadGoalSettings() {
+  const brand = document.getElementById('goals-brand-select')?.value || 'pickl';
+  try {
+    const data = await apiGet('/api/db/get');
+    const goals = data?.[`seoGoals:${brand}`] || {};
+    const set = (id, val) => { const el = document.getElementById(id); if (el && val) el.value = val; };
+    set('goal-top10', goals.top10Target);
+    set('goal-top10-deadline', goals.top10Deadline);
+    set('goal-traffic', goals.trafficValueTarget);
+    set('goal-traffic-deadline', goals.trafficValueDeadline);
+    set('goal-ai-overview', goals.aiOverviewTarget);
+    set('goal-content', goals.contentMonthlyTarget);
+  } catch { /* non-critical */ }
+}
+
+async function saveGoalSettings() {
+  const brand   = document.getElementById('goals-brand-select')?.value || 'pickl';
+  const statusEl= document.getElementById('goals-save-status');
+  const goals = {
+    top10Target:          parseInt(document.getElementById('goal-top10')?.value) || null,
+    top10Deadline:        document.getElementById('goal-top10-deadline')?.value || null,
+    trafficValueTarget:   parseInt(document.getElementById('goal-traffic')?.value) || null,
+    trafficValueDeadline: document.getElementById('goal-traffic-deadline')?.value || null,
+    aiOverviewTarget:     parseInt(document.getElementById('goal-ai-overview')?.value) || null,
+    contentMonthlyTarget: parseInt(document.getElementById('goal-content')?.value) || null,
+  };
+  try {
+    await apiPost('/api/db/save', { key: `seoGoals:${brand}`, value: goals });
+    if (statusEl) { statusEl.textContent = '✓ Saved'; statusEl.style.color = '#059669'; setTimeout(() => { statusEl.textContent = ''; }, 3000); }
+  } catch (e) {
+    if (statusEl) { statusEl.textContent = 'Failed: ' + e.message; statusEl.style.color = '#ef4444'; }
+  }
+}
+
+function renderGoalsCard(goals, currentTop10, trafficValueAed, aiOverviewCount, contentApproved) {
+  const el = document.getElementById('report-goals');
+  if (!el) return;
+  if (!goals || !Object.values(goals).some(Boolean)) { el.style.display = 'none'; return; }
+
+  function goalBar(label, current, target, deadline, color) {
+    if (!target) return '';
+    const pct     = Math.min(Math.round((current / target) * 100), 100);
+    const onTrack = pct >= 60;
+    const dlStr   = deadline ? ` · deadline ${new Date(deadline).toLocaleDateString('en-GB',{month:'short',year:'numeric'})}` : '';
+    return `<div style="margin-bottom:12px">
+      <div style="display:flex;justify-content:space-between;align-items:baseline;margin-bottom:4px">
+        <span style="font-size:13px;font-weight:600">${label}</span>
+        <span style="font-size:12px;color:var(--text-muted)">${current.toLocaleString()} / ${target.toLocaleString()}${dlStr}</span>
+      </div>
+      <div style="background:var(--bg-base);border-radius:99px;height:8px;overflow:hidden">
+        <div style="width:${pct}%;height:100%;background:${color};border-radius:99px;transition:width 0.4s"></div>
+      </div>
+      <div style="font-size:11px;color:${onTrack?'#059669':'#d97706'};margin-top:3px">${pct}% complete${onTrack?' · on track':' · needs attention'}</div>
+    </div>`;
+  }
+
+  const bars = [
+    goals.top10Target         ? goalBar('🏆 Keywords in Top 10', currentTop10, goals.top10Target, goals.top10Deadline, '#6366f1') : '',
+    goals.trafficValueTarget  ? goalBar('💰 Monthly Traffic Value (AED)', trafficValueAed, goals.trafficValueTarget, goals.trafficValueDeadline, '#f59e0b') : '',
+    goals.aiOverviewTarget    ? goalBar('🤖 AI Overview Appearances', aiOverviewCount, goals.aiOverviewTarget, null, '#3b82f6') : '',
+    goals.contentMonthlyTarget? goalBar('📝 Content Approved This Month', contentApproved, goals.contentMonthlyTarget, null, '#059669') : '',
+  ].filter(Boolean).join('');
+
+  if (!bars) { el.style.display = 'none'; return; }
+  el.style.display = '';
+  el.innerHTML = `<div class="card">
+    <div style="font-weight:700;font-size:15px;margin-bottom:16px">🎯 Goals & Progress</div>
+    ${bars}
+    <div style="font-size:11px;color:var(--text-muted);margin-top:4px"><a onclick="switchView('settings');return false" href="#" style="color:var(--primary)">Edit goals in Settings</a></div>
+  </div>`;
+}
+
 async function loadReports() {
   document.getElementById('report-loading').style.display  = '';
   document.getElementById('report-content').style.display  = 'none';
@@ -4661,6 +4793,19 @@ function renderReports(brand, rows, techData, queue, matrixData) {
   loadGa4Report(brand).catch(() => {});
   loadLlmMentions(brand).catch(() => {});
   loadAiOverview(brand).catch(() => {});
+
+  // Goals progress card — load goals and render
+  apiGet('/api/db/get').then(data => {
+    const goals = data?.[`seoGoals:${brand}`];
+    if (!goals) return;
+    // aiOverviewCount from latest weekly data (if available)
+    apiGet(`/api/ai-overview?brand=${brand}`).then(aoData => {
+      const aoCount = (aoData?.data || []).filter(r => r.hasAiOverview).length;
+      renderGoalsCard(goals, top10NonBranded, trafficValue, aoCount, approved);
+    }).catch(() => {
+      renderGoalsCard(goals, top10NonBranded, trafficValue, 0, approved);
+    });
+  }).catch(() => {});
 }
 
 
