@@ -1533,3 +1533,62 @@ Without steps 2–3, SocialPilot will receive the wrong UTC timestamp. Full IANA
 No new Blobs keys this session.
 
 *Last updated: June 2026 — v6.9ae: SP MCP live (image/text/carousel), scheduler quality fixes, calendar workflow polish*
+
+---
+
+## Session: June 2026 — v6.9af–v6.9ag Data-Driven SEO + International Fix
+
+### v6.9af — Data-driven international SEO
+- `international-seo-background.js` rebuilt to mirror main scheduler logic
+- `runMarketDataDrivenSEO()` — same CTR gap analysis as UAE, scoped per market's URL pattern
+- `marketPageMatcher()` — handles both flat (`/egypt`, `/egypt-menu`) and nested (`/egypt/`) URL structures
+- `keywordMatchesMarket()` — rejects keywords about different markets (e.g. "cairo" keywords won't appear for `/ksa/` pages)
+- `keywordMatchesMenu()` — same dish validation as main scheduler
+- Data-driven analysis runs every week (no 7-day cache); seed keyword blog content retains 7-day cache
+- Falls back gracefully when GSC has insufficient data for a market
+- Imports `fetchGscWithPages` (keyword+page pairs) instead of `fetchGscDirect`
+
+### v6.9ag — Keyword Discovery Engine + Deep Audit Intelligence
+
+**Why this was built:** Deep Audit was a read-only report with a manual Queue button. Scheduler only reacted to GSC data (keywords already ranking). Neither discovered what to target proactively.
+
+**Keyword Discovery Engine (`keyword-discovery-background.js`):**
+- Takes menu items as seeds → DataForSEO Labs `keyword_ideas` → finds what people search for
+- Cross-references with GSC (our current positions) and competitorRankedKeywords (what competitors rank for)
+- Filters: off-menu dishes rejected, competitor brand names rejected, market mismatch rejected
+- Scores: volume × CPC weight × gap vs competitor × reachability
+- Tiers: content_gap / push / quick_win / top10 / top3
+- Stores as `keywordOpportunities:<brand>` in Blobs
+- Runs Monday 4am UTC (same as all Monday crons)
+
+**`keyword-opportunities.js` API:**
+- `GET ?brand=pickl` → scored opportunity list
+- `GET ?brand=pickl&audit=domain.com` → audit enriched with our GSC positions per keyword
+- `POST { brand }` → triggers fresh discovery immediately
+
+**Deep Audit enhanced:**
+- Shows "Opportunity Analysis" for every keyword: their position vs our position vs tier
+- Tier badges: 🚀 Gap / 📈 Push / ⚡ Win / ✅ Already ranking
+- "Queue All Opportunities (N)" button — one click queues all gaps
+
+**Target Keywords dashboard:**
+- New "🎯 Keyword Opportunities" pill in Analytics & ROI tab
+- Scored opportunity list filterable by tier
+- "Refresh Now" triggers DataForSEO discovery on demand
+
+**Scheduler integration:**
+- `runContentGapsWithOpportunities()` injects top content_gap/push keywords from keywordOpportunities into seed list before each run
+
+### New Blobs keys
+| Key | Contents |
+|---|---|
+| `keywordOpportunities:<brand>` | Scored keyword opportunity list from DataForSEO discovery |
+
+### New env vars
+None — uses existing `DATAFORSEO_LOGIN` / `DATAFORSEO_PASSWORD`
+
+### New netlify.toml entries
+- Redirect: `/api/keyword-opportunities` → `/.netlify/functions/keyword-opportunities`
+- Cron: `keyword-discovery-background` schedule `"0 4 * * 1"` (Monday 4am UTC)
+
+*Last updated: June 2026 — v6.9ag: data-driven keyword strategy, international SEO rebuilt, deep audit intelligence*

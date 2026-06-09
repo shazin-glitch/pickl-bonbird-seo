@@ -51,15 +51,28 @@
 
 ---
 
-## Current Version: v6.9ae
+## Current Version: v6.9ag
 
 See SETUP.md → "Done (Full History)" for complete build log.
 
 **Next up:**
 - SP MCP: Reels/Stories/TikTok/YouTube not yet supported — await SP MCP update
-- Zapier: leadership decision pending (auto-push for video types when SP MCP adds support)
-- Scheduler quality: international pipeline needs investigation
+- Zapier: leadership decision pending (auto-push for video types)
+- Hreflang audit and implementation verification
 - Multi-brand expansion — Southpour full pipeline
+- Keyword opportunity first run: click "Refresh Now" in 🎯 Keyword Opportunities tab
+
+**⚠️ Adding a new market — REQUIRED steps:**
+1. Add to `CAL_MARKETS` in `index.html`
+2. Add IANA timezone to `MARKET_TIMEZONES` in `calendar.js`
+3. Add IANA timezone to `CAL_MARKET_TIMEZONES` in `index.html`
+4. Add timezone abbreviation to `CAL_MARKET_TZ_ABBR` in `index.html`
+5. Add SP account IDs to `SP_ACCOUNTS` in `calendar.js`
+6. Add SP account IDs to `SP_ACCOUNTS_FLAT` in `index.html`
+7. Add SP has-account map to `SP_HAS_ACCOUNT` in `index.html`
+8. Add market config to `INTERNATIONAL_MARKETS` in `_lib/international-config.js`
+9. Add location code to `MARKET_LOCATIONS` in `keyword-discovery-background.js`
+10. Add market keyword terms to `MARKET_KEYWORD_TERMS` in `international-seo-background.js`
 - Delivery platform SEO — Talabat, Deliveroo, Noon Food keyword optimisation
 
 ---
