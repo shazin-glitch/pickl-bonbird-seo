@@ -455,7 +455,7 @@ async function fetchCompetitorRankedKeywords(competitors, locationCode, authHead
       const testRes = await fetch(LABS_RANKED_KEYWORDS_URL, {
         method:  "POST",
         headers: { Authorization: authHeader, "Content-Type": "application/json" },
-        body: JSON.stringify([{ target: firstDomain, location_code: locationCode, language_code: "en", limit: 1 }]),
+        body: JSON.stringify([{ target: firstDomain, location_code: 2784, language_code: "en", limit: 1 }]),
       });
       const testData = await testRes.json();
       console.log(`[competitor-matrix] Labs test — HTTP ${testRes.status}, status_code: ${testData.status_code}, msg: ${testData.status_message}`);
@@ -488,7 +488,7 @@ async function fetchCompetitorRankedKeywords(competitors, locationCode, authHead
         headers: { Authorization: authHeader, "Content-Type": "application/json" },
         body: JSON.stringify([{
           target:        domain,
-          location_code: locationCode,
+          location_code: 2784, // UAE country — Labs requires country-level (21191 Dubai city returns 0)
           language_code: "en",
           filters: [["keyword_data.keyword_info.search_volume", ">", 0]],
           order_by: ["keyword_data.keyword_info.search_volume,desc"],

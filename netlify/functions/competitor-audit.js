@@ -36,7 +36,7 @@ async function runAudit(domain, authHeader) {
     headers: { 'Content-Type': 'application/json', Authorization: authHeader },
     body: JSON.stringify([{
       target:        domain,
-      location_code: 21191, // Dubai
+      location_code: 2784, // UAE country (Labs requires country-level, not city)
       language_code: 'en',
       limit:         50,
       order_by:      ['keyword_data.keyword_info.search_volume,desc'],
