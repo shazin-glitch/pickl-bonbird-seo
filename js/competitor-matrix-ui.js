@@ -752,14 +752,14 @@
             <table class="cm-table" style="margin-top:0"><thead><tr>
               <th>Keyword</th><th>Their Position</th><th>Search Volume</th><th>CPC</th><th></th>
             </tr></thead><tbody>
-            ${notRanking.slice(0,20).map(k => `<tr>
+            ${notRanking.map((k, idx) => `<tr class="cm-gap-row-${comp.replace(/\W/g,'_')}" ${idx >= 20 ? 'style="display:none"' : ''}>
               <td style="font-weight:600">${esc(k.keyword)}</td>
               <td><span class="cm-rank ${k.position <= 3 ? "cm-rank-top3" : k.position <= 10 ? "cm-rank-top10" : "cm-rank-comp"}">#${k.position || "?"}</span></td>
               <td style="color:var(--text-muted)">${k.searchVolume ? k.searchVolume.toLocaleString() : "—"}</td>
               <td style="color:var(--text-muted)">${k.cpc ? "$" + k.cpc.toFixed(2) : "—"}</td>
               <td><button class="cm-queue-btn" data-keyword="${esc(k.keyword)}" data-brand="${brand}" title="Add to priority queue for Monday">📝 Queue</button></td>
             </tr>`).join("")}
-            ${notRanking.length > 20 ? `<tr><td colspan="5" style="color:var(--text-muted);font-size:12px;padding:6px 14px">+${notRanking.length - 20} more keywords</td></tr>` : ""}
+            ${notRanking.length > 20 ? `<tr id="cm-show-more-${comp.replace(/\W/g,'_')}"><td colspan="5" style="padding:6px 14px"><button onclick="cmShowAllGaps('${comp.replace(/\W/g,'_')}',this)" style="font-size:12px;color:var(--primary);background:none;border:none;cursor:pointer;padding:0;font-weight:600">+ Show ${notRanking.length - 20} more keywords ▾</button></td></tr>` : ""}
             </tbody></table>`;
         }
 
@@ -1335,6 +1335,12 @@ async function cmDiscoverCompetitors(brand, btn) {
   } finally {
     btn.disabled = false; btn.textContent = origText;
   }
+}
+
+function cmShowAllGaps(compKey, btn) {
+  document.querySelectorAll(`.cm-gap-row-${compKey}`).forEach(row => row.style.display = '');
+  const wrap = document.getElementById(`cm-show-more-${compKey}`);
+  if (wrap) wrap.style.display = 'none';
 }
 
 async function cmAddDiscoveredCompetitor(brand, domain, btn) {

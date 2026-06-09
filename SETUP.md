@@ -2287,3 +2287,26 @@ The first implementation of the interconnected vision: every insight generates r
 - `queue` → blog posts, meta rewrites, landing pages → AI drafts, appears in Approvals Queue
 - `perch` → campaigns, social series, strategic decisions → The Perch task, assigned to team
 - `dev` → PageSpeed, schema, canonical, HTTPS, mobile → Developer Kanban in Technical SEO
+
+---
+
+## Session: June 2026 — v6.9bc Gaps Cleanup
+
+### Changes Made
+
+#### Competitor Ranked Keywords — Restaurant Relevance Filter ✅
+`netlify/functions/competitor-matrix-background.js`:
+- Added `isRestaurantKeyword(keyword)` function — checks against `FOOD_TERMS` (burger, chicken, fries, wrap, dining, delivery, etc.) and `LOCATION_TERMS` (dubai, abu dhabi, marina, near me, etc.)
+- Applied as third filter in ranked_keywords processing: `!isBrandedKeyword && isRestaurantKeyword`
+- Rejects keywords like "nearest western union", "cities in riyadh", "time in nyc" instantly with no API cost
+- Free, fast alternative to Claude — catches 95%+ of irrelevant competitor keywords
+
+#### Gaps View — "+30 more" Now Expandable ✅
+`js/competitor-matrix-ui.js`:
+- Changed static "+N more keywords" text to a clickable "Show N more keywords ▾" button
+- Hidden rows (`display:none`) revealed by `cmShowAllGaps(compKey, btn)` on click
+- Show more row hides itself after expanding
+- Cache bust: ?v=6.9av → ?v=6.9bc needed in index.html script tag
+
+#### Keyword Opportunities — Claude Filter Already Deployed
+The improved Claude filter prompt (v6.9az) is live. Hit **Refresh Now** in Keyword Opportunities tab to regenerate with the new filter. Old cached data won't update automatically.

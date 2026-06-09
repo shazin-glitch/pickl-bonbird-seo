@@ -66,6 +66,27 @@ function isBrandedKeyword(keyword, brandTerms) {
   return brandTerms.some(term => lower.includes(term.toLowerCase()));
 }
 
+// ── Restaurant relevance filter for competitor keywords ───────────────────────
+// Rejects irrelevant keywords that competitors happen to rank for (e.g. "western union",
+// "cities in riyadh", "time in nyc") — free, instant, no API calls needed.
+const FOOD_TERMS = [
+  "burger","chicken","fries","wrap","sandwich","food","eat","restaurant","cafe","dining",
+  "delivery","meal","lunch","dinner","takeaway","takeout","menu","kitchen","grill","bbq",
+  "pizza","sushi","steak","crispy","smash","fried","grilled","tender","rice","bowl",
+  "salad","drink","shake","juice","coffee","brunch","breakfast","snack","hot dog","wings",
+  "tenders","strips","nuggets","combo","feast","portion","loaded","cheese","sauce","spicy",
+];
+const LOCATION_TERMS = [
+  "dubai","abu dhabi","uae","sharjah","ajman","fujairah","ras al","umm al","khalifa",
+  "downtown","marina","jbr","deira","bur dubai","jumeirah","mirdif","karama","satwa",
+  "near me","nearby","in dubai","in uae","in abu dhabi","delivery dubai",
+];
+
+function isRestaurantKeyword(keyword) {
+  const lower = keyword.toLowerCase();
+  return FOOD_TERMS.some(t => lower.includes(t)) || LOCATION_TERMS.some(t => lower.includes(t));
+}
+
 const DEFAULT_COMPETITORS = {
   pickl: [
     { name: "Salt",        domain: "saltuae.com"    },
@@ -512,7 +533,9 @@ async function fetchCompetitorRankedKeywords(competitors, locationCode, authHead
       resultsMap[domain] = items
         .filter(item => {
           const kw = (item.keyword_data?.keyword || "").toLowerCase();
-          return kw.length > 0 && !isBrandedKeyword(kw, brandTerms);
+          return kw.length > 0
+            && !isBrandedKeyword(kw, brandTerms)
+            && isRestaurantKeyword(kw);  // reject "western union", "time in nyc" etc.
         })
         .slice(0, 50)
         .map(item => ({
