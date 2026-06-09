@@ -257,16 +257,24 @@
     body.cal-printing #cal-present-overlay { display: none !important; }
     body.cal-printing #cal-print-pages { display: block !important; }
     .cal-present-print-slide { page-break-after: always; break-after: page; }
-    /* Reports print */
+    /* Reports print — break layout constraints so full content renders */
+    body { height: auto !important; overflow: visible !important; }
+    .main-content { overflow: visible !important; height: auto !important; margin: 0 !important; padding: 0 !important; width: 100% !important; }
+    .views-wrapper { overflow: visible !important; height: auto !important; }
     .sidebar, .nav-item, .pill-nav, .btn, #report-brand-pills,
     .toast, #perch-side-panel, [onclick] > button,
     #report-loading, #report-no-data { display: none !important; }
-    .main-content { margin: 0 !important; padding: 0 !important; width: 100% !important; }
     .page-view { display: block !important; }
     .page-view:not(#view-reports) { display: none !important; }
-    #view-reports { padding: 0 !important; }
-    .card { border: 1px solid #e2e8f0 !important; background: #fff !important; box-shadow: none !important; break-inside: avoid; }
-    #report-content { display: block !important; }
+    #view-reports { padding: 8px !important; overflow: visible !important; height: auto !important; }
+    #report-content { display: block !important; overflow: visible !important; height: auto !important; }
+    .card { border: 1px solid #e2e8f0 !important; background: #fff !important; box-shadow: none !important; break-inside: avoid; overflow: visible !important; }
+    .metrics-grid, .cards-grid, .two-col, .three-col { break-inside: avoid; }
+    /* Reset any max-height containers inside reports */
+    #report-content * { max-height: none !important; overflow: visible !important; }
+    /* But keep scrollable tables readable */
+    .table-wrap { overflow: visible !important; }
+    table { width: 100% !important; font-size: 10px !important; }
     #report-ai-overview-section button,
     #ai-overview-refresh-btn { display: none !important; }
   }
