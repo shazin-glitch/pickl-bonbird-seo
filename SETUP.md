@@ -2509,3 +2509,26 @@ Push/quick_win rows show single 📝 Queue button.
   - Deeper (pos 21+): target top 10 CTR = 3%
 - Shows: "+X clicks/mo if reaches top N · AED Y/mo" (AED only if CPC data available)
 - Gives approvers clear impact context before reviewing content
+
+---
+
+## Session: June 2026 — v6.9bj Reports Cohesion Fixes
+
+### Reports Tab — Three Cohesion Fixes
+
+#### Competitor Gaps → Narrative Business Impact ✅
+Was: duplicate table identical to Analytics Gaps view
+Now: narrative summary per competitor — "Salt owns 12 keywords you don't rank for. Top gap: 'smash burger dubai' — they rank #3, you're not in top 30" — with total count and "View full gap analysis + queue keywords →" link to Analytics
+
+#### Opportunities → Linked to Keyword Opportunities ✅
+Was: clickable cards with no path to take action beyond the drill-down
+Now: header now includes "Full keyword analysis →" link directly to the Keyword Opportunities tab in Analytics. Cards remain unchanged — they work well as a summary.
+
+#### AI Overview + LLM Mentions → Single "AI Search Presence" Card ✅
+Was: Two separate cards both using 🤖, titled differently, telling the same story
+Now: One "🤖 AI Search Presence" card with two sub-sections:
+- "Google AI Overviews — do our keywords trigger the AI box?"
+- "AI Chatbot Mentions — do ChatGPT, Perplexity, Gemini recommend us?"
+Single Refresh button in the header. Same data, clearer narrative.
+
+Note: Technical SEO Developer Kanban stays separate from The Perch — developer is a third party, not an internal team member. That separation is intentional and correct.
