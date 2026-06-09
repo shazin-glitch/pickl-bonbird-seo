@@ -8195,6 +8195,17 @@ function renderCalMediaSection(post) {
   }
 }
 
+function removeCalMedia(mediaId, fromExisting) {
+  // Hide the thumbnail from the form — the save will not re-include removed files
+  const thumb = document.getElementById(`calthumb-${mediaId}`);
+  if (thumb) thumb.remove();
+  // For carousel: remove the slide if it matches
+  if (calState.carouselSlides) {
+    calState.carouselSlides = calState.carouselSlides.filter(s => s.id !== mediaId);
+    renderCarouselSlides();
+  }
+}
+
 function updateCalImagePreview() {
   const url  = document.getElementById('cf-image-url')?.value?.trim() || '';
   const prev = document.getElementById('cf-image-preview');
