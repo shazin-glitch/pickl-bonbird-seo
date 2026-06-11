@@ -2604,3 +2604,45 @@ Empty state now shows:
 - For international-only colleague: set markets to all 9 international keys, they won't see UAE
 
 **Use case:** International social media manager can only see/create Pickl and Bonbird international market content.
+
+---
+
+## Session: June 2026 — v7.0.1 Story Slides + Caption UX + Upload Fixes
+
+### Story Ordered Multi-Upload ✅
+`index.html`:
+- Stories now use `calState.storySlides = [{ url, type }]` — same ordered structure as carousel
+- Story media section replaced with ordered slide manager: thumbnail, URL field, ▲▼ reorder, ✕ remove
+- Each slide supports image OR video (9:16 vertical)
+- `renderStorySlides()`, `addStorySlide()`, `removeStorySlide()`, `moveStorySlide()`, `uploadStorySlide()`
+- On save: `postType === 'story'` → `mediaFiles = storySlides.filter(s=>s.url)` (backward compat: old single-image stories use imageUrl)
+- AI caption generator reads story slide URLs like carousel slides
+- Max 20 slides per story
+
+### Static Image Remove Button ✅
+- After upload, preview shows image with ✕ Remove button
+- `clearCalImage()` clears `cf-image-url` and preview
+- `updateCalImagePreview()` updated to include remove button
+
+### AI Caption — Image Hint + Optional Topic ✅
+- When modal opens and image is attached: shows "🖼 Image(s) attached — Claude will look at it" hint in green
+- Topic field is optional when image is present ("optional if image attached" label)
+- Requires topic OR attached image to generate (not both)
+- Story slides included in image detection
+
+### GCS Signed URL for Large Video Uploads ✅
+`netlify/functions/calendar-media.js`:
+- New `POST { action:'signedUrl', filename, mimeType }` → returns `{ uploadUrl, publicUrl }`
+- Uses GCS resumable upload initiation — returns a direct-to-GCS upload URL
+- **Requires GCS CORS to be configured on the bucket:**
+  ```
+  gsutil cors set cors.json gs://BUCKET_NAME
+  ```
+  cors.json: `[{"origin":["https://yolkseo.netlify.app"],"method":["PUT"],"responseHeader":["Content-Type"],"maxAgeSeconds":3600}]`
+
+`index.html` — `uploadCalFile()`:
+- If video > 10MB: tries signedUrl endpoint first → uploads directly to GCS → no size limit
+- Falls back to helpful error message if GCS not configured / CORS not set
+- Progress shows file size during direct upload
+
+**Note:** Direct upload works when GCS CORS is configured. Until then, videos > 10MB show: "Use Google Drive/OneDrive — upload there and paste the link in the Video URL field."

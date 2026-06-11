@@ -161,7 +161,38 @@ exports.handler = async (event) => {
       return { statusCode: 200, headers: JSON_HEADERS, body: JSON.stringify({ ok: true, deleted, freedBytes }) };
     }
 
-    // ── upload image ──────────────────────────────────────────────────────
+    // ── GCS signed URL for large video direct uploads ────────────────────
+    // Browser uploads directly to GCS, bypassing the 10MB Netlify function limit.
+    // Requires GCS CORS to be configured: gsutil cors set cors.json gs://BUCKET
+    if (body.action === 'signedUrl') {
+      const { filename, mimeType } = body;
+      if (!filename || !mimeType) return { statusCode: 400, headers: JSON_HEADERS, body: JSON.stringify({ error: 'filename and mimeType required' }) };
+      const gcsBucket = process.env.GCS_BUCKET_NAME;
+      const gcsKeyStr = process.env.GCS_SERVICE_ACCOUNT_KEY;
+      if (!gcsBucket || !gcsKeyStr) return { statusCode: 503, headers: JSON_HEADERS, body: JSON.stringify({ error: 'GCS not configured' }) };
+      try {
+        const sa         = JSON.parse(gcsKeyStr);
+        const token      = await gcsGetToken(sa);
+        const objectName = `calendar/${Date.now()}_${filename.replace(/[^a-zA-Z0-9._-]/g, '_')}`;
+        // Initiate a resumable upload session — returns Location URL for direct browser upload
+        const initRes = await fetch(
+          `https://storage.googleapis.com/upload/storage/v1/b/${encodeURIComponent(gcsBucket)}/o?uploadType=resumable&name=${encodeURIComponent(objectName)}`,
+          {
+            method: 'POST',
+            headers: { 'Authorization': `Bearer ${token}`, 'Content-Type': 'application/json', 'X-Upload-Content-Type': mimeType },
+            body: JSON.stringify({ contentType: mimeType }),
+          }
+        );
+        if (!initRes.ok) throw new Error(`GCS init failed: ${initRes.status}`);
+        const uploadUrl = initRes.headers.get('Location');
+        const publicUrl = `https://storage.googleapis.com/${gcsBucket}/${objectName}`;
+        return { statusCode: 200, headers: JSON_HEADERS, body: JSON.stringify({ ok: true, uploadUrl, publicUrl }) };
+      } catch (e) {
+        return { statusCode: 500, headers: JSON_HEADERS, body: JSON.stringify({ error: e.message }) };
+      }
+    }
+
+    // ── upload image/video (base64, max 10 MB) ────────────────────────────
     const { filename, mimeType, data } = body;
     if (!filename || !mimeType || !data)
       return { statusCode: 400, headers: JSON_HEADERS, body: JSON.stringify({ error: 'filename, mimeType, data required' }) };

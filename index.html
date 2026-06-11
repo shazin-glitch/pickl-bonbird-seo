@@ -8095,9 +8095,10 @@ async function openCalForm(postId, prefillDate) {
 
     <!-- AI Caption Modal -->
     <div id="cal-caption-modal" style="display:none;background:var(--bg-base);border:1px solid var(--border);border-radius:10px;padding:16px;margin-top:-8px;margin-bottom:12px">
-      <div style="font-size:13px;font-weight:600;color:#7c3aed;margin-bottom:10px">✨ AI Caption Generator</div>
+      <div style="font-size:13px;font-weight:600;color:#7c3aed;margin-bottom:6px">✨ AI Caption Generator</div>
+      <div id="cal-caption-image-hint" style="display:none;font-size:11px;color:#059669;font-weight:600;margin-bottom:8px;padding:4px 8px;background:#dcfce7;border-radius:6px"></div>
       <div class="form-group" style="margin-bottom:10px">
-        <label class="form-label" style="font-size:12px">What is this post about?</label>
+        <label class="form-label" style="font-size:12px">What is this post about? <span style="font-weight:400;color:var(--text-muted)">(optional if image attached)</span></label>
         <textarea id="cal-caption-topic" class="form-input" rows="2" placeholder="e.g. Launching our new Garlic Parm Tender, showing the sauce drip…" style="font-family:var(--font-sans);font-size:13px;resize:none"></textarea>
       </div>
       <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap">
@@ -8150,15 +8151,22 @@ async function openCalForm(postId, prefillDate) {
     </div>
   `;
 
-  // Init carousel slides from existing post if editing
+  // Init slide state from existing post if editing
   if (post?.postType === 'carousel') {
     calState.carouselSlides = (post.mediaFiles || []).map(f => ({
-      // backward compat: old posts may have blob id instead of url
-      url:  f.url || (f.id ? `/api/calendar-media?id=${f.id}` : ''),
+      url: f.url || (f.id ? `/api/calendar-media?id=${f.id}` : ''),
       note: f.note || '',
     }));
+    calState.storySlides = [];
+  } else if (post?.postType === 'story') {
+    calState.storySlides = (post.mediaFiles || []).map(f => ({
+      url: f.url || (f.id ? `/api/calendar-media?id=${f.id}` : ''),
+      type: f.type || 'image',
+    }));
+    calState.carouselSlides = [];
   } else {
     calState.carouselSlides = [];
+    calState.storySlides    = [];
   }
 
   // Show form panel
@@ -8206,6 +8214,18 @@ function openCalCaptionModal() {
       const visualNotes = document.getElementById('cf-visual-notes')?.value?.trim();
       if (visualNotes) topicEl.value = visualNotes;
     }
+    // Check if image is already attached — show hint
+    const postType = document.getElementById('cf-type')?.value || 'static';
+    const hasImage = !!(document.getElementById('cf-image-url')?.value?.trim()
+      || calState.carouselSlides?.some(s => s.url)
+      || calState.storySlides?.some(s => s.url));
+    const hintEl = document.getElementById('cal-caption-image-hint');
+    if (hintEl) {
+      hintEl.style.display = hasImage ? '' : 'none';
+      hintEl.textContent = hasImage
+        ? `🖼 Image${postType === 'carousel' ? 's' : ''} attached — Claude will look at ${postType === 'carousel' ? 'all slides' : 'it'} when generating`
+        : '';
+    }
     topicEl?.focus();
   }
 }
@@ -8214,11 +8234,15 @@ async function generateCalCaption() {
   const topic    = document.getElementById('cal-caption-topic')?.value?.trim();
   const statusEl = document.getElementById('cal-caption-status');
   const btn      = document.querySelector('#cal-caption-modal .btn-primary');
-  if (!topic) { if (statusEl) statusEl.textContent = 'Describe the post first'; return; }
+  // Topic is required only if no image is attached
+  const postType = document.getElementById('cf-type')?.value || 'static';
+  const hasImage = !!(document.getElementById('cf-image-url')?.value?.trim()
+    || calState.carouselSlides?.some(s => s.url)
+    || calState.storySlides?.some(s => s.url));
+  if (!topic && !hasImage) { if (statusEl) statusEl.textContent = 'Add a description or upload an image first'; return; }
 
   const brand    = document.getElementById('cf-brand')?.value || calState.brand || 'pickl';
   const market   = document.getElementById('cf-market')?.value || 'UAE';
-  const postType = document.getElementById('cf-post-type')?.value || 'static';
   const platforms= [...document.querySelectorAll('#cal-platform-pills .cal-platform-pill.active')].map(el => el.dataset.platform);
   const typeLabel= CAL_TYPE_LABELS[postType] || postType;
   const brandName= brand.charAt(0).toUpperCase() + brand.slice(1);
@@ -8227,10 +8251,13 @@ async function generateCalCaption() {
   if (statusEl) statusEl.textContent = '';
 
   // Collect all image URLs from the form
-  const isCarousel  = postType === 'carousel';
+  const isCarousel = postType === 'carousel';
+  const isStoryType = postType === 'story';
   const rawUrls = isCarousel
     ? (calState.carouselSlides || []).map(s => s.url).filter(Boolean)
-    : [document.getElementById('cf-image-url')?.value?.trim()].filter(Boolean);
+    : isStoryType
+      ? (calState.storySlides || []).map(s => s.url).filter(Boolean)
+      : [document.getElementById('cf-image-url')?.value?.trim()].filter(Boolean);
 
   // Fetch each image as base64 (skip any that fail)
   const imageBlocks = [];
@@ -8336,8 +8363,9 @@ function updateCalCharCount() {
 function closeCalForm() {
   document.getElementById('cal-form-overlay').style.display = 'none';
   document.getElementById('cal-form-panel').style.display   = 'none';
-  calState.editPost = null;
+  calState.editPost       = null;
   calState.carouselSlides = [];
+  calState.storySlides    = [];
 }
 
 function updateCalMediaSection() {
@@ -8397,25 +8425,39 @@ function renderCalMediaSection(post) {
   }
 
   const isStory = postType === 'story';
-  if (isStory || postType === 'static') {
-    const hint   = isStory ? 'Image or video · 9:16 vertical · max 10 MB' : '1:1 or 4:5 · JPEG · PNG · WebP · max 10 MB';
-    const tip    = isStory ? '📱 1080 × 1920 px (9:16) recommended · For large videos (>10 MB) use the URL field below' : '';
-    const prevH  = isStory ? '160px' : '120px';
-    const prevImg = imageUrl ? `<img src="${esc(imageUrl)}" style="max-height:${prevH};border-radius:6px;margin-top:8px;border:1px solid var(--border)" onerror="this.style.display='none'">` : '';
+  if (isStory) {
+    // Story: ordered multi-slide (image or video per slide, order matters)
+    if (!calState.storySlides.length) calState.storySlides.push({ url: '', type: 'image' });
     sec.innerHTML = `
       <div class="form-group">
-        <label class="form-label">${isStory ? 'Story Media' : 'Image'} <span style="font-size:11px;color:var(--text-muted);font-weight:400">${isStory ? '(image or short video · 9:16 vertical)' : '(1:1 or 4:5)'}</span></label>
-        ${calUploadZoneHtml('cf-file-input', hint, isStory)}
+        <label class="form-label" style="display:flex;justify-content:space-between;align-items:center">
+          <span>Story Slides <span style="font-size:11px;color:var(--text-muted);font-weight:400">(9:16 vertical · order matters)</span></span>
+          <button type="button" onclick="addStorySlide()" style="font-size:11px;background:none;border:1px solid var(--border);border-radius:6px;padding:2px 10px;cursor:pointer;color:var(--primary)">+ Add Slide</button>
+        </label>
+        <div id="cf-story-slides"></div>
+        <div style="font-size:11px;color:var(--text-muted);margin-top:6px">For videos > 10 MB: paste a Google Drive or OneDrive URL in the URL field</div>
+      </div>`;
+    renderStorySlides();
+    return;
+  }
+
+  if (postType === 'static') {
+    const prevImg = imageUrl ? `<img src="${esc(imageUrl)}" style="max-height:120px;border-radius:6px;margin-top:8px;border:1px solid var(--border)" onerror="this.style.display='none'">` : '';
+    sec.innerHTML = `
+      <div class="form-group">
+        <label class="form-label">Image <span style="font-size:11px;color:var(--text-muted);font-weight:400">(1:1 or 4:5)</span></label>
+        ${calUploadZoneHtml('cf-file-input', '1:1 or 4:5 · JPEG · PNG · WebP · max 10 MB')}
         <div style="display:flex;align-items:center;gap:8px;margin-top:8px">
           <div style="flex:1;height:1px;background:var(--border)"></div>
           <span style="font-size:11px;color:var(--text-muted);white-space:nowrap">or paste URL</span>
           <div style="flex:1;height:1px;background:var(--border)"></div>
         </div>
         <input type="url" id="cf-image-url" class="form-input" placeholder="https://drive.google.com/… or any public image link" value="${esc(imageUrl)}" oninput="updateCalImagePreview()" style="margin-top:6px">
-        <div id="cf-image-preview" style="margin-top:4px">${prevImg}</div>
-        ${tip ? `<div style="font-size:11px;color:var(--text-muted);margin-top:4px">${tip}</div>` : ''}
-      </div>
-      ${isStory ? `<div class="form-group"><label class="form-label">Video URL <span style="font-size:11px;color:var(--text-muted);font-weight:400">(optional — video story)</span></label><input type="url" id="cf-video-url" class="form-input" placeholder="https://…" value="${esc(videoUrl)}"></div>` : ''}`;
+        ${imageUrl ? `<div style="display:flex;align-items:flex-start;gap:8px;margin-top:6px">
+          <div id="cf-image-preview">${prevImg}</div>
+          <button type="button" onclick="clearCalImage()" style="font-size:11px;background:none;border:1px solid var(--border);border-radius:4px;padding:2px 8px;cursor:pointer;color:#ef4444;flex-shrink:0;margin-top:2px">✕ Remove</button>
+        </div>` : `<div id="cf-image-preview" style="margin-top:4px"></div>`}
+      </div>`;
     return;
   }
 
@@ -8450,7 +8492,10 @@ function updateCalImagePreview() {
   const prev = document.getElementById('cf-image-preview');
   if (!prev) return;
   prev.innerHTML = url
-    ? `<img src="${esc(url)}" style="max-height:120px;border-radius:6px;margin-top:6px;border:1px solid var(--border)" onerror="this.parentElement.innerHTML='<div style=color:#ef4444;font-size:12px;margin-top:6px>⚠️ Could not load — make sure link sharing is set to public</div>'">`
+    ? `<div style="display:flex;align-items:flex-start;gap:8px;margin-top:6px">
+        <img src="${esc(url)}" style="max-height:120px;border-radius:6px;border:1px solid var(--border)" onerror="this.style.display='none'">
+        <button type="button" onclick="clearCalImage()" style="font-size:11px;background:none;border:1px solid var(--border);border-radius:4px;padding:2px 8px;cursor:pointer;color:#ef4444;flex-shrink:0" title="Remove image">✕</button>
+      </div>`
     : '';
 }
 
@@ -8474,12 +8519,36 @@ async function uploadCalFile(file, targetInputId) {
   const isVideo = file.type.startsWith('video/');
   const isImage = file.type.startsWith('image/');
   if (!isImage && !isVideo) { showToast('Please upload an image or video file', 'error'); return null; }
-  if (file.size > MAX) {
-    if (isVideo) {
-      showToast(`Video too large for direct upload (max 10 MB). Use the Video URL field — upload to Google Drive or OneDrive and paste the link.`, 'error');
-    } else {
-      showToast(`${file.name} is too large (max 10 MB)`, 'error');
+
+  // Large videos: try GCS signed URL direct upload (bypasses 10MB function limit)
+  if (isVideo && file.size > MAX) {
+    if (prog) prog.innerHTML = `<span class="spinner" style="width:12px;height:12px;margin-right:6px"></span>Requesting upload URL…`;
+    try {
+      const signedRes = await apiPost('/api/calendar-media', { action: 'signedUrl', filename: file.name, mimeType: file.type });
+      if (signedRes.uploadUrl) {
+        if (prog) prog.innerHTML = `<span class="spinner" style="width:12px;height:12px;margin-right:6px"></span>Uploading ${(file.size/1048576).toFixed(1)} MB directly to GCS…`;
+        const uploadRes = await fetch(signedRes.uploadUrl, {
+          method: 'PUT',
+          headers: { 'Content-Type': file.type },
+          body: file,
+        });
+        if (!uploadRes.ok) throw new Error(`Direct upload failed: ${uploadRes.status}`);
+        if (prog) { prog.textContent = `✓ Uploaded ${(file.size/1048576).toFixed(1)} MB`; setTimeout(() => { if (prog) prog.textContent = ''; }, 3000); }
+        const urlInput = document.getElementById('cf-image-url');
+        if (urlInput) { urlInput.value = signedRes.publicUrl; updateCalImagePreview(); }
+        return signedRes.publicUrl;
+      }
+    } catch (e) {
+      // GCS not configured or CORS not set — fall through to helpful error
+      console.warn('GCS signed URL failed:', e.message);
     }
+    if (prog) prog.textContent = '';
+    showToast(`Video too large (max 10 MB). Use Google Drive/OneDrive — upload there and paste the link in the Video URL field.`, 'error');
+    return null;
+  }
+
+  if (file.size > MAX) {
+    showToast(`${file.name} is too large (max 10 MB)`, 'error');
     return null;
   }
 
@@ -8586,6 +8655,90 @@ function moveCalSlide(idx, dir) {
   renderCarouselSlides();
 }
 
+// ── Story slides (ordered multi-media, like carousel) ──────────────────────────
+function renderStorySlides() {
+  const container = document.getElementById('cf-story-slides');
+  if (!container) return;
+  const slides = calState.storySlides;
+  if (!slides.length) {
+    container.innerHTML = '<div style="font-size:12px;color:var(--text-muted);padding:8px 0">No slides yet. Click + Add Slide.</div>';
+    return;
+  }
+  container.innerHTML = slides.map((slide, idx) => {
+    const isVid  = slide.type === 'video' || (slide.url && slide.url.match(/\.(mp4|mov|webm|m4v)(\?|$)/i));
+    const preview = slide.url
+      ? (isVid
+          ? `<div style="display:flex;align-items:center;justify-content:center;height:100%;font-size:20px">🎬</div>`
+          : `<img src="${esc(slide.url)}" style="width:100%;height:100%;object-fit:cover;border-radius:5px" onerror="this.style.display='none'">`)
+      : `<span style="font-size:13px;color:var(--text-muted)">📷</span>`;
+    return `<div class="cal-slide-item" id="cal-story-${idx}">
+      <div class="cal-slide-num">${idx + 1}</div>
+      <div class="cal-slide-thumb" title="Click to upload" onclick="document.getElementById('ssi-${idx}').click()" style="cursor:pointer">${preview}</div>
+      <input type="file" id="ssi-${idx}" accept="image/*,video/*" style="display:none" onchange="(async()=>{const f=this.files[0];this.value='';if(f)await uploadStorySlide(${idx},f)})()">
+      <div style="flex:1;display:flex;flex-direction:column;gap:5px">
+        <input type="url" class="form-input" placeholder="Image/video URL — or click thumbnail to upload" value="${esc(slide.url || '')}" oninput="calState.storySlides[${idx}].url=this.value;renderStorySlides()" style="font-size:12px;padding:5px 8px">
+      </div>
+      <div class="cal-slide-controls">
+        ${idx > 0 ? `<button onclick="moveStorySlide(${idx},-1)" title="Move up">▲</button>` : '<button disabled style="opacity:0.2">▲</button>'}
+        ${idx < slides.length - 1 ? `<button onclick="moveStorySlide(${idx},1)" title="Move down">▼</button>` : '<button disabled style="opacity:0.2">▼</button>'}
+        <button onclick="removeStorySlide(${idx})" title="Remove" style="color:#ef4444;border-color:#ef4444">✕</button>
+      </div>
+    </div>`;
+  }).join('');
+}
+
+function addStorySlide() {
+  if (calState.storySlides.length >= 20) { showToast('Maximum 20 slides per story', 'error'); return; }
+  calState.storySlides.push({ url: '', type: 'image' });
+  renderStorySlides();
+}
+
+function removeStorySlide(idx) {
+  calState.storySlides.splice(idx, 1);
+  if (!calState.storySlides.length) calState.storySlides.push({ url: '', type: 'image' });
+  renderStorySlides();
+}
+
+function moveStorySlide(idx, dir) {
+  const s = calState.storySlides;
+  const t = idx + dir;
+  if (t < 0 || t >= s.length) return;
+  [s[idx], s[t]] = [s[t], s[idx]];
+  renderStorySlides();
+}
+
+async function uploadStorySlide(idx, file) {
+  const prog = document.getElementById('cf-upload-progress');
+  if (prog) prog.innerHTML = `<span class="spinner" style="width:12px;height:12px;margin-right:6px"></span>Uploading slide ${idx + 1}…`;
+  const MAX = 10 * 1024 * 1024;
+  const isVideo = file.type.startsWith('video/');
+  const isImage = file.type.startsWith('image/');
+  if (!isImage && !isVideo) { showToast('Images and videos only', 'error'); return; }
+  if (file.size > MAX) {
+    showToast(`Too large (max 10 MB). Paste a Google Drive/OneDrive URL in the URL field.`, 'error');
+    if (prog) prog.textContent = '';
+    return;
+  }
+  const b64 = await new Promise((res, rej) => {
+    const r = new FileReader(); r.onload = e => res(e.target.result.split(',')[1]); r.onerror = rej; r.readAsDataURL(file);
+  });
+  try {
+    const result = await apiPost('/api/calendar-media', { filename: file.name, mimeType: file.type, data: b64 });
+    calState.storySlides[idx].url  = result.url;
+    calState.storySlides[idx].type = isVideo ? 'video' : 'image';
+    renderStorySlides();
+    if (prog) { prog.textContent = `✓ Slide ${idx + 1} uploaded`; setTimeout(() => { if (prog) prog.textContent = ''; }, 2500); }
+  } catch (e) { showToast('Upload failed: ' + e.message, 'error'); if (prog) prog.textContent = ''; }
+}
+
+// Clear static image upload
+function clearCalImage() {
+  const urlInput   = document.getElementById('cf-image-url');
+  const previewEl  = document.getElementById('cf-image-preview');
+  if (urlInput)  urlInput.value = '';
+  if (previewEl) previewEl.innerHTML = '';
+}
+
 // ── Save / Submit Post ─────────────────────────────────────────────────────────
 async function saveCalPost(mode) {
   const caption   = document.getElementById('cf-caption')?.value || '';
@@ -8618,14 +8771,18 @@ async function saveCalPost(mode) {
   const assignedTo   = assignedParts[0] || state.userEmail;
   const assignedName = assignedParts[1] || state.actor;
 
-  // Build media files list (URL-based — no blob uploads)
+  // Build media files list
   let mediaFiles;
   if (postType === 'carousel') {
     mediaFiles = calState.carouselSlides
       .filter(s => s.url)
       .map(s => ({ url: s.url, note: s.note || '' }));
+  } else if (postType === 'story') {
+    mediaFiles = calState.storySlides
+      .filter(s => s.url)
+      .map(s => ({ url: s.url, type: s.type || 'image' }));
   } else {
-    mediaFiles = []; // static/story/reel use imageUrl field; no mediaFiles needed
+    mediaFiles = []; // static/reel use imageUrl field
   }
 
   const saveDraftBtn = document.getElementById('cal-save-draft-btn');
