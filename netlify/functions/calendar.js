@@ -233,7 +233,7 @@ exports.handler = async (event) => {
     await notifySlack('calendar_submitted', {
       brand: calBrand, market: calMarket, month: calMonth,
       count: submitted, submittedBy: actor,
-      presentUrl: `${SITE_URL}/?tab=calendar`,
+      presentUrl: `${SITE_URL}/?tab=calendar&brand=${encodeURIComponent(calBrand || '')}&market=${encodeURIComponent(calMarket || '')}`,
     });
     return ok({ ok: true, submitted });
   }

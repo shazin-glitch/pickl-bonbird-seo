@@ -24,6 +24,8 @@ const JSON_HEADERS = { ...CORS, 'Content-Type': 'application/json' };
 
 const ALLOWED_TYPES = new Set([
   'image/jpeg', 'image/png', 'image/gif', 'image/webp', 'image/heic', 'image/heif',
+  // Short video clips (Stories) — max 10MB enforced below
+  'video/mp4', 'video/quicktime', 'video/webm', 'video/x-m4v',
 ]);
 const MAX_BYTES = 10 * 1024 * 1024; // 10 MB decoded
 
@@ -164,7 +166,7 @@ exports.handler = async (event) => {
     if (!filename || !mimeType || !data)
       return { statusCode: 400, headers: JSON_HEADERS, body: JSON.stringify({ error: 'filename, mimeType, data required' }) };
     if (!ALLOWED_TYPES.has(mimeType))
-      return { statusCode: 400, headers: JSON_HEADERS, body: JSON.stringify({ error: `${mimeType} not supported. Upload images (JPEG, PNG, GIF, WebP).` }) };
+      return { statusCode: 400, headers: JSON_HEADERS, body: JSON.stringify({ error: `${mimeType} not supported. Images: JPEG, PNG, GIF, WebP. Videos: MP4, MOV, WebM (max 10 MB — for larger videos use the URL field).` }) };
 
     let buf;
     try { buf = Buffer.from(data, 'base64'); }

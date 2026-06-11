@@ -53,13 +53,14 @@ exports.handler = async (event) => {
       }
     }
 
-    // Get brand + department from userProfile
-    let brand = null;
-    let department = null;
+    // Get brand + department + markets from userProfile
+    let brand = null, department = null, brands = null, markets = null;
     try {
       const profile = await store.get(`userProfile:${session.email}`, { type: 'json' });
       brand      = profile?.brand      || null;
       department = profile?.department || null;
+      brands     = profile?.brands     || null;
+      markets    = profile?.markets    || null; // null = no restriction; array = allowed market keys
     } catch { /* use null defaults */ }
 
     return {
@@ -70,9 +71,8 @@ exports.handler = async (event) => {
         email:   session.email,
         name:    session.name,
         picture: session.picture,
-        role,
-        brand,
-        department,
+        role, brand, department, brands,
+        markets, // null = all markets; ['pickl_bahrain','bonbird_qatar',...] = restricted
       }),
     };
   } catch (err) {

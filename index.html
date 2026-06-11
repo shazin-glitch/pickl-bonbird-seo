@@ -1979,6 +1979,7 @@ const TYPE_TAGS = {
     state.userEmail      = data.email;
     state.userBrand      = data.brand      || null;
     state.userDepartment = data.department || null;
+    state.userMarkets    = data.markets    || null; // null = unrestricted
   } catch (e) {
     window.location.href = '/login.html';
     return;
@@ -2001,7 +2002,25 @@ const TYPE_TAGS = {
   const urlParams = new URLSearchParams(window.location.search);
   const urlTab  = urlParams.get('tab');
   const urlPost = urlParams.get('post');
-  if (urlTab)  { window.history.replaceState({}, '', '/'); switchView(urlTab); }
+  if (urlTab)  {
+    window.history.replaceState({}, '', '/');
+    switchView(urlTab);
+    // If navigating to calendar with brand/market params (e.g. from Slack submit notification)
+    if (urlTab === 'calendar') {
+      const urlBrand  = urlParams.get('brand');
+      const urlMarket = urlParams.get('market');
+      setTimeout(() => {
+        if (urlBrand) {
+          const brandEl = document.getElementById('cal-filter-brand');
+          if (brandEl) { brandEl.value = urlBrand; calBrandChanged(); }
+        }
+        if (urlMarket) {
+          const marketEl = document.getElementById('cal-filter-market');
+          if (marketEl) { marketEl.value = urlMarket; loadCalendar(); }
+        }
+      }, 600);
+    }
+  }
   if (urlPost) { window.history.replaceState({}, '', '/'); switchView('calendar'); setTimeout(() => openCalDetail(urlPost), 900); }
   else {
     // Restore last active tab (but always default to Perch — calendar restores brand separately)
@@ -2358,10 +2377,23 @@ function renderQueue() {
   const list = document.getElementById('queue-list');
   let items = state.queue;
 
-  // Apply all three filters
+  // Apply all three filters + market restrictions
   if (state.activeQFilter !== 'all') items = items.filter(i => i.type === state.activeQFilter);
   if (state.activeBFilter !== 'all') items = items.filter(i => i.brand === state.activeBFilter);
   if (state.activeMFilter !== 'all') items = items.filter(i => i.locationTag === state.activeMFilter);
+  // Market access restriction — hide items outside user's allowed markets
+  if (state.userMarkets?.length) {
+    const allowedFlags = new Set(state.userMarkets.map(k => {
+      // Map market key to flag prefix (e.g. 'pickl_bahrain' → '🇧🇭')
+      const flagMap = { bahrain:'🇧🇭', ksa:'🇸🇦', qatar:'🇶🇦', egypt:'🇪🇬', jordan:'🇯🇴', oman:'🇴🇲', pakistan:'🇵🇰' };
+      const part = k.split('_').slice(1).join('_');
+      return flagMap[part] || null;
+    }).filter(Boolean));
+    items = items.filter(i => {
+      if (!i.locationTag || i.locationTag === '🇦🇪 UAE') return false; // UAE blocked for international-only
+      return [...allowedFlags].some(flag => i.locationTag.startsWith(flag));
+    });
+  }
 
   // Update type pill counts (based on brand+market filtered set first)
   let baseItems = state.queue;
@@ -3666,6 +3698,23 @@ function showAddUserModal() {
           <option value="content">Content</option>
         </select>
       </div>
+      <div class="form-group">
+        <label class="form-label" style="display:flex;justify-content:space-between">
+          <span>Market Access <span style="font-size:11px;color:var(--text-muted);font-weight:400">(leave blank = all markets)</span></span>
+        </label>
+        <div style="background:var(--bg-base);border:1px solid var(--border);border-radius:8px;padding:10px;display:flex;flex-wrap:wrap;gap:6px">
+          ${[
+            {v:'pickl_bahrain',l:'🇧🇭 Pickl Bahrain'},{v:'pickl_ksa',l:'🇸🇦 Pickl KSA'},
+            {v:'pickl_qatar',l:'🇶🇦 Pickl Qatar'},{v:'pickl_egypt',l:'🇪🇬 Pickl Egypt'},
+            {v:'pickl_jordan',l:'🇯🇴 Pickl Jordan'},{v:'pickl_oman',l:'🇴🇲 Pickl Oman'},
+            {v:'bonbird_oman',l:'🇴🇲 Bonbird Oman'},{v:'bonbird_pakistan',l:'🇵🇰 Bonbird Pakistan'},
+            {v:'bonbird_qatar',l:'🇶🇦 Bonbird Qatar'},
+          ].map(m => `<label style="display:flex;align-items:center;gap:4px;font-size:12px;cursor:pointer">
+            <input type="checkbox" class="new-user-market-cb" value="${m.v}"> ${m.l}
+          </label>`).join('')}
+        </div>
+        <div style="font-size:11px;color:var(--text-muted);margin-top:4px">For UAE-only team: leave blank. For international-only: select markets above.</div>
+      </div>
       <div style="font-size:12px;color:var(--text-muted);margin-bottom:16px;padding:10px;background:var(--bg-base);border-radius:6px">
         The user will be able to sign in with their Google account on their next visit. No email invite is sent — just share the URL.
       </div>
@@ -3683,24 +3732,26 @@ async function submitAddUser() {
   const email  = document.getElementById('new-user-email')?.value?.trim().toLowerCase();
   const role   = document.getElementById('new-user-role')?.value;
   const dept   = document.getElementById('new-user-dept')?.value;
-  const brands = [...document.querySelectorAll('.new-user-brand-cb:checked')].map(cb => cb.value);
+  const brands  = [...document.querySelectorAll('.new-user-brand-cb:checked')].map(cb => cb.value);
+  const markets = [...document.querySelectorAll('.new-user-market-cb:checked')].map(cb => cb.value);
   if (!email || !email.includes('@')) { showToast('Enter a valid email address', 'error'); return; }
-  await addUser(email, role, brands, dept);
+  await addUser(email, role, brands, dept, markets.length ? markets : null);
   document.getElementById('add-user-modal')?.remove();
 }
 
-async function addUser(email, role, brands, department) {
+async function addUser(email, role, brands, department, markets) {
   try {
     const res = await fetch('/api/users', {
       method: 'POST',
       credentials: 'include',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ email, role, brands: brands || [], department: department || null }),
+      body: JSON.stringify({ email, role, brands: brands || [], department: department || null, markets: markets || null }),
     });
     const data = await res.json();
     if (!res.ok) throw new Error(data.error || 'Failed');
     const brandLabel = brands?.length ? brands.join(', ') : 'no brand';
-    showToast(`${email} added as ${role} (${brandLabel})`, 'success');
+    const marketLabel = markets?.length ? ` · ${markets.length} markets` : '';
+    showToast(`${email} added as ${role} (${brandLabel}${marketLabel})`, 'success');
     loadUsersPanel();
   } catch (e) {
     showToast('Failed to add user: ' + e.message, 'error');
@@ -4487,6 +4538,12 @@ async function loadReports() {
     return;
   }
 
+  // Load seed keywords for Priority Gap count
+  if (!state.seedKeywords) {
+    try { state.seedKeywords = await apiGet('/api/seed-keywords') || {}; }
+    catch { state.seedKeywords = {}; }
+  }
+
   // Load technical audit for AI readiness
   let techData = null;
   try {
@@ -4563,7 +4620,7 @@ function renderReports(brand, rows, techData, queue, matrixData) {
   const gscKeywords   = new Set(rows.map(r => r.keyword?.toLowerCase()));
   const gapRows       = seedKws.filter(k => !gscKeywords.has(k.toLowerCase()))
     .map(k => ({ keyword: k }));
-  const priorityGaps  = seedKws.length;
+  const priorityGaps  = gapRows.length; // keywords in seed list NOT yet in GSC
 
   // Store for drill-down clicks (avgMobile added below once calculated)
   state.reportOpportunities = { quickWinRows, lowCtrRows, gapRows, brand };
@@ -7125,14 +7182,19 @@ function renderOpportunitiesTable() {
 
   const rows = tierFilter ? all.filter(k => k.tier === tierFilter) : all;
   if (!rows.length) {
+    const updatedAt = kwOppData?.updatedAt;
+    const ideasFetched = kwOppData?.ideasFetched;
+    const lastRun = updatedAt ? `Last run: ${new Date(updatedAt).toLocaleDateString('en-GB',{day:'numeric',month:'short',hour:'2-digit',minute:'2-digit'})}` : '';
+    const diagInfo = ideasFetched !== undefined ? `DataForSEO returned ${ideasFetched} ideas — ${ideasFetched === 0 ? 'check DataForSEO balance and location code' : 'Claude filtered all as irrelevant (check brand context in Settings)'}` : '';
     table.innerHTML = `<div style="text-align:center;padding:40px;background:var(--bg-surface);border-radius:10px;border:1px solid var(--border)">
       <div style="font-size:28px;margin-bottom:10px">🎯</div>
-      <div style="font-weight:600;margin-bottom:6px">No keyword opportunities yet</div>
+      <div style="font-weight:600;margin-bottom:6px">No keyword opportunities${tierFilter ? ' for this tier' : ' yet'}</div>
+      ${lastRun ? `<div style="font-size:12px;color:var(--text-muted);margin-bottom:4px">${lastRun}</div>` : ''}
+      ${diagInfo ? `<div style="font-size:11px;color:#f59e0b;margin-bottom:12px;max-width:400px;margin-left:auto;margin-right:auto">${diagInfo}</div>` : ''}
       <div style="font-size:13px;color:var(--text-muted);margin-bottom:16px;max-width:400px;margin-left:auto;margin-right:auto">
-        The discovery engine uses DataForSEO Labs to find keywords from your menu + competitor data.<br><br>
-        If this is your first run, click <strong>Refresh Now</strong>. If the competitor matrix also shows no data, the Monday cron may have failed — re-run the competitor matrix first, then refresh here.
+        ${tierFilter ? `No ${tierFilter.replace('_',' ')} keywords found — try "All Tiers"` : 'Click Refresh Now to run keyword discovery for this brand/market.'}
       </div>
-      <button class="btn btn-primary" onclick="refreshKeywordOpportunities()">🔄 Run Discovery Now</button>
+      ${!tierFilter ? `<button class="btn btn-primary" onclick="refreshKeywordOpportunities()">🔄 Run Discovery Now</button>` : ''}
     </div>`;
     return;
   }
@@ -7434,7 +7496,24 @@ function calBrandChanged() {
 function populateCalMarkets() {
   const sel = document.getElementById('cal-filter-market');
   if (!sel) return;
-  const markets = CAL_MARKETS[calState.brand] || ['UAE'];
+  let markets = CAL_MARKETS[calState.brand] || ['UAE'];
+
+  // Apply market restrictions if user has limited market access
+  if (state.userMarkets?.length) {
+    // Build lookup: market label → marketKey (e.g. 'Bahrain' → 'pickl_bahrain')
+    // userMarkets is stored as market keys; CAL_MARKETS contains labels
+    // We match by checking if the market label appears in any allowed key
+    const allowed = state.userMarkets.filter(k => k.startsWith(calState.brand));
+    // Extract labels from market keys (e.g. 'pickl_bahrain' → 'Bahrain')
+    const allowedLabels = new Set(allowed.map(k => {
+      const label = k.replace(calState.brand + '_', '').replace(/_/g, ' ');
+      return label.charAt(0).toUpperCase() + label.slice(1);
+    }));
+    // Keep 'UAE' only if explicitly allowed or user has no brand restriction
+    markets = markets.filter(m => allowedLabels.has(m) || (m === 'UAE' && !allowed.length));
+    if (!markets.length) markets = ['UAE']; // fallback
+  }
+
   sel.innerHTML = '<option value="">All Markets</option>' +
     markets.map(m => `<option value="${m}">${m}</option>`).join('');
 }
@@ -8266,7 +8345,7 @@ function updateCalMediaSection() {
 }
 
 // ── Post-type-aware media section ─────────────────────────────────────────────
-function calUploadZoneHtml(inputId, hint) {
+function calUploadZoneHtml(inputId, hint, allowVideo = false) {
   return `
     <div class="cal-upload-zone" id="cf-upload-zone"
          onclick="document.getElementById('${inputId}').click()"
@@ -8277,7 +8356,7 @@ function calUploadZoneHtml(inputId, hint) {
       <div style="font-size:13px;font-weight:600;color:var(--text-main)">Click to upload or drag & drop</div>
       <div style="font-size:11px;color:var(--text-muted);margin-top:2px">${hint}</div>
     </div>
-    <input type="file" id="${inputId}" accept="image/*" style="display:none" onchange="handleCalFileSelect(event,'${inputId}')">
+    <input type="file" id="${inputId}" accept="${allowVideo ? 'image/*,video/*' : 'image/*'}" style="display:none" onchange="handleCalFileSelect(event,'${inputId}')">
     <div id="cf-upload-progress" style="font-size:12px;color:var(--text-muted);margin-top:5px;min-height:16px"></div>`;
 }
 
@@ -8319,14 +8398,14 @@ function renderCalMediaSection(post) {
 
   const isStory = postType === 'story';
   if (isStory || postType === 'static') {
-    const hint   = isStory ? '9:16 vertical · 1080×1920px · max 10 MB' : '1:1 or 4:5 · JPEG · PNG · WebP · max 10 MB';
-    const tip    = isStory ? '📱 1080 × 1920 px (9:16) recommended' : '';
+    const hint   = isStory ? 'Image or video · 9:16 vertical · max 10 MB' : '1:1 or 4:5 · JPEG · PNG · WebP · max 10 MB';
+    const tip    = isStory ? '📱 1080 × 1920 px (9:16) recommended · For large videos (>10 MB) use the URL field below' : '';
     const prevH  = isStory ? '160px' : '120px';
     const prevImg = imageUrl ? `<img src="${esc(imageUrl)}" style="max-height:${prevH};border-radius:6px;margin-top:8px;border:1px solid var(--border)" onerror="this.style.display='none'">` : '';
     sec.innerHTML = `
       <div class="form-group">
-        <label class="form-label">${isStory ? 'Story Image' : 'Image'} <span style="font-size:11px;color:var(--text-muted);font-weight:400">${isStory ? '(9:16 vertical · 1080×1920px recommended)' : '(1:1 or 4:5)'}</span></label>
-        ${calUploadZoneHtml('cf-file-input', hint)}
+        <label class="form-label">${isStory ? 'Story Media' : 'Image'} <span style="font-size:11px;color:var(--text-muted);font-weight:400">${isStory ? '(image or short video · 9:16 vertical)' : '(1:1 or 4:5)'}</span></label>
+        ${calUploadZoneHtml('cf-file-input', hint, isStory)}
         <div style="display:flex;align-items:center;gap:8px;margin-top:8px">
           <div style="flex:1;height:1px;background:var(--border)"></div>
           <span style="font-size:11px;color:var(--text-muted);white-space:nowrap">or paste URL</span>
@@ -8385,15 +8464,24 @@ async function handleCalFileSelect(event, inputId) {
 async function handleCalDrop(event, inputId) {
   event.preventDefault();
   document.getElementById('cf-upload-zone')?.classList.remove('dragover');
-  const file = Array.from(event.dataTransfer.files || []).find(f => f.type.startsWith('image/'));
+  const file = Array.from(event.dataTransfer.files || []).find(f => f.type.startsWith('image/') || f.type.startsWith('video/'));
   if (file) await uploadCalFile(file, inputId);
 }
 
 async function uploadCalFile(file, targetInputId) {
   const MAX = 10 * 1024 * 1024;
   const prog = document.getElementById('cf-upload-progress');
-  if (!file.type.startsWith('image/')) { showToast('Images only — use a URL for videos', 'error'); return null; }
-  if (file.size > MAX) { showToast(`${file.name} is too large (max 10 MB)`, 'error'); return null; }
+  const isVideo = file.type.startsWith('video/');
+  const isImage = file.type.startsWith('image/');
+  if (!isImage && !isVideo) { showToast('Please upload an image or video file', 'error'); return null; }
+  if (file.size > MAX) {
+    if (isVideo) {
+      showToast(`Video too large for direct upload (max 10 MB). Use the Video URL field — upload to Google Drive or OneDrive and paste the link.`, 'error');
+    } else {
+      showToast(`${file.name} is too large (max 10 MB)`, 'error');
+    }
+    return null;
+  }
 
   if (prog) prog.innerHTML = `<span class="spinner" style="width:12px;height:12px;margin-right:6px"></span>Uploading ${file.name}…`;
 

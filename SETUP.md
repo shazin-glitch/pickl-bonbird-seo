@@ -2546,3 +2546,61 @@ Note: Technical SEO Developer Kanban stays separate from The Perch — developer
 
 - `removeCalMedia(mediaId, fromExisting)` function was missing entirely — clicking × on a calendar post's uploaded image thumbnail would throw a ReferenceError
 - Added: hides the DOM element and removes matching slide from `calState.carouselSlides`
+
+---
+
+## Roadmap: Slack Bot OAuth (build later)
+
+**What it enables:** Direct Slack DMs when someone is @mentioned in a calendar post comment, instead of a channel notification.
+
+**What's needed:**
+1. Create Slack App with Bot User OAuth scopes: `chat:write`, `users:lookupByEmail`
+2. Add `SLACK_BOT_TOKEN` env var in Netlify
+3. When `calendar_mention` fires: call `users.lookupByEmail` with mentioned user's Yolk email → get their Slack user ID → `chat.postMessage` to DM them directly
+
+**Current state:** Mentions send to the main webhook channel. The recipient's name is shown prominently so they can find the notification. Direct DMs require Slack Bot setup (~20 min in Slack App dashboard + env var).
+
+---
+
+## Session: June 2026 — v6.9bl Bug Fixes + Market Permissions + Slack URL Fix
+
+### Bug Fixes
+
+#### Priority Gap = 0 in Reports ✅
+Root cause: `state.seedKeywords` was never populated from the API — always undefined → always 0.
+Fix: load seed keywords via `/api/seed-keywords` in `loadReports()` before calling `renderReports()`.
+Also fixed: count was `seedKws.length` (total seeds) — should be `gapRows.length` (seeds not yet in GSC).
+
+#### Keyword Opportunities — Better Diagnostics ✅  
+Empty state now shows:
+- Last run timestamp
+- How many ideas DataForSEO returned vs how many survived Claude filtering
+- Actionable diagnosis: "DataForSEO returned 0 ideas — check balance/location" or "Claude filtered all as irrelevant — check brand context in Settings"
+- Tier filter active: shows "No X keywords — try All Tiers" without Run Discovery button
+
+### Slack Calendar URL — Brand + Market ✅
+`netlify/functions/calendar.js`:
+- `submit_calendar` action now builds URL: `/?tab=calendar&brand=pickl&market=Jordan`
+- Was: `/?tab=calendar` (opened calendar with no brand/market context)
+
+`index.html`:
+- On load, if `?tab=calendar&brand=X&market=Y` params present: switches to calendar, sets brand/market dropdowns, loads correct view
+- Reviewer lands on the exact brand+market calendar that was submitted for review
+
+### Market-Level User Permissions ✅
+**New:** Users can now have a `markets` array restricting them to specific international markets.
+
+`netlify/functions/auth-user.js`:
+- Returns `markets` field from userProfile
+
+`netlify/functions/user-management.js`:
+- POST and PUT both accept and store `markets` array (null = unrestricted)
+
+`index.html`:
+- `state.userMarkets` set on login (null = all markets)
+- Add User modal: market checkboxes for all 9 international markets
+- `populateCalMarkets()`: filters market dropdown to user's allowed markets
+- Approvals Queue: hides items outside user's allowed markets
+- For international-only colleague: set markets to all 9 international keys, they won't see UAE
+
+**Use case:** International social media manager can only see/create Pickl and Bonbird international market content.

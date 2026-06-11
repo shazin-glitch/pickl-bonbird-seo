@@ -87,13 +87,15 @@ exports.handler = async (event) => {
       const normalised = email.trim().toLowerCase();
       await store.set(`userRole:${normalised}`, JSON.stringify({ email: normalised, role, addedAt: new Date().toISOString() }));
 
-      // Save profile with brands array + department
-      const brandsArr = normaliseBrands(brands);
+      // Save profile with brands array + department + markets
+      const brandsArr  = normaliseBrands(brands);
+      const marketsArr = Array.isArray(body.markets) && body.markets.length ? body.markets : null;
       await store.set(`userProfile:${normalised}`, JSON.stringify({
         email: normalised,
         brands: brandsArr,
         brand: brandsArr[0] || null, // backward compat single
         department: (department && VALID_DEPARTMENTS.includes(department)) ? department : null,
+        markets: marketsArr, // null = unrestricted; array = allowed market keys
         updatedAt: new Date().toISOString(),
       }));
 
@@ -107,7 +109,7 @@ exports.handler = async (event) => {
     // ── PUT ───────────────────────────────────────────────────────────────────
     if (event.httpMethod === 'PUT') {
       const body = JSON.parse(event.body || '{}');
-      const { email, role, brands, brand, department } = body;
+      const { email, role, brands, brand, department, markets } = body;
       if (!email) return { statusCode: 400, headers, body: JSON.stringify({ error: 'email required' }) };
 
       const normalised = email.trim().toLowerCase();
@@ -119,7 +121,7 @@ exports.handler = async (event) => {
         await store.set(`userRole:${normalised}`, JSON.stringify({ ...existing, email: normalised, role, updatedAt: new Date().toISOString() }));
       }
 
-      if (brands !== undefined || brand !== undefined || department !== undefined) {
+      if (brands !== undefined || brand !== undefined || department !== undefined || markets !== undefined) {
         let existing = {};
         try { existing = await store.get(`userProfile:${normalised}`, { type: 'json' }) || {}; } catch {}
 
@@ -131,12 +133,16 @@ exports.handler = async (event) => {
           return { statusCode: 400, headers, body: JSON.stringify({ error: 'Invalid department' }) };
         }
 
+        const newMarkets = markets !== undefined
+          ? (Array.isArray(markets) && markets.length ? markets : null)
+          : existing.markets ?? null;
         await store.set(`userProfile:${normalised}`, JSON.stringify({
           ...existing,
           email: normalised,
           brands: brandsArr,
-          brand: brandsArr[0] || null, // backward compat
+          brand: brandsArr[0] || null,
           department: department ?? existing.department,
+          markets: newMarkets,
           updatedAt: new Date().toISOString(),
         }));
       }
