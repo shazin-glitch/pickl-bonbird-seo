@@ -2646,3 +2646,51 @@ Empty state now shows:
 - Progress shows file size during direct upload
 
 **Note:** Direct upload works when GCS CORS is configured. Until then, videos > 10MB show: "Use Google Drive/OneDrive — upload there and paste the link in the Video URL field."
+
+---
+
+## Domain Migration Checklist (yolkseo.netlify.app → thenest.yolkbrands.com)
+
+When the custom domain is set up, update ALL of the following before announcing the new URL:
+
+### 1. Netlify (5 min)
+- Add custom domain in Netlify → Site Settings → Domain management
+- Set as primary domain so `process.env.URL` auto-updates (used by all functions for Slack URLs, OAuth callbacks etc.)
+- Enable HTTPS (auto via Netlify)
+
+### 2. Google Cloud Console — OAuth Redirect URIs (10 min)
+All three OAuth flows use redirect URIs that must be updated:
+- **GSC (Google Search Console):** Add `https://thenest.yolkbrands.com/api/auth/callback` to OAuth app → Credentials → Authorized redirect URIs
+- **GBP (Google Business Profile):** Same OAuth app, same place — add the new callback URL
+- **GA4 (Google Analytics 4):** Same OAuth app — add `https://thenest.yolkbrands.com/api/auth/callback?type=ga4`
+- Keep the old yolkseo.netlify.app URIs during transition, remove after confirming new domain works
+
+### 3. Slack App — Interactivity URL (5 min)
+The approve/dismiss buttons in Slack call back to the site:
+- Slack App Dashboard → Your App → Interactivity & Shortcuts → Request URL
+- Change from: `https://yolkseo.netlify.app/api/slack-callback`
+- Change to: `https://thenest.yolkbrands.com/api/slack-callback`
+
+### 4. GCS CORS (2 min — do this at same time as domain change)
+Update the CORS config to the new origin:
+```json
+[{"origin":["https://thenest.yolkbrands.com"],"method":["PUT"],"responseHeader":["Content-Type"],"maxAgeSeconds":3600}]
+```
+```bash
+gsutil cors set cors.json gs://YOUR_BUCKET_NAME
+```
+This is the same step as the large video upload CORS setup — do both at once.
+
+### 5. SETUP.md (1 min)
+Update "Current URL" from `yolkseo.netlify.app` to `thenest.yolkbrands.com`
+
+### Things that update AUTOMATICALLY (no action needed)
+- All Slack notification links (use `process.env.URL` which Netlify sets to primary domain)
+- All background function self-calls (same `process.env.URL`)
+- Calendar submit notification URLs (built from `process.env.URL`)
+
+### Things that DON'T need updating
+- DataForSEO API — no domain dependency
+- Anthropic API — no domain dependency  
+- Google PageSpeed API — no domain dependency
+- Netlify Blobs — no domain dependency
