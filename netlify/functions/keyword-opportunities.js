@@ -30,7 +30,7 @@ exports.handler = async (event) => {
     if (q.audit) {
       const domain  = q.audit;
       const audit   = await store.get(`competitorAuditCache:${domain}`, { type: 'json' }).catch(() => null);
-      const GSC_URL = brand === 'pickl' ? 'https://eatpickl.com/' : 'https://bonbirdchicken.com/';
+      const GSC_URL = brand === 'pickl' ? 'https://eatpickl.com/' : 'sc-domain:bonbirdchicken.com';
       const gscCache = await store.get(`gscCache:${GSC_URL}`, { type: 'json' }).catch(() => null);
 
       const gscMap = {};

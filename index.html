@@ -2119,7 +2119,7 @@ function switchView(target) {
 // ═══════════════════════════════════════════════════════════════
 function loadDashboardIfNeeded() {
   // Dashboard shows GSC metrics — load them if not already loaded
-  if (!state.gscLoaded) loadGscIfNeeded();
+  if (!gscLoaded) loadGscIfNeeded();
 }
 
 // ═══════════════════════════════════════════════════════════════
@@ -3772,15 +3772,15 @@ document.addEventListener('keydown', e => {
 // ═══════════════════════════════════════════════════════════════
 
 const INTL_MARKETS = {
-  pickl_bahrain: { brand:'pickl', label:'Bahrain',       flag:'🇧🇭', languages:['en','ar'] },
-  pickl_ksa:     { brand:'pickl', label:'Saudi Arabia',  flag:'🇸🇦', languages:['en','ar'] },
-  pickl_jordan:  { brand:'pickl', label:'Jordan',        flag:'🇯🇴', languages:['en','ar'] },
-  pickl_qatar:   { brand:'pickl', label:'Qatar',         flag:'🇶🇦', languages:['en','ar'] },
-  pickl_egypt:   { brand:'pickl', label:'Egypt',         flag:'🇪🇬', languages:['en','ar'] },
-  pickl_oman:    { brand:'pickl', label:'Oman',          flag:'🇴🇲', languages:['en'], isNew:true },
-  bonbird_oman:  { brand:'bonbird', label:'Oman',        flag:'🇴🇲', languages:['en'] },
-  bonbird_pakistan:{ brand:'bonbird', label:'Pakistan',  flag:'🇵🇰', languages:['en'] },
-  bonbird_qatar: { brand:'bonbird', label:'Qatar',       flag:'🇶🇦', languages:['en','ar'] },
+  pickl_bahrain:    { brand:'pickl',   label:'Bahrain',       flag:'🇧🇭', languages:['en','ar'], marketSlug:'bh' },
+  pickl_ksa:        { brand:'pickl',   label:'Saudi Arabia',  flag:'🇸🇦', languages:['en','ar'], marketSlug:'ksa' },
+  pickl_jordan:     { brand:'pickl',   label:'Jordan',        flag:'🇯🇴', languages:['en','ar'], marketSlug:'pickl-jordan' },
+  pickl_qatar:      { brand:'pickl',   label:'Qatar',         flag:'🇶🇦', languages:['en','ar'], marketSlug:'qatar' },
+  pickl_egypt:      { brand:'pickl',   label:'Egypt',         flag:'🇪🇬', languages:['en','ar'], marketSlug:'egypt' },
+  pickl_oman:       { brand:'pickl',   label:'Oman',          flag:'🇴🇲', languages:['en'],       marketSlug:'oman', isNew:true },
+  bonbird_oman:     { brand:'bonbird', label:'Oman',          flag:'🇴🇲', languages:['en'],       marketSlug:'oman' },
+  bonbird_pakistan: { brand:'bonbird', label:'Pakistan',      flag:'🇵🇰', languages:['en'],       marketSlug:'pakistan' },
+  bonbird_qatar:    { brand:'bonbird', label:'Qatar',         flag:'🇶🇦', languages:['en','ar'],  marketSlug:'qatar' },
 };
 
 let intlState = {
@@ -4512,24 +4512,15 @@ async function loadReports() {
 
   const brand = reportState.brand;
 
-  // Load GSC data — try state first, then fetch
+  // Load GSC data — try state first (populated by Analytics tab), then fetch directly
   let gscRows = state.gscRows?.[brand] || [];
   if (!gscRows.length) {
     try {
-      const gscSite = brand === 'pickl' ? 'https://eatpickl.com/' : 'sc-domain:bonbirdchicken.com';
-      const cached  = await apiGet('/api/db/get');
-      const key     = brand === 'pickl' ? 'gscCache:https://eatpickl.com/' : 'gscCache:sc-domain:bonbirdchicken.com';
-      gscRows = cached?.[key]?.rows || cached?.keywords?.[brand] || [];
+      const siteUrl = brand === 'pickl' ? 'https://eatpickl.com/' : 'sc-domain:bonbirdchicken.com';
+      gscRows = await fetchGscRows(siteUrl);
+      // Cache into state so Analytics tab benefits too
+      if (state.gscRows) state.gscRows[brand] = gscRows;
     } catch { gscRows = []; }
-  }
-
-  // Also try getting direct from gsc endpoint
-  if (!gscRows.length) {
-    try {
-      const res = await fetch(`/api/gsc-data?site=${brand === 'pickl' ? 'https://eatpickl.com/' : 'sc-domain:bonbirdchicken.com'}`, { credentials: 'include' });
-      const d   = await res.json();
-      gscRows   = d.rows || d.keywords || [];
-    } catch {}
   }
 
   if (!gscRows.length) {
@@ -4708,10 +4699,10 @@ function renderReports(brand, rows, techData, queue, matrixData) {
 
   // AI Search Readiness
   document.getElementById('report-ai-readiness').innerHTML = `
-    <div style="display:flex;align-items:center;gap:12px;margin-bottom:16px;padding:12px;background:${readinessScore >= 5 ? '#ecfdf5' : readinessScore >= 3 ? '#fffbeb' : '#fef2f2'};border-radius:8px">
-      <div style="font-size:28px;font-weight:800;color:${readinessScore >= 5 ? '#059669' : readinessScore >= 3 ? '#d97706' : '#dc2626'}">${readinessScore}/6</div>
+    <div style="display:flex;align-items:center;gap:12px;margin-bottom:16px;padding:12px;background:${readinessScore >= 6 ? '#ecfdf5' : readinessScore >= 4 ? '#fffbeb' : '#fef2f2'};border-radius:8px">
+      <div style="font-size:28px;font-weight:800;color:${readinessScore >= 6 ? '#059669' : readinessScore >= 4 ? '#d97706' : '#dc2626'}">${readinessScore}/7</div>
       <div>
-        <div style="font-weight:600;font-size:13px;color:${readinessScore >= 5 ? '#059669' : readinessScore >= 3 ? '#d97706' : '#dc2626'}">${readinessScore >= 5 ? 'Good' : readinessScore >= 3 ? 'Needs work' : 'Poor'}</div>
+        <div style="font-weight:600;font-size:13px;color:${readinessScore >= 6 ? '#059669' : readinessScore >= 4 ? '#d97706' : '#dc2626'}">${readinessScore >= 6 ? 'Good' : readinessScore >= 4 ? 'Needs work' : 'Poor'}</div>
         <div style="font-size:11px;color:var(--text-muted)">AI Overview eligibility</div>
       </div>
     </div>
@@ -6276,11 +6267,14 @@ async function loadIntlDashboard() {
 
   try {
     // Pull approval items to count per market
-    const [approvalsData, gscPickl, gscBonbird] = await Promise.all([
+    const [approvalsData, pickRows, bonRows] = await Promise.all([
       apiGet('/api/approvals?status=pending').catch(() => ({ items: [] })),
-      apiGet('/api/db/get').then(d => d?.['gscCache:https://eatpickl.com/'] || d?.['gscCache:https://eatpickl.com/'] || null).catch(() => null),
-      apiGet('/api/db/get').then(d => d?.['gscCache:sc-domain:bonbirdchicken.com'] || null).catch(() => null),
+      fetchGscRows('https://eatpickl.com/').catch(() => []),
+      fetchGscRows('sc-domain:bonbirdchicken.com').catch(() => []),
     ]);
+    // Wrap in same shape as gsc-data response for the ranking loop below
+    const gscPickl   = { rows: pickRows };
+    const gscBonbird = { rows: bonRows };
 
     const items = approvalsData.items || [];
 
@@ -7166,6 +7160,7 @@ function renderOpportunitiesTable() {
   const summary  = document.getElementById('opp-summary');
   const table    = document.getElementById('opp-table-wrap');
   const tierFilter = document.getElementById('opp-tier-filter')?.value || '';
+  const brand    = document.getElementById('opp-brand-filter')?.value || 'pickl';
 
   const all   = kwOppData.opportunities || [];
   const s     = kwOppData.summary || {};
