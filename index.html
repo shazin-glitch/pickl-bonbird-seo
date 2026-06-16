@@ -5708,7 +5708,7 @@ function toggleOpportunityDrill(key) {
   } else if (key === 'gaps') {
     title = '🚨 Priority Gap Keywords — seed list with no Google presence yet';
     rows  = d.gapRows || [];
-    cols  = ['keyword'];
+    cols  = ['keyword', 'action'];
   }
 
   // CTR formatter — storage is always decimal (0-1), display multiplies by 100
@@ -5721,7 +5721,7 @@ function toggleOpportunityDrill(key) {
 
   const colLabels = {
     keyword: 'Keyword', position: 'Position', impressions: 'Impressions (90d)',
-    clicks: 'Clicks', ctr: 'CTR', expectedCtr: 'Expected CTR'
+    clicks: 'Clicks', ctr: 'CTR', expectedCtr: 'Expected CTR', action: 'Action'
   };
 
   if (!rows.length) {
@@ -5751,11 +5751,41 @@ function toggleOpportunityDrill(key) {
                 ${cols.includes('clicks')      ? `<td style="padding:8px 14px;color:var(--text-muted)">${r.clicks ? Number(r.clicks).toLocaleString() : '—'}</td>` : ''}
                 ${cols.includes('ctr')         ? `<td style="padding:8px 14px;color:var(--text-muted)">${fmtCtr(r.ctr)}</td>` : ''}
                 ${cols.includes('expectedCtr') ? `<td style="padding:8px 14px;color:#d97706;font-weight:600">${expectedCtr(r.position)} <span style="font-size:11px;color:var(--text-muted);font-weight:400">expected</span></td>` : ''}
+                ${cols.includes('action') ? `<td style="padding:8px 14px"><button onclick="queueGapKeyword('${esc(r.keyword)}','${esc(d.brand)}',this)" style="font-size:11px;padding:4px 10px;border-radius:6px;border:1px solid #dc2626;background:none;color:#dc2626;cursor:pointer;font-weight:600;white-space:nowrap">Queue Brief</button></td>` : ''}
               </tr>`).join('')}
           </tbody>
         </table>
       </div>
     </div>`;
+}
+
+async function queueGapKeyword(keyword, brand, btn) {
+  btn.disabled = true;
+  btn.textContent = 'Queuing…';
+  try {
+    await apiPost('/api/approvals', {
+      action: 'create',
+      type: 'blog_draft',
+      brand,
+      title: `Content Brief: ${keyword}`,
+      reason: 'Priority gap keyword — no Google presence in GSC',
+      payload: {
+        targetKeyword: keyword,
+        keywordTier: 'Priority Gap',
+        tierColor: '#dc2626',
+        tierEmoji: '🚨',
+        isSeedKeyword: true,
+      },
+    });
+    btn.textContent = 'Queued ✓';
+    btn.style.color = '#059669';
+    btn.style.borderColor = '#059669';
+    showToast(`"${keyword}" added to approvals queue`, 'success');
+  } catch (e) {
+    btn.disabled = false;
+    btn.textContent = 'Queue Brief';
+    showToast('Failed to queue: ' + e.message, 'error');
+  }
 }
 
 const techSeoState = { brand: 'pickl', pollTimer: null };

@@ -2608,6 +2608,22 @@ Empty state now shows:
 
 ---
 
+## Session: June 2026 — v7.0.7 — Priority Gap queuing + keyword filter fixes
+
+### Priority Gap → Queue Brief (Reports tab)
+- Clicking any gap keyword in the Reports drill-down now creates a `blog_draft` approval item
+- Button disables on click, turns green "Queued ✓" on success, re-enables on error
+- Item lands in approvals queue with `keywordTier: 'Priority Gap'` and `isSeedKeyword: true`
+
+### Keyword Opportunities — filtering fixed (keyword-discovery-background.js)
+- `OFF_MENU_DISHES` was defined but never called — dead code. Now wired up as `applyStaticFilter()`
+- Expanded static blocklist: kung pao, tikka, curry, cheesecake, bakery, recipe, breakfast cereal, etc.
+- Competitor keywords (`compKeywords`) previously bypassed all filtering — now run through static filter + Claude
+- Claude prompt tightened: brand-specific off-menu guidance (Bonbird ≠ burgers), explicit UAE chain names to reject (pox chicken, j j chicken, dime burger, black tap, etc.), near-duplicate dedup rule
+- Existing stale data in Blobs will refresh next Monday cron or via `?brand=pickl&force=true`
+
+---
+
 ## Session: June 2026 — v7.0.6 — Reports tab crash fix
 
 ### Fixed Reports tab crash (TypeError: seedKws.filter is not a function)
@@ -2756,9 +2772,9 @@ Update "Current URL" from `yolkseo.netlify.app` to `thenest.yolkbrands.com`
 
 ---
 
-## Current Version: v7.0.6
+## Current Version: v7.0.7
 
-Last session built: Bug-fix batch (v7.0.2), added Yolk Brands to Content Calendar (v7.0.3 + v7.0.4), added Yolk Brands to The Perch (v7.0.5), fixed Reports tab crash (v7.0.6).
+Last session built: Bug-fix batch (v7.0.2), added Yolk Brands to Content Calendar (v7.0.3 + v7.0.4), added Yolk Brands to The Perch (v7.0.5), fixed Reports tab crash (v7.0.6), Priority Gap → Queue Brief + keyword filtering fixes (v7.0.7).
 
 ### Yolk Brands — Content Calendar Setup
 - Brand key: `yolk` | Colour: `#F5B800`

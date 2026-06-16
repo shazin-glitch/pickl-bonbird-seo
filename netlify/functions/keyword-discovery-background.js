@@ -52,12 +52,30 @@ const MARKET_LOCATIONS = {
   Pakistan: 2586,
 };
 
-// Off-menu dishes — keywords containing these are rejected if not in menu
+// Off-menu dishes — keywords containing any of these terms are rejected before scoring
 const OFF_MENU_DISHES = [
+  // Wrong cuisines / dishes
   'butter chicken', 'biryani', 'kebab', 'shawarma', 'pizza', 'pasta',
   'fish and chips', 'sushi', 'tacos', 'burritos', 'ramen', 'dumplings',
   'hummus', 'falafel', 'steak house', 'bbq ribs', 'lobster', 'seafood',
+  'kung pao', 'tikka', 'masala', 'korma', 'curry', 'cheesecake',
+  'dim sum', 'pho', 'waffles', 'pancakes', 'crepes', 'gelato', 'ice cream',
+  // Wrong business types
+  'bakery', 'grocery', 'supermarket', 'salon', 'spa', 'hotel', 'gym',
+  // Wrong intent
+  'recipe', 'how to make', 'how to cook', 'calories in', 'nutrition',
+  'breakfast cereal',
+  // Generic non-food-category queries
+  'clothing', 'fashion', 'shoes',
 ];
+
+// Reject keywords that contain any off-menu term
+function applyStaticFilter(keywords) {
+  return keywords.filter(k => {
+    const kw = k.keyword.toLowerCase();
+    return !OFF_MENU_DISHES.some(term => kw.includes(term));
+  });
+}
 
 // ── DataForSEO keyword ideas ──────────────────────────────────────────────────
 async function getKeywordIdeas(seeds, locationCode, authHeader) {
@@ -122,37 +140,42 @@ async function filterKeywordsWithClaude(keywords, brandName, brandCtx) {
 
   const kwList = keywords.map((k, i) => `${i + 1}. ${k.keyword}`).join('\n');
 
+  const isPickl   = brandName.toLowerCase() === 'pickl';
+  const offMenu   = isPickl
+    ? 'butter chicken, biryani, shawarma, pizza, pasta, sushi, coffee, cheesecake, bakery items, Indian food, Middle Eastern food not on menu'
+    : 'burgers (we sell chicken, not burgers), pizza, pasta, shawarma, sushi, coffee, biryani, butter chicken, kung pao, tikka masala, curry dishes, bakery items';
+
   const prompt = `You are filtering keyword research results for ${brandName}, a UAE restaurant.
 
 What ${brandName} sells: ${menuSummary}
 
-Below are ${keywords.length} keywords. Return ONLY the numbers of keywords that are CATEGORY or INTENT searches — where someone is looking for a TYPE of food or restaurant, not a specific named place.
+Below are ${keywords.length} keywords. Return ONLY the numbers of keywords that are CATEGORY or INTENT searches — where someone is looking for a TYPE of food or restaurant that ${brandName} actually sells.
 
 KEEP examples:
-- "best burger in dubai" ✓ (category search)
-- "smash burger dubai" ✓ (food type search)
-- "burger delivery abu dhabi" ✓ (intent search)
-- "fried chicken restaurant dubai" ✓ (category search)
+- "best burger in dubai" ✓ (category search — Pickl sells burgers)
+- "smash burger dubai" ✓ (food type Pickl sells)
+- "fried chicken restaurant dubai" ✓ (category search — Bonbird sells fried chicken)
+- "crispy chicken delivery dubai" ✓ (Bonbird food type + intent)
 
-REJECT examples:
-- "dime burger" ✗ (this is a restaurant name)
-- "goat burger" ✗ (restaurant name — Goat Burger is a UAE chain)
-- "just burger" ✗ (restaurant name)
-- "nice burger" ✗ (restaurant name — Nice Burger is a chain)
-- "firefly burger" ✗ (restaurant name)
-- "california burger" ✗ (restaurant name)
-- "in-n-out burger" ✗ (restaurant chain name)
-- "huff puff burger" ✗ (restaurant name)
-- "starbucks" ✗ (brand name, not our food type)
-- "order food dubai" ✗ (too generic, not food-category specific)
-- Any two-word phrase where the first word looks like a brand/place name
+REJECT — competitor brand names (most important rule):
+- "dime burger" ✗ (Dime Burger is a UAE restaurant chain)
+- "goat burger" ✗ (Goat Burger is a UAE chain)
+- "pox chicken" ✗ (Pox Chicken is a UAE restaurant)
+- "j j chicken" / "jjs chicken" / "jeje chicken" ✗ (all same brand — JJ's Chicken)
+- "black tap" ✗ (Black Tap is a restaurant chain)
+- "cheesecake factory" ✗ (brand name)
+- "nandos" / "kfc" / "mcdonald" / "starbucks" ✗ (brand names)
+- Any phrase where a word or two-word combo is a specific restaurant/chain name — when in doubt, reject
 
-RULE: If the keyword IS or CONTAINS a specific restaurant, chain, or brand name — reject it even if you're unsure. We only want searches where someone is looking for a category of food, not a specific named restaurant.
+REJECT — food not on ${brandName}'s menu:
+${offMenu}
 
-Also REJECT:
-- Food not on our menu: ${menuSummary.includes('burger') ? 'pizza, sushi, shawarma, coffee, biryani, kebab' : 'pizza, sushi, burgers, coffee, biryani, kebab'}
-- Delivery platforms (talabat, deliveroo, zomato)
-- Near-duplicate keywords (keep only the clearest version)
+REJECT — wrong intent or too generic:
+- "recipes" / "how to make" / "calories in" ✗ (informational, no restaurant intent)
+- "order food dubai" ✗ (too generic)
+- Delivery platforms: talabat, deliveroo, zomato, noon food ✗
+
+REJECT — near-duplicates: if you see 3+ variants of the same thing (jj chicken, jjs chicken, jeje chicken), keep at most 1.
 
 Return a JSON array of numbers only. Example: [1, 3, 7, 12]
 
@@ -262,11 +285,13 @@ async function discoverKeywords(brand, store, authHeader, force = false, marketK
   const ideas = await getKeywordIdeas(seeds, locationCode, authHeader);
   console.log(`${tag} DataForSEO returned ${ideas.length} keyword ideas (${marketLabel})`);
 
-  // Claude relevancy filter
-  const filteredIdeas = await filterKeywordsWithClaude(ideas, brandName, brandCtx);
+  // Static off-menu filter first (cheap, no API call), then Claude for brand/intent relevance
+  const staticFilteredIdeas = applyStaticFilter(ideas);
+  console.log(`${tag} static filter: ${ideas.length} → ${staticFilteredIdeas.length} ideas`);
+  const filteredIdeas = await filterKeywordsWithClaude(staticFilteredIdeas, brandName, brandCtx);
 
   // Also add competitor keywords we don't yet track
-  const compKeywords = Object.entries(compMap)
+  const rawCompKeywords = Object.entries(compMap)
     .filter(([kw]) => !gscMap[kw]) // not ranking for it at all
     .map(([kw]) => ({
       keyword:     kw,
@@ -276,8 +301,16 @@ async function discoverKeywords(brand, store, authHeader, force = false, marketK
       fromCompetitor: true,
     }));
 
+  // Competitor keywords must pass static filter + Claude — they're raw and include brand names
+  const staticFilteredComp = applyStaticFilter(rawCompKeywords);
+  console.log(`${tag} comp static filter: ${rawCompKeywords.length} → ${staticFilteredComp.length} keywords`);
+  const filteredComp = staticFilteredComp.length > 0
+    ? await filterKeywordsWithClaude(staticFilteredComp.slice(0, 80), brandName, brandCtx)
+    : [];
+  console.log(`${tag} comp Claude filter: ${staticFilteredComp.length} → ${filteredComp.length} keywords`);
+
   // Merge all sources
-  const allKeywords = [...filteredIdeas, ...compKeywords];
+  const allKeywords = [...filteredIdeas, ...filteredComp];
   const seen = new Set();
   const unique = allKeywords.filter(k => {
     if (!k.keyword || seen.has(k.keyword.toLowerCase())) return false;
