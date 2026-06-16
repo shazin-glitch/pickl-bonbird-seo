@@ -235,15 +235,18 @@
     if (brands.length === 1) {
       return matrixData?.[brands[0]]?.sovCurrent || {};
     }
-    // Merge SoV across brands (average)
+    // Merge SoV across brands (average per domain across brands that have it)
     const combined = {};
-    let count = 0;
+    const brandCounts = {};
     for (const b of brands) {
       const sov = matrixData?.[b]?.sovCurrent || {};
       for (const [domain, pct] of Object.entries(sov)) {
-        combined[domain] = (combined[domain] || 0) + pct;
-        count++;
+        combined[domain]    = (combined[domain] || 0) + pct;
+        brandCounts[domain] = (brandCounts[domain] || 0) + 1;
       }
+    }
+    for (const domain of Object.keys(combined)) {
+      combined[domain] = combined[domain] / brandCounts[domain];
     }
     return combined;
   }
@@ -1263,7 +1266,7 @@
           const picklFresh   = data?.pickl?.rows?.length   && new Date(data.pickl.fetchedAt).getTime()   > triggerTime;
           const bonbirdFresh = data?.bonbird?.rows?.length && new Date(data.bonbird.fetchedAt).getTime() > triggerTime;
 
-          if (picklFresh && bonbirdFresh) {
+          if ((picklFresh || !data?.pickl) && (bonbirdFresh || !data?.bonbird)) {
             clearInterval(pollTimer); pollTimer = null;
             matrixData = data; isLoading = false;
             switchView(container, "matrix");
@@ -1387,7 +1390,6 @@ async function cmAddDiscoveredCompetitor(brand, domain, btn) {
 
   try {
     // Load current competitors, append new one, save
-    const res  = await fetch(`/.netlify/functions/keyword-config?brand=${brand}`, { credentials: "include" });
     // Use competitor-config endpoint
     const cRes = await fetch("/.netlify/functions/competitor-config?brand=all", { credentials: "include" });
     const cData = await cRes.json();

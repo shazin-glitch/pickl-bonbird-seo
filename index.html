@@ -2789,6 +2789,7 @@ async function publishItem(id, btn) {
 // ─── DISMISS (Task 3 — delete only, no Claude call) ─────────────
 async function dismissItem(id, btn) {
   const card = document.getElementById('card-' + id);
+  if (!card) return;
   card.classList.add('dismissing');
   try {
     await apiPost('/api/approvals', { action: 'delete', id, actor: state.actor });
@@ -7459,6 +7460,7 @@ const calState = {
   editPost: null,         // post being edited (null = new)
   detailPost: null,       // post open in detail panel
   carouselSlides: [],     // [{ url, note }] — carousel slide state (URL-based, no uploads)
+  storySlides: [],        // [{ url, type }] — story slide state
   allUsers: [],           // loaded from /api/users for approver picker
   selectedPosts: new Set(), // post IDs selected in list view
   loaded:   false,
@@ -8480,6 +8482,10 @@ function removeCalMedia(mediaId, fromExisting) {
     calState.carouselSlides = calState.carouselSlides.filter(s => s.id !== mediaId);
     renderCarouselSlides();
   }
+  // For story: remove the slide if it matches
+  if (calState.storySlides) {
+    calState.storySlides = calState.storySlides.filter(s => s.id !== mediaId);
+  }
 }
 
 function updateCalImagePreview() {
@@ -8747,14 +8753,14 @@ async function saveCalPost(mode) {
   const videoUrl  = document.getElementById('cf-video-url')?.value?.trim() || '';
   const imageUrl  = document.getElementById('cf-image-url')?.value?.trim() || '';
 
+  const platforms = [...document.querySelectorAll('#cal-platform-pills .cal-platform-pill.active')].map(el => el.dataset.platform);
+
   if (!platforms.length) { showToast('Please select at least one platform', 'error'); return; }
   if (!date) { showToast('Please set a scheduled date', 'error'); return; }
   const todayStr = new Date().toISOString().slice(0, 10);
   if (date < todayStr) {
     if (!confirm(`⚠️ Scheduled date ${date} is in the past. Save anyway?`)) return;
   }
-
-  const platforms = [...document.querySelectorAll('#cal-platform-pills .cal-platform-pill.active')].map(el => el.dataset.platform);
 
   // Approvers — read from checkbox list
   const requiredApprovers = [...document.querySelectorAll('#cf-approvers input[type="checkbox"]:checked')]

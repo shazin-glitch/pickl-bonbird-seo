@@ -84,6 +84,7 @@ function canSeeTask(task, user) {
 
 function canEditTask(task, user) {
   if (user.role === 'admin') return true;
+  if (user.role === 'manager') return true;
   return task.createdBy === user.email || task.assignee === user.email;
 }
 
@@ -273,6 +274,7 @@ exports.handler = async (event) => {
       }
 
       const index = await getSetting('perchIndex').catch(() => []);
+      await store().delete('perchTask:' + id).catch(() => {});
       await setSetting('perchIndex', (index || []).filter(i => i !== id));
       await logAudit({ action: 'perch_task_deleted', actor: user.email, details: { id, title: task.title } });
 

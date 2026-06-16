@@ -2607,6 +2607,32 @@ Empty state now shows:
 
 ---
 
+## Session: June 2026 — v7.0.2 Bug-Fix Batch
+
+### Fixes Applied ✅
+
+**index.html:**
+- `saveCalPost` TDZ crash: moved `const platforms` declaration before the `if (!platforms.length)` guard (every Save Draft / Submit was crashing immediately for all users)
+- `removeCalMedia`: now also filters `calState.storySlides` — story slide state was never cleaned on media removal
+- `dismissItem`: added null check on card element before calling `.classList.add` — prevented crash when card was already removed from DOM
+- `calState` declaration: added `storySlides: []` initialisation alongside `carouselSlides: []`
+- Reports tab GSC fallback: switched from `apiGet('/api/db/get')` (never returns gscCache) + GET to gsc-data (405) → uses `fetchGscRows(siteUrl)` (correct POST)
+- `renderOpportunitiesTable`: added `const brand` declaration at function top — was causing "brand is not defined" crash in Keyword Opportunities tab
+- `loadIntlDashboard`: switched from db-get (wrong) to `fetchGscRows()` for both brands
+- `INTL_MARKETS`: added `marketSlug` property to all 9 entries — URL path matching for Top 10 rankings was always failing
+- AI Readiness score: fixed display from `/6` to `/7`, updated thresholds
+
+**competitor-matrix-ui.js:**
+- Poll condition: changed `picklFresh && bonbirdFresh` to `(picklFresh || !data?.pickl) && (bonbirdFresh || !data?.bonbird)` — Refresh Now never resolved when one brand already had fresh data
+- `getSovData`: fixed averaging — now divides per-domain sum by number of brands that have that domain, not a single shared counter; removed dead `count` variable
+- `cmAddDiscoveredCompetitor`: removed dead `fetch` to `keyword-config` whose result was never used
+
+**perch.js:**
+- `canEditTask`: added `|| user.role === 'manager'` — managers were blocked from dragging/editing Perch tasks
+- DELETE handler: added `store().delete('perchTask:' + id)` before index update — blob was accumulating forever on task deletion
+
+---
+
 ## Session: June 2026 — v7.0.1 Story Slides + Caption UX + Upload Fixes
 
 ### Story Ordered Multi-Upload ✅
@@ -2694,3 +2720,88 @@ Update "Current URL" from `yolkseo.netlify.app` to `thenest.yolkbrands.com`
 - Anthropic API — no domain dependency  
 - Google PageSpeed API — no domain dependency
 - Netlify Blobs — no domain dependency
+
+---
+
+## Current Version: v7.0.2
+
+Last session built: Bug-fix batch — calendar TDZ crash, story slide removal, dismissItem null check, Reports GSC fetch, Keyword Opps brand error, International dashboard GSC + marketSlug, AI Readiness score, competitor matrix poll + SoV average + dead fetch, Perch manager role + blob deletion.
+
+---
+
+## GA4 — Current Status (IMPORTANT)
+
+**GA4 IS connected and showing data.** The WordPress tracking code was already installed before this session. The GA4 tab in The Nest displays live data.
+
+`ga4-data.js`, the OAuth flow (`?type=ga4`), and the Reports "Website Traffic" section all exist. But GA4 tracking has NOT been installed on the WordPress sites. Until the following are done, GA4 section shows nothing:
+
+**Prerequisites (developer tasks):**
+1. Install GA4 tracking snippet on `eatpickl.com` (get Measurement ID from GA4 admin)
+2. Install GA4 tracking snippet on `bonbirdchicken.com` (get Measurement ID from GA4 admin)
+3. Add `GA4_PROPERTY_ID_PICKL` + `GA4_PROPERTY_ID_BONBIRD` as Netlify env vars
+4. Enable "Google Analytics Data API" in Google Cloud Console (one-time, URL shown in error message)
+5. Connect via Settings → "Connect Google Analytics 4" button (OAuth flow)
+
+**Do not build on top of GA4 until step 1+2 are confirmed done by developer.**
+
+---
+
+## Pickl Brand Awards (confirmed June 2026)
+
+| Award | Year(s) | Notes |
+|---|---|---|
+| TimeOut Dubai Best Burger | 2022, 2023 | Back to back; first ever Best Burger category winner |
+| Deliveroo Restaurant of the Year | 2022, 2023, 2024, 2025 | 4 consecutive years; community voted (not selected by Deliveroo) |
+| Deliveroo Best Homegrown Brand | 2025 | |
+| Deliveroo Best Fried Chicken | TBC (Pickl won it — exact year not confirmed) | |
+
+**Use in content:** Community-voted awards are a stronger E-E-A-T signal than judged awards — always mention "voted by the community" for Deliveroo awards.
+
+---
+
+## Technical SEO Developer Kanban — Intentionally Separate from The Perch
+
+The Technical SEO dev kanban is NOT connected to The Perch and should NEVER be merged with it. The developer is a third-party external contractor who does not have access to The Perch. Action Engine routes developer tasks to the tech kanban, not The Perch. This is correct and intentional.
+
+---
+
+## Blog Content — Approved and Live
+
+### "Best Burger in Dubai. Officially." ✅ (published to WP, user editing directly)
+- Targets: "best burger dubai" keyword (33 impressions — content gap, no existing page)
+- Awards: TimeOut Best Burger (2022, 2023) + Deliveroo Restaurant of the Year (2022-2025) + Best Homegrown (2025)
+- ~640 words, 4 FAQs, Pickl voice, BBQ Bacon Cheeseburger in FAQ (not Buffalo)
+- External links: TimeOut best-burgers-dubai page, TimeOut 2022 winners, TimeOut 2023 winners, Deliveroo 2025 awards — all open in new tab, no nofollow
+- Internal links: locations page, Art of the Smash blog — same tab
+- Status: Approved from queue, pushed to WordPress as draft, user edited directly in WP
+
+### "Best Restaurant in Dubai" — PLANNED (not written yet)
+- Targets: "best restaurant dubai" — will lead with Deliveroo 4-year Restaurant of the Year streak + Best Homegrown 2025
+- Do NOT cover Best Fried Chicken award in this blog (separate chicken-focused blog later)
+- Write in next available session
+
+---
+
+## AI Overviews in UAE — Confirmed Behaviour
+
+Google AI Overviews DO appear for UAE food searches, BUT only for conversational/decision-intent queries:
+- ✅ Triggers: "where can i find the best burger in dubai", "what is the best burger restaurant in dubai"
+- ❌ Does NOT trigger: "best burger dubai", "smash burger dubai" (head terms)
+
+The AI Overview tracker was fixed (v6.9ax) to test conversational queries. The tracker is working correctly — 0 results before this fix was because we were testing the wrong query format.
+
+Bonbird was confirmed mentioned in an AI Overview for: "where can i find the best fried chicken in dubai"
+
+---
+
+## Pending Manual Actions (next session check-in)
+
+| Action | Who | Status |
+|---|---|---|
+| Competitor Matrix → Manage Competitors → Refresh Now | Shazin | Needed to confirm domain migration applied |
+| Keyword Opportunities → Refresh Now | Shazin | Needed to confirm Claude filter + market discovery working |
+| AI Overview → Reports → Refresh Now | Shazin | Confirm conversational queries returning data |
+| Settings → SEO Goals | Shazin | Set Q4 targets for Reports progress bars |
+| GCS CORS setup | IT/Dev | Required for video > 10MB. CMD: `gsutil cors set cors.json gs://BUCKET_NAME` |
+| GA4 tracking install on WP sites | Developer | Prerequisite for any GA4 data |
+| Slack Bot OAuth setup | Shazin | Optional, ~20 min — enables DMs instead of channel notify |
