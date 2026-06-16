@@ -51,16 +51,16 @@
 
 ---
 
-## Current Version: v6.9ai
+## Current Version: v7.0.5
 
 See SETUP.md → "Done (Full History)" for complete build log.
 
-**Next up:**
-- SP MCP: Reels/Stories/TikTok/YouTube not yet supported — await SP MCP update
-- Zapier: leadership decision pending (auto-push for video types)
-- Hreflang audit and implementation verification
-- Multi-brand expansion — Southpour full pipeline
-- Keyword opportunity first run: click "Refresh Now" in 🎯 Keyword Opportunities tab
+**Next up (see memory for full deferred backlog):**
+- Slack bot OAuth — deep-link notifications to specific brand → market → calendar post
+- International keyword opportunities (UAE only right now)
+- Verify bugs: AI caption ignores image, PDF export truncated, video upload greyed out, deep audit not saving, "+30 more" keywords not clickable
+- Tone-of-voice check before approval queue
+- Domain migration → thenest.yolkbrands.com (checklist in SETUP.md)
 
 **⚠️ Adding a new market — REQUIRED steps:**
 1. Add to `CAL_MARKETS` in `index.html`
