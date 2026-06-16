@@ -2608,6 +2608,16 @@ Empty state now shows:
 
 ---
 
+## Session: June 2026 — v7.0.5 — Yolk Brands in The Perch
+
+### Added Yolk Brands to The Perch task board
+- `BRAND_CONFIG` entry: `{ label: 'Yolk Brands', color: '#F5B800', bg: '#fffde7' }`
+- `perch-filter-brand` dropdown includes Yolk Brands
+- New Task modal brand dropdown includes Yolk Brands
+- Side panel brand select auto-populates from `BRAND_CONFIG` (no extra change needed)
+
+---
+
 ## Session: June 2026 — v7.0.3 + v7.0.4 — Yolk Brands Content Calendar
 
 ### Added Yolk Brands as a brand (calendar only)
@@ -2737,9 +2747,9 @@ Update "Current URL" from `yolkseo.netlify.app` to `thenest.yolkbrands.com`
 
 ---
 
-## Current Version: v7.0.4
+## Current Version: v7.0.5
 
-Last session built: Bug-fix batch (v7.0.2), then added Yolk Brands to Content Calendar (v7.0.3 + v7.0.4).
+Last session built: Bug-fix batch (v7.0.2), added Yolk Brands to Content Calendar (v7.0.3 + v7.0.4), added Yolk Brands to The Perch (v7.0.5).
 
 ### Yolk Brands — Content Calendar Setup
 - Brand key: `yolk` | Colour: `#F5B800`
