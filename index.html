@@ -15,6 +15,7 @@
     --primary-hover: #1d4ed8;
     --pickl: #185FA5;
     --bonbird: #D85A30;
+    --yolk: #F5B800;
     --success: #10b981;
     --warning: #f59e0b;
     --danger: #ef4444;
@@ -456,6 +457,7 @@
         <select id="cal-filter-brand" class="form-input" style="width:130px;font-family:var(--font-sans);font-size:13px" onchange="calBrandChanged()">
           <option value="pickl">Pickl</option>
           <option value="bonbird">Bonbird</option>
+          <option value="yolk">Yolk Brands</option>
           <option value="southpour">Southpour</option>
           <option value="shadowburg">Shadowburg</option>
           <option value="shadowbird">Shadowbird</option>
@@ -1940,7 +1942,7 @@ const state = {
 const PICKL_GSC   = 'https://eatpickl.com/';
 const BONBIRD_GSC = 'sc-domain:bonbirdchicken.com';
 
-const BRAND_LABELS = { pickl: 'Pickl', bonbird: 'Bonbird' };
+const BRAND_LABELS = { pickl: 'Pickl', bonbird: 'Bonbird', yolk: 'Yolk Brands' };
 const TYPE_LABELS  = {
   blog_draft: 'Blog Draft',
   meta_update: 'Meta Update',
@@ -2274,7 +2276,7 @@ function renderGscTable() {
 
   tbody.innerHTML = rows.map(r => {
     const posClass = r.position <= 3 ? 'rank-good' : r.position <= 10 ? 'rank-mid' : 'rank-bad';
-    const brandColor = r.brand === 'pickl' ? 'var(--pickl)' : 'var(--bonbird)';
+    const brandColor = r.brand === 'pickl' ? 'var(--pickl)' : r.brand === 'yolk' ? 'var(--yolk)' : 'var(--bonbird)';
     return `<tr>
       <td style="font-weight:500">${esc(r.keyword)}</td>
       <td><span style="display:inline-flex;align-items:center;gap:5px;font-size:12px;font-weight:600;color:${brandColor}">
@@ -5299,7 +5301,7 @@ async function renderBacklinks(data) {
   // Render each brand
   for (const [brand, d] of [['pickl', pickl], ['bonbird', bonbird]]) {
     if (!d) continue;
-    const brandColor  = brand === 'pickl' ? 'var(--pickl)' : 'var(--bonbird)';
+    const brandColor  = brand === 'pickl' ? 'var(--pickl)' : brand === 'yolk' ? 'var(--yolk)' : 'var(--bonbird)';
     const brandLabel  = brand === 'pickl' ? 'Pickl' : 'Bonbird';
     const own         = d.own;
     const delta       = d.delta;
@@ -7342,6 +7344,7 @@ function pfIcon(key, size = 14, style = '') {
 const CAL_MARKETS = {
   pickl:     ['UAE','KSA','Bahrain','Qatar','Egypt','Jordan','Oman'],
   bonbird:   ['UAE','Oman','Pakistan','Qatar','UK'],
+  yolk:      ['UAE'],
   southpour: ['UAE'],
   shadowburg: ['UAE'],
   shadowbird: ['UAE'],
@@ -7378,6 +7381,7 @@ const SP_HAS_ACCOUNT = {
     Qatar:    new Set(['facebook','instagram']),
     UK:       new Set(['facebook','instagram','tiktok']),
   },
+  yolk:      { UAE: new Set(['facebook','instagram','linkedin']) },
   southpour: { UAE: new Set(['facebook','instagram']) },
 };
 
@@ -7399,6 +7403,7 @@ const SP_ACCOUNTS_FLAT = {
     Qatar:    { facebook: 2445834, instagram: 2445845 },
     UK:       { facebook: 2573342, instagram: 2573342, tiktok: 2573342 },
   },
+  yolk:      { UAE: {} },
   southpour: { UAE: { facebook: 2445837, instagram: 2445849 } },
 };
 
@@ -7421,6 +7426,7 @@ const SP_ACCOUNT_NAMES = {
     Qatar:    { facebook: 'Bonbird Qatar Facebook', instagram: 'Bonbird Qatar Instagram' },
     UK:       { facebook: 'Bonbird UK Facebook', instagram: 'Bonbird UK Instagram', tiktok: 'Bonbird UK TikTok' },
   },
+  yolk:      { UAE: {} },
   southpour: { UAE: { facebook: 'Southpour Facebook', instagram: 'Southpour Instagram' } },
 };
 
@@ -8051,7 +8057,7 @@ async function openCalForm(postId, prefillDate) {
       <div class="form-group" style="margin-bottom:0">
         <label class="form-label">Brand</label>
         <select id="cf-brand" class="form-input" style="font-family:var(--font-sans)" onchange="updateCalFormMarkets()">
-          ${['pickl','bonbird','southpour','shadowburg','shadowbird'].map(b => `<option value="${b}" ${(post?.brand||calState.brand)===b?'selected':''}>${b.charAt(0).toUpperCase()+b.slice(1)}</option>`).join('')}
+          ${['pickl','bonbird','yolk','southpour','shadowburg','shadowbird'].map(b => `<option value="${b}" ${(post?.brand||calState.brand)===b?'selected':''}>${b==='yolk'?'Yolk Brands':b.charAt(0).toUpperCase()+b.slice(1)}</option>`).join('')}
         </select>
       </div>
       <div class="form-group" style="margin-bottom:0">

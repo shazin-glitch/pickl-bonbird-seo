@@ -95,7 +95,7 @@ exports.handler = async (event) => {
     // List — pending_my_approval shortcut for badge count
     if (q.pending_approver) {
       const email = q.pending_approver;
-      const allBrands = ['pickl', 'bonbird', 'southpour', 'shadowburg', 'shadowbird'];
+      const allBrands = ['pickl', 'bonbird', 'yolk', 'southpour', 'shadowburg', 'shadowbird'];
       let total = 0;
       for (const brand of allBrands) {
         const ids   = await getIndex(s, brand);
@@ -444,6 +444,9 @@ exports.handler = async (event) => {
         Pakistan: { facebook: 2445832, instagram: 2445844 },
         Qatar:    { facebook: 2445834, instagram: 2445845 },
         UK:       { facebook: 2573342, instagram: 2573342, tiktok: 2573342 },
+      },
+      yolk: {
+        UAE: {},
       },
       southpour: {
         UAE: { facebook: 2445837, instagram: 2445849 },

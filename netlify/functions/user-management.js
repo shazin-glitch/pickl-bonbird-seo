@@ -13,7 +13,7 @@ const { getStore } = require('@netlify/blobs');
 
 const BOOTSTRAP_ADMINS  = ['shazin@yolkbrands.com', 'steve@yolkbrands.com'];
 const VALID_ROLES       = ['viewer', 'manager', 'admin', 'developer'];
-const VALID_BRANDS      = ['pickl', 'bonbird', 'southpour', 'shadowburg', 'shadowbird', 'all'];
+const VALID_BRANDS      = ['pickl', 'bonbird', 'yolk', 'southpour', 'shadowburg', 'shadowbird', 'all'];
 const VALID_DEPARTMENTS = ['seo', 'social', 'design', 'content', 'all'];
 
 async function getCallerRole(event, store) {
