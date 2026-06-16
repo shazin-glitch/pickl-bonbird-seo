@@ -446,7 +446,7 @@ exports.handler = async (event) => {
         UK:       { facebook: 2573342, instagram: 2573342, tiktok: 2573342 },
       },
       yolk: {
-        UAE: {},
+        UAE: { facebook: 2445927, instagram: 2445926, linkedin: 2445853 },
       },
       southpour: {
         UAE: { facebook: 2445837, instagram: 2445849 },
