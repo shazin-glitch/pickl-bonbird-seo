@@ -2608,6 +2608,15 @@ Empty state now shows:
 
 ---
 
+## Session: June 2026 — v7.0.6 — Reports tab crash fix
+
+### Fixed Reports tab crash (TypeError: seedKws.filter is not a function)
+- `renderReports` was reading `state.seedKeywords[brand]` which is `{ keywords: [], isDefault, updatedAt }` — an object, not an array
+- Fixed: `state.seedKeywords?.[brand]` → `state.seedKeywords?.[brand]?.keywords`
+- File: `index.html` line 4615
+
+---
+
 ## Session: June 2026 — v7.0.5 — Yolk Brands in The Perch
 
 ### Added Yolk Brands to The Perch task board
@@ -2747,9 +2756,9 @@ Update "Current URL" from `yolkseo.netlify.app` to `thenest.yolkbrands.com`
 
 ---
 
-## Current Version: v7.0.5
+## Current Version: v7.0.6
 
-Last session built: Bug-fix batch (v7.0.2), added Yolk Brands to Content Calendar (v7.0.3 + v7.0.4), added Yolk Brands to The Perch (v7.0.5).
+Last session built: Bug-fix batch (v7.0.2), added Yolk Brands to Content Calendar (v7.0.3 + v7.0.4), added Yolk Brands to The Perch (v7.0.5), fixed Reports tab crash (v7.0.6).
 
 ### Yolk Brands — Content Calendar Setup
 - Brand key: `yolk` | Colour: `#F5B800`

@@ -4612,7 +4612,7 @@ function renderReports(brand, rows, techData, queue, matrixData) {
     .sort((a, b) => (b.impressions || 0) - (a.impressions || 0));
   const lowCtr        = lowCtrRows.length;
 
-  const seedKws       = state.seedKeywords?.[brand] || [];
+  const seedKws       = state.seedKeywords?.[brand]?.keywords || [];
   const gscKeywords   = new Set(rows.map(r => r.keyword?.toLowerCase()));
   const gapRows       = seedKws.filter(k => !gscKeywords.has(k.toLowerCase()))
     .map(k => ({ keyword: k }));
