@@ -34,6 +34,7 @@ The Nest is Yolk Brands' central marketing operations platform. It started as an
 |---|---|---|---|---|
 | **Pickl** | Restaurant (UAE + 6 markets) | eatpickl.com | `WP_PICKL_*` | ✅ Live |
 | **Bonbird** | Restaurant (UAE + 3 markets) | bonbirdchicken.com | `WP_BONBIRD_*` | ✅ Live |
+| **Yolk Brands** | Parent company | yolkbrands.com | — | 📅 Calendar only |
 | **Southpour** | Café/Coffee | southpourcoffee.com | TBD | 🔜 Planned |
 | **Shadowburg** | Dark kitchen (runs from Pickl) | — | — | 🔜 Planned |
 | **Shadowbird** | Dark kitchen (runs from Bonbird) | — | — | 🔜 Planned |
@@ -2607,6 +2608,19 @@ Empty state now shows:
 
 ---
 
+## Session: June 2026 — v7.0.3 + v7.0.4 — Yolk Brands Content Calendar
+
+### Added Yolk Brands as a brand (calendar only)
+- `--yolk: #F5B800` CSS variable added
+- `BRAND_LABELS`, `CAL_MARKETS` (UAE), `SP_HAS_ACCOUNT`, `SP_ACCOUNTS_FLAT`, `SP_ACCOUNT_NAMES` entries added to `index.html`
+- `cal-filter-brand` and `cf-brand` dropdowns include Yolk Brands
+- `brandColor` ternaries updated so yolk uses `--yolk` not bonbird fallback
+- `calendar.js` `allBrands` + `SP_ACCOUNTS` include yolk
+- `user-management.js` `VALID_BRANDS` includes yolk
+- SocialPilot IDs: Facebook `2445927`, Instagram `2445926`, LinkedIn `2445853`
+
+---
+
 ## Session: June 2026 — v7.0.2 Bug-Fix Batch
 
 ### Fixes Applied ✅
@@ -2723,9 +2737,16 @@ Update "Current URL" from `yolkseo.netlify.app` to `thenest.yolkbrands.com`
 
 ---
 
-## Current Version: v7.0.2
+## Current Version: v7.0.4
 
-Last session built: Bug-fix batch — calendar TDZ crash, story slide removal, dismissItem null check, Reports GSC fetch, Keyword Opps brand error, International dashboard GSC + marketSlug, AI Readiness score, competitor matrix poll + SoV average + dead fetch, Perch manager role + blob deletion.
+Last session built: Bug-fix batch (v7.0.2), then added Yolk Brands to Content Calendar (v7.0.3 + v7.0.4).
+
+### Yolk Brands — Content Calendar Setup
+- Brand key: `yolk` | Colour: `#F5B800`
+- Markets: UAE only
+- SocialPilot accounts: Facebook `2445927`, Instagram `2445926`, LinkedIn `2445853`
+- Blobs key: `calendarIndex:yolk`
+- SEO pipeline: not connected (one-click setup pending)
 
 ---
 
