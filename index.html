@@ -1933,6 +1933,7 @@ const state = {
   activeQFilter: 'all',
   activeBFilter: 'all',
   activeMFilter: 'all',
+  publishedTypeFilter: 'all',
   activeAnalyticsBrand: 'all',
   activeAnalyticsView: 'gsc',
   currentTool: null,
@@ -2364,12 +2365,26 @@ function updateQueueBadge(counts) {
 }
 
 function filterQueue(pill) {
-  document.querySelectorAll('#queue-pills .pill').forEach(p => p.classList.remove('active'));
-  pill.classList.add('active');
-  state.activeQFilter = pill.dataset.qfilter;
-  if (state.activeQFilter === 'published') {
+  const filter = pill.dataset.qfilter;
+  if (filter === 'published') {
+    // Entering published view — reset type filter
+    document.querySelectorAll('#queue-pills .pill').forEach(p => p.classList.remove('active'));
+    pill.classList.add('active');
+    state.activeQFilter = 'published';
+    state.publishedTypeFilter = 'all';
+    loadPublishedTracking();
+  } else if (state.activeQFilter === 'published') {
+    // Already in published view — treat type pills as published type filter, don't exit
+    document.querySelectorAll('#queue-pills .pill').forEach(p => p.classList.remove('active'));
+    pill.classList.add('active');
+    // Keep the Published & Tracking pill visually active too
+    document.querySelector('[data-qfilter="published"]')?.classList.add('active');
+    state.publishedTypeFilter = filter;
     loadPublishedTracking();
   } else {
+    document.querySelectorAll('#queue-pills .pill').forEach(p => p.classList.remove('active'));
+    pill.classList.add('active');
+    state.activeQFilter = filter;
     renderQueue();
   }
 }
@@ -2441,21 +2456,44 @@ async function loadPublishedTracking() {
   list.innerHTML = '<div style="padding:32px;text-align:center;color:var(--text-muted)">Loading published items…</div>';
 
   try {
-    const brandFilter = state.activeBFilter !== 'all' ? `&brand=${state.activeBFilter}` : '';
-    const data = await apiGet(`/api/approvals?status=pushed${brandFilter}&limit=100`);
-    const items = (data.items || []).filter(i => i.trackingKeyword || i.payload?.targetKeyword);
+    // Fetch both pushed (WP draft) and published (live) items — no brand filter on API,
+    // apply client-side so brand/market/type pills all work without extra fetches
+    const data = await apiGet(`/api/approvals?status=pushed&limit=200`);
+    const data2 = await apiGet(`/api/approvals?status=published&limit=200`);
+    let items = [
+      ...(data.items  || []),
+      ...(data2.items || []),
+    ].filter(i => i.trackingKeyword || i.payload?.targetKeyword);
+
+    // Apply brand filter
+    if (state.activeBFilter !== 'all') items = items.filter(i => i.brand === state.activeBFilter);
+    // Apply market filter
+    if (state.activeMFilter !== 'all') items = items.filter(i => i.locationTag === state.activeMFilter);
+    // Apply type filter (set by clicking type pills while in published view)
+    if (state.publishedTypeFilter !== 'all') items = items.filter(i => i.type === state.publishedTypeFilter);
+
+    // Active filter summary for header
+    const activeFilters = [];
+    if (state.publishedTypeFilter !== 'all') activeFilters.push(TYPE_LABELS[state.publishedTypeFilter] || state.publishedTypeFilter);
+    if (state.activeBFilter !== 'all')       activeFilters.push(BRAND_LABELS[state.activeBFilter] || state.activeBFilter);
+    if (state.activeMFilter !== 'all')       activeFilters.push(state.activeMFilter);
+    const filterNote = activeFilters.length ? ` — ${activeFilters.join(' · ')}` : '';
 
     if (!items.length) {
       list.innerHTML = `<div class="empty-state">
         <div class="empty-state-icon">📈</div>
-        <h3>No published items yet</h3>
-        <p>Approve items from the queue and publish them to WordPress. They'll appear here with ranking movement tracked every Monday.</p>
+        <h3>No published items${filterNote ? ' matching filters' : ' yet'}</h3>
+        <p>${activeFilters.length ? 'Try clearing some filters.' : 'Approve items from the queue and publish them to WordPress. They\'ll appear here with ranking movement tracked every Monday.'}</p>
       </div>`;
       return;
     }
 
-    list.innerHTML = items.sort((a, b) => (b.publishedAt || 0) - (a.publishedAt || 0))
-      .map(item => buildTrackingCard(item)).join('');
+    items.sort((a, b) => (b.publishedAt || b.approvedAt || 0) - (a.publishedAt || a.approvedAt || 0));
+    list.innerHTML = `
+      <div style="padding:10px 0 14px;font-size:12px;color:var(--text-muted)">
+        <strong style="color:var(--text-main)">${items.length}</strong> item${items.length !== 1 ? 's' : ''}${filterNote} · Position data refreshes every Monday
+      </div>
+      ${items.map(item => buildTrackingCard(item)).join('')}`;
   } catch (e) {
     list.innerHTML = `<div style="padding:32px;text-align:center;color:var(--text-muted)">Failed to load: ${e.message}</div>`;
   }
@@ -2474,8 +2512,8 @@ function buildTrackingCard(item) {
     ? new Date(item.approvedAt).toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' })
     : '—';
 
-  const brandColor = item.brand === 'pickl' ? '#DF0070' : '#C5161A';
-  const brandLabel = item.brand === 'pickl' ? '🟡 Pickl' : '🔴 Bonbird';
+  const brandColor = item.brand === 'pickl' ? '#DF0070' : item.brand === 'yolk' ? '#F5B800' : '#C5161A';
+  const brandLabel = item.brand === 'pickl' ? '🟡 Pickl' : item.brand === 'yolk' ? '🟨 Yolk Brands' : '🔴 Bonbird';
 
   // Movement indicator
   let movementHtml = '';
@@ -2500,8 +2538,30 @@ function buildTrackingCard(item) {
         <div style="font-size:11px;color:var(--text-muted);margin-top:2px">Tracking begins next Monday — check back then</div>
       </div>`;
   } else {
-    movementHtml = `<div style="font-size:12px;color:var(--text-muted);padding:8px 0">No position data — tracking begins Monday</div>`;
+    const isWpDraft = item.status === 'pushed'; // pushed = WP draft, not live yet
+    movementHtml = `<div style="padding:10px 14px;border-radius:8px;background:var(--bg-base);font-size:12px;color:var(--text-muted)">
+      ${isWpDraft
+        ? '📝 Saved as WordPress draft — publish it live so Google can index it, then tracking will begin automatically on Monday.'
+        : '⏳ No GSC data yet for this keyword — Google may still be indexing the page. Tracking updates every Monday once impressions appear.'}
+    </div>`;
   }
+
+  // Index status badge (populated by Monday cron URL Inspection for live published items)
+  let indexBadgeHtml = '';
+  if (item.indexStatus) {
+    const is = item.indexStatus;
+    const checkedDate = is.checkedAt ? new Date(is.checkedAt).toLocaleDateString('en-GB', { day: 'numeric', month: 'short' }) : null;
+    if (is.verdict === 'PASS') {
+      const crawledDate = is.lastCrawlTime ? new Date(is.lastCrawlTime).toLocaleDateString('en-GB', { day: 'numeric', month: 'short' }) : null;
+      indexBadgeHtml = `<div style="margin-top:8px;padding:8px 12px;border-radius:8px;background:#f0fdf4;border:1px solid #bbf7d0;font-size:12px;color:#166534">✅ <strong>Indexed by Google</strong>${crawledDate ? ` · last crawled ${crawledDate}` : ''}${checkedDate ? ` <span style="opacity:.6">· checked ${checkedDate}</span>` : ''}</div>`;
+    } else if (is.verdict === 'FAIL') {
+      indexBadgeHtml = `<div style="margin-top:8px;padding:8px 12px;border-radius:8px;background:#fef2f2;border:1px solid #fecaca;font-size:12px;color:#991b1b">❌ <strong>Not indexed</strong> · ${esc(is.coverageState || is.pageFetchState || 'unknown reason')}${checkedDate ? ` <span style="opacity:.6">· checked ${checkedDate}</span>` : ''}</div>`;
+    } else if (is.verdict === 'NEUTRAL') {
+      indexBadgeHtml = `<div style="margin-top:8px;padding:8px 12px;border-radius:8px;background:#fffbeb;border:1px solid #fde68a;font-size:12px;color:#92400e">⏳ <strong>${esc(is.coverageState || 'Pending indexing')}</strong>${checkedDate ? ` <span style="opacity:.6">· checked ${checkedDate}</span>` : ''}</div>`;
+    }
+  }
+
+  const pageUrl = item.publishResult?.ref || p.url || null;
 
   return `
     <div class="card" style="border-left:4px solid ${brandColor};margin-bottom:12px">
@@ -2514,10 +2574,11 @@ function buildTrackingCard(item) {
       </div>
       <div style="background:var(--bg-base);border-radius:8px;padding:10px 14px;margin-bottom:12px;display:flex;gap:20px;flex-wrap:wrap;font-size:12px">
         <div><span style="color:var(--text-muted)">Keyword:</span> <strong>"${esc(keyword)}"</strong></div>
-        ${p.url ? `<div><span style="color:var(--text-muted)">Page:</span> <strong>${esc(p.url)}</strong></div>` : ''}
+        ${pageUrl ? `<div><span style="color:var(--text-muted)">Page:</span> <a href="${esc(pageUrl)}" target="_blank" style="color:var(--text-main);text-decoration:underline">${esc(pageUrl)}</a></div>` : ''}
         ${p.impressions ? `<div><span style="color:var(--text-muted)">Impressions:</span> <strong>${Number(p.impressions).toLocaleString()}</strong></div>` : ''}
       </div>
       ${movementHtml}
+      ${indexBadgeHtml}
     </div>`;
 }
 
@@ -2535,14 +2596,16 @@ function filterBrand(pill) {
   else if (brand === 'bonbird') { pill.style.background = '#C5161A'; pill.style.color = '#fff'; pill.style.border = '1.5px solid #C5161A'; }
   else { pill.style.background = ''; pill.style.color = ''; pill.style.border = ''; }
   state.activeBFilter = brand;
-  renderQueue();
+  if (state.activeQFilter === 'published') loadPublishedTracking();
+  else renderQueue();
 }
 
 function filterMarket(pill) {
   document.querySelectorAll('#market-pills .pill').forEach(p => p.classList.remove('active'));
   pill.classList.add('active');
   state.activeMFilter = pill.dataset.mfilter;
-  renderQueue();
+  if (state.activeQFilter === 'published') loadPublishedTracking();
+  else renderQueue();
 }
 
 // Pre-filter dashboard by market — called from International SEO "View Queue"
@@ -3602,6 +3665,7 @@ function showEditBrandsModal(email, currentBrands) {
     { v:'all', l:'All Brands' },
     { v:'pickl', l:'Pickl' },
     { v:'bonbird', l:'Bonbird' },
+    { v:'yolk', l:'Yolk Brands' },
     { v:'southpour', l:'Southpour' },
     { v:'shadowburg', l:'Shadowburg' },
     { v:'shadowbird', l:'Shadowbird' },
@@ -3681,6 +3745,7 @@ function showAddUserModal() {
               { v:'all', l:'All Brands' },
               { v:'pickl', l:'Pickl' },
               { v:'bonbird', l:'Bonbird' },
+              { v:'yolk', l:'Yolk Brands' },
               { v:'southpour', l:'Southpour' },
               { v:'shadowburg', l:'Shadowburg' },
               { v:'shadowbird', l:'Shadowbird' },
@@ -7991,19 +8056,32 @@ async function bulkCalAction(action) {
 
   } else if (action === 'copy_market') {
     const markets = [...document.querySelectorAll('.bulk-copy-market-cb:checked')].map(cb => cb.value);
-    if (!markets.length) { showToast('Select at least one market', 'error'); return; }
-    if (!confirm(`Copy ${ids.length} post${ids.length>1?'s':''} to: ${markets.join(', ')}?`)) return;
+    if (!markets.length) { showToast('Select at least one market to copy to', 'error'); return; }
     setCalBulkBusy(true);
     let totalCopied = 0;
+    let failed = 0;
     try {
       for (const id of ids) {
-        const res = await apiPost('/api/calendar', {
-          action: 'copy_to_markets', id, markets,
-          actor: state.actor, actorEmail: state.userEmail,
-        }).catch(() => null);
-        if (res?.count) totalCopied += res.count;
+        try {
+          const res = await apiPost('/api/calendar', {
+            action: 'copy_to_markets', id, markets,
+            actor: state.actor, actorEmail: state.userEmail,
+          });
+          if (res?.count) totalCopied += res.count;
+        } catch (e) {
+          console.error('[copy_market] failed for post', id, e.message);
+          failed++;
+        }
       }
-      showToast(`🌍 ${totalCopied} draft${totalCopied !== 1 ? 's' : ''} created across ${markets.join(', ')}`, 'success');
+      if (failed && !totalCopied) {
+        showToast(`Copy failed — ${failed} post${failed !== 1 ? 's' : ''} could not be copied`, 'error');
+      } else if (failed) {
+        showToast(`🌍 ${totalCopied} draft${totalCopied !== 1 ? 's' : ''} created · ⚠️ ${failed} failed`, 'error');
+      } else if (!totalCopied) {
+        showToast('No new drafts created — posts may already exist in those markets', '');
+      } else {
+        showToast(`🌍 ${totalCopied} draft${totalCopied !== 1 ? 's' : ''} created across ${markets.join(', ')}`, 'success');
+      }
       toggleCalCopyForm(false);
     } finally { setCalBulkBusy(false); }
 

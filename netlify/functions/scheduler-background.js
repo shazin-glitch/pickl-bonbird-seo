@@ -269,6 +269,11 @@ async function trackPublishedItems(brand, gscRows) {
     }
   }
 
+  // Load GSC token for URL Inspection (fetchGscDirect already refreshed it earlier this run)
+  const gscTokenData = await s.get('gscTokens', { type: 'json' }).catch(() => null);
+  const gscToken     = gscTokenData?.access_token || null;
+  const siteUrl      = brand === 'pickl' ? 'https://eatpickl.com/' : 'https://bonbirdchicken.com/';
+
   // Get all approval items for this brand with status pushed/published
   const indexRaw = await s.get('approvals:index', { type: 'json' }).catch(() => null);
   const index    = Array.isArray(indexRaw) ? indexRaw : [];
@@ -283,25 +288,51 @@ async function trackPublishedItems(brand, gscRows) {
       if (!item.trackingKeyword) continue;
       if (item.publishedAt && item.publishedAt < cutoff) continue; // older than 8 weeks
 
-      const kw      = item.trackingKeyword.toLowerCase();
-      const posNow  = kwPosMap[kw] ? Math.round(kwPosMap[kw] * 10) / 10 : null;
-      const clicks  = kwClicksMap[kw] || null;
+      const kw     = item.trackingKeyword.toLowerCase();
+      const posNow = kwPosMap[kw] ? Math.round(kwPosMap[kw] * 10) / 10 : null;
+      const clicks = kwClicksMap[kw] || null;
 
-      if (!posNow) continue; // keyword not in GSC data this week
+      const patch = { ...item, lastTrackedAt: Date.now() };
 
-      const delta = item.positionAtPublish && posNow
-        ? Math.round((item.positionAtPublish - posNow) * 10) / 10
-        : null;
+      if (posNow) {
+        const delta = item.positionAtPublish
+          ? Math.round((item.positionAtPublish - posNow) * 10) / 10
+          : null;
+        patch.positionLatest = posNow;
+        patch.positionDelta  = delta;
+        patch.clicksLatest   = clicks;
+        tracked++;
+      }
 
-      // Update item with latest tracking data
-      await s.set(`approvals:item:${id}`, JSON.stringify({
-        ...item,
-        positionLatest:  posNow,
-        positionDelta:   delta,
-        clicksLatest:    clicks,
-        lastTrackedAt:   Date.now(),
-      }));
-      tracked++;
+      // URL Inspection — only for live published pages (not WP drafts)
+      if (item.status === 'published' && gscToken) {
+        const inspectUrl = item.publishResult?.ref || item.payload?.url || null;
+        if (inspectUrl && inspectUrl.startsWith('http')) {
+          try {
+            const inspRes = await fetch('https://searchconsole.googleapis.com/v1/urlInspection/index:inspect', {
+              method:  'POST',
+              headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${gscToken}` },
+              body:    JSON.stringify({ inspectionUrl: inspectUrl, siteUrl }),
+            });
+            const inspData = await inspRes.json();
+            const idx = inspData?.inspectionResult?.indexStatusResult;
+            if (idx) {
+              patch.indexStatus = {
+                verdict:        idx.verdict        || null,
+                coverageState:  idx.coverageState  || null,
+                lastCrawlTime:  idx.lastCrawlTime  || null,
+                pageFetchState: idx.pageFetchState || null,
+                url:            inspectUrl,
+                checkedAt:      Date.now(),
+              };
+            }
+          } catch (e) {
+            console.warn(`[scheduler] URL inspection failed for ${id}:`, e.message);
+          }
+        }
+      }
+
+      await s.set(`approvals:item:${id}`, JSON.stringify(patch));
     } catch { /* skip individual failures */ }
   }
 

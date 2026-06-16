@@ -59,22 +59,25 @@ exports.handler = async (event) => {
     startDate.setDate(startDate.getDate() - 90);
     const fmt = d => d.toISOString().split('T')[0];
 
-    const gscRes = await fetch(
-      `https://searchconsole.googleapis.com/webmasters/v3/sites/${encodeURIComponent(site_url)}/searchAnalytics/query`,
-      {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
-        body: JSON.stringify({
-          startDate: fmt(startDate),
-          endDate: fmt(endDate),
-          dimensions: ['query'],
-          rowLimit: 500,
-          dataState: 'final'
-        })
-      }
-    );
+    const gscUrl = `https://searchconsole.googleapis.com/webmasters/v3/sites/${encodeURIComponent(site_url)}/searchAnalytics/query`;
+    const commonHeaders = { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` };
+    const dateBody = { startDate: fmt(startDate), endDate: fmt(endDate), dataState: 'final' };
 
-    const gscData = await gscRes.json();
+    // Fetch keyword rows and page rows in parallel
+    const [gscRes, pageRes] = await Promise.all([
+      fetch(gscUrl, {
+        method: 'POST',
+        headers: commonHeaders,
+        body: JSON.stringify({ ...dateBody, dimensions: ['query'], rowLimit: 500 })
+      }),
+      fetch(gscUrl, {
+        method: 'POST',
+        headers: commonHeaders,
+        body: JSON.stringify({ ...dateBody, dimensions: ['page'], rowLimit: 500 })
+      }),
+    ]);
+
+    const [gscData, pageData] = await Promise.all([gscRes.json(), pageRes.json()]);
 
     if (gscData.error) {
       return { statusCode: gscRes.status, headers: { 'Content-Type': 'application/json', 'Access-Control-Allow-Origin': '*' }, body: JSON.stringify({ error: gscData.error.message || 'GSC API error' }) };
@@ -88,15 +91,23 @@ exports.handler = async (event) => {
       position: Math.round(row.position * 10) / 10
     }));
 
+    const pages = (pageData.rows || []).map(row => ({
+      url: row.keys[0],
+      clicks: row.clicks,
+      impressions: row.impressions,
+      ctr: row.ctr,
+      position: Math.round(row.position * 10) / 10
+    }));
+
     // Cache in Blobs so scheduler can read without re-fetching
     try {
-      await store.setJSON('gscCache:' + site_url, { rows, cachedAt: Date.now() });
+      await store.setJSON('gscCache:' + site_url, { rows, pages, cachedAt: Date.now() });
     } catch (_) {}
 
     return {
       statusCode: 200,
       headers: { 'Content-Type': 'application/json', 'Access-Control-Allow-Origin': '*' },
-      body: JSON.stringify({ rows })
+      body: JSON.stringify({ rows, pages })
     };
   } catch (err) {
     return { statusCode: 500, headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ error: err.message }) };

@@ -2608,6 +2608,35 @@ Empty state now shows:
 
 ---
 
+## Session: June 2026 — v7.0.8 — Copy-to-market fix + GSC page data + URL Inspection
+
+### Copy-to-market bulk action fixed (index.html)
+- Removed `confirm()` dialog that blocked the action during demos
+- Replaced `.catch(() => null)` with proper per-post error tracking
+- Now shows: "X drafts created across markets" / partial failure toast / "no new drafts" if all skipped / full error if all failed
+
+### GSC page-level data (gsc-data.js)
+- Added second parallel fetch with `dimensions: ['page']` alongside the existing keyword fetch
+- Both run in parallel (Promise.all) — no added latency
+- Cache now stores `{ rows, pages, cachedAt }` — `pages` array has url, clicks, impressions, ctr, position per URL
+- API response now returns `{ rows, pages }`
+
+### URL Inspection API in Monday cron (scheduler-background.js → trackPublishedItems)
+- For items with `status === 'published'` (live, not WP draft), loads the published URL from `item.publishResult.ref` or `item.payload.url`
+- Calls `POST https://searchconsole.googleapis.com/v1/urlInspection/index:inspect`
+- Stores `item.indexStatus = { verdict, coverageState, lastCrawlTime, pageFetchState, url, checkedAt }` on the approval blob
+- Token reused from `gscTokens` (already refreshed earlier in the same Monday cron run)
+- Position tracking now also runs for items with no GSC data (previously skipped with `continue`) — item is saved regardless; position fields only added when data exists
+
+### Index status badge on Published & Tracking cards (index.html)
+- `buildTrackingCard` reads `item.indexStatus` and renders a coloured badge below the movement indicator
+- ✅ Green: verdict PASS — "Indexed by Google · last crawled [date]"
+- ❌ Red: verdict FAIL — "Not indexed · [coverageState]"
+- ⏳ Yellow: verdict NEUTRAL — "[coverageState]"
+- Published page URL (from `publishResult.ref` or `payload.url`) now shown as a clickable link
+
+---
+
 ## Session: June 2026 — v7.0.7 — Priority Gap queuing + keyword filter fixes
 
 ### Priority Gap → Queue Brief (Reports tab)
@@ -2772,9 +2801,9 @@ Update "Current URL" from `yolkseo.netlify.app` to `thenest.yolkbrands.com`
 
 ---
 
-## Current Version: v7.0.7
+## Current Version: v7.0.8
 
-Last session built: Bug-fix batch (v7.0.2), added Yolk Brands to Content Calendar (v7.0.3 + v7.0.4), added Yolk Brands to The Perch (v7.0.5), fixed Reports tab crash (v7.0.6), Priority Gap → Queue Brief + keyword filtering fixes (v7.0.7).
+Last session built: Bug-fix batch (v7.0.2), added Yolk Brands to Content Calendar (v7.0.3 + v7.0.4), added Yolk Brands to The Perch (v7.0.5), fixed Reports tab crash (v7.0.6), Priority Gap → Queue Brief + keyword filtering fixes (v7.0.7), copy-to-market fix + GSC page data + URL Inspection indexing badges (v7.0.8).
 
 ### Yolk Brands — Content Calendar Setup
 - Brand key: `yolk` | Colour: `#F5B800`
