@@ -373,6 +373,7 @@
           <option value="">All Brands</option>
           <option value="pickl">🟡 Pickl</option>
           <option value="bonbird">🔴 Bonbird</option>
+          <option value="yolk">🟨 Yolk Brands</option>
           <option value="southpour">🟢 Southpour</option>
           <option value="shadowburg">🟣 Shadowburg</option>
           <option value="shadowbird">🔵 Shadowbird</option>
@@ -3800,12 +3801,13 @@ let intlState = {
 // ═══════════════════════════════════════════════════════════════
 
 const BRAND_CONFIG = {
-  pickl:      { label: 'Pickl',      color: '#f59e0b', bg: '#fffbeb' },
-  bonbird:    { label: 'Bonbird',    color: '#ef4444', bg: '#fef2f2' },
-  southpour:  { label: 'Southpour',  color: '#059669', bg: '#ecfdf5' },
-  shadowburg: { label: 'Shadowburg', color: '#8b5cf6', bg: '#f5f3ff' },
-  shadowbird: { label: 'Shadowbird', color: '#6366f1', bg: '#eef2ff' },
-  all:        { label: 'All Brands', color: '#6b7280', bg: '#f3f4f6' },
+  pickl:      { label: 'Pickl',        color: '#f59e0b', bg: '#fffbeb' },
+  bonbird:    { label: 'Bonbird',      color: '#ef4444', bg: '#fef2f2' },
+  yolk:       { label: 'Yolk Brands',  color: '#F5B800', bg: '#fffde7' },
+  southpour:  { label: 'Southpour',    color: '#059669', bg: '#ecfdf5' },
+  shadowburg: { label: 'Shadowburg',   color: '#8b5cf6', bg: '#f5f3ff' },
+  shadowbird: { label: 'Shadowbird',   color: '#6366f1', bg: '#eef2ff' },
+  all:        { label: 'All Brands',   color: '#6b7280', bg: '#f3f4f6' },
 };
 
 const DEPT_CONFIG = {
@@ -4353,7 +4355,7 @@ function openAddTaskModal() {
             <label style="font-size:12px;font-weight:600;color:#64748b;display:block;margin-bottom:4px">BRAND</label>
             <select id="new-task-brand" style="width:100%;padding:8px 10px;border-radius:8px;border:1px solid #e2e8f0;background:#f8fafc;color:#1e293b;font-size:13px">
               <option value="all">All Brands</option>
-              <option value="pickl">Pickl</option><option value="bonbird">Bonbird</option>
+              <option value="pickl">Pickl</option><option value="bonbird">Bonbird</option><option value="yolk">Yolk Brands</option>
               <option value="southpour">Southpour</option><option value="shadowburg">Shadowburg</option><option value="shadowbird">Shadowbird</option>
             </select>
           </div>
