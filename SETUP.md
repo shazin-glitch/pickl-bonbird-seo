@@ -342,7 +342,9 @@ From Google's official AI Optimization Guide (June 2026):
 - `queueApprovalItem`: adds `nativeReview: 'pending'` to Arabic (`language === 'ar'`) content payloads
 - Added `runMarketKeywordOpportunities(market, brandCtx, brandExamples, force)`:
   - pos 11-20 + ≥30 impressions → `page_update` (max 2 per market, Claude generates 3-5 specific on-page fixes)
-  - pos 21-35 + ≥20 impressions → `blog_draft` (max 1 per market, focused on ranking keyword with impressions)
+  - pos 21-35 + ≥20 impressions → checks `isDedicatedPage(r.page)` first:
+    - Dedicated page already exists (`/bahrain/some-post/`) → `page_update` to improve it (no cannibalization)
+    - Only market root ranking (`/bahrain/`) → `blog_draft` (no dedicated page exists yet)
   - Called from `processMarketLanguage` for English only, after `runMarketDataDrivenSEO`
 
 **index.html**
