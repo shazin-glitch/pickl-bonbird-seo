@@ -2608,6 +2608,37 @@ Empty state now shows:
 
 ---
 
+## Session: June 2026 — v7.1.0 — Meta update overhaul: evaluation, before/after, write verification
+
+### Meta update — Claude now evaluates before replacing (scheduler-background.js)
+- Fetches current Yoast meta title + description from WordPress for every candidate page BEFORE calling Claude
+- Claude prompt now includes current meta alongside GSC data and instructs Claude to skip pages where existing meta is already specific and on-brand
+- Claude returns `skip: true` with a reason for pages that don't need changing — these are logged but not queued
+- Only genuinely underperforming meta gets queued, reducing noise in the approval queue
+- Scheduler result now includes `skipped` count alongside `queued`
+
+### Meta update approval card — before/after comparison (index.html)
+- When `payload.currentMeta` is present, shows a side-by-side red/green panel: current (what's in WordPress) vs proposed (Claude's replacement)
+- Character counts shown on proposed title and description
+- Page URL now shown as a clickable link
+- Falls back to single-column display for older items without current meta
+
+### Write verification on approve (wordpress.js + index.html)
+- `handleUpdateMeta` now reads back the post after writing and checks if `_yoast_wpseo_title` was actually stored
+- Returns `metaWritten: true/false` in push result
+- If `metaWritten: false` — approve toast warns: "Yoast meta was NOT written — add the WP Code snippet"
+- New `get_current_meta` action: fetches current Yoast title/desc/focuskw for a page by URL
+
+### Meta update page-rename bug (wordpress.js) — v7.0.9
+- Removed `updates.title = payload.title` from handleUpdateMeta — was overwriting WP post title with SEO title
+
+### Fix: WP Code snippet required for Yoast REST API writes
+- WordPress blocks writing protected meta keys (starting with `_`) via REST API by default
+- Fix: add snippet via WP Code plugin on both bonbirdchicken.com and eatpickl.com
+- Registers `_yoast_wpseo_title`, `_yoast_wpseo_metadesc`, `_yoast_wpseo_focuskw` for REST API with `edit_posts` auth
+
+---
+
 ## Session: June 2026 — v7.0.9 — Meta update page-rename bug fix + tracking card content
 
 ### Meta update page-rename bug fixed (wordpress.js)
@@ -2815,7 +2846,7 @@ Update "Current URL" from `yolkseo.netlify.app` to `thenest.yolkbrands.com`
 
 ---
 
-## Current Version: v7.0.9
+## Current Version: v7.1.0
 
 Last session built: Bug-fix batch (v7.0.2), added Yolk Brands to Content Calendar (v7.0.3 + v7.0.4), added Yolk Brands to The Perch (v7.0.5), fixed Reports tab crash (v7.0.6), Priority Gap → Queue Brief + keyword filtering fixes (v7.0.7), copy-to-market fix + GSC page data + URL Inspection indexing badges (v7.0.8).
 

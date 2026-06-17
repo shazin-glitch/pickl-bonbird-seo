@@ -2802,11 +2802,31 @@ function buildPreview(item) {
     ${p.excerpt ? `<div style="margin-top:6px"><strong>Excerpt:</strong> ${esc(p.excerpt)}</div>` : ''}
     ${p.voiceTopFix ? `<div style="margin-top:8px;padding:8px 12px;background:#fef3c7;border-left:3px solid #f59e0b;border-radius:0 6px 6px 0;font-size:12px;color:#92400e"><strong>⚠ Voice note:</strong> ${esc(p.voiceTopFix)}</div>` : ''}
     ${p.body ? `<div style="margin-top:10px"><button class="btn btn-outline" style="font-size:12px" onclick="previewContent('${esc(item.id)}')">📄 Read Full Content (~${Math.round(p.body.replace(/<[^>]+>/g,'').length/5)} words)</button></div>` : ''}`;
-  if (item.type === 'meta_update') return `
-    <div><strong>Page:</strong> ${esc(p.url || p.postId || '—')}</div>
-    <div style="margin-top:6px"><strong>New Title:</strong> ${esc(p.metaTitle || p.title || '—')}</div>
-    <div style="margin-top:6px"><strong>New Description:</strong> ${esc(p.metaDescription || p.description || '—')}</div>
+  if (item.type === 'meta_update') {
+    const newTitle = p.metaTitle || p.title || '—';
+    const newDesc  = p.metaDescription || p.description || '—';
+    const curTitle = p.currentMeta?.title || null;
+    const curDesc  = p.currentMeta?.description || null;
+    const hasCurrentMeta = curTitle || curDesc;
+    return `
+    <div style="margin-bottom:8px"><strong>Page:</strong> <a href="${esc(p.url || '')}" target="_blank" style="color:var(--text-muted);font-size:12px">${esc(p.url || p.postId || '—')}</a></div>
+    ${hasCurrentMeta ? `
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-top:8px">
+      <div style="padding:10px 12px;border-radius:8px;background:#fef2f2;border:1px solid #fecaca">
+        <div style="font-size:10px;font-weight:700;color:#991b1b;text-transform:uppercase;letter-spacing:.5px;margin-bottom:6px">Current (in WordPress)</div>
+        ${curTitle ? `<div style="font-size:12px;margin-bottom:4px"><span style="color:var(--text-muted)">Title:</span> ${esc(curTitle)}</div>` : '<div style="font-size:12px;color:var(--text-muted);font-style:italic">No Yoast title set</div>'}
+        ${curDesc  ? `<div style="font-size:12px"><span style="color:var(--text-muted)">Desc:</span> ${esc(curDesc)}</div>` : ''}
+      </div>
+      <div style="padding:10px 12px;border-radius:8px;background:#f0fdf4;border:1px solid #bbf7d0">
+        <div style="font-size:10px;font-weight:700;color:#166534;text-transform:uppercase;letter-spacing:.5px;margin-bottom:6px">Proposed (Claude)</div>
+        <div style="font-size:12px;margin-bottom:4px"><span style="color:var(--text-muted)">Title:</span> <strong>${esc(newTitle)}</strong> <span style="font-size:10px;color:var(--text-muted)">${newTitle.length} chars</span></div>
+        <div style="font-size:12px"><span style="color:var(--text-muted)">Desc:</span> ${esc(newDesc)} <span style="font-size:10px;color:var(--text-muted)">${newDesc.length} chars</span></div>
+      </div>
+    </div>` : `
+    <div style="margin-top:6px"><strong>New Title:</strong> ${esc(newTitle)} <span style="font-size:11px;color:var(--text-muted)">${newTitle.length} chars</span></div>
+    <div style="margin-top:6px"><strong>New Description:</strong> ${esc(newDesc)} <span style="font-size:11px;color:var(--text-muted)">${newDesc.length} chars</span></div>`}
     ${p.focusKeyword ? `<div style="margin-top:6px"><strong>Focus Keyword:</strong> ${esc(p.focusKeyword)}</div>` : ''}`;
+  }
   if (item.type === 'onpage_suggestion') return `
     <div><strong>Page:</strong> ${esc(p.url || '—')}</div>
     ${p.keyword ? `<div style="margin-top:6px"><strong>Keyword:</strong> "${esc(p.keyword)}" (ranking pos ${p.currentPosition || '?'})</div>` : ''}
@@ -2841,7 +2861,11 @@ async function approveItem(id, btn) {
   try {
     const res = await apiPost('/api/approvals', { action: 'approve', id, actor: state.actor });
     if (res.pushResult && res.pushResult.ok) {
-      showToast('Pushed to WordPress ✓', 'success');
+      if (res.pushResult.metaWritten === false) {
+        showToast('Pushed to WordPress — but Yoast meta was NOT written. Add the WP Code snippet to fix this.', 'error');
+      } else {
+        showToast('Pushed to WordPress ✓', 'success');
+      }
       removeCardFromQueue(id);
     } else {
       showToast('Push failed: ' + (res.pushResult?.message || 'unknown error'), 'error');

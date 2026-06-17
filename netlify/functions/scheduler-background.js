@@ -698,47 +698,82 @@ Return ONLY valid JSON:
     ...(brandCtx.menu.friesAndSides || brandCtx.menu.sides || []).slice(0, 2),
   ].join(' | ') : '';
 
-  const userPrompt = `These ${brandName} pages rank well but CTR is poor — the meta is bland. Rewrite each one.
+  // Fetch current Yoast meta for every candidate BEFORE calling Claude
+  // so Claude can evaluate whether a replacement is actually needed
+  const base = process.env.NETLIFY_URL || 'https://yolkseo.netlify.app';
+  const currentMetaMap = {};
+  for (const r of validCandidates) {
+    try {
+      const cmRes = await fetch(`${base}/.netlify/functions/wordpress`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ action: 'get_current_meta', brand, payload: { url: r.page } }),
+      });
+      const cmData = await cmRes.json().catch(() => null);
+      if (cmData?.found) {
+        currentMetaMap[r.page] = { title: cmData.currentTitle || null, description: cmData.currentDesc || null };
+      }
+    } catch (_) { /* non-critical — proceed without current meta for this page */ }
+  }
 
-TASK: Make the meta title and description so specific and on-brand that someone scrolling past stops.
+  const userPrompt = `You are auditing ${brandName} pages that rank well on Google but have below-expected CTR.
 
-RULES — non-negotiable:
+YOUR JOB: For each page, decide if the current meta is already good enough OR if it genuinely needs improvement.
+Only suggest a replacement if the current meta is vague, generic, or missing. If it's already specific and on-brand — skip it.
+
+RULES for any replacement you write — non-negotiable:
 - Title: 52-58 characters exactly — count them
 - Description: 150-158 characters exactly — count them
 - Only reference REAL menu items: ${menuItems || 'use items from brand context'}
 - No generic phrases: "great food", "delicious", "best in Dubai", "quality ingredients"
-- Each title must make ${brandName} sound like ${brandName} — not a generic restaurant
 - Lead with the keyword, end with a reason to click
-- Do NOT invent or change the URL — use the exact URL provided for each page
-- CRITICAL — page relevance: Write the meta specifically about what the PAGE is about, not just the keyword.
-  The page URL tells you the topic. /dubai/ = about Dubai locations. /mirdif-city-centre/ = about Mirdif.
-  Do NOT write a Mirdif-focused meta for the /dubai/ page even if the keyword mentions Mirdif.
-  Do NOT reference locations not in the page URL unless it's a brand-level page (homepage, /menu/).
-- CRITICAL — menu accuracy: ONLY mention dishes that appear in YOUR MENU below.
-  If the keyword implies a dish not on the menu, write the meta around the closest real menu item instead.
+- Write specifically about what the PAGE is about (the URL tells you the topic — /sharjah/ = Sharjah page, etc.)
+- ONLY mention dishes that appear in YOUR MENU. If keyword implies an off-menu dish, pivot to the closest real one.
 
-PAGES TO REWRITE:
-${validCandidates.map((r, i) => `${i+1}. URL: "${r.page}" | Keyword: "${r.keyword}" | Position: ${r.position} | CTR: ${(r.ctr * 100).toFixed(1)}% | ${r.impressions} impressions`).join('\n')}
+PAGES TO EVALUATE:
+${validCandidates.map((r, i) => {
+  const cur = currentMetaMap[r.page];
+  const curBlock = cur
+    ? `  Current title: "${cur.title || 'NOT SET'}"\n  Current desc:  "${cur.description || 'NOT SET'}"`
+    : `  Current meta: unknown (couldn't fetch from WordPress)`;
+  return `${i+1}. URL: "${r.page}"
+  Keyword: "${r.keyword}" | Position: ${r.position} | CTR: ${(r.ctr * 100).toFixed(1)}% | ${r.impressions} impressions
+${curBlock}`;
+}).join('\n\n')}
 
-VOICE CHECK before returning:
-□ Does each title sound like it could only be ${brandName}?
-□ Is there at least one specific detail (menu item, location, brand term)?
-□ Would you click this if you saw it on Google?
-
-Return ONLY a JSON array, no prose:
-[{"keyword":"...","url":"exact URL from input above — do not change","title":"52-58 chars","description":"150-158 chars","targetKeyword":"...","rationale":"one sentence why this will improve CTR"}]`;
+Return ONLY a JSON array. For pages that don't need changing, set "skip": true.
+[{
+  "keyword": "...",
+  "url": "exact URL from input — do not change",
+  "skip": false,
+  "skipReason": "only if skip=true — why the current meta is already good",
+  "title": "52-58 chars — only if skip=false",
+  "description": "150-158 chars — only if skip=false",
+  "targetKeyword": "...",
+  "rationale": "one sentence — why current meta underperforms AND why yours is better"
+}]`;
 
   const { text } = await callClaude(userPrompt, { max_tokens: 2000, system: systemPrompt });
   const parsed = extractJson(text);
   if (!Array.isArray(parsed)) return { queued: 0, candidates: validCandidates.length, error: 'Claude did not return JSON array' };
 
   let queued = 0;
+  let skipped = 0;
   const items = [];
   for (const p of parsed) {
+    // Skip pages Claude determined don't need improving
+    if (p.skip) {
+      console.log(`[meta_rewrites] skipping ${p.url} — ${p.skipReason || 'already good'}`);
+      skipped++;
+      continue;
+    }
+
     // Use matched real URL, fallback to Claude's URL only if it matches a known candidate
     const matched  = validCandidates.find(r => r.page === p.url || r.keyword === p.keyword);
     const finalUrl = matched ? matched.page : null;
     if (!finalUrl) { console.warn('[meta_rewrites] Claude returned unknown URL, skipping:', p.url); continue; }
+
+    const currentMeta = currentMetaMap[finalUrl] || null;
 
     await createApproval({
       type:  'meta_update',
@@ -755,12 +790,13 @@ Return ONLY a JSON array, no prose:
         impressions:   matched?.impressions,
         ctrGap:        matched?.ctrGap != null ? (matched.ctrGap * 100).toFixed(1) : null,
         wpAction:      'update_meta',
+        currentMeta,
       },
     });
     items.push({ type: 'meta_update', title: p.title || finalUrl, keyword: p.keyword, position: matched?.position, impressions: matched?.impressions });
     queued++;
   }
-  return { queued, candidates: validCandidates.length, items };
+  return { queued, skipped, candidates: validCandidates.length, items };
 }
 
 // ── WordPress content validation ──────────────────────────────────────────────

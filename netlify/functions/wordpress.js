@@ -76,10 +76,11 @@ exports.handler = async (event) => {
       case 'create_draft':   return await handleCreateDraft(creds, body.payload || {});
       case 'create_page':    return await handleCreatePage(creds, body.payload || {});
       case 'update_content': return await handleUpdateContent(creds, body.payload || {});
-      case 'update_meta':    return await handleUpdateMeta(creds, body.payload || {});
-      case 'publish':        return await handlePublish(creds, body.payload || {});
-      case 'list_posts':     return await handleListPosts(creds, body);
-      case 'get_post':       return await handleGetPost(creds, body);
+      case 'update_meta':      return await handleUpdateMeta(creds, body.payload || {});
+      case 'get_current_meta': return await handleGetCurrentMeta(creds, body.payload || {});
+      case 'publish':          return await handlePublish(creds, body.payload || {});
+      case 'list_posts':       return await handleListPosts(creds, body);
+      case 'get_post':         return await handleGetPost(creds, body);
       default:               return fail(400, `unknown action: ${action}`);
     }
   } catch (e) {
@@ -192,10 +193,47 @@ async function handleUpdateMeta(creds, payload) {
   const endpoint = postType === 'pages' ? 'pages' : 'posts';
   const res = await wpFetch(creds, `/wp/v2/${endpoint}/${postId}`, { method: 'POST', body: updates });
   if (!res.ok) return fail(res.status, `WP meta update failed: ${describeError(res)}`);
+
+  // Verify the meta was actually written (silent failure if meta keys not registered for REST)
+  const verify = await wpFetch(creds, `/wp/v2/${endpoint}/${postId}?context=edit`);
+  const writtenMeta = verify.ok ? (verify.data?.meta || {}) : null;
+  const yoastTitle = writtenMeta?._yoast_wpseo_title || null;
+  const metaWritten = yoastTitle === payload.title;
+
   return win({
     ok: true, id: postId, postType: endpoint, ref: res.data.link,
     editUrl: `${creds.base}/wp-admin/post.php?post=${postId}&action=edit`,
-    message: `SEO meta updated on ${endpoint.slice(0,-1)} #${postId}`,
+    metaWritten,
+    message: metaWritten
+      ? `SEO meta updated on ${endpoint.slice(0,-1)} #${postId}`
+      : `Post updated but Yoast meta was NOT written — add the WP Code snippet to enable REST API meta writes`,
+  });
+}
+
+// ── get current Yoast meta for a page ──────────────────────────────
+// Called by scheduler before queuing meta_update, so Claude sees what's already there.
+async function handleGetCurrentMeta(creds, payload) {
+  let { postId, postType } = payload;
+  if (!postId && payload.url) {
+    const found = await findPostByUrl(creds, normalizeUrl(payload.url));
+    if (!found) return win({ found: false });
+    postId = found.id; postType = found.type;
+  }
+  if (!postId) return fail(400, 'postId or url required');
+
+  const endpoint = postType === 'pages' ? 'pages' : 'posts';
+  const res = await wpFetch(creds, `/wp/v2/${endpoint}/${postId}?context=edit`);
+  if (!res.ok) return win({ found: false });
+
+  const m = res.data?.meta || {};
+  return win({
+    found:       true,
+    postId,
+    postType:    endpoint,
+    currentTitle: m._yoast_wpseo_title || res.data?.yoast_head_json?.title || null,
+    currentDesc:  m._yoast_wpseo_metadesc || res.data?.yoast_head_json?.description || null,
+    currentKw:    m._yoast_wpseo_focuskw || null,
+    wpTitle:      res.data?.title?.rendered || null,
   });
 }
 
