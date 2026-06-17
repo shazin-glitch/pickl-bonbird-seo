@@ -323,6 +323,41 @@ From Google's official AI Optimization Guide (June 2026):
 
 ---
 
+## Session: June 2026 — v7.2.0 — Approval queue UX + Arabic native review + International keyword opportunities
+
+### Changes in this session
+
+**approvals.js**
+- Added `appendBrandFeedback(brand, feedback)` helper — accumulates rejection notes in `brandFeedback:<brand>` Blobs key (capped at 20), called on every `handleReject`
+- Added `mark_native_reviewed` action — patches `payload.nativeReview` from `'pending'` to `'reviewed'`, enables approve/publish on Arabic items
+
+**scheduler-background.js**
+- `runMetaRewrites()`: injects `brandFeedback:<brand>` notes into Claude prompt as "HUMAN FEEDBACK — NEVER do any of the following"
+- `runMetaRewrites()`: runs brand voice check on every generated meta and stores `voiceScore`/`voiceIssues` in approval payload
+
+**international-seo-background.js**
+- Added `getBrandExamples` import — all 4 generation functions now receive voice examples from Settings and pass them to `buildBrandPrompt(brandCtx, brandExamples)`
+- Added `getBrandFeedback()` helper — same pattern as scheduler, injected into relevant prompts
+- `runMarketDataDrivenSEO`: injects brand feedback + voice score on meta_update items
+- `queueApprovalItem`: adds `nativeReview: 'pending'` to Arabic (`language === 'ar'`) content payloads
+- Added `runMarketKeywordOpportunities(market, brandCtx, brandExamples, force)`:
+  - pos 11-20 + ≥30 impressions → `page_update` (max 2 per market, Claude generates 3-5 specific on-page fixes)
+  - pos 21-35 + ≥20 impressions → `blog_draft` (max 1 per market, focused on ranking keyword with impressions)
+  - Called from `processMarketLanguage` for English only, after `runMarketDataDrivenSEO`
+
+**index.html**
+- Added styled confirmation modal (`#confirm-modal`) + `nestConfirm(heading, sub, onOk)` — replaces native `confirm()` in `dismissVisible()`
+- Filter persistence: `filterQueue()`, `filterBrand()`, `filterMarket()` write to `localStorage`; `loadQueue()` restores all 3 on every open + re-activates correct pills
+- Arabic native review UI: `buildActionCard()` shows "⏳ Pending native review" orange badge; approve/publish buttons replaced with "✓ Mark Reviewed" button; `markNativeReviewed(id, btn)` calls `mark_native_reviewed` action
+
+### Revert notes
+- To revert brand feedback: remove `appendBrandFeedback` call from `handleReject` in approvals.js, remove `getBrandFeedback` + injection block in scheduler/intl functions
+- To revert filter persistence: remove `localStorage.setItem` calls from filter functions, remove the restore block at top of `loadQueue()`
+- To revert native review gate: remove `nativeReview` from `queueApprovalItem` payload, remove `mark_native_reviewed` case from approvals.js switch, revert `buildActionCard` card-actions HTML
+- To revert keyword opportunities: remove `runMarketKeywordOpportunities` function + its call in `processMarketLanguage`
+
+---
+
 ## Done (Full History)
 
 - Full SEO content pipeline (quick wins, meta rewrites, content gaps, page creation)

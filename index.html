@@ -2101,6 +2101,18 @@ body { font-family: var(--font-sans); background: var(--bg-base); color: var(--t
   </div>
 </div>
 
+<!-- ═══ CONFIRM MODAL ═══ -->
+<div class="tool-modal-overlay" id="confirm-modal" style="display:none" onclick="if(event.target===this)closeConfirmModal()">
+  <div style="background:var(--bg-surface);border-radius:12px;width:100%;max-width:480px;box-shadow:0 24px 64px rgba(0,0,0,0.3);padding:28px 28px 24px">
+    <div id="confirm-modal-msg" style="font-size:15px;font-weight:600;color:var(--text-main);margin-bottom:8px;line-height:1.5"></div>
+    <div id="confirm-modal-sub" style="font-size:13px;color:var(--text-muted);margin-bottom:24px;line-height:1.55"></div>
+    <div style="display:flex;justify-content:flex-end;gap:10px">
+      <button class="btn btn-outline" onclick="closeConfirmModal()">Cancel</button>
+      <button class="btn btn-danger-outline" id="confirm-modal-ok" onclick="runConfirmCallback()">Confirm</button>
+    </div>
+  </div>
+</div>
+
 <div class="toast" id="toast"></div>
 
 <script>
@@ -2590,10 +2602,36 @@ function updateDashboardMetrics() {
 // APPROVAL QUEUE
 // ═══════════════════════════════════════════════════════════════
 async function loadQueue() {
+  // Restore filter state from localStorage
+  const savedQ = localStorage.getItem('nestQFilter');
+  const savedB = localStorage.getItem('nestBFilter');
+  const savedM = localStorage.getItem('nestMFilter');
+  if (savedQ) {
+    state.activeQFilter = savedQ;
+    const qPill = document.querySelector(`[data-qfilter="${CSS.escape(savedQ)}"]`);
+    if (qPill) { document.querySelectorAll('#queue-pills .pill').forEach(p => p.classList.remove('active')); qPill.classList.add('active'); }
+  }
+  if (savedB) {
+    state.activeBFilter = savedB;
+    const bPill = document.querySelector(`[data-bfilter="${CSS.escape(savedB)}"]`);
+    if (bPill) {
+      document.querySelectorAll('#brand-pills .pill').forEach(p => { p.classList.remove('active'); const b=p.dataset.bfilter; if(b==='pickl'){p.style.background='transparent';p.style.color='#DF0070';p.style.border='1.5px solid #DF0070';}else if(b==='bonbird'){p.style.background='transparent';p.style.color='#C5161A';p.style.border='1.5px solid #C5161A';}else{p.style.background='';p.style.color='';p.style.border='';} });
+      bPill.classList.add('active');
+      if (savedB==='pickl'){bPill.style.background='#DF0070';bPill.style.color='#fff';bPill.style.border='1.5px solid #DF0070';}
+      else if(savedB==='bonbird'){bPill.style.background='#C5161A';bPill.style.color='#fff';bPill.style.border='1.5px solid #C5161A';}
+    }
+  }
+  if (savedM) {
+    state.activeMFilter = savedM;
+    const mPill = document.querySelector(`[data-mfilter="${CSS.escape(savedM)}"]`);
+    if (mPill) { document.querySelectorAll('#market-pills .pill').forEach(p => p.classList.remove('active')); mPill.classList.add('active'); }
+  }
+
   try {
     const data = await apiGet('/api/approvals?status=pending');
     state.queue = data.items || [];
-    renderQueue();
+    if (state.activeQFilter === 'published') loadPublishedTracking();
+    else renderQueue();
     updateQueueBadge(data.counts);
   } catch (e) {
     document.getElementById('queue-list').innerHTML =
@@ -2628,6 +2666,7 @@ function filterQueue(pill) {
     pill.classList.add('active');
     state.activeQFilter = 'published';
     state.publishedTypeFilter = 'all';
+    localStorage.setItem('nestQFilter', 'published');
     loadPublishedTracking();
   } else if (state.activeQFilter === 'published' && TYPE_FILTERS.has(filter)) {
     // In published view — type pill filters within the published view (doesn't exit)
@@ -2642,6 +2681,7 @@ function filterQueue(pill) {
     pill.classList.add('active');
     state.activeQFilter = filter;
     state.publishedTypeFilter = 'all';
+    localStorage.setItem('nestQFilter', filter);
     renderQueue();
   }
 }
@@ -2883,6 +2923,7 @@ function filterBrand(pill) {
   else if (brand === 'bonbird') { pill.style.background = '#C5161A'; pill.style.color = '#fff'; pill.style.border = '1.5px solid #C5161A'; }
   else { pill.style.background = ''; pill.style.color = ''; pill.style.border = ''; }
   state.activeBFilter = brand;
+  localStorage.setItem('nestBFilter', brand);
   if (state.activeQFilter === 'published') loadPublishedTracking();
   else renderQueue();
 }
@@ -2891,6 +2932,7 @@ function filterMarket(pill) {
   document.querySelectorAll('#market-pills .pill').forEach(p => p.classList.remove('active'));
   pill.classList.add('active');
   state.activeMFilter = pill.dataset.mfilter;
+  localStorage.setItem('nestMFilter', pill.dataset.mfilter);
   if (state.activeQFilter === 'published') loadPublishedTracking();
   else renderQueue();
 }
@@ -3019,8 +3061,11 @@ function buildActionCard(item) {
 
   const preview = buildPreview(item);
 
+  const needsNativeReview = item.payload?.nativeReview === 'pending';
+
   const tagHtml = `
     <div style="display:flex;gap:6px;align-items:center;flex-shrink:0;margin-left:auto;padding-left:12px">
+      ${needsNativeReview ? `<span style="font-size:11px;font-weight:600;padding:2px 8px;border-radius:99px;background:#fff7ed;color:#c2410c;border:1px solid #fed7aa;white-space:nowrap">⏳ Pending native review</span>` : ''}
       ${locationTag ? `<span style="font-size:11px;font-weight:600;padding:2px 8px;border-radius:99px;background:rgba(0,0,0,0.06);color:#475569;white-space:nowrap">${esc(locationTag)}</span>` : ''}
       ${languageTag ? `<span style="font-size:11px;font-weight:600;padding:2px 8px;border-radius:99px;background:rgba(0,0,0,0.06);color:#475569">${esc(languageTag)}</span>` : ''}
       ${buildTierBadge(item.payload)}
@@ -3040,12 +3085,14 @@ function buildActionCard(item) {
     <div class="card-body">${buildContextBar(item)}${preview}</div>
     <div class="card-actions">
       <div class="action-group-left">
-        <button class="btn btn-primary" onclick="approveItem('${esc(item.id)}', this)">
+        ${needsNativeReview
+          ? `<button class="btn" style="background:#ea580c;color:#fff" onclick="markNativeReviewed('${esc(item.id)}', this)">✓ Mark Reviewed</button>`
+          : `<button class="btn btn-primary" onclick="approveItem('${esc(item.id)}', this)">
           ${['page_creation','page_update','blog_draft'].includes(item.type) ? 'Approve → WP Draft' : 'Approve &amp; Push'}
-        </button>
+        </button>`}
         <button class="btn btn-outline" onclick="editItem('${esc(item.id)}')">Edit Draft</button>
         <button class="btn btn-danger-outline" onclick="rejectItem('${esc(item.id)}', this)">Rewrite with AI</button>
-        ${['page_creation','page_update','blog_draft'].includes(item.type) ? `<span style="display:inline-flex;align-items:center;margin-left:8px;padding-left:8px;border-left:1px solid var(--border)"><button class="btn" style="background:#059669;color:#fff;font-size:12px" onclick="publishItem('${esc(item.id)}', this)" title="Publishes live to WordPress immediately">🚀 Publish Live</button></span>` : ''}
+        ${!needsNativeReview && ['page_creation','page_update','blog_draft'].includes(item.type) ? `<span style="display:inline-flex;align-items:center;margin-left:8px;padding-left:8px;border-left:1px solid var(--border)"><button class="btn" style="background:#059669;color:#fff;font-size:12px" onclick="publishItem('${esc(item.id)}', this)" title="Publishes live to WordPress immediately">🚀 Publish Live</button></span>` : ''}
       </div>
       <button class="btn btn-ghost" title="Discard without using API credits" onclick="dismissItem('${esc(item.id)}', this)">
         <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/></svg>
@@ -3115,6 +3162,22 @@ function buildPreview(item) {
 }
 
 // ─── APPROVE ────────────────────────────────────────────────────
+async function markNativeReviewed(id, btn) {
+  const orig = btn.innerHTML;
+  btn.innerHTML = 'Marking…'; btn.disabled = true;
+  try {
+    await apiPost('/api/approvals', { action: 'mark_native_reviewed', id, actor: state.actor });
+    const card = document.getElementById(`card-${id}`);
+    if (card) card.remove();
+    state.queue = state.queue.map(i => i.id === id ? { ...i, payload: { ...i.payload, nativeReview: 'reviewed' } } : i);
+    renderQueue();
+    showToast('Marked as reviewed — item can now be approved', '');
+  } catch (e) {
+    btn.innerHTML = orig; btn.disabled = false;
+    showToast('Error: ' + e.message, 'error');
+  }
+}
+
 async function approveItem(id, btn) {
   if (!confirm('Approve and push this item to WordPress?')) return;
   const orig = btn.innerHTML;
@@ -3317,6 +3380,22 @@ async function saveRepublish(id) {
   }
 }
 
+let _confirmCallback = null;
+function nestConfirm(heading, sub, onOk) {
+  _confirmCallback = onOk;
+  document.getElementById('confirm-modal-msg').textContent = heading;
+  document.getElementById('confirm-modal-sub').textContent = sub || '';
+  document.getElementById('confirm-modal').style.display = 'flex';
+}
+function closeConfirmModal() {
+  document.getElementById('confirm-modal').style.display = 'none';
+  _confirmCallback = null;
+}
+function runConfirmCallback() {
+  closeConfirmModal();
+  if (_confirmCallback) _confirmCallback();
+}
+
 async function dismissVisible(btn) {
   // Get currently visible items based on active filters
   let visible = state.queue;
@@ -3332,7 +3411,10 @@ async function dismissVisible(btn) {
     state.activeMFilter !== 'all' ? state.activeMFilter : '',
   ].filter(Boolean).join(' · ') || 'all';
 
-  if (!confirm(`Dismiss ${visible.length} item${visible.length !== 1 ? 's' : ''} (${filterDesc})?\n\nThey will be regenerated fresh on the next Monday scheduler run with improved context data.`)) return;
+  nestConfirm(
+    `Dismiss ${visible.length} item${visible.length !== 1 ? 's' : ''} (${filterDesc})?`,
+    'They will be regenerated fresh on the next Monday scheduler run with improved context data.',
+    async () => {
 
   btn.disabled = true;
   btn.textContent = `Dismissing ${visible.length}…`;
@@ -3351,6 +3433,8 @@ async function dismissVisible(btn) {
   btn.textContent = '🗑 Dismiss Visible';
   renderQueue();
   showToast(`${done} item${done !== 1 ? 's' : ''} dismissed`, '');
+    }
+  );
 }
 
 // ─── QUEUE MULTI-SELECT ─────────────────────────────────────────

@@ -33,9 +33,26 @@ function store() {
   });
 }
 
-const KEY_INDEX = 'approvals:index';
-const KEY_ITEM  = id => `approvals:item:${id}`;
-const KEY_AUDIT = 'audit:log';
+const KEY_INDEX    = 'approvals:index';
+const KEY_ITEM     = id => `approvals:item:${id}`;
+const KEY_AUDIT    = 'audit:log';
+const KEY_FEEDBACK = brand => `brandFeedback:${brand}`;
+
+// ── Brand feedback store ─────────────────────────────────────────
+// Accumulates rejection notes so schedulers can avoid repeating mistakes.
+async function appendBrandFeedback(brand, feedback) {
+  if (!feedback?.trim()) return;
+  const s = store();
+  let notes = [];
+  try { notes = JSON.parse(await s.get(KEY_FEEDBACK(brand), { type: 'text' }) || '[]'); } catch {}
+  if (!Array.isArray(notes)) notes = [];
+  const note = feedback.trim();
+  if (!notes.includes(note)) {
+    notes.push(note);
+    if (notes.length > 20) notes = notes.slice(-20); // keep last 20
+    await s.setJSON(KEY_FEEDBACK(brand), notes);
+  }
+}
 
 function newId() {
   return `itm_${Date.now().toString(36)}_${Math.random().toString(36).slice(2, 8)}`;
@@ -245,6 +262,18 @@ exports.handler = async (event) => {
       case 'republish':
         return await handleRepublish(body, actor);
 
+      case 'mark_native_reviewed': {
+        const { id } = body;
+        if (!id) return bad(400, 'id required');
+        const item = await getItem(id);
+        if (!item) return bad(404, 'not found');
+        item.payload = { ...(item.payload || {}), nativeReview: 'reviewed' };
+        item.updatedAt = Date.now();
+        await patchItem(id, { payload: item.payload, updatedAt: item.updatedAt });
+        await addAudit({ at: Date.now(), actor, action: 'native_reviewed', target: id, type: item.type, brand: item.brand });
+        return ok({ ok: true });
+      }
+
       default:
         return bad(400, `unknown action: ${body.action}`);
     }
@@ -301,6 +330,9 @@ async function handleReject(body, actor) {
   await patchItem(id, { status: 'rejected', rejectionFeedback: feedback }, {
     at: Date.now(), actor, action: 'reject', note: feedback,
   });
+
+  // Persist feedback so schedulers avoid repeating the same mistake
+  appendBrandFeedback(item.brand, feedback).catch(() => {});
 
   const requeue = body.requeue !== false;
   if (!requeue) return ok({ item: await getItem(id), rewrite: null });

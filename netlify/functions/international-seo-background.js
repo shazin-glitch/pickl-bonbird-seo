@@ -13,8 +13,18 @@
 
 const { getStore } = require('@netlify/blobs');
 const { INTERNATIONAL_MARKETS, getMarketsForBrand, buildMarketPrompt, getWpCredentials, buildPostUrl } = require('./_lib/international-config');
-const { getBrandContext, buildBrandPrompt, runBrandVoiceCheck, fixBrandVoice } = require('./_lib/brand');
+const { getBrandContext, getBrandExamples, buildBrandPrompt, runBrandVoiceCheck, fixBrandVoice } = require('./_lib/brand');
 const { fetchGscDirect, fetchGscWithPages, listApprovals, createApproval, extractJson } = require('./_lib/store');
+
+// ── Brand feedback helper ─────────────────────────────────────────
+async function getBrandFeedback(brand) {
+  try {
+    const s = getStore({ name: 'seo-tool', consistency: 'strong', siteID: process.env.NETLIFY_SITE_ID, token: process.env.NETLIFY_AUTH_TOKEN });
+    const raw = await s.get(`brandFeedback:${brand}`, { type: 'text' });
+    const notes = JSON.parse(raw || '[]');
+    return Array.isArray(notes) ? notes : [];
+  } catch { return []; }
+}
 
 const ANTHROPIC_API = 'https://api.anthropic.com/v1/messages';
 const MODEL         = 'claude-sonnet-4-6';
@@ -108,7 +118,7 @@ async function getQueuedKeywordsForMarket(brand) {
 // ── Core data-driven analysis per market ──────────────────────────────────────
 // Mirrors runMetaRewrites from scheduler-background.js but scoped to a market's pages.
 // Returns { queued, skipped, candidates }
-async function runMarketDataDrivenSEO(market, brandCtx, force = false) {
+async function runMarketDataDrivenSEO(market, brandCtx, brandExamples, force = false) {
   const BRAND_GSC = { pickl: 'https://eatpickl.com/', bonbird: 'https://bonbirdchicken.com/' };
   const tag = `[intl-seo/${market.marketKey}]`;
 
@@ -160,14 +170,15 @@ async function runMarketDataDrivenSEO(market, brandCtx, force = false) {
   }
 
   // Build prompt for international meta rewrites
-  const brandPrompt  = buildBrandPrompt(brandCtx);
-  const marketCtx    = buildMarketPrompt(market, brandPrompt, 'en');
-  const brandName    = brandCtx?.name || market.brand;
-  const menuItems    = brandCtx?.menu ? [
+  const brandPrompt    = buildBrandPrompt(brandCtx, brandExamples);
+  const marketCtx      = buildMarketPrompt(market, brandPrompt, 'en');
+  const brandName      = brandCtx?.name || market.brand;
+  const menuItems      = brandCtx?.menu ? [
     ...(brandCtx.menu.cheeseburgers || []).slice(0, 3),
     ...(brandCtx.menu.chickenSandos || brandCtx.menu.sandwiches || []).slice(0, 2),
     ...(brandCtx.menu.friesAndSides || brandCtx.menu.sides || []).slice(0, 2),
   ].join(' | ') : '';
+  const feedbackNotes  = await getBrandFeedback(market.brand);
 
   const userPrompt = `These ${brandName} ${market.label} pages rank well but have poor click-through rates. Rewrite each meta to be specific, on-brand and compelling.
 
@@ -181,7 +192,10 @@ RULES:
 - No generic phrases ("great food", "best in ${market.label}", "quality ingredients")
 - CRITICAL: Write for the PAGE's topic based on its URL — not just the keyword
 - The URL tells you what the page is about. Match the meta to the page content.
-- Lead with the keyword naturally, end with a reason to click
+- Lead with the keyword naturally, end with a reason to click${feedbackNotes.length ? `
+
+HUMAN FEEDBACK — NEVER do any of the following (these were explicitly rejected by the team):
+${feedbackNotes.map(n => `- ${n}`).join('\n')}` : ''}
 
 PAGES TO REWRITE:
 ${candidates.map((r, i) => `${i+1}. URL: "${r.page}" | Keyword: "${r.keyword}" | Position: ${r.position.toFixed(1)} | CTR: ${(r.ctr * 100).toFixed(1)}% | ${r.impressions} impressions`).join('\n')}
@@ -202,6 +216,11 @@ Return ONLY a JSON array:
     const matched = candidates.find(r => r.page === p.url || r.keyword === p.keyword);
     if (!matched) { console.warn(`${tag} unknown URL from Claude: ${p.url}`); continue; }
     try {
+      // Brand voice check on generated title + description
+      const metaContent = `${p.title}\n${p.description}`;
+      const voiceCheck  = await runBrandVoiceCheck(metaContent, brandCtx, callClaude)
+        .catch(() => ({ score: null, issues: [], verdict: 'UNKNOWN' }));
+
       await createApproval({
         type:        'meta_update',
         brand:       market.brand,
@@ -220,6 +239,8 @@ Return ONLY a JSON array:
           wpAction:      'update_meta',
           wpBase:        wp.base, wpUser: wp.user, wpPass: wp.pass,
           language:      'en',
+          voiceScore:    voiceCheck.score,
+          voiceIssues:   voiceCheck.issues,
         },
       });
       queued++;
@@ -228,6 +249,187 @@ Return ONLY a JSON array:
   }
 
   return { queued, candidates: candidates.length };
+}
+
+// ── International keyword opportunities (pos 11-20 → page_update, pos 21-35 → blog_draft) ─────
+async function runMarketKeywordOpportunities(market, brandCtx, brandExamples, force = false) {
+  const BRAND_GSC = { pickl: 'https://eatpickl.com/', bonbird: 'https://bonbirdchicken.com/' };
+  const tag = `[intl-opps/${market.marketKey}]`;
+
+  let rowsWithPages;
+  try {
+    rowsWithPages = await fetchGscWithPages(BRAND_GSC[market.brand]);
+  } catch (e) {
+    console.warn(`${tag} GSC fetch failed: ${e.message}`);
+    return { queued: 0, skipped: 'gsc_failed' };
+  }
+
+  const isMarketPage  = marketPageMatcher(market);
+  const marketRows    = rowsWithPages.filter(r => r.page && isMarketPage(r.page));
+
+  if (marketRows.length < 3) {
+    return { queued: 0, skipped: 'insufficient_data', rows: marketRows.length };
+  }
+
+  // Group by page — pick highest-impression keyword per page
+  const pageMap = {};
+  for (const r of marketRows) {
+    const pageUrl = r.page.split('?')[0].split('#')[0];
+    if (!pageMap[pageUrl] || r.impressions > pageMap[pageUrl].impressions) {
+      pageMap[pageUrl] = { ...r, page: pageUrl };
+    }
+  }
+
+  const alreadyQueuedPages = await getQueuedPagesForMarket(market.brand, 'page_update');
+  const alreadyQueuedKws   = await getQueuedKeywordsForMarket(market.brand);
+  const feedbackNotes      = await getBrandFeedback(market.brand);
+  const brandPrompt        = buildBrandPrompt(brandCtx, brandExamples);
+  const marketCtx          = buildMarketPrompt(market, brandPrompt, 'en');
+  const wp                 = getWpCredentials(market);
+  let queued               = 0;
+
+  // ── QUICK WINS: pos 11-20 → page_update ──────────────────────────────────
+  const quickWins = Object.values(pageMap)
+    .filter(r => r.position > 10 && r.position <= 20 && r.impressions >= 30)
+    .filter(r => force || !alreadyQueuedKws.has(r.keyword.toLowerCase().trim()))
+    .filter(r => force || !alreadyQueuedPages.has(r.page.toLowerCase().replace(/\/$/, '')))
+    .filter(r => keywordMatchesMenu(r.keyword, brandCtx))
+    .sort((a, b) => b.impressions - a.impressions)
+    .slice(0, 2);
+
+  for (const r of quickWins) {
+    try {
+      const userPrompt = `This ${market.brand === 'pickl' ? 'Pickl' : 'Bonbird'} page ranks position ${r.position.toFixed(1)} for "${r.keyword}" in ${market.label} with ${r.impressions} impressions but isn't on page 1.
+
+PAGE: ${r.page}
+KEYWORD: "${r.keyword}"
+POSITION: ${r.position.toFixed(1)}
+IMPRESSIONS: ${r.impressions}
+MARKET: ${market.label}${feedbackNotes.length ? `
+
+HUMAN FEEDBACK — NEVER do any of the following:
+${feedbackNotes.map(n => `- ${n}`).join('\n')}` : ''}
+
+Provide 3-5 specific on-page changes to push this to top 10. Be tactical and specific — reference the URL, what the page is likely about, and what changes will move rankings.
+
+Return ONLY JSON:
+{"title":"Page update: [keyword]","suggestions":["specific change 1","specific change 2","specific change 3"],"rationale":"one sentence on the ranking opportunity","targetKeyword":"${r.keyword}"}`;
+
+      const raw    = await callClaude(marketCtx, userPrompt);
+      const parsed = extractJson(raw);
+      if (!parsed?.suggestions) { console.warn(`${tag} page_update parse error`); continue; }
+
+      await createApproval({
+        type:    'page_update',
+        brand:   market.brand,
+        market:  market.marketKey,
+        actor:   'claude (intl-opps)',
+        locationTag: `${market.flag} ${market.label}`,
+        reason:  parsed.rationale || `Position ${r.position.toFixed(1)} quick win — ${r.impressions} impressions for "${r.keyword}"`,
+        payload: {
+          url:              r.page,
+          targetKeyword:    r.keyword,
+          currentPos:       r.position,
+          impressions:      r.impressions,
+          suggestions:      parsed.suggestions,
+          suggestionTitle:  parsed.title,
+          suggestionDetail: parsed.suggestions.join(' | '),
+          wpBase:  wp.base, wpUser: wp.user, wpPass: wp.pass,
+          language: 'en',
+        },
+      });
+      queued++;
+      console.log(`${tag} queued page_update: ${r.page} (pos ${r.position.toFixed(1)})`);
+    } catch (e) { console.error(`${tag} page_update failed: ${e.message}`); }
+  }
+
+  // ── CONTENT GAPS: pos 21-35 → blog_draft ─────────────────────────────────
+  const contentGaps = Object.values(pageMap)
+    .filter(r => r.position > 20 && r.position <= 35 && r.impressions >= 20)
+    .filter(r => force || !alreadyQueuedKws.has(r.keyword.toLowerCase().trim()))
+    .filter(r => keywordMatchesMenu(r.keyword, brandCtx))
+    .sort((a, b) => b.impressions - a.impressions)
+    .slice(0, 1);
+
+  for (const r of contentGaps) {
+    try {
+      const brandName  = brandCtx?.name || market.brand;
+      const menuItems  = brandCtx?.menu ? [
+        ...(brandCtx.menu.cheeseburgers || []).slice(0, 3),
+        ...(brandCtx.menu.chickenSandos || brandCtx.menu.sandwiches || []).slice(0, 2),
+      ].join(', ') : '';
+
+      const userPrompt = `Write a focused blog post for ${brandName} in ${market.label} targeting "${r.keyword}".
+
+This keyword already shows ${r.impressions} impressions at position ${r.position.toFixed(1)} — a dedicated page will capture this traffic.
+
+LANGUAGE: English
+WORD COUNT: 400-550 words
+TARGET KEYWORD: "${r.keyword}"
+MARKET: ${market.label}
+REAL MENU ITEMS TO REFERENCE: ${menuItems || 'use items from brand context'}
+MARKET LOCATIONS: ${market.locations?.join(', ') || market.label}${feedbackNotes.length ? `
+
+HUMAN FEEDBACK — NEVER do any of the following:
+${feedbackNotes.map(n => `- ${n}`).join('\n')}` : ''}
+
+Every sentence must sound like the brand — specific, direct, no filler. Open with energy. Reference real menu items by name.
+
+Return EXACTLY:
+### TITLE
+[brand-voice title targeting ${r.keyword}]
+
+### SLUG
+[url-friendly-slug]
+
+### META_DESCRIPTION
+[150-158 chars]
+
+### FOCUS_KEYWORD
+${r.keyword}
+
+### BODY
+[full post in HTML — h2 headings, short paragraphs]`;
+
+      const raw      = await callClaude(marketCtx, userPrompt);
+      const title    = parseSection(raw, 'TITLE').trim();
+      const slug     = parseSection(raw, 'SLUG').trim().replace(/[^a-z0-9-]/g, '');
+      const metaDesc = parseSection(raw, 'META_DESCRIPTION').trim();
+      const body     = parseSection(raw, 'BODY').trim();
+      if (!title || !body) { console.warn(`${tag} blog_draft parse error`); continue; }
+
+      const metaContent = `${title}\n${metaDesc}`;
+      const voiceCheck  = await runBrandVoiceCheck(metaContent, brandCtx, callClaude)
+        .catch(() => ({ score: null, issues: [], verdict: 'UNKNOWN' }));
+
+      await createApproval({
+        type:    'blog_draft',
+        brand:   market.brand,
+        market:  market.marketKey,
+        actor:   'claude (intl-opps)',
+        locationTag: `${market.flag} ${market.label}`,
+        reason:  `Content gap — pos ${r.position.toFixed(1)} with ${r.impressions} impressions for "${r.keyword}"`,
+        payload: {
+          title, slug, body,
+          metaTitle:       title,
+          metaDescription: metaDesc,
+          targetKeyword:   r.keyword,
+          focusKeyword:    r.keyword,
+          currentPos:      r.position,
+          impressions:     r.impressions,
+          voiceScore:      voiceCheck.score,
+          voiceIssues:     voiceCheck.issues,
+          voiceTopFix:     voiceCheck.issues?.[0] || null,
+          wpBase:  wp.base, wpUser: wp.user, wpPass: wp.pass,
+          language: 'en',
+        },
+      });
+      queued++;
+      console.log(`${tag} queued blog_draft: "${title}" (pos ${r.position.toFixed(1)})`);
+    } catch (e) { console.error(`${tag} blog_draft failed: ${e.message}`); }
+  }
+
+  return { queued, quickWins: quickWins.length, contentGaps: contentGaps.length };
 }
 
 // ── Claude content generation ─────────────────────────────────────────────────
@@ -260,14 +462,14 @@ function parseSection(text, section) {
 }
 
 // ── Generate blog draft for a market+language ─────────────────────────────────
-async function generateBlogDraft(market, brandCtx, language, usedKeywords = new Set()) {
+async function generateBlogDraft(market, brandCtx, brandExamples, language, usedKeywords = new Set()) {
   const keywords = market.seedKeywords[language] || market.seedKeywords['en'];
   // Rotate through keywords — skip ones used in this run
   const available = keywords.filter(k => !usedKeywords.has(k));
   const primaryKw = available[0] || keywords[0];
   usedKeywords.add(primaryKw);
   const isArabic  = language === 'ar';
-  const marketCtx = buildMarketPrompt(market, buildBrandPrompt(brandCtx), language);
+  const marketCtx = buildMarketPrompt(market, buildBrandPrompt(brandCtx, brandExamples), language);
 
   const userPrompt = `Write a blog post for ${market.brand === 'pickl' ? 'Pickl' : 'Bonbird'} in ${market.label}.
 
@@ -334,10 +536,10 @@ Return EXACTLY this structure:
 }
 
 // ── Generate meta update for the market landing page ─────────────────────────
-async function generateMetaUpdate(market, brandCtx, language) {
+async function generateMetaUpdate(market, brandCtx, brandExamples, language) {
   const keywords = market.seedKeywords[language] || market.seedKeywords['en'];
   const isArabic  = language === 'ar';
-  const marketCtx = buildMarketPrompt(market, buildBrandPrompt(brandCtx), language);
+  const marketCtx = buildMarketPrompt(market, buildBrandPrompt(brandCtx, brandExamples), language);
 
   const arabicRules = isArabic ? `
 ARABIC RULES — non-negotiable:
@@ -379,10 +581,10 @@ Return EXACTLY this structure:
 }
 
 // ── Generate on-page suggestion for market landing page ───────────────────────
-async function generateOnPageSuggestion(market, brandCtx, language) {
+async function generateOnPageSuggestion(market, brandCtx, brandExamples, language) {
   const keywords = market.seedKeywords[language] || market.seedKeywords['en'];
   const isArabic  = language === 'ar';
-  const marketCtx = buildMarketPrompt(market, buildBrandPrompt(brandCtx), language);
+  const marketCtx = buildMarketPrompt(market, buildBrandPrompt(brandCtx, brandExamples), language);
 
   const userPrompt = `Analyse the ${market.brand === 'pickl' ? 'Pickl' : 'Bonbird'} ${market.label} landing page at ${market.siteUrl} and provide one specific on-page SEO improvement.
 
@@ -449,6 +651,8 @@ async function queueApprovalItem(item) {
         voiceScore:      item.meta?.voiceScore   || null,
         voiceIssues:     item.meta?.voiceIssues  || [],
         voiceTopFix:     item.meta?.voiceTopFix  || null,
+        // Arabic content requires native reviewer sign-off before approval
+        nativeReview:    item.language === 'ar' ? 'pending' : undefined,
         // GSC position data — populated when keyword already has impressions in the market
         // null for truly new content (no GSC data yet)
         currentPos:      item.meta?.currentPos   || null,
@@ -504,16 +708,17 @@ async function processMarketLanguage(store, marketKey, market, language, force =
   const tag = `[intl-seo] ${marketKey}/${language}`;
   console.log(`${tag} — starting`);
 
-  const brandCtx = await getBrandContext(market.brand);
-  const queued   = [];
-  const errors   = [];
+  const brandCtx      = await getBrandContext(market.brand);
+  const brandExamples = await getBrandExamples(market.brand).catch(() => null);
+  const queued        = [];
+  const errors        = [];
 
   // ── DATA-DRIVEN ANALYSIS (always runs, no cache TTL) ───────────────────────
   // Run GSC-based meta rewrites for this market's actual pages.
   // Only runs once per market (not per language) — skip for non-English passes.
   if (language === 'en') {
     try {
-      const gscResult = await runMarketDataDrivenSEO(market, brandCtx, force);
+      const gscResult = await runMarketDataDrivenSEO(market, brandCtx, brandExamples, force);
       console.log(`${tag} — data-driven result:`, JSON.stringify(gscResult));
       if (gscResult.queued > 0) {
         queued.push({ type: 'data_driven_meta', count: gscResult.queued });
@@ -521,6 +726,17 @@ async function processMarketLanguage(store, marketKey, market, language, force =
     } catch (e) {
       console.error(`${tag} — data-driven analysis failed: ${e.message}`);
       errors.push({ type: 'data_driven', error: e.message });
+    }
+
+    try {
+      const oppsResult = await runMarketKeywordOpportunities(market, brandCtx, brandExamples, force);
+      console.log(`${tag} — keyword opps result:`, JSON.stringify(oppsResult));
+      if (oppsResult.queued > 0) {
+        queued.push({ type: 'keyword_opportunities', count: oppsResult.queued });
+      }
+    } catch (e) {
+      console.error(`${tag} — keyword opportunities failed: ${e.message}`);
+      errors.push({ type: 'keyword_opps', error: e.message });
     }
   }
 
@@ -577,7 +793,7 @@ async function processMarketLanguage(store, marketKey, market, language, force =
 
   while (blogsQueued < MAX_BLOGS_PER_MARKET) {
     try {
-      const blog = await generateBlogDraft(market, brandCtx, language, usedKeywords);
+      const blog = await generateBlogDraft(market, brandCtx, brandExamples, language, usedKeywords);
       if (!blog.title || !blog.content) break;
 
       // Check for duplicate keyword already pending
@@ -636,7 +852,7 @@ async function processMarketLanguage(store, marketKey, market, language, force =
 
   // 2. Meta update for market landing page
   try {
-    const meta = await generateMetaUpdate(market, brandCtx, language);
+    const meta = await generateMetaUpdate(market, brandCtx, brandExamples, language);
     if (meta.metaTitle && meta.metaDescription) {
       const wp = getWpCredentials(market);
       const id = await queueApprovalItem({
@@ -668,7 +884,7 @@ async function processMarketLanguage(store, marketKey, market, language, force =
 
   // 3. On-page suggestion
   try {
-    const onpage = await generateOnPageSuggestion(market, brandCtx, language);
+    const onpage = await generateOnPageSuggestion(market, brandCtx, brandExamples, language);
     if (onpage.suggestionTitle && onpage.suggestedCopy) {
       const wp = getWpCredentials(market);
       const id = await queueApprovalItem({

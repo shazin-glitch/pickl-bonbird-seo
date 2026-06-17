@@ -18,6 +18,17 @@ const {
 const { getBrandContext, buildBrandPrompt, runBrandVoiceCheck, fixBrandVoice, getBrandExamples } = require('./_lib/brand');
 const { getStore } = require('@netlify/blobs');
 
+// ── Brand feedback helper ─────────────────────────────────────────
+// Reads accumulated rejection notes so they can be injected into prompts.
+async function getBrandFeedback(brand) {
+  try {
+    const s = getStore({ name: 'seo-tool', consistency: 'strong', siteID: process.env.NETLIFY_SITE_ID, token: process.env.NETLIFY_AUTH_TOKEN });
+    const raw = await s.get(`brandFeedback:${brand}`, { type: 'text' });
+    const notes = JSON.parse(raw || '[]');
+    return Array.isArray(notes) ? notes : [];
+  } catch { return []; }
+}
+
 // ── Keyword tier classification ────────────────────────────────────────────────
 // Quick Win:    pos 11-20  — already ranking, one update = page 1. Fastest ROI.
 // Short Term:   pos 21-35  — ranking weakly, new focused post. 4-8 weeks.
@@ -691,13 +702,14 @@ Return ONLY valid JSON:
 
   if (!validCandidates.length) return { queued: 0, candidates: candidates.length, pageCreationQueued: pageCreationNeeded.length, skipped: 'all candidates failed WP content check' };
 
-  const systemPrompt = brandPrompt || buildBrandPrompt(brandCtx);
-  const brandName    = brandCtx?.name || cfg.name;
-  const menuItems    = brandCtx?.menu ? [
+  const systemPrompt   = brandPrompt || buildBrandPrompt(brandCtx);
+  const brandName      = brandCtx?.name || cfg.name;
+  const menuItems      = brandCtx?.menu ? [
     ...(brandCtx.menu.cheeseburgers || []).slice(0, 3),
     ...(brandCtx.menu.chickenSandos || brandCtx.menu.sandwiches || []).slice(0, 2),
     ...(brandCtx.menu.friesAndSides || brandCtx.menu.sides || []).slice(0, 2),
   ].join(' | ') : '';
+  const feedbackNotes  = await getBrandFeedback(brand);
 
   // Fetch current Yoast meta for every candidate BEFORE calling Claude
   // so Claude can evaluate whether a replacement is actually needed
@@ -729,7 +741,10 @@ RULES for any replacement you write — non-negotiable:
 - No generic phrases: "great food", "delicious", "best in Dubai", "quality ingredients"
 - Lead with the keyword, end with a reason to click
 - Write specifically about what the PAGE is about (the URL tells you the topic — /sharjah/ = Sharjah page, etc.)
-- ONLY mention dishes that appear in YOUR MENU. If keyword implies an off-menu dish, pivot to the closest real one.
+- ONLY mention dishes that appear in YOUR MENU. If keyword implies an off-menu dish, pivot to the closest real one.${feedbackNotes.length ? `
+
+HUMAN FEEDBACK — NEVER do any of the following (these were explicitly rejected by the team):
+${feedbackNotes.map(n => `- ${n}`).join('\n')}` : ''}
 
 PAGES TO EVALUATE:
 ${validCandidates.map((r, i) => {
@@ -776,6 +791,11 @@ Return ONLY a JSON array. For pages that don't need changing, set "skip": true.
 
     const currentMeta = currentMetaMap[finalUrl] || null;
 
+    // Brand voice check on the generated title + description
+    const metaContent = `${p.title}\n${p.description}`;
+    const voiceCheck  = await runBrandVoiceCheck(metaContent, brandCtx, (pr, o) => callClaude(pr, o))
+      .catch(() => ({ score: null, issues: [], verdict: 'UNKNOWN' }));
+
     await createApproval({
       type:  'meta_update',
       brand,
@@ -792,6 +812,8 @@ Return ONLY a JSON array. For pages that don't need changing, set "skip": true.
         ctrGap:        matched?.ctrGap != null ? (matched.ctrGap * 100).toFixed(1) : null,
         wpAction:      'update_meta',
         currentMeta,
+        voiceScore:    voiceCheck.score,
+        voiceIssues:   voiceCheck.issues,
       },
     });
     items.push({ type: 'meta_update', title: p.title || finalUrl, keyword: p.keyword, position: matched?.position, impressions: matched?.impressions });
