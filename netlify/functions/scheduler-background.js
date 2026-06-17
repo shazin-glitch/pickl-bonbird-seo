@@ -699,9 +699,17 @@ async function runMetaRewrites(brand, _rows, dryRun, forceRun, brandCtx, brandPr
   const pageCreationNeeded = [];
 
   for (const r of candidates) {
-    const hasContent = await wpPageHasContent(brand, r.page);
+    const { hasContent, canonicalUrl } = await wpPageCheck(brand, r.page);
     if (hasContent) {
-      validCandidates.push(r);
+      // If WP canonical differs from GSC URL, flag the mismatch but still use canonical as target
+      const wpCanonical = canonicalUrl || r.page;
+      const gscPath     = r.page.replace(/^https?:\/\/[^/]+/, '').replace(/\/$/, '');
+      const wpPath      = wpCanonical.replace(/^https?:\/\/[^/]+/, '').replace(/\/$/, '');
+      const mismatch    = gscPath !== wpPath;
+      if (mismatch) {
+        console.log(`[meta_rewrites] URL mismatch — GSC: ${r.page} → WP canonical: ${wpCanonical}`);
+      }
+      validCandidates.push({ ...r, wpCanonical, gscUrlMismatch: mismatch ? r.page : null });
     } else {
       console.log(`[meta_rewrites] ${r.page} — empty/missing in WP. Impressions: ${r.impressions}`);
       // High impressions on a missing/empty page = Google wants to rank it but there's nothing there
@@ -865,10 +873,11 @@ Return ONLY a JSON array. For pages that don't need changing, set "skip": true.
 
     // Use matched real URL, fallback to Claude's URL only if it matches a known candidate
     const matched  = validCandidates.find(r => r.page === p.url || r.keyword === p.keyword);
-    const finalUrl = matched ? matched.page : null;
-    if (!finalUrl) { console.warn('[meta_rewrites] Claude returned unknown URL, skipping:', p.url); continue; }
+    if (!matched) { console.warn('[meta_rewrites] Claude returned unknown URL, skipping:', p.url); continue; }
 
-    const currentMeta = currentMetaMap[finalUrl] || null;
+    // Use WP canonical URL as the push target (not raw GSC URL)
+    const finalUrl  = matched.wpCanonical || matched.page;
+    const currentMeta = currentMetaMap[matched.page] || currentMetaMap[finalUrl] || null;
 
     // Brand voice check on the generated title + description
     const metaContent = `${p.title}\n${p.description}`;
@@ -882,17 +891,18 @@ Return ONLY a JSON array. For pages that don't need changing, set "skip": true.
       locationTag: getLocationTag(finalUrl, brand),
       reason: p.rationale || 'Low CTR vs expected for current ranking position',
       payload: {
-        url:           finalUrl,
-        title:         p.title,
-        description:   p.description,
-        targetKeyword: p.targetKeyword || p.keyword,
-        currentPos:    matched?.position,
-        impressions:   matched?.impressions,
-        ctrGap:        matched?.ctrGap != null ? (matched.ctrGap * 100).toFixed(1) : null,
-        wpAction:      'update_meta',
+        url:             finalUrl,
+        gscUrl:          matched.gscUrlMismatch || null,
+        title:           p.title,
+        description:     p.description,
+        targetKeyword:   p.targetKeyword || p.keyword,
+        currentPos:      matched?.position,
+        impressions:     matched?.impressions,
+        ctrGap:          matched?.ctrGap != null ? (matched.ctrGap * 100).toFixed(1) : null,
+        wpAction:        'update_meta',
         currentMeta,
-        voiceScore:    voiceCheck.score,
-        voiceIssues:   voiceCheck.issues,
+        voiceScore:      voiceCheck.score,
+        voiceIssues:     voiceCheck.issues,
       },
     });
     items.push({ type: 'meta_update', title: p.title || finalUrl, keyword: p.keyword, position: matched?.position, impressions: matched?.impressions });
@@ -904,44 +914,57 @@ Return ONLY a JSON array. For pages that don't need changing, set "skip": true.
 // ── WordPress content validation ──────────────────────────────────────────────
 // Returns true only if the page exists in WP and has ≥100 words of content.
 // Prevents meta updates being queued for empty or non-existent pages.
-async function wpPageHasContent(brand, pageUrl) {
+// Returns { hasContent: bool, canonicalUrl: string|null }
+// canonicalUrl is the WP-canonical permalink — use this instead of the raw GSC URL
+// in approval items so stored URLs always match what WordPress actually serves.
+async function wpPageCheck(brand, pageUrl) {
+  const NO_CREDS = { hasContent: true, canonicalUrl: null };
   try {
     const wpBase = brand === 'pickl' ? process.env.WP_PICKL_BASE : process.env.WP_BONBIRD_BASE;
     const wpUser = brand === 'pickl' ? process.env.WP_PICKL_USER : process.env.WP_BONBIRD_USER;
     const wpPass = brand === 'pickl' ? process.env.WP_PICKL_APP_PASS : process.env.WP_BONBIRD_APP_PASS;
 
-    if (!wpBase) return true; // Can't validate without WP config — allow through
+    if (!wpBase) return NO_CREDS;
 
-    // Homepage always has content
     const path = pageUrl.replace(/^https?:\/\/[^\/]+/, '').replace(/^\/|\/$/g, '');
-    if (!path) return true;
+    if (!path) return { hasContent: true, canonicalUrl: pageUrl };
 
     const slug    = path.split('/').filter(Boolean).pop() || '';
-    if (!slug) return true;
+    if (!slug) return { hasContent: true, canonicalUrl: pageUrl };
 
     const auth    = Buffer.from(`${wpUser}:${wpPass}`).toString('base64');
     const headers = { Authorization: `Basic ${auth}` };
 
     for (const type of ['pages', 'posts']) {
       try {
-        const res  = await fetch(`${wpBase}/wp-json/wp/v2/${type}?slug=${encodeURIComponent(slug)}&_fields=id,content,status`, { headers });
+        const res  = await fetch(`${wpBase}/wp-json/wp/v2/${type}?slug=${encodeURIComponent(slug)}&_fields=id,link,content,status`, { headers });
         const data = await res.json();
         if (Array.isArray(data) && data.length > 0 && data[0].status === 'publish') {
-          const text      = (data[0].content?.rendered || '').replace(/<[^>]+>/g, ' ');
-          const wordCount = text.split(/\s+/).filter(Boolean).length;
-          if (wordCount >= 100) { console.log(`[wpCheck] ${pageUrl} → ${wordCount} words ✓`); return true; }
+          const canonicalUrl = data[0].link || pageUrl;
+          const text         = (data[0].content?.rendered || '').replace(/<[^>]+>/g, ' ');
+          const wordCount    = text.split(/\s+/).filter(Boolean).length;
+          if (wordCount >= 100) {
+            console.log(`[wpCheck] ${pageUrl} → ${wordCount} words ✓ canonical: ${canonicalUrl}`);
+            return { hasContent: true, canonicalUrl };
+          }
           console.log(`[wpCheck] ${pageUrl} → only ${wordCount} words — skipping`);
-          return false;
+          return { hasContent: false, canonicalUrl };
         }
       } catch (_) {}
     }
 
     console.log(`[wpCheck] ${pageUrl} → not found in WP, skipping`);
-    return false;
+    return { hasContent: false, canonicalUrl: null };
   } catch (e) {
     console.warn('[wpCheck] Error for', pageUrl, ':', e.message);
-    return true; // On unexpected error, allow through
+    return NO_CREDS;
   }
+}
+
+// Backwards-compat shim used by runPageCreation / runQuickWins
+async function wpPageHasContent(brand, pageUrl) {
+  const { hasContent } = await wpPageCheck(brand, pageUrl);
+  return hasContent;
 }
 
 // ════════════════════════════════════════════════════════════════

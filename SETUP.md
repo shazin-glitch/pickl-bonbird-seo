@@ -323,6 +323,37 @@ From Google's official AI Optimization Guide (June 2026):
 
 ---
 
+## Session: June 2026 — v7.3.3 — GSC URL mismatch detection in meta rewrites
+
+### Changes in this session
+
+#### Root cause identified: WordPress ghost-200s on unofficial URL paths
+
+WordPress responds with a 200 to any URL whose last path segment matches a published page slug, regardless of the parent path. So `/dubai/pickl-city-walk/` returns 200 (hitting the real `pickl-city-walk` page) but renders empty content because no WordPress page with that slug exists under a "dubai" parent. Google indexed this ghost URL at some point (old internal link, old sitemap entry, or previous site structure) and it now appears in GSC with impressions.
+
+Old `wpPageHasContent` extracted only the last slug and queried WordPress — it found the *real* page's content and incorrectly validated the ghost URL. The approval was queued against the GSC URL instead of the canonical.
+
+#### Fix: `wpPageCheck` replaces `wpPageHasContent` in meta rewrites ✅
+
+**`netlify/functions/scheduler-background.js`**
+- New `wpPageCheck(brand, pageUrl)` returns `{ hasContent, canonicalUrl }` — fetches `id,link,content,status` from WP so we get the canonical `link` field alongside the content check
+- Old `wpPageHasContent` kept as a shim (calls `wpPageCheck`, returns just the bool) — used by `runQuickWins` / `runPageCreation` which don't need the URL
+- Validation loop in `runMetaRewrites` now uses `wpPageCheck`:
+  - Compares WP canonical path vs GSC URL path
+  - On mismatch: logs it, stores `wpCanonical` and `gscUrlMismatch` on the candidate
+  - Still queues the opportunity — doesn't skip it
+- Approval creation uses `matched.wpCanonical` as `finalUrl` (push target) instead of raw GSC URL
+- `payload.gscUrl` added — set to the original GSC URL only when it differs from canonical, null otherwise
+
+**`index.html` — approval card**
+- When `payload.gscUrl` is set (mismatch exists), renders an amber warning block above the meta comparison:
+  > ⚠️ GSC URL mismatch: Google has indexed `/dubai/pickl-city-walk/` but the canonical WordPress page is `/pickl-city-walk/`. Approving will update the meta on the canonical page. Consider adding a redirect or canonical tag to fix the GSC URL separately.
+
+### Revert notes
+- To revert: restore `wpPageHasContent` call in validation loop, remove `wpCanonical`/`gscUrlMismatch` fields, remove `gscUrl` from payload, remove mismatch warning from card
+
+---
+
 ## Session: June 2026 — v7.3.2 — Dark mode panel fix + sidebar user block
 
 ### Changes in this session
