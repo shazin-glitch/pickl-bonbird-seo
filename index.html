@@ -2504,6 +2504,8 @@ async function loadPublishedTracking() {
 }
 
 function buildTrackingCard(item) {
+  window._trackItems = window._trackItems || {};
+  window._trackItems[item.id] = item;
   const p = item.payload || {};
   const keyword     = item.trackingKeyword || p.targetKeyword || '—';
   const posAtPublish = item.positionAtPublish || p.currentPos || null;
@@ -2608,6 +2610,9 @@ function buildTrackingCard(item) {
       ${publishedContentHtml}
       ${movementHtml}
       ${indexBadgeHtml}
+      <div style="margin-top:10px;display:flex;justify-content:flex-end">
+        <button onclick="openRepublishModal('${item.id}')" style="padding:6px 14px;font-size:12px;border:1px solid var(--border);border-radius:7px;background:transparent;color:var(--text-main);cursor:pointer;font-weight:500">✏️ Edit &amp; Re-push</button>
+      </div>
     </div>`;
 }
 
@@ -2918,6 +2923,123 @@ async function dismissItem(id, btn) {
   } catch (e) {
     card.classList.remove('dismissing');
     showToast('Error: ' + e.message, 'error');
+  }
+}
+
+// ─── EDIT & RE-PUSH (published items) ───────────────────────────
+function openRepublishModal(id) {
+  const item = (window._trackItems || {})[id];
+  if (!item) return showToast('Item not found — refresh the page', 'error');
+  const p = item.payload || {};
+  const currentTitle = p.metaTitle || (p.title !== item.title ? p.title : '') || '';
+  const currentDesc  = p.metaDescription || p.description || '';
+  const currentKw    = p.focusKeyword || p.targetKeyword || '';
+  const isMetaType   = item.type === 'meta_update' || item.type === 'schema_update';
+
+  const existing = document.getElementById('republish-modal');
+  if (existing) existing.remove();
+
+  const modal = document.createElement('div');
+  modal.id = 'republish-modal';
+  modal.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,.55);display:flex;align-items:center;justify-content:center;z-index:9999';
+  modal.innerHTML = `
+    <div style="background:var(--bg-card);border-radius:14px;padding:28px;width:520px;max-width:95vw;max-height:90vh;overflow-y:auto;box-shadow:0 20px 60px rgba(0,0,0,.3)">
+      <div style="font-weight:700;font-size:16px;margin-bottom:4px">Edit &amp; Re-push</div>
+      <div style="font-size:12px;color:var(--text-muted);margin-bottom:20px">${esc(item.title || item.type)} &middot; ${esc(item.brand)}</div>
+
+      <div style="margin-bottom:14px">
+        <label style="font-size:12px;font-weight:600;color:var(--text-muted);display:block;margin-bottom:6px">SEO TITLE</label>
+        <input id="rp-title" type="text" placeholder="SEO title (50-60 chars)" value="${esc(currentTitle)}"
+          style="width:100%;padding:10px 12px;border:1px solid var(--border);border-radius:8px;background:var(--bg-base);color:var(--text-main);font-size:13px;box-sizing:border-box">
+        <div id="rp-title-count" style="font-size:11px;color:var(--text-muted);margin-top:4px;text-align:right">${currentTitle.length} chars</div>
+      </div>
+
+      <div style="margin-bottom:14px">
+        <label style="font-size:12px;font-weight:600;color:var(--text-muted);display:block;margin-bottom:6px">META DESCRIPTION</label>
+        <textarea id="rp-desc" placeholder="Meta description (150-160 chars)"
+          style="width:100%;padding:10px 12px;border:1px solid var(--border);border-radius:8px;background:var(--bg-base);color:var(--text-main);font-size:13px;box-sizing:border-box;resize:vertical;min-height:80px">${esc(currentDesc)}</textarea>
+        <div id="rp-desc-count" style="font-size:11px;color:var(--text-muted);margin-top:4px;text-align:right">${currentDesc.length} chars</div>
+      </div>
+
+      <div style="margin-bottom:20px">
+        <label style="font-size:12px;font-weight:600;color:var(--text-muted);display:block;margin-bottom:6px">FOCUS KEYWORD</label>
+        <input id="rp-kw" type="text" placeholder="Primary keyword" value="${esc(currentKw)}"
+          style="width:100%;padding:10px 12px;border:1px solid var(--border);border-radius:8px;background:var(--bg-base);color:var(--text-main);font-size:13px;box-sizing:border-box">
+      </div>
+
+      ${isMetaType ? `
+      <div style="border:1px solid var(--border);border-radius:10px;padding:14px;margin-bottom:20px;background:var(--bg-base)">
+        <div style="font-size:12px;font-weight:600;margin-bottom:8px">✨ Fix with AI</div>
+        <textarea id="rp-feedback" placeholder="Describe what's wrong — e.g. "Arabic text says ground beef instead of smash burger""
+          style="width:100%;padding:10px 12px;border:1px solid var(--border);border-radius:8px;background:var(--bg-card);color:var(--text-main);font-size:13px;box-sizing:border-box;resize:vertical;min-height:64px"></textarea>
+        <button id="rp-ai-btn" onclick="generateRepublishFix('${id}')"
+          style="margin-top:8px;padding:8px 16px;background:var(--accent);color:#fff;border:none;border-radius:8px;font-size:13px;cursor:pointer;font-weight:600">Generate Fix</button>
+      </div>` : ''}
+
+      <div style="display:flex;gap:10px;justify-content:flex-end">
+        <button onclick="document.getElementById('republish-modal').remove()"
+          style="padding:10px 20px;border:1px solid var(--border);border-radius:8px;background:transparent;color:var(--text-main);font-size:13px;cursor:pointer">Cancel</button>
+        <button id="rp-save-btn" onclick="saveRepublish('${id}')"
+          style="padding:10px 20px;background:var(--accent);color:#fff;border:none;border-radius:8px;font-size:13px;cursor:pointer;font-weight:600">Save &amp; Re-push</button>
+      </div>
+    </div>`;
+  document.body.appendChild(modal);
+  modal.addEventListener('click', e => { if (e.target === modal) modal.remove(); });
+
+  const titleInput = modal.querySelector('#rp-title');
+  const titleCount = modal.querySelector('#rp-title-count');
+  if (titleInput) titleInput.addEventListener('input', () => {
+    const n = titleInput.value.length;
+    titleCount.textContent = n + ' chars';
+    titleCount.style.color = (n >= 50 && n <= 60) ? '#059669' : n > 60 ? '#dc2626' : 'var(--text-muted)';
+  });
+  const descTA    = modal.querySelector('#rp-desc');
+  const descCount = modal.querySelector('#rp-desc-count');
+  if (descTA) descTA.addEventListener('input', () => {
+    const n = descTA.value.length;
+    descCount.textContent = n + ' chars';
+    descCount.style.color = (n >= 150 && n <= 160) ? '#059669' : n > 160 ? '#dc2626' : 'var(--text-muted)';
+  });
+}
+
+async function generateRepublishFix(id) {
+  const feedback = (document.getElementById('rp-feedback')?.value || '').trim();
+  if (!feedback) return showToast('Describe what\'s wrong first', 'warn');
+  const btn = document.getElementById('rp-ai-btn');
+  if (btn) { btn.disabled = true; btn.textContent = 'Generating…'; }
+  try {
+    const res = await apiPost('/api/approvals', { action: 'rewrite_published', id, feedback, actor: state.actor });
+    const { metaTitle, metaDescription, focusKeyword } = res.proposed || {};
+    if (metaTitle)       { document.getElementById('rp-title').value = metaTitle; document.getElementById('rp-title')?.dispatchEvent(new Event('input')); }
+    if (metaDescription) { document.getElementById('rp-desc').value  = metaDescription; document.getElementById('rp-desc')?.dispatchEvent(new Event('input')); }
+    if (focusKeyword)    document.getElementById('rp-kw').value = focusKeyword;
+    showToast('AI fix generated — review then save', 'success');
+  } catch(e) {
+    showToast('AI fix failed: ' + e.message, 'error');
+  } finally {
+    if (btn) { btn.disabled = false; btn.textContent = 'Generate Fix'; }
+  }
+}
+
+async function saveRepublish(id) {
+  const newTitle       = (document.getElementById('rp-title')?.value || '').trim();
+  const newDescription = (document.getElementById('rp-desc')?.value  || '').trim();
+  const newFocusKeyword= (document.getElementById('rp-kw')?.value    || '').trim();
+  if (!newTitle && !newDescription) return showToast('Enter at least a title or description', 'warn');
+  const btn = document.getElementById('rp-save-btn');
+  if (btn) { btn.disabled = true; btn.textContent = 'Pushing…'; }
+  try {
+    const res = await apiPost('/api/approvals', { action: 'republish', id, newTitle, newDescription, newFocusKeyword, actor: state.actor });
+    document.getElementById('republish-modal')?.remove();
+    if (res.pushResult?.ok) {
+      showToast('Re-pushed to WordPress ✓', 'success');
+    } else {
+      showToast('Saved but WP push failed: ' + (res.pushResult?.message || 'unknown'), 'warn');
+    }
+    loadPublishedTracking();
+  } catch(e) {
+    showToast('Re-push failed: ' + e.message, 'error');
+    if (btn) { btn.disabled = false; btn.textContent = 'Save & Re-push'; }
   }
 }
 

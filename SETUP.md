@@ -2608,6 +2608,37 @@ Empty state now shows:
 
 ---
 
+## Session: June 2026 — v7.1.5 — Edit & Re-push for published items
+
+### New feature: Edit & Re-push (approvals.js + index.html)
+Every Published & Tracking card now has an "✏️ Edit & Re-push" button.
+
+**What it does:**
+- Opens a modal pre-filled with the currently stored SEO title, meta description, and focus keyword
+- Char counters with green/red colour coding (50-60 title, 150-160 desc)
+- Manual edit: directly change the fields and hit "Save & Re-push" to push to WordPress immediately
+- AI fix: describe what's wrong in the "Fix with AI" textarea → Claude generates corrected meta → fields auto-fill for review before saving
+
+**New actions in approvals.js:**
+- `rewrite_published` — takes `{ id, feedback }`, calls Claude with current meta + feedback, returns `{ proposed: { metaTitle, metaDescription, focusKeyword } }`. Only runs on items with status pushed/published/failed. Includes Arabic rules when Arabic text detected.
+- `republish` — takes `{ id, newTitle, newDescription, newFocusKeyword }`, calls `pushItem` with updated payload, patches item with `republishedAt` + history event. Returns `{ item, pushResult }`.
+
+**Frontend (index.html):**
+- `buildTrackingCard` now caches each item in `window._trackItems[id]` so modal can access it
+- `openRepublishModal(id)` — builds modal, wires up char count listeners
+- `generateRepublishFix(id)` — calls `rewrite_published`, fills form fields from response
+- `saveRepublish(id)` — calls `republish`, closes modal, reloads Published & Tracking view
+
+---
+
+## Session: June 2026 — v7.1.4 — Fix Arabic meta translation + focus keyword fallback
+
+### Arabic meta prompt fixed (international-seo-background.js)
+- Added explicit Arabic rules: never translate brand names (Pickl/Bonbird stay as-is), never translate menu items literally ("smash burger" → "سماش برغر" not "لحم بقري مسحوق"), Gulf Arabic style not MSA, no use of "مسحوق" for burgers
+- Focus keyword now falls back to first seed keyword if Claude doesn't return one
+
+---
+
 ## Session: June 2026 — v7.1.3 — Fix meta_update writing card title instead of SEO title
 
 ### Root cause
@@ -2879,7 +2910,7 @@ Update "Current URL" from `yolkseo.netlify.app` to `thenest.yolkbrands.com`
 
 ---
 
-## Current Version: v7.1.3
+## Current Version: v7.1.4
 
 Last session built: Bug-fix batch (v7.0.2), added Yolk Brands to Content Calendar (v7.0.3 + v7.0.4), added Yolk Brands to The Perch (v7.0.5), fixed Reports tab crash (v7.0.6), Priority Gap → Queue Brief + keyword filtering fixes (v7.0.7), copy-to-market fix + GSC page data + URL Inspection indexing badges (v7.0.8).
 

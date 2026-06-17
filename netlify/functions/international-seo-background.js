@@ -339,11 +339,24 @@ async function generateMetaUpdate(market, brandCtx, language) {
   const isArabic  = language === 'ar';
   const marketCtx = buildMarketPrompt(market, buildBrandPrompt(brandCtx), language);
 
+  const arabicRules = isArabic ? `
+ARABIC RULES — non-negotiable:
+- Write in Gulf Arabic (UAE/Bahrain/KSA style) — casual, punchy, not formal MSA
+- NEVER translate brand names: "Pickl" stays "Pickl", "Bonbird" stays "Bonbird"
+- NEVER translate menu item names literally — use the transliterated form:
+  "smash burger" → "سماش برغر" (NOT "لحم بقري مسحوق" or "برغر مسحوق")
+  "chicken sando" → "ساندويتش دجاج" or keep English
+  "tenders" → "تيندرز" or "قطع دجاج مقرمشة"
+  "loaded fries" → "فرايز مع إضافات"
+- Keep the energy — Arabic marketing copy should feel as bold as the English
+- Do NOT use "مسحوق" (powder) to describe burgers — it sounds unappetizing` : '';
+
   const userPrompt = `Write an optimised meta title and meta description for the ${market.brand === 'pickl' ? 'Pickl' : 'Bonbird'} ${market.label} landing page.
 
 URL: ${market.siteUrl}
-Language: ${isArabic ? 'Arabic (local dialect)' : 'English'}
+Language: ${isArabic ? 'Arabic (Gulf dialect)' : 'English'}
 Top keywords to target: ${keywords.slice(0, 5).join(', ')}
+${arabicRules}
 
 Return EXACTLY this structure:
 
@@ -354,14 +367,14 @@ Return EXACTLY this structure:
 [120-155 characters. Include a call to action. Include primary keyword. On-brand tone.]
 
 ### FOCUS_KEYWORD
-[Single primary keyword]`;
+[Single primary keyword — the most important one from the list above]`;
 
   const raw = await callClaude(marketCtx, userPrompt);
 
   return {
     metaTitle:       parseSection(raw, 'META_TITLE'),
     metaDescription: parseSection(raw, 'META_DESCRIPTION'),
-    focusKeyword:    parseSection(raw, 'FOCUS_KEYWORD'),
+    focusKeyword:    parseSection(raw, 'FOCUS_KEYWORD') || keywords[0] || '',
   };
 }
 

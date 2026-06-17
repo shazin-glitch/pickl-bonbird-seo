@@ -224,6 +224,12 @@ exports.handler = async (event) => {
         await addAudit({ at: Date.now(), actor, action: 'identify', target: null, note: 'first session' });
         return ok({ ok: true });
 
+      case 'rewrite_published':
+        return await handleRewritePublished(body, actor);
+
+      case 'republish':
+        return await handleRepublish(body, actor);
+
       default:
         return bad(400, `unknown action: ${body.action}`);
     }
@@ -359,6 +365,80 @@ async function handlePublishItem(body, actor) {
   }, { at: Date.now(), actor, action: 'published', note: data.message || `Published at ${data.ref}` });
 
   return ok({ item: await getItem(id), publishResult: data });
+}
+
+// ── rewrite_published — Claude fixes already-published meta ─────
+async function handleRewritePublished(body, actor) {
+  const { id, feedback } = body;
+  if (!id)              return bad(400, 'id required');
+  if (!feedback?.trim()) return bad(400, 'feedback required');
+  const item = await getItem(id);
+  if (!item) return bad(404, 'not found');
+  const ALLOWED = ['pushed', 'published', 'failed'];
+  if (!ALLOWED.includes(item.status)) {
+    return bad(400, `cannot rewrite item with status: ${item.status} — use reject for pending items`);
+  }
+  const p = item.payload || {};
+  const currentTitle = p.metaTitle || p.title || '';
+  const currentDesc  = p.metaDescription || p.description || '';
+  const currentKw    = p.focusKeyword || p.targetKeyword || '';
+
+  const isArabic = /[؀-ۿ]/.test(currentTitle + currentDesc);
+  const arabicRules = isArabic ? `\nArabic rules: keep brand names in English (Pickl, Bonbird), "smash burger" → "سماش برغر" (never "لحم بقري مسحوق"), Gulf Arabic style.\n` : '';
+
+  const prompt = `You are a UAE restaurant SEO copywriter for ${item.brand}. Fix this SEO meta based on feedback.
+${arabicRules}
+Current SEO Title: ${currentTitle}
+Current Meta Description: ${currentDesc}
+Current Focus Keyword: ${currentKw}
+Page URL: ${p.url || '—'}
+
+Feedback / what is wrong: "${feedback}"
+
+Return ONLY valid JSON — no markdown, no explanation:
+{"metaTitle":"(50-60 chars, include brand, include focus keyword naturally)","metaDescription":"(150-160 chars, compelling, includes keyword)","focusKeyword":"(primary target keyword)"}`;
+
+  try {
+    const text = await callClaude(prompt, 1000);
+    const proposed = extractJson(text);
+    if (!proposed) return bad(500, 'Claude did not return valid JSON');
+    return ok({ proposed });
+  } catch (e) {
+    console.error('rewrite_published failed:', e.message);
+    return bad(500, e.message);
+  }
+}
+
+// ── republish — push updated meta for already-published item ─────
+async function handleRepublish(body, actor) {
+  const { id, newTitle, newDescription, newFocusKeyword } = body;
+  if (!id) return bad(400, 'id required');
+  if (!newTitle && !newDescription) return bad(400, 'at least one of newTitle or newDescription is required');
+  const item = await getItem(id);
+  if (!item) return bad(404, 'not found');
+  const ALLOWED = ['pushed', 'published', 'failed'];
+  if (!ALLOWED.includes(item.status)) {
+    return bad(400, `cannot republish item with status: ${item.status}`);
+  }
+
+  const updatedPayload = Object.assign({}, item.payload);
+  if (newTitle)        updatedPayload.metaTitle        = newTitle;
+  if (newDescription)  updatedPayload.metaDescription  = newDescription;
+  if (newFocusKeyword) updatedPayload.focusKeyword      = newFocusKeyword;
+
+  const pushResult = await pushItem(Object.assign({}, item, { payload: updatedPayload }));
+
+  await patchItem(id, {
+    payload: updatedPayload,
+    pushResult: Object.assign({ at: Date.now() }, pushResult),
+    republishedAt: Date.now(),
+  }, {
+    at: Date.now(), actor, action: 'republish',
+    note: pushResult.ok ? 'Re-pushed with updated meta' : `Re-push failed: ${pushResult.message}`,
+  });
+
+  if (!pushResult.ok) notifyPushFailed(item, pushResult.message).catch(() => {});
+  return ok({ item: await getItem(id), pushResult });
 }
 
 // ── push dispatcher ──────────────────────────────────────────────
