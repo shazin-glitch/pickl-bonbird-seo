@@ -323,6 +323,26 @@ From Google's official AI Optimization Guide (June 2026):
 
 ---
 
+## Session: June 2026 — v7.2.1 — Typography alignment with IT intranet tool
+
+### Changes in this session
+
+**index.html**
+- Removed `html { font-size: 14px }` — non-standard, IT tool uses browser default (16px)
+- `.page-title`: `15px` → `20px` (matches IT tool's page/section headings)
+- `.admin-tab`: `13px` → `13.5px`, padding `16px` → `18px` (matches IT tool tabs exactly)
+- `.metric-title`: `11px` → `11.5px`
+- `.metric-sub` / `.metric-trend`: `12px` → `11.5px`
+- `.toggle-label p`: `12px` → `11.5px`
+- `.log-detail`: `11px` → `11.5px`
+- `.form-label` color: `--text-secondary` → `--text-muted` (lighter, matches IT tool label style)
+- Colors were already identical (`--text-main: #111`, `--text-muted: #5a7a75`)
+
+### Revert notes
+- To revert: restore `html { font-size: 14px }`, set `.page-title` back to `15px`, `.admin-tab` back to `13px / 16px padding`, metric/toggle/log sizes back to `11px`/`12px`
+
+---
+
 ## Session: June 2026 — v7.2.0 — Approval queue UX + Arabic native review + International keyword opportunities
 
 ### Changes in this session
