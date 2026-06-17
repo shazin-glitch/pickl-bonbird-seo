@@ -3064,10 +3064,10 @@ function buildContextBar(item) {
         <div style="font-size:12px;font-weight:600;color:var(--text-main)">${impressions}</div>
         ${p.gscKeyword && p.gscKeyword !== keyword ? `<div style="font-size:9px;color:var(--text-muted)">via "${esc(p.gscKeyword)}"</div>` : ''}
       </div>` : ''}
-      ${url ? `<div style="padding:8px 12px;border-right:1px solid var(--border)">
+      ${url ? (()=>{ const brandDomain = item.brand === 'bonbird' ? 'https://bonbirdchicken.com' : 'https://eatpickl.com'; const fullUrl = url.startsWith('http') ? url : brandDomain + url; return `<div style="padding:8px 12px;border-right:1px solid var(--border)">
         <div style="font-size:10px;font-weight:700;color:var(--text-muted);text-transform:uppercase;letter-spacing:0.4px;margin-bottom:2px">Page</div>
-        <div style="font-size:11px;color:var(--text-muted);word-break:break-all">${esc(url)}</div>
-      </div>` : ''}
+        <a href="${esc(fullUrl)}" target="_blank" style="font-size:11px;color:var(--primary);word-break:break-all;text-decoration:none" title="Open page">${esc(url)}</a>
+      </div>`; })() : ''}
       ${(()=>{
         // Expected impact: only show when pos > 10 and impressions available
         if (!pos || pos <= 10 || !p.impressions) return '';
@@ -3184,13 +3184,13 @@ function buildPreview(item) {
   if (item.type === 'review_response') return `
     <div><strong>Review:</strong> "${esc(p.reviewText || '—')}"</div>
     <div style="margin-top:6px"><strong>Draft Reply:</strong> ${esc(p.responseText || '—')}</div>`;
-  if (item.type === 'page_update') return `
-    <div><strong>Target Page:</strong> ${esc(p.url || p.postId || '-')}</div>
+  if (item.type === 'page_update') { const puUrl = p.url || p.postId || null; return `
+    <div><strong>Target Page:</strong> ${puUrl ? `<a href="${esc(puUrl.startsWith('http') ? puUrl : (item.brand === 'bonbird' ? 'https://bonbirdchicken.com' : 'https://eatpickl.com') + puUrl)}" target="_blank" style="color:var(--primary)">${esc(puUrl)}</a>` : '—'}</div>
     <div style="margin-top:6px"><strong>Keyword:</strong> ${esc(p.targetKeyword || '-')}</div>
     <div style="margin-top:6px"><strong>New Title:</strong> ${esc(p.title || '-')}</div>
     <div style="margin-top:6px"><strong>New Meta:</strong> ${esc(p.description || '-')}</div>
     ${p.voiceTopFix ? `<div style="margin-top:8px;padding:8px 12px;background:#fef3c7;border-left:3px solid #f59e0b;border-radius:0 6px 6px 0;font-size:12px;color:#92400e"><strong>⚠ Voice note:</strong> ${esc(p.voiceTopFix)}</div>` : ''}
-    ${p.body ? `<div style="margin-top:10px"><button class="btn btn-outline" style="font-size:12px" onclick="previewContent('${esc(item.id)}')">📄 Read Full Content (~${Math.round(p.body.replace(/<[^>]+>/g,'').length/5)} words)</button></div>` : ''}`;
+    ${p.body ? `<div style="margin-top:10px"><button class="btn btn-outline" style="font-size:12px" onclick="previewContent('${esc(item.id)}')">📄 Read Full Content (~${Math.round(p.body.replace(/<[^>]+>/g,'').length/5)} words)</button></div>` : ''}`; }
   if (item.type === 'page_creation') return `
     <div><strong>Title:</strong> ${esc(p.title || '-')}</div>
     <div style="margin-top:6px"><strong>Meta:</strong> ${esc(p.description || '-')}</div>

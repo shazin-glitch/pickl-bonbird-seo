@@ -323,6 +323,33 @@ From Google's official AI Optimization Guide (June 2026):
 
 ---
 
+## Session: June 2026 — v7.3.4 — Page update URL fixes + existence check
+
+### Changes in this session
+
+#### Fix: runQuickWins now validates page exists before generating content ✅
+
+`runQuickWins` had no WordPress existence check before calling Claude. Deleted/empty pages would still generate full page_update items (wasting API tokens and cluttering the queue). Now calls `wpPageCheck(brand, r.page)` at the top of the loop — skips candidate if page not found or has <100 words.
+
+#### Fix: page_update approval stores GSC URL not Claude's path guess ✅
+
+Previously: `payload.url = parsed.url` — Claude was asked for `"page URL path e.g. /menu"` and returned a path like `/locations/mirdif`. The GSC row already has the full canonical URL (`r.page`). Changed to `url: r.page` — always the full `https://...` URL from GSC. Also updated `locationTag` to use `r.page` directly.
+
+#### Fix: PAGE column is now a clickable link (brand-aware) ✅
+
+Stats grid PAGE cell was plain text. Now an `<a>` tag opening the page in a new tab. Domain resolved brand-aware: `https://eatpickl.com` for Pickl, `https://bonbirdchicken.com` for Bonbird. Handles both full URLs (already `http`) and path-only values from older items.
+
+#### Fix: "Target Page" in page_update detail view is now a clickable link ✅
+
+Same brand-aware domain logic applied to the Target Page line in `buildDetailHTML`.
+
+### Revert notes
+- Revert `wpPageCheck` call in `runQuickWins` loop to remove existence check
+- Revert `url: r.page` → `url: parsed.url` in createApproval call
+- Revert PAGE column back to plain `<div>` text display
+
+---
+
 ## Session: June 2026 — v7.3.3 — GSC URL mismatch detection in meta rewrites
 
 ### Changes in this session

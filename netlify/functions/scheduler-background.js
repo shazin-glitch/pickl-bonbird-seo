@@ -562,6 +562,13 @@ async function runQuickWins(brand, rows, dryRun, forceRun, brandCtx, brandPrompt
   let queued = 0;
   const items = []; // item snapshots for Slack
   for (const r of candidates) {
+    // Skip pages that no longer exist or have no content in WordPress
+    const { hasContent } = await wpPageCheck(brand, r.page);
+    if (!hasContent) {
+      console.log(`[quick_wins] ${r.page} — not found or empty in WP, skipping`);
+      continue;
+    }
+
     const systemPrompt = brandPrompt || buildBrandPrompt(brandCtx);
     const userPrompt = `The page targeting "${r.keyword}" ranks position ${r.position}. Rewrite it to push into the top 10.
 
@@ -614,10 +621,10 @@ Return ONLY valid JSON:
       type: 'page_update',
       brand,
       actor: 'claude (scheduler)',
-      locationTag: getLocationTag(parsed.url || r.page, brand),
+      locationTag: getLocationTag(r.page, brand),
       reason: parsed.changeRationale || `Rewriting page content to push "${r.keyword}" from pos ${r.position} to top 10`,
       payload: {
-        url:           parsed.url,
+        url:           r.page,
         title:         parsed.title,
         description:   parsed.description,
         targetKeyword: parsed.targetKeyword || r.keyword,
