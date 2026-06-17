@@ -193,6 +193,11 @@ exports.handler = async (event) => {
           console.error(`[${brand}][${jobName}] error:`, jobErr);
         }
       }
+
+      // Generate AI performance narrative after all jobs complete
+      await generatePerformanceSummary(brand, gscRows, summary.brands[brand].jobs, brandCtx).catch(e =>
+        console.warn(`[scheduler] Performance summary generation failed for ${brand}:`, e.message)
+      );
     } catch (e) {
       summary.errors.push({ brand, error: e.message });
       console.error('scheduler brand error:', brand, e);
@@ -462,6 +467,80 @@ function seedKeywordsToRows(keywords) {
     source:      'seed', // flag so we know it came from seed list not GSC
   }));
 }
+// Generates a Monday performance narrative from GSC data + job results.
+// Stores as performanceSummary:<brand> in Blobs for the Reports tab.
+async function generatePerformanceSummary(brand, gscRows, jobResults, brandCtx) {
+  const s = store();
+  const brandName = brandCtx?.name || (brand === 'pickl' ? 'Pickl' : 'Bonbird');
+
+  // Load last week's snapshot for position deltas
+  const lastWeekDate = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000);
+  const lastWeekKey  = `gscSnapshot:${brand}:${lastWeekDate.toISOString().slice(0, 10)}`;
+  const prevSnapshot = await s.get(lastWeekKey, { type: 'json' }).catch(() => null);
+  const prevRows     = prevSnapshot?.rows || [];
+
+  const prevPosMap = {};
+  for (const row of prevRows) {
+    if (row.keyword) prevPosMap[row.keyword.toLowerCase()] = row.position;
+  }
+
+  const top10          = gscRows.filter(r => r.position <= 10).length;
+  const top10NonBrand  = gscRows.filter(r => r.position <= 10 && !r.branded).length;
+  const top3           = gscRows.filter(r => r.position <= 3).length;
+  const totalClicks    = gscRows.reduce((a, r) => a + (r.clicks || 0), 0);
+  const totalImpress   = gscRows.reduce((a, r) => a + (r.impressions || 0), 0);
+
+  const movers = gscRows
+    .filter(r => r.keyword && prevPosMap[r.keyword.toLowerCase()])
+    .map(r => ({
+      keyword: r.keyword,
+      now:     Math.round(r.position * 10) / 10,
+      was:     Math.round(prevPosMap[r.keyword.toLowerCase()] * 10) / 10,
+      delta:   Math.round((prevPosMap[r.keyword.toLowerCase()] - r.position) * 10) / 10,
+      clicks:  r.clicks || 0,
+    }))
+    .filter(r => Math.abs(r.delta) >= 2);
+
+  const wins  = movers.filter(r => r.delta > 0).sort((a, b) => b.delta - a.delta).slice(0, 5);
+  const drops = movers.filter(r => r.delta < 0).sort((a, b) => a.delta - b.delta).slice(0, 5);
+
+  const totalQueued = Object.values(jobResults).reduce((a, j) => a + (j.queued || 0), 0);
+  const jobSummary  = Object.entries(jobResults)
+    .map(([k, v]) => `${k.replace(/_/g, ' ')}: ${v.queued || 0} items queued${v.error ? ' (failed: ' + v.error + ')' : ''}`)
+    .join('; ');
+
+  const hasHistory = prevRows.length > 0;
+
+  const prompt = `You are writing a concise weekly SEO performance brief for the ${brandName} marketing team. Write 3-4 short paragraphs in clear, professional language. No bullet points — flowing prose. Be direct and specific. No filler.
+
+BRAND: ${brandName}
+DATE: ${new Date().toLocaleDateString('en-GB', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' })}
+
+GSC THIS WEEK:
+- Keywords ranking top 3: ${top3}
+- Keywords ranking top 10: ${top10} (${top10NonBrand} non-branded)
+- Total organic clicks (90-day): ${totalClicks.toLocaleString()}
+- Total impressions (90-day): ${totalImpress.toLocaleString()}
+
+CONTENT PIPELINE THIS RUN: ${totalQueued} items queued
+${jobSummary}
+
+${hasHistory ? `POSITION CHANGES vs LAST WEEK:
+WINS (moved up):
+${wins.length ? wins.map(r => `- "${r.keyword}": pos ${r.was} → ${r.now} (+${r.delta}), ${r.clicks} clicks`).join('\n') : 'No significant gains this week.'}
+
+DROPS (moved down):
+${drops.length ? drops.map(r => `- "${r.keyword}": pos ${r.was} → ${r.now} (${r.delta}), ${r.clicks} clicks`).join('\n') : 'No significant drops.'}` : 'NOTE: No historical snapshot available yet — this is the first week of tracking. Report on current state only.'}
+
+Write the performance brief. Lead with the overall direction. Cover position movements and what they mean. Mention content queued and why it matters. End with the one most important thing the team should focus on this week.`;
+
+  const { text } = await callClaude(prompt, { max_tokens: 700 });
+  if (text) {
+    await setSetting(`performanceSummary:${brand}`, { narrative: text.trim(), generatedAt: Date.now() });
+    console.log(`[scheduler] Performance summary generated for ${brand}`);
+  }
+}
+
 // Keywords ranking 11-20. Claude writes the ACTUAL updated page
 // content (full HTML) for the existing page, not just a suggestion.
 // Queued as page_update → pushes via wordpress.js update_content.

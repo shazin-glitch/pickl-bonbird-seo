@@ -490,7 +490,7 @@ body { font-family: var(--font-sans); background: var(--bg-base); color: var(--t
 ════════════════════════════════════════ -->
 <div class="main-content">
   <div class="top-header">
-    <div class="page-title" id="top-title">The Perch</div>
+    <div class="page-title" id="top-title" style="display:none">The Perch</div>
     <div class="header-right">
       <div class="user-profile">
         <span id="user-role-badge" class="user-role-badge"></span>
@@ -508,8 +508,24 @@ body { font-family: var(--font-sans); background: var(--bg-base); color: var(--t
     <div class="page-view active" id="view-perch">
       <div class="view-hero" style="background:linear-gradient(100deg,#0D1F1C,#0F4A40)">
         <div class="view-hero-icon"><i class="ti ti-home-2"></i></div>
-        <div><h1>The Perch</h1><p>Your team's workspace — tasks, briefs and campaign requests across all departments.</p></div>
-        <div class="view-hero-actions"><button class="btn" style="background:rgba(255,255,255,0.15);color:#fff;border:1px solid rgba(255,255,255,0.2);font-size:13px" onclick="openAddTaskModal()">+ New Task</button></div>
+        <div><h1 id="perch-greeting">The Perch</h1><p>Your team's workspace — tasks, briefs and campaign requests across all departments.</p></div>
+        <div class="view-hero-actions" style="flex-direction:column;align-items:flex-end;gap:10px">
+          <button class="btn" style="background:rgba(255,255,255,0.15);color:#fff;border:1px solid rgba(255,255,255,0.2);font-size:13px" onclick="openAddTaskModal()">+ New Task</button>
+          <div style="display:flex;gap:8px">
+            <div style="background:rgba(255,255,255,0.1);border:1px solid rgba(255,255,255,0.15);border-radius:10px;padding:6px 14px;text-align:center;min-width:72px">
+              <div id="perch-stat-mine" style="font-size:18px;font-weight:700;color:#fff;line-height:1.2">—</div>
+              <div style="font-size:10px;color:rgba(255,255,255,0.6);margin-top:2px;text-transform:uppercase;letter-spacing:0.5px">My tasks</div>
+            </div>
+            <div style="background:rgba(248,113,113,0.15);border:1px solid rgba(248,113,113,0.3);border-radius:10px;padding:6px 14px;text-align:center;min-width:72px">
+              <div id="perch-stat-overdue" style="font-size:18px;font-weight:700;color:#fca5a5;line-height:1.2">—</div>
+              <div style="font-size:10px;color:rgba(248,113,113,0.7);margin-top:2px;text-transform:uppercase;letter-spacing:0.5px">Overdue</div>
+            </div>
+            <div style="background:rgba(255,255,255,0.1);border:1px solid rgba(255,255,255,0.15);border-radius:10px;padding:6px 14px;text-align:center;min-width:72px">
+              <div id="perch-stat-week" style="font-size:18px;font-weight:700;color:#fff;line-height:1.2">—</div>
+              <div style="font-size:10px;color:rgba(255,255,255,0.6);margin-top:2px;text-transform:uppercase;letter-spacing:0.5px">Due this week</div>
+            </div>
+          </div>
+        </div>
       </div>
 
       <!-- Filters -->
@@ -1153,7 +1169,10 @@ body { font-family: var(--font-sans); background: var(--bg-base); color: var(--t
           </div>
 
           <div class="card" style="background:linear-gradient(135deg,#0f2a20,#0a1a14);border-color:rgba(27,191,163,0.2)">
-            <div style="font-weight:600;font-size:14px;margin-bottom:16px;color:#e8f5f2">📋 Performance Summary</div>
+            <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:16px">
+              <div style="font-weight:600;font-size:14px;color:#e8f5f2">📋 Performance Summary</div>
+              <div id="report-summary-meta" style="font-size:11px;color:rgba(168,201,192,0.5)"></div>
+            </div>
             <div id="report-talking-points" style="color:#a8c9c0;font-size:13px;line-height:1.7"></div>
           </div>
 
@@ -4631,9 +4650,40 @@ async function loadPerch() {
     const data = await fetch('/api/perch', { credentials: 'include' }).then(r => r.json());
     perchTasks = data.tasks || [];
     renderPerchBoard();
+    updatePerchHeroSnapshot();
   } catch (e) {
     document.getElementById('perch-loading').innerHTML = `<div style="color:var(--danger)">Failed to load tasks: ${esc(e.message)}</div>`;
   }
+}
+
+function updatePerchHeroSnapshot() {
+  const greetEl = document.getElementById('perch-greeting');
+  if (!greetEl) return;
+
+  const hour = new Date().getHours();
+  const salutation = hour < 12 ? 'Good morning' : hour < 17 ? 'Good afternoon' : 'Good evening';
+  const firstName = (state.actor || state.userEmail || '').split(' ')[0].split('@')[0];
+  const displayName = firstName.charAt(0).toUpperCase() + firstName.slice(1);
+  greetEl.textContent = displayName ? `${salutation}, ${displayName}` : 'The Perch';
+
+  const today = new Date(); today.setHours(0,0,0,0);
+  const weekEnd = new Date(today.getTime() + 7 * 24 * 60 * 60 * 1000);
+
+  const myTasks = perchTasks.filter(t =>
+    t.assignee === state.userEmail ||
+    t.createdBy === state.userEmail ||
+    (t.collaborators || []).includes(state.userEmail)
+  );
+  const active = myTasks.filter(t => t.status !== 'done');
+  const overdue = active.filter(t => t.dueDate && new Date(t.dueDate) < today);
+  const dueThisWeek = active.filter(t => t.dueDate && new Date(t.dueDate) >= today && new Date(t.dueDate) < weekEnd);
+
+  const mineEl   = document.getElementById('perch-stat-mine');
+  const overdueEl = document.getElementById('perch-stat-overdue');
+  const weekEl   = document.getElementById('perch-stat-week');
+  if (mineEl)   mineEl.textContent   = myTasks.length;
+  if (overdueEl) overdueEl.textContent = overdue.length;
+  if (weekEl)   weekEl.textContent   = dueThisWeek.length;
 }
 
 function renderPerchBoard() {
@@ -4982,8 +5032,8 @@ function buildPanelHTML(task) {
         <div style="font-size:11px;font-weight:700;color:#64748b;text-transform:uppercase;letter-spacing:0.5px;margin-bottom:8px">Description</div>
         <textarea id="panel-desc" rows="3" placeholder="Add a description…"
           onblur="panelSave('${task.id}','description',this.value)"
-          style="width:100%;padding:10px 12px;border-radius:8px;border:1px solid #e2e8f0;background:#f8fafc;color:#1e293b;font-size:13px;resize:vertical;font-family:inherit;outline:none;transition:border 0.15s"
-          onfocus="this.style.borderColor='#6366f1'" onblur2="this.style.borderColor='#e2e8f0'"
+          style="width:100%;padding:10px 12px;border-radius:8px;border:1px solid var(--border);background:var(--bg-surface);color:var(--text);font-size:13px;resize:vertical;font-family:inherit;outline:none;transition:border 0.15s"
+          onfocus="this.style.borderColor='var(--primary)'" onblur2="this.style.borderColor='var(--border)'"
           >${esc(task.description || '')}</textarea>
       </div>
 
@@ -4991,22 +5041,22 @@ function buildPanelHTML(task) {
       <div style="margin-bottom:20px">
         <div style="font-size:11px;font-weight:700;color:#64748b;text-transform:uppercase;letter-spacing:0.5px;margin-bottom:12px">Activity</div>
         <div style="display:flex;gap:8px;margin-bottom:16px">
-          <div style="width:28px;height:28px;border-radius:50%;background:#6366f1;color:#fff;font-size:12px;font-weight:700;display:flex;align-items:center;justify-content:center;flex-shrink:0">${getUserName(state.userEmail).charAt(0).toUpperCase()}</div>
+          <div style="width:28px;height:28px;border-radius:50%;background:var(--primary);color:#fff;font-size:12px;font-weight:700;display:flex;align-items:center;justify-content:center;flex-shrink:0">${getUserName(state.userEmail).charAt(0).toUpperCase()}</div>
           <div style="flex:1">
             <input id="panel-comment" type="text" placeholder="Write a comment…"
               onkeydown="if(event.key==='Enter')panelPostComment('${task.id}')"
-              style="width:100%;padding:8px 12px;border-radius:8px;border:1px solid #e2e8f0;background:#f8fafc;color:#1e293b;font-size:13px;outline:none"
-              onfocus="this.style.borderColor='#6366f1'" onblur="this.style.borderColor='#e2e8f0'">
-            <button onclick="panelPostComment('${task.id}')" style="margin-top:6px;padding:5px 14px;background:#6366f1;color:#fff;border:none;border-radius:6px;cursor:pointer;font-size:12px;font-weight:600">Post</button>
+              style="width:100%;padding:8px 12px;border-radius:8px;border:1px solid var(--border);background:var(--bg-surface);color:var(--text);font-size:13px;outline:none"
+              onfocus="this.style.borderColor='var(--primary)'" onblur="this.style.borderColor='var(--border)'">
+            <button onclick="panelPostComment('${task.id}')" style="margin-top:6px;padding:5px 14px;background:var(--primary);color:#fff;border:none;border-radius:6px;cursor:pointer;font-size:12px;font-weight:600">Post</button>
           </div>
         </div>
         <div id="panel-comments">
           ${(task.comments||[]).slice().reverse().map(c => `
             <div style="display:flex;gap:8px;margin-bottom:12px">
-              <div style="width:28px;height:28px;border-radius:50%;background:#e2e8f0;color:#475569;font-size:11px;font-weight:700;display:flex;align-items:center;justify-content:center;flex-shrink:0">${getUserName(c.author).charAt(0).toUpperCase()}</div>
+              <div style="width:28px;height:28px;border-radius:50%;background:var(--bg-hover);color:var(--text-muted);font-size:11px;font-weight:700;display:flex;align-items:center;justify-content:center;flex-shrink:0">${getUserName(c.author).charAt(0).toUpperCase()}</div>
               <div>
-                <div style="font-size:12px;font-weight:600;color:#1e293b">${esc(getUserName(c.author))} <span style="font-weight:400;color:#64748b;font-size:11px">${new Date(c.timestamp).toLocaleDateString('en-GB',{day:'numeric',month:'short'})}</span></div>
-                <div style="font-size:13px;color:#334155;margin-top:2px">${esc(c.text)}</div>
+                <div style="font-size:12px;font-weight:600;color:var(--text)">${esc(getUserName(c.author))} <span style="font-weight:400;color:var(--text-muted);font-size:11px">${new Date(c.timestamp).toLocaleDateString('en-GB',{day:'numeric',month:'short'})}</span></div>
+                <div style="font-size:13px;color:var(--text-secondary);margin-top:2px">${esc(c.text)}</div>
               </div>
             </div>`).join('')}
         </div>
@@ -5288,10 +5338,17 @@ async function loadReports() {
   // Load approvals for pipeline data
   const allQueue = state.queue || [];
 
-  renderReports(brand, gscRows, techData, allQueue, matrixData);
+  // Load AI performance summary (non-blocking if it fails)
+  let perfSummary = null;
+  try {
+    const dbData = await apiGet('/api/db/get');
+    perfSummary = dbData?.[`performanceSummary_${brand}`] || null;
+  } catch {}
+
+  renderReports(brand, gscRows, techData, allQueue, matrixData, perfSummary);
 }
 
-function renderReports(brand, rows, techData, queue, matrixData) {
+function renderReports(brand, rows, techData, queue, matrixData, perfSummary) {
   document.getElementById('report-loading').style.display = 'none';
   document.getElementById('report-content').style.display = '';
 
@@ -5576,19 +5633,29 @@ function renderReports(brand, rows, techData, queue, matrixData) {
     }
   }
 
-  // Performance Summary
-  const talkingPoints = [
-    `<strong>What's running:</strong> Every Monday at 8am Dubai, The Nest identifies keyword opportunities, writes ${brandName}-branded content, and queues it for approval. Zero manual effort on content research.`,
-    `<strong>Current performance:</strong> ${top10.toLocaleString()} keywords in the top 10 (${top10NonBranded} non-branded · ${top10Branded} branded), generating ${totalClicks.toLocaleString()} organic clicks in the last 90 days. Estimated non-branded traffic value: <strong>AED ${trafficValue.toLocaleString()}/month</strong> in paid ad equivalent (${hasCpcData ? 'real Google Ads CPC via DataForSEO' : 'AED 5/click UAE restaurant estimate'}, branded keywords excluded).`,
-    quickWins > 0 ? `<strong>Immediate opportunity:</strong> ${quickWins} keywords at position 11-20 right now — one content update away from page 1. The tool targets these every Monday automatically.` : '',
-    avgMobile && avgMobile < 70 ? `<strong>⚠️ Critical blocker:</strong> ${brandName}'s mobile page speed scores ${avgMobile}/100. Google's threshold is 70+ for AI Overview eligibility — this is actively blocking us from appearing in AI-generated search results. Developer fix required urgently.` : '',
-    `<strong>Brand voice:</strong> Real ${brandName} writing examples are now injected into every AI content prompt. The AI writes from actual ${brandName} copy, not just rules.`,
-    `<strong>International:</strong> Hreflang tags generated for all ${brand === 'pickl' ? '6' : '3'} ${brandName} markets — ready to approve and implement. This prevents Google treating our international pages as duplicate content.`,
-    `<strong>Local SEO:</strong> Google Business Profile monitoring system built. Location health, review management, and AI-drafted review replies in ${brandName} voice — ready to go live pending Google API access approval (applied, 7-10 days).`,
-    `<strong>Next:</strong> GBP API approval → locations and reviews go live. Backlink monitoring and Google Reviews management. Ranking movement data becomes available from next Monday's snapshot.`,
-  ].filter(Boolean);
-
-  document.getElementById('report-talking-points').innerHTML = talkingPoints.map(p => `<div style="margin-bottom:12px;padding-left:12px;border-left:2px solid #475569">• ${p}</div>`).join('');
+  // Performance Summary — try AI narrative first, fall back to static points
+  const talkingPointsEl  = document.getElementById('report-talking-points');
+  const summaryMetaEl    = document.getElementById('report-summary-meta');
+  if (perfSummary?.narrative) {
+    const ago = perfSummary.generatedAt
+      ? (() => { const d = Math.round((Date.now() - perfSummary.generatedAt) / 86400000); return d === 0 ? 'today' : d === 1 ? 'yesterday' : `${d}d ago`; })()
+      : '';
+    if (summaryMetaEl) summaryMetaEl.textContent = `AI-generated${ago ? ' · ' + ago : ''}`;
+    talkingPointsEl.innerHTML = perfSummary.narrative
+      .split('\n\n')
+      .filter(p => p.trim())
+      .map(p => `<p style="margin:0 0 14px">${p.trim()}</p>`)
+      .join('');
+  } else {
+    if (summaryMetaEl) summaryMetaEl.textContent = 'Runs after next Monday pipeline';
+    const talkingPoints = [
+      `<strong>What's running:</strong> Every Monday at 8am Dubai, The Nest identifies keyword opportunities, writes ${brandName}-branded content, and queues it for approval. Zero manual effort on content research.`,
+      `<strong>Current performance:</strong> ${top10.toLocaleString()} keywords in the top 10 (${top10NonBranded} non-branded · ${top10Branded} branded), generating ${totalClicks.toLocaleString()} organic clicks in the last 90 days. Estimated non-branded traffic value: <strong>AED ${trafficValue.toLocaleString()}/month</strong> in paid ad equivalent (${hasCpcData ? 'real Google Ads CPC via DataForSEO' : 'AED 5/click UAE restaurant estimate'}, branded keywords excluded).`,
+      quickWins > 0 ? `<strong>Immediate opportunity:</strong> ${quickWins} keywords at position 11-20 right now — one content update away from page 1. The tool targets these every Monday automatically.` : '',
+      avgMobile && avgMobile < 70 ? `<strong>⚠️ Critical blocker:</strong> ${brandName}'s mobile page speed scores ${avgMobile}/100. Google's threshold is 70+ for AI Overview eligibility — this is actively blocking us from appearing in AI-generated search results. Developer fix required urgently.` : '',
+    ].filter(Boolean);
+    talkingPointsEl.innerHTML = talkingPoints.map(p => `<div style="margin-bottom:12px;padding-left:12px;border-left:2px solid #475569">• ${p}</div>`).join('');
+  }
 
   // Load GA4, LLM mentions, and AI Overview in parallel (non-blocking)
   loadGa4Report(brand).catch(() => {});

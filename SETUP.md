@@ -323,6 +323,60 @@ From Google's official AI Optimization Guide (June 2026):
 
 ---
 
+## Session: June 2026 — v7.3.1 — Perch morning snapshot + AI performance narrative
+
+### Changes in this session
+
+#### Perch hero: personalised morning snapshot ✅
+
+**index.html**
+- `<h1>The Perch</h1>` → `<h1 id="perch-greeting">` — updated by `updatePerchHeroSnapshot()` at load time
+- `updatePerchHeroSnapshot()` — new function called after `perchTasks` loads:
+  - Greeting: time-aware salutation (Good morning / afternoon / evening) + first name from `state.actor` or `state.userEmail`
+  - 3 stat chips in `.view-hero-actions`: **My tasks** (any task the user is assignee/creator/collaborator on), **Overdue** (active tasks with dueDate < today), **Due this week** (active tasks due in next 7 days)
+  - Stats computed client-side from `perchTasks` — zero extra API calls
+
+#### Perch design: hardcoded colours replaced with CSS vars ✅
+
+Replaced all hardcoded colour islands in the task panel (built from `buildTaskCard` HTML):
+- Assignee avatar: `#6366f1` → `var(--primary)`
+- Comment post button: `#6366f1` → `var(--primary)`
+- Textarea/input border + background: `#e2e8f0` / `#f8fafc` / `#1e293b` → CSS vars
+- Comment avatars (other authors): `#e2e8f0` / `#475569` → `var(--bg-hover)` / `var(--text-muted)`
+- Comment author + text: hardcoded slate → `var(--text)` / `var(--text-muted)` / `var(--text-secondary)`
+
+#### Reports: AI-generated Monday performance narrative ✅
+
+**scheduler-background.js**
+- New `generatePerformanceSummary(brand, gscRows, jobResults, brandCtx)` function:
+  - Loads last week's GSC snapshot (`gscSnapshot:<brand>:<YYYY-MM-DD>`) for position delta comparison
+  - Finds keyword wins (moved up ≥2 positions) and drops (moved down ≥2 positions), top 5 each
+  - Calls Claude with structured prompt: overall direction, position movers, content queued, one key focus
+  - Stores result as `performanceSummary:<brand>` → `{ narrative, generatedAt }` in Blobs
+- Called after all brand jobs complete (non-blocking — failure doesn't stop the run)
+
+**db-get.js**
+- Added `performanceSummary:pickl` + `performanceSummary:bonbird` to the parallel Blobs fetch
+- Exposed as `performanceSummary_pickl` + `performanceSummary_bonbird` in the response
+
+**index.html `loadReports()`**
+- Fetches `performanceSummary_<brand>` from `/api/db/get` and passes to `renderReports()`
+- `renderReports()` signature extended: `(brand, rows, techData, queue, matrixData, perfSummary)`
+- Performance Summary card: shows AI narrative (split by `\n\n` into `<p>` tags) with "AI-generated · Xd ago" meta label when available; falls back to condensed static summary (2 bullets: what's running + current performance) when no narrative exists yet
+- `#report-summary-meta` element added to card header for timestamp
+
+#### Double heading fix ✅
+- `#top-title` div in the `.top-header` bar hidden with `display:none` — heading only shows in `view-hero h1` for each view. The JS `textContent` assignment still runs harmlessly.
+
+### New Blobs keys
+- `performanceSummary:<brand>` — `{ narrative: string, generatedAt: timestamp }` — written by scheduler weekly, read by Reports tab
+
+### Revert notes
+- To revert Perch snapshot: remove `id="perch-greeting"` and `updatePerchHeroSnapshot()` call + function
+- To revert performance narrative: remove `generatePerformanceSummary` call + function from scheduler; remove `performanceSummary_*` from db-get; revert `renderReports` signature and restore static talkingPoints
+
+---
+
 ## Session: June 2026 — v7.3.0 — Brand voice fix + International keyword discovery
 
 ### Changes in this session
@@ -3134,7 +3188,7 @@ Update "Current URL" from `yolkseo.netlify.app` to `thenest.yolkbrands.com`
 
 ---
 
-## Current Version: v7.1.4
+## Current Version: v7.3.1
 
 Last session built: Bug-fix batch (v7.0.2), added Yolk Brands to Content Calendar (v7.0.3 + v7.0.4), added Yolk Brands to The Perch (v7.0.5), fixed Reports tab crash (v7.0.6), Priority Gap → Queue Brief + keyword filtering fixes (v7.0.7), copy-to-market fix + GSC page data + URL Inspection indexing badges (v7.0.8).
 
