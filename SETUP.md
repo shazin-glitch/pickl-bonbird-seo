@@ -323,6 +323,33 @@ From Google's official AI Optimization Guide (June 2026):
 
 ---
 
+## Session: June 2026 — v7.2.2 — View hero banners matching IT intranet tool
+
+### Changes in this session
+
+**index.html**
+- Added `.view-hero` CSS class (matches IT tool's `.dept-hero`) — gradient banner, icon in rounded square, white title + muted subtitle, optional right-side actions
+- Added `.view-hero-icon` and `.view-hero-actions` helper classes
+- Replaced plain text headers in all 9 views with gradient hero banners:
+  - The Perch: dark teal `#0D1F1C → #0F4A40`, `ti-home-2` icon, "+ New Task" button in hero-actions
+  - Content Calendar: `#0D1F1C → #0a2e1f`, `ti-calendar-event`, all 4 action buttons in hero-actions
+  - Approvals Queue: `#0D1F1C → #1a2a3a`, `ti-checkbox`
+  - Analytics & Reports: `#0D1F1C → #0F2E29`, `ti-chart-bar`, "+ Add Keyword" button
+  - Technical SEO: `#1a1a2a → #312e81` (indigo), `ti-code`
+  - Local SEO: `#2a1a0a → #78350f` (amber), `ti-map-pin`, brand pills in hero-actions
+  - AI Content Studio: `#2d1a3a → #4c1d95` (purple), `ti-wand`
+  - Settings & Logs: `#1a2a3a → #1e3a5f` (navy), `ti-settings-2`
+  - How It Works: `#0D1F1C → #14532d` (green), `ti-book`
+
+- Sidebar inactive text: `rgba(255,255,255,0.55)` → `rgba(255,255,255,0.65)` (matches IT tool exactly)
+- Active nav item: removed `border-left` indicator, `font-weight: 600` → `500` (matches IT tool)
+
+### Revert notes
+- To revert hero banners: remove `.view-hero`/`.view-hero-icon`/`.view-hero-actions` CSS, restore original plain-text title divs in each view
+- To revert sidebar: `--sidebar-text` back to `rgba(255,255,255,0.55)`, restore `border-left: 2px solid transparent` on `.nav-item`, `font-weight: 600` on `.nav-item.active`
+
+---
+
 ## Session: June 2026 — v7.2.1 — Typography alignment with IT intranet tool
 
 ### Changes in this session
