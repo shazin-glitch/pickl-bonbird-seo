@@ -183,10 +183,10 @@ async function handleUpdateMeta(creds, payload) {
   if (!postId) return fail(400, 'postId or url required');
 
   const updates = {};
-  if (payload.title)   updates.title   = payload.title;
   if (payload.excerpt) updates.excerpt = payload.excerpt;
   const meta = buildSeoMeta(payload);
   if (Object.keys(meta).length) updates.meta = meta;
+  // NOTE: payload.title is the SEO meta title — never write it to updates.title (that's the WP post title / page name)
   if (!Object.keys(updates).length) return fail(400, 'Provide title, description, or targetKeyword');
 
   const endpoint = postType === 'pages' ? 'pages' : 'posts';

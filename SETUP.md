@@ -2608,6 +2608,20 @@ Empty state now shows:
 
 ---
 
+## Session: June 2026 — v7.0.9 — Meta update page-rename bug fix + tracking card content
+
+### Meta update page-rename bug fixed (wordpress.js)
+- `handleUpdateMeta` was setting `updates.title = payload.title` — payload.title is the SEO meta title (50-60 chars), NOT the WP post title
+- This caused every approved meta update to rename the WordPress page to the SEO title
+- Fix: removed `updates.title` line entirely — SEO title correctly goes only to `meta._yoast_wpseo_title` via `buildSeoMeta()`
+
+### Published & Tracking — show what was published (index.html)
+- `buildTrackingCard` now shows a "What was published" section above the movement indicator
+- Meta updates: shows the SEO title and meta description that was written to WordPress
+- Blog drafts: shows excerpt (or first 180 chars of body if no excerpt)
+
+---
+
 ## Session: June 2026 — v7.0.8 — Copy-to-market fix + GSC page data + URL Inspection
 
 ### Copy-to-market bulk action fixed (index.html)
@@ -2801,7 +2815,7 @@ Update "Current URL" from `yolkseo.netlify.app` to `thenest.yolkbrands.com`
 
 ---
 
-## Current Version: v7.0.8
+## Current Version: v7.0.9
 
 Last session built: Bug-fix batch (v7.0.2), added Yolk Brands to Content Calendar (v7.0.3 + v7.0.4), added Yolk Brands to The Perch (v7.0.5), fixed Reports tab crash (v7.0.6), Priority Gap → Queue Brief + keyword filtering fixes (v7.0.7), copy-to-market fix + GSC page data + URL Inspection indexing badges (v7.0.8).
 

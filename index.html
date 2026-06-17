@@ -2563,6 +2563,30 @@ function buildTrackingCard(item) {
 
   const pageUrl = item.publishResult?.ref || p.url || null;
 
+  // Show what was actually published — varies by type
+  let publishedContentHtml = '';
+  if (item.type === 'meta_update') {
+    const seoTitle = p.title || p.seoTitle || null;
+    const seoDesc  = p.description || p.metaDescription || null;
+    if (seoTitle || seoDesc) {
+      publishedContentHtml = `
+        <div style="background:var(--bg-base);border-radius:8px;padding:10px 14px;margin-bottom:8px;font-size:12px">
+          <div style="font-weight:600;color:var(--text-muted);margin-bottom:6px;text-transform:uppercase;font-size:10px;letter-spacing:.5px">What was published</div>
+          ${seoTitle ? `<div style="margin-bottom:4px"><span style="color:var(--text-muted)">SEO Title:</span> <strong>${esc(seoTitle)}</strong></div>` : ''}
+          ${seoDesc  ? `<div><span style="color:var(--text-muted)">Meta Desc:</span> ${esc(seoDesc)}</div>` : ''}
+        </div>`;
+    }
+  } else if (item.type === 'blog_draft' && (p.excerpt || p.body)) {
+    const excerpt = p.excerpt || (p.body ? p.body.replace(/<[^>]+>/g,'').slice(0,180) + '…' : null);
+    if (excerpt) {
+      publishedContentHtml = `
+        <div style="background:var(--bg-base);border-radius:8px;padding:10px 14px;margin-bottom:8px;font-size:12px">
+          <div style="font-weight:600;color:var(--text-muted);margin-bottom:4px;text-transform:uppercase;font-size:10px;letter-spacing:.5px">Excerpt</div>
+          <div style="color:var(--text-main);line-height:1.5">${esc(excerpt)}</div>
+        </div>`;
+    }
+  }
+
   return `
     <div class="card" style="border-left:4px solid ${brandColor};margin-bottom:12px">
       <div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:12px">
@@ -2577,6 +2601,7 @@ function buildTrackingCard(item) {
         ${pageUrl ? `<div><span style="color:var(--text-muted)">Page:</span> <a href="${esc(pageUrl)}" target="_blank" style="color:var(--text-main);text-decoration:underline">${esc(pageUrl)}</a></div>` : ''}
         ${p.impressions ? `<div><span style="color:var(--text-muted)">Impressions:</span> <strong>${Number(p.impressions).toLocaleString()}</strong></div>` : ''}
       </div>
+      ${publishedContentHtml}
       ${movementHtml}
       ${indexBadgeHtml}
     </div>`;
