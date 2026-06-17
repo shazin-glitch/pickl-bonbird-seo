@@ -2608,6 +2608,33 @@ Empty state now shows:
 
 ---
 
+## Session: June 2026 — v7.1.9 — Nav restructure + Analytics & Reports unified view
+
+### Nav restructure: 11 tabs → 8 tabs
+- Section labels renamed: Workspace → Create, Analytics → Analyse, SEO → Maintain, Tools stays
+- Removed `Reports`, `International SEO`, `How It Works` nav items
+- Renamed `Analytics & ROI` → `Analytics & Reports` (ti-chart-dots icon)
+- `?` button added to top header for How It Works access
+- Legacy tab names (`reports`, `international`) remapped in `switchView()` to `analytics`
+
+### Analytics & Reports unified view
+- Replaced pill-based flat layout with overview cards landing + underline tabs
+- 6 overview cards (Rankings, Competitors, Opportunities, Backlinks, Markets, Report) — click to drill in
+- 6 underline tabs with `← Overview` back button
+- Rankings tab: GSC table + brand filter pills (All/Pickl/Bonbird)
+- Competitors tab: Competitor matrix + Deep audit tool
+- Opportunities tab: Keyword opportunities with brand/market/tier filters
+- Backlinks tab: Referring domain monitoring
+- Markets tab: International market grid (moved from old International SEO view) — brand + market filters
+- Report tab: Full SEO report (moved from old Reports view) — export PDF, AI presence, GA4, pipeline
+- `renderAnalyticsCards()` renders dynamic overview cards; called on GSC load and view open
+- `switchAnalyticsTab(tab, btn)` and `showAnalyticsOverview()` drive the tab state
+- `intlOpenKwOpps()` / `intlOpenAudit()` deep-links updated to use new tab API
+- Report cross-links updated to `switchAnalyticsTab('opportunities')` / `switchAnalyticsTab('competitors')`
+- Performance Summary card updated to dark green (was Tailwind slate blue)
+- Hreflang Generator moved to AI Content Studio as Card 5
+
+### Previous session below
 ## Session: June 2026 — v7.1.8 — Full UI/UX redesign + smart index pruning + dedup limit fix
 
 ### Design system overhaul (index.html)

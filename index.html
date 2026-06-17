@@ -4,26 +4,23 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>The Nest — Yolk Brands</title>
-<link rel="preconnect" href="https://fonts.googleapis.com">
-<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link href="https://fonts.googleapis.com/css2?family=Inter:ital,opsz,wght@0,14..32,400;0,14..32,500;0,14..32,600;0,14..32,700;1,14..32,400&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@tabler/icons-webfont@latest/dist/tabler-icons.min.css">
 <style>
 /* ─── Design Tokens ─────────────────────────────────────────────── */
 :root {
   /* Surfaces */
-  --bg-base:        #f4f4f5;
+  --bg-base:        #F5FAF9;
   --bg-surface:     #ffffff;
   --bg-elevated:    #ffffff;
-  --bg-hover:       #f0f0f0;
-  --bg-subtle:      #fafafa;
+  --bg-hover:       #EDF7F5;
+  --bg-subtle:      #F5FAF9;
   /* Borders */
-  --border:         #e4e4e7;
-  --border-strong:  #d4d4d8;
+  --border:         rgba(27,191,163,0.18);
+  --border-strong:  rgba(27,191,163,0.35);
   /* Text */
-  --text-main:      #09090b;
-  --text-secondary: #52525b;
-  --text-muted:     #a1a1aa;
+  --text-main:      #111111;
+  --text-secondary: #3d5a55;
+  --text-muted:     #5a7a75;
   /* Accent — Yolk teal */
   --accent:         #1BBFA3;
   --accent-hover:   #0F8A77;
@@ -56,7 +53,7 @@
   /* Scale */
   --radius-sm:   4px;
   --radius:      8px;
-  --radius-lg:   12px;
+  --radius-lg:   14px;
   --radius-xl:   16px;
   --radius-full: 9999px;
   --shadow-xs:    0 1px 2px rgba(0,0,0,.04);
@@ -64,7 +61,7 @@
   --shadow-md:    0 4px 8px rgba(0,0,0,.08), 0 2px 4px rgba(0,0,0,.04);
   --shadow-lg:    0 8px 24px rgba(0,0,0,.12), 0 4px 8px rgba(0,0,0,.06);
   --shadow-modal: 0 20px 60px rgba(0,0,0,.18), 0 8px 16px rgba(0,0,0,.08);
-  --font-sans: 'Inter', -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+  --font-sans: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
 }
 
 /* ─── Dark mode (main content area only — sidebar is always dark) ─ */
@@ -133,7 +130,7 @@ body { font-family: var(--font-sans); background: var(--bg-base); color: var(--t
 
 /* ─── Main layout ──────────────────────────────────────────────── */
 .main-content { flex: 1; display: flex; flex-direction: column; overflow: hidden; }
-.top-header { height: 52px; background: var(--bg-surface); border-bottom: 0.5px solid var(--border); display: flex; align-items: center; justify-content: space-between; padding: 0 24px; flex-shrink: 0; }
+.top-header { height: 56px; background: var(--bg-surface); border-bottom: 0.5px solid var(--border); display: flex; align-items: center; justify-content: space-between; padding: 0 28px; flex-shrink: 0; }
 .page-title { font-size: 15px; font-weight: 600; color: var(--text-main); letter-spacing: -0.2px; }
 .header-right { display: flex; align-items: center; gap: 10px; }
 .user-profile { font-size: 13px; font-weight: 500; color: var(--text-secondary); display: flex; align-items: center; gap: 8px; }
@@ -141,9 +138,52 @@ body { font-family: var(--font-sans); background: var(--bg-base); color: var(--t
 .user-role-badge { font-size: 10px; font-weight: 600; padding: 2px 8px; border-radius: var(--radius-full); background: var(--bg-hover); color: var(--text-muted); text-transform: uppercase; letter-spacing: 0.05em; }
 .user-name-label { font-size: 13px; font-weight: 500; color: var(--text-muted); }
 
+/* ─── Users & Permissions panel ───────────────────────────────── */
+.people-avatar { width: 30px; height: 30px; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-size: 11px; font-weight: 600; color: #fff; flex-shrink: 0; }
+.admin-tabs { display: flex; gap: 4px; border-bottom: 0.5px solid var(--border); margin: 0 24px; }
+.admin-tab { padding: 9px 16px; font-size: 13px; cursor: pointer; color: var(--text-muted); border: none; background: none; border-bottom: 2px solid transparent; margin-bottom: -1px; transition: color 0.15s, border-color 0.15s; font-family: var(--font-sans); }
+.admin-tab:hover { color: var(--text-main); }
+.admin-tab.active { color: var(--accent); border-bottom-color: var(--accent); font-weight: 500; }
+.admin-panel { display: none; }
+.admin-panel.active { display: block; }
+.role-badge { padding: 3px 10px; border-radius: 6px; font-size: 11px; font-weight: 500; display: inline-block; }
+.role-admin    { background: rgba(223,0,112,0.1); color: #DF0070; }
+.role-manager  { background: rgba(27,191,163,0.12); color: #0F8A77; }
+.role-viewer   { background: var(--bg-hover); color: var(--text-muted); }
+.role-developer{ background: rgba(5,150,105,0.1); color: #059669; }
+.status-pill { display: inline-flex; align-items: center; gap: 6px; padding: 3px 10px; border-radius: 20px; font-size: 12px; font-weight: 500; }
+.status-active  { background: rgba(22,163,74,0.1); color: #16a34a; }
+.status-pending { background: rgba(217,119,6,0.1); color: #d97706; }
+.dept-tag { padding: 2px 8px; border-radius: 5px; font-size: 11px; background: var(--bg-hover); border: 0.5px solid var(--border); color: var(--text-muted); display: inline-block; }
+.user-table { width: 100%; border-collapse: collapse; font-size: 13px; }
+.user-table th { text-align: left; padding: 10px 16px; font-size: 11px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.06em; color: var(--text-muted); border-bottom: 0.5px solid var(--border); background: var(--bg-subtle, var(--bg-hover)); }
+.user-table td { padding: 12px 16px; border-bottom: 0.5px solid var(--border); vertical-align: middle; }
+.user-table tr:last-child td { border-bottom: none; }
+.user-table tbody tr:hover td { background: var(--bg-hover); }
+.perm-table { width: 100%; border-collapse: collapse; font-size: 12px; }
+.perm-table th { padding: 10px 12px; font-size: 11px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.06em; color: var(--text-muted); border-bottom: 0.5px solid var(--border); background: var(--bg-hover); text-align: center; }
+.perm-table th:first-child { text-align: left; }
+.perm-table td { padding: 10px 12px; border-bottom: 0.5px solid var(--border); text-align: center; }
+.perm-table td:first-child { text-align: left; font-weight: 500; }
+.perm-table tr:last-child td { border-bottom: none; }
+.perm-table tbody tr:hover td { background: var(--bg-hover); }
+.nest-toggle { position: relative; display: inline-block; width: 34px; height: 18px; }
+.nest-toggle input { opacity: 0; width: 0; height: 0; position: absolute; }
+.nest-toggle-slider { position: absolute; cursor: pointer; top: 0; left: 0; right: 0; bottom: 0; background: var(--border-strong, #2a4035); border-radius: 18px; transition: 0.2s; }
+.nest-toggle-slider:before { position: absolute; content: ""; height: 12px; width: 12px; left: 3px; bottom: 3px; background: #fff; border-radius: 50%; transition: 0.2s; }
+.nest-toggle input:checked + .nest-toggle-slider { background: var(--accent); }
+.nest-toggle input:checked + .nest-toggle-slider:before { transform: translateX(16px); }
+.sso-card { background: var(--bg-surface); border: 0.5px solid var(--border); border-radius: 12px; padding: 22px; margin-bottom: 16px; }
+.sso-card h3 { font-size: 14px; font-weight: 600; margin-bottom: 4px; color: var(--text-main); }
+.sso-card p { font-size: 13px; color: var(--text-muted); margin-bottom: 16px; }
+.info-box { background: var(--accent-subtle); border: 0.5px solid rgba(27,191,163,0.25); border-radius: 10px; padding: 13px 15px; font-size: 13px; color: var(--accent-text); display: flex; gap: 10px; align-items: flex-start; margin-bottom: 18px; }
+.info-box i { font-size: 16px; flex-shrink: 0; margin-top: 1px; }
+.analytics-tab-panel { padding-top: 20px; }
+#analytics-tabs { border-bottom: 0.5px solid var(--border); margin: 0 0 0; }
+
 /* ─── Page views ───────────────────────────────────────────────── */
 .views-wrapper { flex: 1; overflow-y: auto; }
-.page-view { display: none; padding: 28px 32px; max-width: 1280px; margin: 0 auto; width: 100%; }
+.page-view { display: none; padding: 24px 28px; max-width: 1280px; margin: 0 auto; width: 100%; }
 .page-view.active { display: block; }
 
 /* ─── Perch Kanban ─────────────────────────────────────────────── */
@@ -180,8 +220,8 @@ body { font-family: var(--font-sans); background: var(--bg-base); color: var(--t
 
 /* ─── Common UI ────────────────────────────────────────────────── */
 .section-header { display: flex; justify-content: space-between; align-items: flex-end; margin-bottom: 16px; }
-.section-title { font-size: 16px; font-weight: 600; color: var(--text-main); }
-.section-desc { font-size: 13px; color: var(--text-muted); margin-top: 3px; line-height: 1.5; }
+.section-title { font-size: 20px; font-weight: 600; color: var(--text-main); }
+.section-desc { font-size: 13.5px; color: var(--text-muted); margin-top: 4px; line-height: 1.5; }
 
 /* ─── Buttons ──────────────────────────────────────────────────── */
 .btn { display: inline-flex; align-items: center; gap: 6px; padding: 0 14px; height: 32px; border-radius: var(--radius); font-size: 13px; font-weight: 500; cursor: pointer; transition: background 0.12s, border-color 0.12s, color 0.12s; border: none; white-space: nowrap; font-family: var(--font-sans); text-decoration: none; }
@@ -200,7 +240,7 @@ body { font-family: var(--font-sans); background: var(--bg-base); color: var(--t
 .btn-lg { height: 38px; padding: 0 18px; font-size: 14px; }
 
 /* ─── Card ─────────────────────────────────────────────────────── */
-.card { background: var(--bg-surface); border-radius: var(--radius-lg); border: 0.5px solid var(--border); padding: 20px; box-shadow: var(--shadow-sm); }
+.card { background: var(--bg-surface); border-radius: var(--radius-lg); border: 0.5px solid var(--border); padding: 20px; }
 
 /* ─── Pills / filters ──────────────────────────────────────────── */
 .pill-nav { display: flex; gap: 6px; margin-bottom: 20px; flex-wrap: wrap; }
@@ -392,7 +432,7 @@ body { font-family: var(--font-sans); background: var(--bg-base); color: var(--t
   </div>
 
   <nav class="nav-menu" id="nav-menu">
-    <div class="nav-section-label">Workspace</div>
+    <div class="nav-section-label">Create</div>
     <div class="nav-item active" data-target="perch">
       <i class="ti ti-layout-kanban" aria-hidden="true"></i><span>The Perch</span>
     </div>
@@ -404,14 +444,11 @@ body { font-family: var(--font-sans); background: var(--bg-base); color: var(--t
       <i class="ti ti-clipboard-check" aria-hidden="true"></i><span>Approvals Queue</span>
       <span class="badge" id="badge-approvals" style="display:none">0</span>
     </div>
-    <div class="nav-section-label">Analytics</div>
+    <div class="nav-section-label">Analyse</div>
     <div class="nav-item" data-target="analytics">
-      <i class="ti ti-chart-bar" aria-hidden="true"></i><span>Analytics & ROI</span>
+      <i class="ti ti-chart-dots" aria-hidden="true"></i><span>Analytics &amp; Reports</span>
     </div>
-    <div class="nav-item" data-target="reports">
-      <i class="ti ti-chart-line" aria-hidden="true"></i><span>Reports</span>
-    </div>
-    <div class="nav-section-label">SEO</div>
+    <div class="nav-section-label">Maintain</div>
     <div class="nav-item" data-target="techseo">
       <i class="ti ti-cpu" aria-hidden="true"></i><span>Technical SEO</span>
     </div>
@@ -419,18 +456,12 @@ body { font-family: var(--font-sans); background: var(--bg-base); color: var(--t
       <i class="ti ti-map-pin" aria-hidden="true"></i><span>Local SEO</span>
       <span class="badge" id="badge-localseo" style="display:none">!</span>
     </div>
-    <div class="nav-item" data-target="international">
-      <i class="ti ti-world" aria-hidden="true"></i><span>International SEO</span>
-    </div>
     <div class="nav-section-label">Tools</div>
     <div class="nav-item" data-target="studio">
       <i class="ti ti-wand" aria-hidden="true"></i><span>AI Content Studio</span>
     </div>
     <div class="nav-item" data-target="settings">
-      <i class="ti ti-settings-2" aria-hidden="true"></i><span>Settings & Logs</span>
-    </div>
-    <div class="nav-item" data-target="howto">
-      <i class="ti ti-help-circle" aria-hidden="true"></i><span>How It Works</span>
+      <i class="ti ti-settings-2" aria-hidden="true"></i><span>Settings &amp; Logs</span>
     </div>
   </nav>
 
@@ -459,7 +490,8 @@ body { font-family: var(--font-sans); background: var(--bg-base); color: var(--t
         <span id="user-role-badge" class="user-role-badge"></span>
         <div class="avatar" id="user-avatar">?</div>
         <span id="user-name" class="user-name-label">Loading…</span>
-        <button onclick="handleLogout()" class="btn btn-ghost btn-sm">Sign out</button>
+        <button onclick="switchView('howto')" class="btn btn-ghost btn-sm" title="How it works" style="padding:6px 10px;font-size:16px;line-height:1">?</button>
+      <button onclick="handleLogout()" class="btn btn-ghost btn-sm">Sign out</button>
       </div>
     </div>
   </div>
@@ -656,7 +688,7 @@ body { font-family: var(--font-sans); background: var(--bg-base); color: var(--t
     </div><!-- /view-calendar -->
 
     <!-- ── Presentation Mode Overlay ─────────────────────────────────────── -->
-    <div id="cal-present-overlay" style="display:none;position:fixed;inset:0;background:#0f172a;z-index:500;flex-direction:column" onkeydown="calPresentKey(event)" tabindex="0">
+    <div id="cal-present-overlay" style="display:none;position:fixed;inset:0;background:#0a1410;z-index:500;flex-direction:column" onkeydown="calPresentKey(event)" tabindex="0">
       <!-- Top bar -->
       <div style="display:flex;align-items:center;justify-content:space-between;padding:12px 20px;border-bottom:1px solid rgba(255,255,255,0.1);flex-shrink:0">
         <div style="display:flex;align-items:center;gap:12px">
@@ -674,7 +706,7 @@ body { font-family: var(--font-sans); background: var(--bg-base); color: var(--t
         <!-- Slide area -->
         <div style="flex:1;display:flex;flex-direction:column;align-items:center;justify-content:center;padding:24px;position:relative">
           <button onclick="calPresentStep(-1)" style="position:absolute;left:16px;top:50%;transform:translateY(-50%);background:rgba(255,255,255,0.08);border:1px solid rgba(255,255,255,0.15);color:#fff;width:40px;height:40px;border-radius:50%;font-size:18px;cursor:pointer;display:flex;align-items:center;justify-content:center" id="cal-present-prev">&#8592;</button>
-          <div id="cal-present-slide" style="background:#1e293b;border-radius:12px;max-width:680px;width:100%;overflow:hidden;box-shadow:0 8px 40px rgba(0,0,0,0.5)">
+          <div id="cal-present-slide" style="background:#111c18;border-radius:12px;max-width:680px;width:100%;overflow:hidden;box-shadow:0 8px 40px rgba(0,0,0,0.5)">
             <!-- filled by renderPresentSlide() -->
           </div>
           <button onclick="calPresentStep(1)" style="position:absolute;right:16px;top:50%;transform:translateY(-50%);background:rgba(255,255,255,0.08);border:1px solid rgba(255,255,255,0.15);color:#fff;width:40px;height:40px;border-radius:50%;font-size:18px;cursor:pointer;display:flex;align-items:center;justify-content:center" id="cal-present-next">&#8594;</button>
@@ -806,10 +838,12 @@ body { font-family: var(--font-sans); background: var(--bg-base); color: var(--t
 
     <!-- ═══ VIEW 2: ANALYTICS & ROI ═══ -->
     <div class="page-view" id="view-analytics">
+
+      <!-- Section header (always visible) -->
       <div class="section-header">
         <div>
-          <div class="section-title">Rankings &amp; Competitor Tracking</div>
-          <div class="section-desc">First-party rankings from Google Search Console. Competitor data via DataForSEO (Phase 2).</div>
+          <div class="section-title">Analytics &amp; Reports</div>
+          <div class="section-desc">Rankings, competitor intelligence, international markets, and SEO reporting across all brands.</div>
         </div>
         <button class="btn btn-primary" onclick="showAddKeywordModal()">
           <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
@@ -817,290 +851,316 @@ body { font-family: var(--font-sans); background: var(--bg-base); color: var(--t
         </button>
       </div>
 
-      <div class="pill-nav" id="analytics-pills">
-        <div class="pill active" data-view="gsc" data-brand="all" onclick="switchAnalyticsView(this)">All Domains (GSC)</div>
-        <div class="pill" data-view="gsc" data-brand="pickl" onclick="switchAnalyticsView(this)">Pickl Only</div>
-        <div class="pill" data-view="gsc" data-brand="bonbird" onclick="switchAnalyticsView(this)">Bonbird Only</div>
-        <div class="pill" data-view="comp" data-brand="all" onclick="switchAnalyticsView(this)">Competitor Matrix (SERP API)</div>
-        <div class="pill" data-view="backlinks" data-brand="all" onclick="switchAnalyticsView(this)">🔗 Backlinks</div>
-        <div class="pill" data-view="audit" data-brand="all" onclick="switchAnalyticsView(this)">🔍 Deep Audit</div>
-        <div class="pill" data-view="opportunities" data-brand="all" onclick="switchAnalyticsView(this)">🎯 Keyword Opportunities</div>
+      <!-- Overview cards (landing state) -->
+      <div id="analytics-overview-cards" style="display:grid;grid-template-columns:repeat(3,1fr);gap:16px;margin-bottom:28px"></div>
+
+      <!-- Tab bar (shown when inside a section) -->
+      <div class="admin-tabs" id="analytics-tabs" style="display:none;margin:0 0 0">
+        <button class="admin-tab active" data-atab="rankings" onclick="switchAnalyticsTab('rankings',this)">Rankings</button>
+        <button class="admin-tab" data-atab="competitors" onclick="switchAnalyticsTab('competitors',this)">Competitors</button>
+        <button class="admin-tab" data-atab="opportunities" onclick="switchAnalyticsTab('opportunities',this)">Opportunities</button>
+        <button class="admin-tab" data-atab="backlinks" onclick="switchAnalyticsTab('backlinks',this)">Backlinks</button>
+        <button class="admin-tab" data-atab="markets" onclick="switchAnalyticsTab('markets',this)">Markets</button>
+        <button class="admin-tab" data-atab="report" onclick="switchAnalyticsTab('report',this)">Report</button>
+        <button onclick="showAnalyticsOverview()" style="margin-left:auto;font-size:12px;color:var(--text-muted);background:none;border:none;cursor:pointer;padding:9px 4px;white-space:nowrap;font-family:var(--font-sans)">← Overview</button>
       </div>
 
-      <!-- GSC TABLE -->
-      <div id="panel-gsc">
-        <div class="table-wrap">
-          <table class="data-table">
-            <thead>
-              <tr>
-                <th>Keyword</th>
-                <th>Brand</th>
-                <th>Position</th>
-                <th>Monthly Clicks</th>
-                <th>Impressions</th>
-                <th>CTR</th>
-                <th>Trend</th>
-              </tr>
-            </thead>
-            <tbody id="gsc-tbody">
-              <tr><td colspan="7" style="text-align:center;padding:32px;color:var(--text-muted)">
-                Connect GSC to load keyword data
-              </td></tr>
-            </tbody>
-          </table>
+      <!-- RANKINGS TAB PANEL -->
+      <div id="atab-rankings" class="analytics-tab-panel" style="display:none">
+        <div class="pill-nav" id="analytics-pills" style="margin-bottom:16px">
+          <div class="pill active" data-view="gsc" data-brand="all" onclick="switchAnalyticsView(this)">All Domains</div>
+          <div class="pill" data-view="gsc" data-brand="pickl" onclick="switchAnalyticsView(this)">Pickl Only</div>
+          <div class="pill" data-view="gsc" data-brand="bonbird" onclick="switchAnalyticsView(this)">Bonbird Only</div>
+        </div>
+        <div id="panel-gsc">
+          <div class="table-wrap">
+            <table class="data-table">
+              <thead>
+                <tr>
+                  <th>Keyword</th>
+                  <th>Brand</th>
+                  <th>Position</th>
+                  <th>Monthly Clicks</th>
+                  <th>Impressions</th>
+                  <th>CTR</th>
+                  <th>Trend</th>
+                </tr>
+              </thead>
+              <tbody id="gsc-tbody">
+                <tr><td colspan="7" style="text-align:center;padding:32px;color:var(--text-muted)">
+                  Connect GSC to load keyword data
+                </td></tr>
+              </tbody>
+            </table>
+          </div>
         </div>
       </div>
 
-      <!-- COMPETITOR MATRIX TABLE (Phase 2 — live via DataForSEO) -->
-      <div id="panel-comp" style="display:none">
-        <div id="competitor-matrix-live"></div>
+      <!-- COMPETITORS TAB PANEL -->
+      <div id="atab-competitors" class="analytics-tab-panel" style="display:none">
+        <div id="panel-comp">
+          <div id="competitor-matrix-live"></div>
+        </div>
+        <div id="panel-audit" style="margin-top:24px">
+          <div class="card" style="margin-bottom:20px">
+            <div style="font-weight:600;font-size:15px;margin-bottom:4px">🔍 Competitor Analysis</div>
+            <div style="font-size:13px;color:var(--text-muted);margin-bottom:16px">Enter any competitor domain — get their top 50 ranking keywords, on-page signals, and PageSpeed scores compared against your brand.</div>
+            <div style="display:flex;gap:10px;flex-wrap:wrap;align-items:flex-end;margin-bottom:10px">
+              <div style="flex:1;min-width:200px">
+                <label style="font-size:11px;font-weight:600;color:var(--text-muted);display:block;margin-bottom:4px">COMPETITOR DOMAIN</label>
+                <input type="text" id="audit-domain-input" class="form-input" placeholder="e.g. salt.ae or hammerburgers.com" style="font-family:var(--font-sans)">
+              </div>
+              <div>
+                <label style="font-size:11px;font-weight:600;color:var(--text-muted);display:block;margin-bottom:4px">COMPARE AGAINST</label>
+                <select id="audit-brand-select" class="form-input" style="font-family:var(--font-sans);width:140px">
+                  <option value="pickl">Pickl</option>
+                  <option value="bonbird">Bonbird</option>
+                  <option value="both">Both Brands</option>
+                </select>
+              </div>
+              <div>
+                <label style="font-size:11px;font-weight:600;color:var(--text-muted);display:block;margin-bottom:4px">MARKET</label>
+                <select id="audit-market-select" class="form-input" style="font-family:var(--font-sans);width:150px">
+                  <option value="uae_country">🇦🇪 UAE</option>
+                  <optgroup label="Pickl">
+                    <option value="pickl_bahrain">🇧🇭 Bahrain</option>
+                    <option value="pickl_ksa">🇸🇦 Saudi Arabia</option>
+                    <option value="pickl_qatar">🇶🇦 Qatar (Pickl)</option>
+                    <option value="pickl_egypt">🇪🇬 Egypt</option>
+                    <option value="pickl_jordan">🇯🇴 Jordan</option>
+                    <option value="pickl_oman">🇴🇲 Oman (Pickl)</option>
+                  </optgroup>
+                  <optgroup label="Bonbird">
+                    <option value="bonbird_oman">🇴🇲 Oman (Bonbird)</option>
+                    <option value="bonbird_pakistan">🇵🇰 Pakistan</option>
+                    <option value="bonbird_qatar">🇶🇦 Qatar (Bonbird)</option>
+                  </optgroup>
+                </select>
+              </div>
+              <button class="btn btn-primary" onclick="runCompetitorAudit()" id="audit-run-btn">Run Audit</button>
+            </div>
+            <div id="audit-status" style="font-size:12px;color:var(--text-muted)"></div>
+            <div id="audit-known-wrap" style="display:none;margin-top:12px;border-top:1px solid var(--border);padding-top:10px">
+              <div style="font-size:11px;font-weight:600;color:var(--text-muted);margin-bottom:6px">KNOWN COMPETITORS — click to audit</div>
+              <div id="audit-known-list" style="display:flex;flex-wrap:wrap;gap:6px"></div>
+            </div>
+            <div id="audit-history-wrap" style="display:none;margin-top:10px">
+              <div style="font-size:11px;font-weight:600;color:var(--text-muted);margin-bottom:6px">RECENTLY AUDITED</div>
+              <div id="audit-history-list" style="display:flex;flex-wrap:wrap;gap:6px"></div>
+            </div>
+          </div>
+          <div id="audit-results"></div>
+        </div>
       </div>
 
-      <!-- BACKLINKS PANEL -->
-      <div id="panel-backlinks" style="display:none">
-        <div id="backlinks-container">
-          <div style="text-align:center;padding:48px;color:var(--text-muted)">
-            <div style="font-size:32px;margin-bottom:12px">🔗</div>
-            <div style="font-size:15px;font-weight:600;margin-bottom:6px">Backlink Monitoring</div>
-            <div style="font-size:13px;margin-bottom:20px">DataForSEO referring domains — runs every Monday automatically.</div>
-            <div style="display:flex;gap:12px;justify-content:center;flex-wrap:wrap">
-              <button class="btn btn-primary" onclick="refreshBacklinks('pickl')">↻ Fetch Pickl Backlinks</button>
-              <button class="btn btn-outline" onclick="refreshBacklinks('bonbird')">↻ Fetch Bonbird Backlinks</button>
+      <!-- OPPORTUNITIES TAB PANEL -->
+      <div id="atab-opportunities" class="analytics-tab-panel" style="display:none">
+        <div id="panel-opportunities">
+          <div class="card" style="margin-bottom:16px">
+            <div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:12px;flex-wrap:wrap;gap:10px">
+              <div>
+                <h3 style="font-size:16px;font-weight:600;margin-bottom:4px">🎯 Keyword Opportunities</h3>
+                <div style="font-size:13px;color:var(--text-muted)">Data-driven keyword targets — discovered from your menu + competitor research. No manual input needed.</div>
+              </div>
+              <div style="display:flex;gap:8px;align-items:center">
+                <select id="opp-brand-filter" class="form-input" style="font-size:13px;width:120px" onchange="loadKeywordOpportunities()">
+                  <option value="pickl">Pickl</option>
+                  <option value="bonbird">Bonbird</option>
+                </select>
+                <select id="opp-market-filter" class="form-input" style="font-size:13px;width:150px" onchange="loadKeywordOpportunities()">
+                  <option value="uae">🇦🇪 UAE</option>
+                  <optgroup label="Pickl">
+                    <option value="pickl_bahrain">🇧🇭 Bahrain</option>
+                    <option value="pickl_ksa">🇸🇦 Saudi Arabia</option>
+                    <option value="pickl_qatar">🇶🇦 Qatar</option>
+                    <option value="pickl_egypt">🇪🇬 Egypt</option>
+                    <option value="pickl_jordan">🇯🇴 Jordan</option>
+                    <option value="pickl_oman">🇴🇲 Oman</option>
+                  </optgroup>
+                  <optgroup label="Bonbird">
+                    <option value="bonbird_oman">🇴🇲 Oman</option>
+                    <option value="bonbird_pakistan">🇵🇰 Pakistan</option>
+                    <option value="bonbird_qatar">🇶🇦 Qatar</option>
+                  </optgroup>
+                </select>
+                <select id="opp-tier-filter" class="form-input" style="font-size:13px;width:140px" onchange="renderOpportunitiesTable()">
+                  <option value="">All Tiers</option>
+                  <option value="content_gap">🚀 Content Gaps</option>
+                  <option value="push">📈 Push to Top 10</option>
+                  <option value="quick_win">⚡ Quick Wins</option>
+                  <option value="top10">✅ Already Top 10</option>
+                </select>
+                <button class="btn btn-outline" onclick="refreshKeywordOpportunities()" style="font-size:12px;white-space:nowrap">🔄 Refresh Now</button>
+                <span id="opp-refresh-status" style="font-size:12px;color:var(--text-muted)"></span>
+              </div>
+            </div>
+            <div id="opp-summary" style="display:flex;flex-wrap:wrap;gap:10px;margin-bottom:16px"></div>
+            <div id="opp-table-wrap"></div>
+            <div id="opp-updated" style="font-size:11px;color:var(--text-muted);margin-top:10px"></div>
+          </div>
+        </div>
+      </div>
+
+      <!-- BACKLINKS TAB PANEL -->
+      <div id="atab-backlinks" class="analytics-tab-panel" style="display:none">
+        <div id="panel-backlinks">
+          <div id="backlinks-container">
+            <div style="text-align:center;padding:48px;color:var(--text-muted)">
+              <div style="font-size:32px;margin-bottom:12px">🔗</div>
+              <div style="font-size:15px;font-weight:600;margin-bottom:6px">Backlink Monitoring</div>
+              <div style="font-size:13px;margin-bottom:20px">DataForSEO referring domains — runs every Monday automatically.</div>
+              <div style="display:flex;gap:12px;justify-content:center;flex-wrap:wrap">
+                <button class="btn btn-primary" onclick="refreshBacklinks('pickl')">↻ Fetch Pickl Backlinks</button>
+                <button class="btn btn-outline" onclick="refreshBacklinks('bonbird')">↻ Fetch Bonbird Backlinks</button>
+              </div>
             </div>
           </div>
         </div>
       </div>
 
-      <!-- DEEP AUDIT PANEL -->
-      <div id="panel-opportunities" style="display:none">
-        <div class="card" style="margin-bottom:16px">
-          <div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:12px;flex-wrap:wrap;gap:10px">
-            <div>
-              <h3 style="font-size:16px;font-weight:600;margin-bottom:4px">🎯 Keyword Opportunities</h3>
-              <div style="font-size:13px;color:var(--text-muted)">Data-driven keyword targets — discovered from your menu + competitor research. No manual input needed.</div>
-            </div>
-            <div style="display:flex;gap:8px;align-items:center">
-              <select id="opp-brand-filter" class="form-input" style="font-size:13px;width:120px" onchange="loadKeywordOpportunities()">
-                <option value="pickl">Pickl</option>
-                <option value="bonbird">Bonbird</option>
-              </select>
-              <select id="opp-market-filter" class="form-input" style="font-size:13px;width:150px" onchange="loadKeywordOpportunities()">
-                <option value="uae">🇦🇪 UAE</option>
-                <optgroup label="Pickl">
-                  <option value="pickl_bahrain">🇧🇭 Bahrain</option>
-                  <option value="pickl_ksa">🇸🇦 Saudi Arabia</option>
-                  <option value="pickl_qatar">🇶🇦 Qatar</option>
-                  <option value="pickl_egypt">🇪🇬 Egypt</option>
-                  <option value="pickl_jordan">🇯🇴 Jordan</option>
-                  <option value="pickl_oman">🇴🇲 Oman</option>
-                </optgroup>
-                <optgroup label="Bonbird">
-                  <option value="bonbird_oman">🇴🇲 Oman</option>
-                  <option value="bonbird_pakistan">🇵🇰 Pakistan</option>
-                  <option value="bonbird_qatar">🇶🇦 Qatar</option>
-                </optgroup>
-              </select>
-              <select id="opp-tier-filter" class="form-input" style="font-size:13px;width:140px" onchange="renderOpportunitiesTable()">
-                <option value="">All Tiers</option>
-                <option value="content_gap">🚀 Content Gaps</option>
-                <option value="push">📈 Push to Top 10</option>
-                <option value="quick_win">⚡ Quick Wins</option>
-                <option value="top10">✅ Already Top 10</option>
-              </select>
-              <button class="btn btn-outline" onclick="refreshKeywordOpportunities()" style="font-size:12px;white-space:nowrap">🔄 Refresh Now</button>
-              <span id="opp-refresh-status" style="font-size:12px;color:var(--text-muted)"></span>
-            </div>
-          </div>
-          <div id="opp-summary" style="display:flex;flex-wrap:wrap;gap:10px;margin-bottom:16px"></div>
-          <div id="opp-table-wrap"></div>
-          <div id="opp-updated" style="font-size:11px;color:var(--text-muted);margin-top:10px"></div>
+      <!-- MARKETS TAB PANEL -->
+      <div id="atab-markets" class="analytics-tab-panel" style="display:none">
+        <div style="display:flex;gap:8px;align-items:center;margin-bottom:10px">
+          <span style="font-size:12px;font-weight:600;color:var(--text-muted);width:52px;flex-shrink:0">Brand</span>
+          <div class="pill active" data-intl-brand="all" onclick="switchIntlView(this,'brand')">All</div>
+          <div class="pill" data-intl-brand="pickl" onclick="switchIntlView(this,'brand')">Pickl</div>
+          <div class="pill" data-intl-brand="bonbird" onclick="switchIntlView(this,'brand')">Bonbird</div>
         </div>
-      </div>
-
-      <div id="panel-audit" style="display:none">
-        <div class="card" style="margin-bottom:20px">
-          <div style="font-weight:600;font-size:15px;margin-bottom:4px">🔍 Competitor Analysis</div>
-          <div style="font-size:13px;color:var(--text-muted);margin-bottom:16px">Enter any competitor domain — get their top 50 ranking keywords, on-page signals, and PageSpeed scores compared against your brand.</div>
-          <div style="display:flex;gap:10px;flex-wrap:wrap;align-items:flex-end;margin-bottom:10px">
-            <div style="flex:1;min-width:200px">
-              <label style="font-size:11px;font-weight:600;color:var(--text-muted);display:block;margin-bottom:4px">COMPETITOR DOMAIN</label>
-              <input type="text" id="audit-domain-input" class="form-input" placeholder="e.g. salt.ae or hammerburgers.com" style="font-family:var(--font-sans)">
-            </div>
-            <div>
-              <label style="font-size:11px;font-weight:600;color:var(--text-muted);display:block;margin-bottom:4px">COMPARE AGAINST</label>
-              <select id="audit-brand-select" class="form-input" style="font-family:var(--font-sans);width:140px">
-                <option value="pickl">Pickl</option>
-                <option value="bonbird">Bonbird</option>
-                <option value="both">Both Brands</option>
-              </select>
-            </div>
-            <div>
-              <label style="font-size:11px;font-weight:600;color:var(--text-muted);display:block;margin-bottom:4px">MARKET</label>
-              <select id="audit-market-select" class="form-input" style="font-family:var(--font-sans);width:150px">
-                <option value="uae_country">🇦🇪 UAE</option>
-                <optgroup label="Pickl">
-                  <option value="pickl_bahrain">🇧🇭 Bahrain</option>
-                  <option value="pickl_ksa">🇸🇦 Saudi Arabia</option>
-                  <option value="pickl_qatar">🇶🇦 Qatar (Pickl)</option>
-                  <option value="pickl_egypt">🇪🇬 Egypt</option>
-                  <option value="pickl_jordan">🇯🇴 Jordan</option>
-                  <option value="pickl_oman">🇴🇲 Oman (Pickl)</option>
-                </optgroup>
-                <optgroup label="Bonbird">
-                  <option value="bonbird_oman">🇴🇲 Oman (Bonbird)</option>
-                  <option value="bonbird_pakistan">🇵🇰 Pakistan</option>
-                  <option value="bonbird_qatar">🇶🇦 Qatar (Bonbird)</option>
-                </optgroup>
-              </select>
-            </div>
-            <button class="btn btn-primary" onclick="runCompetitorAudit()" id="audit-run-btn">Run Audit</button>
-          </div>
-          <div id="audit-status" style="font-size:12px;color:var(--text-muted)"></div>
-          <!-- Known competitors quick-select -->
-          <div id="audit-known-wrap" style="display:none;margin-top:12px;border-top:1px solid var(--border);padding-top:10px">
-            <div style="font-size:11px;font-weight:600;color:var(--text-muted);margin-bottom:6px">KNOWN COMPETITORS — click to audit</div>
-            <div id="audit-known-list" style="display:flex;flex-wrap:wrap;gap:6px"></div>
-          </div>
-          <!-- Audit history -->
-          <div id="audit-history-wrap" style="display:none;margin-top:10px">
-            <div style="font-size:11px;font-weight:600;color:var(--text-muted);margin-bottom:6px">RECENTLY AUDITED</div>
-            <div id="audit-history-list" style="display:flex;flex-wrap:wrap;gap:6px"></div>
+        <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin-bottom:28px">
+          <span style="font-size:12px;font-weight:600;color:var(--text-muted);width:52px;flex-shrink:0">Market</span>
+          <div class="pill active" data-intl-market="all" onclick="switchIntlView(this,'market')">All</div>
+          <div class="pill pickl-market" data-intl-market="pickl_bahrain" onclick="switchIntlView(this,'market')">🇧🇭 Bahrain</div>
+          <div class="pill pickl-market" data-intl-market="pickl_ksa" onclick="switchIntlView(this,'market')">🇸🇦 Saudi Arabia</div>
+          <div class="pill pickl-market" data-intl-market="pickl_jordan" onclick="switchIntlView(this,'market')">🇯🇴 Jordan</div>
+          <div class="pill pickl-market" data-intl-market="pickl_qatar" onclick="switchIntlView(this,'market')">🇶🇦 Qatar</div>
+          <div class="pill pickl-market" data-intl-market="pickl_egypt" onclick="switchIntlView(this,'market')">🇪🇬 Egypt</div>
+          <div class="pill pickl-market" data-intl-market="pickl_oman" onclick="switchIntlView(this,'market')">🇴🇲 Oman <span style="font-size:10px;background:#f59e0b;color:#000;padding:1px 6px;border-radius:4px;margin-left:4px;font-weight:700">NEW</span></div>
+          <div class="pill bonbird-market" data-intl-market="bonbird_oman" onclick="switchIntlView(this,'market')">🇴🇲 Oman</div>
+          <div class="pill bonbird-market" data-intl-market="bonbird_pakistan" onclick="switchIntlView(this,'market')">🇵🇰 Pakistan</div>
+          <div class="pill bonbird-market" data-intl-market="bonbird_qatar" onclick="switchIntlView(this,'market')">🇶🇦 Qatar</div>
+        </div>
+        <div id="intl-market-grid" style="display:grid;grid-template-columns:repeat(auto-fill,minmax(340px,1fr));gap:16px">
+          <div style="text-align:center;padding:40px;color:var(--text-muted);grid-column:1/-1" id="intl-loading">
+            Loading market status…
           </div>
         </div>
-        <div id="audit-results"></div>
-      </div>
-
-    </div>
-
-    <!-- ═══ VIEW: REPORTS ═══ -->
-    <div class="page-view" id="view-reports">
-
-      <div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:20px;flex-wrap:wrap;gap:12px">
-        <div>
-          <div class="page-title">SEO Report</div>
-          <div class="section-desc" style="margin-top:4px">Performance overview for the CEO meeting. Traffic value, rankings, AI search readiness.</div>
-        </div>
-        <div style="display:flex;align-items:center;gap:10px">
-          <div style="font-size:12px;color:var(--text-muted);text-align:right;padding-top:4px">
-            Data: last 90 days (Google Search Console)<br>
-            <span id="report-last-updated"></span>
-          </div>
-          <button class="btn btn-outline" onclick="exportReportPdf()" style="flex-shrink:0;font-size:12px;padding:6px 14px">📄 Export PDF</button>
-        </div>
-      </div>
-
-      <!-- Brand switcher -->
-      <div class="pill-nav" id="report-brand-pills" style="margin-bottom:24px">
-        <div class="pill active" onclick="switchReportBrand('pickl')">🟡 Pickl</div>
-        <div class="pill" onclick="switchReportBrand('bonbird')">🔴 Bonbird</div>
-      </div>
-
-      <!-- Goals Progress (shown when goals are configured) -->
-      <div id="report-goals" style="display:none;margin-bottom:24px"></div>
-
-      <!-- Loading -->
-      <div id="report-loading" style="text-align:center;padding:48px;color:var(--text-muted)">
-        <div style="font-size:32px;margin-bottom:12px">📈</div>
-        Loading report data…
-      </div>
-
-      <!-- Report content -->
-      <div id="report-content" style="display:none">
-
-        <!-- 4 headline metrics -->
-        <div style="display:grid;grid-template-columns:repeat(4,1fr);gap:16px;margin-bottom:24px" id="report-metrics"></div>
-
-        <!-- Row 2: Position distribution + AI Readiness -->
-        <div style="display:grid;grid-template-columns:1fr 1fr;gap:16px;margin-bottom:24px">
+        <div id="intl-run-log" style="margin-top:24px;display:none">
           <div class="card">
-            <div style="font-weight:600;font-size:14px;margin-bottom:16px">📊 Position Distribution</div>
-            <div id="report-position-chart"></div>
-          </div>
-          <div class="card">
-            <div style="font-weight:600;font-size:14px;margin-bottom:16px">🤖 AI Search Readiness</div>
-            <div style="font-size:12px;color:var(--text-muted);margin-bottom:12px">Based on Google's official AI Overviews eligibility criteria</div>
-            <div id="report-ai-readiness"></div>
+            <h3 style="font-size:14px;font-weight:600;margin-bottom:12px">Run Log</h3>
+            <div id="intl-run-log-content" style="font-size:12px;font-family:monospace;color:var(--text-muted);line-height:1.8"></div>
           </div>
         </div>
-
-        <!-- Row 3: Top keywords + Content pipeline -->
-        <div style="display:grid;grid-template-columns:1.5fr 1fr;gap:16px;margin-bottom:24px">
-          <div class="card">
-            <div style="font-weight:600;font-size:14px;margin-bottom:16px">🔑 Top Keywords by Impressions</div>
-            <div id="report-top-keywords"></div>
-          </div>
-          <div class="card">
-            <div style="font-weight:600;font-size:14px;margin-bottom:8px">⚙️ Content Pipeline</div>
-            <div style="font-size:12px;color:var(--text-muted);margin-bottom:16px">Last 30 days</div>
-            <div id="report-pipeline"></div>
-          </div>
-        </div>
-
-        <!-- Row 4: Opportunities -->
-        <div class="card" style="margin-bottom:24px">
-          <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:16px">
-            <div style="font-weight:600;font-size:14px">🎯 Opportunities This Week</div>
-            <a onclick="switchView('analytics');setTimeout(()=>{document.querySelector('[data-view=opportunities]')?.click()},400)" style="font-size:12px;color:var(--primary);cursor:pointer;font-weight:600">Full keyword analysis →</a>
-          </div>
-          <div id="report-opportunities" style="display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));gap:12px"></div>
-        </div>
-
-        <!-- Row 5: Competitor Gaps -->
-        <div class="card" style="margin-bottom:24px">
-          <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:16px">
-            <div style="font-weight:600;font-size:14px">⚔️ Competitor Gaps</div>
-            <a onclick="switchView('analytics');setTimeout(()=>{document.querySelector('[data-view=gaps]')?.click()},400)" style="font-size:12px;color:var(--primary);cursor:pointer">View full analysis →</a>
-          </div>
-          <div id="report-competitor-gaps"></div>
-        </div>
-
-        <!-- AI Search Presence (AI Overview + LLM Mentions merged) -->
-        <div class="card" style="margin-bottom:24px" id="report-ai-overview-section">
-          <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:4px">
-            <div>
-              <div style="font-weight:600;font-size:14px">🤖 AI Search Presence</div>
-              <div style="font-size:12px;color:var(--text-muted);margin-top:2px">Google AI Overviews + AI chatbot mentions (ChatGPT, Perplexity, Claude, Gemini)</div>
-            </div>
-            <button id="ai-overview-refresh-btn" onclick="triggerAiOverviewRefresh(reportState.brand)" class="btn btn-outline" style="font-size:12px;padding:4px 12px">↻ Refresh</button>
-          </div>
-          <!-- Google AI Overview sub-section -->
-          <div style="margin-top:16px;padding-top:16px;border-top:1px solid var(--border)">
-            <div style="font-size:11px;font-weight:700;color:var(--text-muted);text-transform:uppercase;letter-spacing:0.04em;margin-bottom:10px">Google AI Overviews — do our keywords trigger the AI box?</div>
-            <div id="report-ai-overview"></div>
-          </div>
-          <!-- LLM Mentions sub-section -->
-          <div style="margin-top:16px;padding-top:16px;border-top:1px solid var(--border)">
-            <div style="font-size:11px;font-weight:700;color:var(--text-muted);text-transform:uppercase;letter-spacing:0.04em;margin-bottom:10px">AI Chatbot Mentions — do ChatGPT, Perplexity, Gemini recommend us?</div>
-            <div id="report-llm-mentions"></div>
-          </div>
-        </div>
-
-        <!-- GA4 Website Traffic -->
-        <div class="card" style="margin-bottom:24px" id="report-ga4-section">
-          <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:4px">
-            <div style="font-weight:600;font-size:14px">🌍 Website Traffic (GA4)</div>
-            <div id="report-ga4-status" style="font-size:11px;color:var(--text-muted)"></div>
-          </div>
-          <div style="font-size:12px;color:var(--text-muted);margin-bottom:16px">Organic sessions from Google Search · requires GA4 installed on WordPress</div>
-          <div id="report-ga4"></div>
-        </div>
-
-        <!-- Performance Summary -->
-        <div class="card" style="background:linear-gradient(135deg,#1e293b,#0f172a);border-color:#334155">
-          <div style="font-weight:600;font-size:14px;margin-bottom:16px;color:#f1f5f9">📋 Performance Summary</div>
-          <div id="report-talking-points" style="color:#cbd5e1;font-size:13px;line-height:1.7"></div>
-        </div>
-
-      </div><!-- /report-content -->
-
-      <!-- No GSC data -->
-      <div id="report-no-data" style="display:none;text-align:center;padding:48px">
-        <div style="font-size:48px;margin-bottom:12px">📊</div>
-        <div style="font-weight:600;margin-bottom:8px">GSC not connected</div>
-        <div style="color:var(--text-muted);font-size:14px">Open Analytics & ROI tab and connect Google Search Console first.</div>
       </div>
 
-    </div><!-- /view-reports -->
+      <!-- REPORT TAB PANEL -->
+      <div id="atab-report" class="analytics-tab-panel" style="display:none">
+        <div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:20px;flex-wrap:wrap;gap:12px">
+          <div class="section-desc">Performance overview for stakeholder meetings. Traffic value, rankings, AI search readiness.</div>
+          <div style="display:flex;align-items:center;gap:10px">
+            <div style="font-size:12px;color:var(--text-muted);text-align:right">
+              Data: last 90 days (GSC)<br>
+              <span id="report-last-updated"></span>
+            </div>
+            <button class="btn btn-outline" onclick="exportReportPdf()" style="flex-shrink:0;font-size:12px;padding:6px 14px">📄 Export PDF</button>
+          </div>
+        </div>
+
+        <div class="pill-nav" id="report-brand-pills" style="margin-bottom:24px">
+          <div class="pill active" onclick="switchReportBrand('pickl')">🟡 Pickl</div>
+          <div class="pill" onclick="switchReportBrand('bonbird')">🔴 Bonbird</div>
+        </div>
+
+        <div id="report-goals" style="display:none;margin-bottom:24px"></div>
+
+        <div id="report-loading" style="text-align:center;padding:48px;color:var(--text-muted)">
+          <div style="font-size:32px;margin-bottom:12px">📈</div>
+          Loading report data…
+        </div>
+
+        <div id="report-content" style="display:none">
+
+          <div style="display:grid;grid-template-columns:repeat(4,1fr);gap:16px;margin-bottom:24px" id="report-metrics"></div>
+
+          <div style="display:grid;grid-template-columns:1fr 1fr;gap:16px;margin-bottom:24px">
+            <div class="card">
+              <div style="font-weight:600;font-size:14px;margin-bottom:16px">📊 Position Distribution</div>
+              <div id="report-position-chart"></div>
+            </div>
+            <div class="card">
+              <div style="font-weight:600;font-size:14px;margin-bottom:16px">🤖 AI Search Readiness</div>
+              <div style="font-size:12px;color:var(--text-muted);margin-bottom:12px">Based on Google's official AI Overviews eligibility criteria</div>
+              <div id="report-ai-readiness"></div>
+            </div>
+          </div>
+
+          <div style="display:grid;grid-template-columns:1.5fr 1fr;gap:16px;margin-bottom:24px">
+            <div class="card">
+              <div style="font-weight:600;font-size:14px;margin-bottom:16px">🔑 Top Keywords by Impressions</div>
+              <div id="report-top-keywords"></div>
+            </div>
+            <div class="card">
+              <div style="font-weight:600;font-size:14px;margin-bottom:8px">⚙️ Content Pipeline</div>
+              <div style="font-size:12px;color:var(--text-muted);margin-bottom:16px">Last 30 days</div>
+              <div id="report-pipeline"></div>
+            </div>
+          </div>
+
+          <div class="card" style="margin-bottom:24px">
+            <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:16px">
+              <div style="font-weight:600;font-size:14px">🎯 Opportunities This Week</div>
+              <a onclick="switchAnalyticsTab('opportunities')" style="font-size:12px;color:var(--primary);cursor:pointer;font-weight:600">Full keyword analysis →</a>
+            </div>
+            <div id="report-opportunities" style="display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));gap:12px"></div>
+          </div>
+
+          <div class="card" style="margin-bottom:24px">
+            <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:16px">
+              <div style="font-weight:600;font-size:14px">⚔️ Competitor Gaps</div>
+              <a onclick="switchAnalyticsTab('competitors')" style="font-size:12px;color:var(--primary);cursor:pointer">View full analysis →</a>
+            </div>
+            <div id="report-competitor-gaps"></div>
+          </div>
+
+          <div class="card" style="margin-bottom:24px" id="report-ai-overview-section">
+            <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:4px">
+              <div>
+                <div style="font-weight:600;font-size:14px">🤖 AI Search Presence</div>
+                <div style="font-size:12px;color:var(--text-muted);margin-top:2px">Google AI Overviews + AI chatbot mentions (ChatGPT, Perplexity, Claude, Gemini)</div>
+              </div>
+              <button id="ai-overview-refresh-btn" onclick="triggerAiOverviewRefresh(reportState.brand)" class="btn btn-outline" style="font-size:12px;padding:4px 12px">↻ Refresh</button>
+            </div>
+            <div style="margin-top:16px;padding-top:16px;border-top:1px solid var(--border)">
+              <div style="font-size:11px;font-weight:700;color:var(--text-muted);text-transform:uppercase;letter-spacing:0.04em;margin-bottom:10px">Google AI Overviews — do our keywords trigger the AI box?</div>
+              <div id="report-ai-overview"></div>
+            </div>
+            <div style="margin-top:16px;padding-top:16px;border-top:1px solid var(--border)">
+              <div style="font-size:11px;font-weight:700;color:var(--text-muted);text-transform:uppercase;letter-spacing:0.04em;margin-bottom:10px">AI Chatbot Mentions — do ChatGPT, Perplexity, Gemini recommend us?</div>
+              <div id="report-llm-mentions"></div>
+            </div>
+          </div>
+
+          <div class="card" style="margin-bottom:24px" id="report-ga4-section">
+            <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:4px">
+              <div style="font-weight:600;font-size:14px">🌍 Website Traffic (GA4)</div>
+              <div id="report-ga4-status" style="font-size:11px;color:var(--text-muted)"></div>
+            </div>
+            <div style="font-size:12px;color:var(--text-muted);margin-bottom:16px">Organic sessions from Google Search · requires GA4 installed on WordPress</div>
+            <div id="report-ga4"></div>
+          </div>
+
+          <div class="card" style="background:linear-gradient(135deg,#0f2a20,#0a1a14);border-color:rgba(27,191,163,0.2)">
+            <div style="font-weight:600;font-size:14px;margin-bottom:16px;color:#e8f5f2">📋 Performance Summary</div>
+            <div id="report-talking-points" style="color:#a8c9c0;font-size:13px;line-height:1.7"></div>
+          </div>
+
+        </div><!-- /report-content -->
+
+        <div id="report-no-data" style="display:none;text-align:center;padding:48px">
+          <div style="font-size:48px;margin-bottom:12px">📊</div>
+          <div style="font-weight:600;margin-bottom:8px">GSC not connected</div>
+          <div style="color:var(--text-muted);font-size:14px">Open the Rankings tab and connect Google Search Console first.</div>
+        </div>
+      </div><!-- /atab-report -->
 
     <!-- ═══ VIEW: TECHNICAL SEO ═══ -->
     <div class="page-view" id="view-techseo">
@@ -1315,59 +1375,6 @@ body { font-family: var(--font-sans); background: var(--bg-base); color: var(--t
 
     </div><!-- /view-localseo -->
 
-    <div class="page-view" id="view-international">
-
-      <!-- Header row: title left, Run Now right -->
-      <div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:24px">
-        <div>
-          <div class="section-title">International SEO</div>
-          <div class="section-desc" style="margin-top:4px">Localised content pipelines for Pickl and Bonbird international markets.</div>
-        </div>
-        <button class="btn btn-primary" onclick="runIntlSeo()" id="intl-run-btn" style="flex-shrink:0;margin-left:24px">▶ Run Now</button>
-        <button class="btn btn-outline" onclick="generateHreflang()" id="hreflang-btn" style="flex-shrink:0">🔗 Generate Hreflang</button>
-      </div>
-
-      <!-- Filter row 1: Brand -->
-      <div style="display:flex;gap:8px;align-items:center;margin-bottom:10px">
-        <span style="font-size:12px;font-weight:600;color:var(--text-muted);width:52px;flex-shrink:0">Brand</span>
-        <div class="pill active" data-intl-brand="all" onclick="switchIntlView(this,'brand')">All</div>
-        <div class="pill" data-intl-brand="pickl" onclick="switchIntlView(this,'brand')">Pickl</div>
-        <div class="pill" data-intl-brand="bonbird" onclick="switchIntlView(this,'brand')">Bonbird</div>
-      </div>
-
-      <!-- Filter row 2: Market -->
-      <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin-bottom:28px">
-        <span style="font-size:12px;font-weight:600;color:var(--text-muted);width:52px;flex-shrink:0">Market</span>
-        <div class="pill active" data-intl-market="all" onclick="switchIntlView(this,'market')">All</div>
-        <!-- Pickl markets -->
-        <div class="pill pickl-market" data-intl-market="pickl_bahrain" onclick="switchIntlView(this,'market')">🇧🇭 Bahrain</div>
-        <div class="pill pickl-market" data-intl-market="pickl_ksa" onclick="switchIntlView(this,'market')">🇸🇦 Saudi Arabia</div>
-        <div class="pill pickl-market" data-intl-market="pickl_jordan" onclick="switchIntlView(this,'market')">🇯🇴 Jordan</div>
-        <div class="pill pickl-market" data-intl-market="pickl_qatar" onclick="switchIntlView(this,'market')">🇶🇦 Qatar</div>
-        <div class="pill pickl-market" data-intl-market="pickl_egypt" onclick="switchIntlView(this,'market')">🇪🇬 Egypt</div>
-        <div class="pill pickl-market" data-intl-market="pickl_oman" onclick="switchIntlView(this,'market')">🇴🇲 Oman <span style="font-size:10px;background:#f59e0b;color:#000;padding:1px 6px;border-radius:4px;margin-left:4px;font-weight:700">NEW</span></div>
-        <!-- Bonbird markets -->
-        <div class="pill bonbird-market" data-intl-market="bonbird_oman" onclick="switchIntlView(this,'market')">🇴🇲 Oman</div>
-        <div class="pill bonbird-market" data-intl-market="bonbird_pakistan" onclick="switchIntlView(this,'market')">🇵🇰 Pakistan</div>
-        <div class="pill bonbird-market" data-intl-market="bonbird_qatar" onclick="switchIntlView(this,'market')">🇶🇦 Qatar</div>
-      </div>
-
-      <!-- Market cards grid -->
-      <div id="intl-market-grid" style="display:grid;grid-template-columns:repeat(auto-fill,minmax(340px,1fr));gap:16px">
-        <div style="text-align:center;padding:40px;color:var(--text-muted);grid-column:1/-1" id="intl-loading">
-          Loading market status…
-        </div>
-      </div>
-
-      <!-- Run log -->
-      <div id="intl-run-log" style="margin-top:24px;display:none">
-        <div class="card">
-          <h3 style="font-size:14px;font-weight:600;margin-bottom:12px">Run Log</h3>
-          <div id="intl-run-log-content" style="font-size:12px;font-family:monospace;color:var(--text-muted);line-height:1.8"></div>
-        </div>
-      </div>
-    </div>
-
     <!-- ═══ VIEW 4: AI CONTENT STUDIO ═══ -->
     <div class="page-view" id="view-studio">
       <div class="section-header" style="margin-bottom:24px">
@@ -1414,7 +1421,16 @@ body { font-family: var(--font-sans); background: var(--bg-base); color: var(--t
           <div class="tool-desc">Paste a URL for any landing page to get an instant SEO technical audit with prioritized recommendations.</div>
         </div>
 
-        <!-- Card 5: YouTube SEO Brief -->
+        <!-- Card 5: Hreflang Generator -->
+        <div class="tool-card" onclick="generateHreflang()" id="hreflang-btn">
+          <div class="tool-icon">
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><line x1="2" y1="12" x2="22" y2="12"/><path d="M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z"/></svg>
+          </div>
+          <div class="tool-title">Hreflang Generator</div>
+          <div class="tool-desc">Generate hreflang XML tags for all active Pickl and Bonbird international markets ready to paste into WordPress.</div>
+        </div>
+
+        <!-- Card 6: YouTube SEO Brief -->
         <div class="tool-card" onclick="document.getElementById('youtube-seo-section').scrollIntoView({behavior:'smooth'});document.getElementById('yt-keyword').focus()">
           <div class="tool-icon">
             <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M22.54 6.42A2.78 2.78 0 0 0 20.6 4.47C18.88 4 12 4 12 4s-6.88 0-8.6.47A2.78 2.78 0 0 0 1.46 6.42 29 29 0 0 0 1 12a29 29 0 0 0 .46 5.58A2.78 2.78 0 0 0 3.4 19.53C5.12 20 12 20 12 20s6.88 0 8.6-.47a2.78 2.78 0 0 0 1.94-1.95A29 29 0 0 0 23 12a29 29 0 0 0-.46-5.58z"/><polygon points="9.75 15.02 15.5 12 9.75 8.98 9.75 15.02" fill="currentColor" stroke="none"/></svg>
@@ -1711,16 +1727,80 @@ body { font-family: var(--font-sans); background: var(--bg-base); color: var(--t
         </div>
 
       <!-- Users & Permissions — admin only -->
-        <div class="card" id="users-panel" style="display:none;grid-column:1/-1">
-          <div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:20px">
-            <div>
-              <h3 style="font-size:16px;font-weight:600">Users &amp; Permissions</h3>
-              <p style="font-size:13px;color:var(--text-muted);margin-top:4px">Manage access, roles, brand assignments and departments for The Nest.</p>
+        <div class="card" id="users-panel" style="display:none;grid-column:1/-1;padding:0;overflow:hidden">
+          <div style="padding:20px 24px 0">
+            <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:16px">
+              <div>
+                <h3 style="font-size:15px;font-weight:600;color:var(--text-main)">Users &amp; Access</h3>
+                <p style="font-size:13px;color:var(--text-muted);margin-top:2px">Manage roles, brand access, and authentication for The Nest.</p>
+              </div>
+              <button class="btn btn-primary" onclick="showAddUserModal()"><i class="ti ti-user-plus" style="vertical-align:-2px;margin-right:5px"></i>Add User</button>
             </div>
-            <button class="btn btn-primary" onclick="showAddUserModal()">+ Add User</button>
+            <div class="admin-tabs">
+              <button class="admin-tab active" onclick="showUserTab('users',this)">Users &amp; roles</button>
+              <button class="admin-tab" onclick="showUserTab('brands',this)">Brand access</button>
+              <button class="admin-tab" onclick="showUserTab('sso',this)">Google SSO</button>
+            </div>
           </div>
-          <div id="users-list">
-            <div style="text-align:center;padding:24px;color:var(--text-muted);font-size:13px">Loading users…</div>
+          <!-- Users tab -->
+          <div id="users-tab-users" class="admin-panel active">
+            <div id="users-list"></div>
+          </div>
+          <!-- Brand access tab -->
+          <div id="users-tab-brands" class="admin-panel" style="padding:20px 24px">
+            <div id="users-brands-matrix">
+              <div style="text-align:center;padding:24px;color:var(--text-muted);font-size:13px">Loading…</div>
+            </div>
+          </div>
+          <!-- Google SSO tab -->
+          <div id="users-tab-sso" class="admin-panel" style="padding:20px 24px">
+            <div class="sso-card">
+              <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:4px">
+                <h3>Google Workspace SSO</h3>
+                <span class="status-pill status-active"><span style="width:6px;height:6px;border-radius:50%;background:#16a34a;display:inline-block"></span>Active</span>
+              </div>
+              <p>Google SSO is configured and active. Users authenticate with their @yolkbrands.com Google account.</p>
+              <div class="info-box"><i class="ti ti-shield-check"></i><span>Only <strong>@yolkbrands.com</strong> accounts are permitted. New users are provisioned automatically on first sign-in and get the <strong>viewer</strong> role by default — an admin can upgrade them.</span></div>
+              <div style="display:flex;flex-direction:column">
+                <div style="display:flex;align-items:center;justify-content:space-between;padding:12px 0;border-bottom:0.5px solid var(--border)">
+                  <div>
+                    <div style="font-size:13px;font-weight:500;color:var(--text-main)">Authorised domain</div>
+                    <div style="font-size:12px;color:var(--text-muted);margin-top:2px">Only this domain can sign in via Google</div>
+                  </div>
+                  <span style="font-size:13px;font-weight:600;color:var(--text-main)">@yolkbrands.com</span>
+                </div>
+                <div style="display:flex;align-items:center;justify-content:space-between;padding:12px 0;border-bottom:0.5px solid var(--border)">
+                  <div>
+                    <div style="font-size:13px;font-weight:500;color:var(--text-main)">Auto-provision new users</div>
+                    <div style="font-size:12px;color:var(--text-muted);margin-top:2px">Viewer role assigned on first sign-in</div>
+                  </div>
+                  <span class="status-pill status-active"><span style="width:6px;height:6px;border-radius:50%;background:#16a34a;display:inline-block"></span>Enabled</span>
+                </div>
+                <div style="display:flex;align-items:center;justify-content:space-between;padding:12px 0">
+                  <div>
+                    <div style="font-size:13px;font-weight:500;color:var(--text-main)">Session timeout</div>
+                    <div style="font-size:12px;color:var(--text-muted);margin-top:2px">Users stay signed in until they log out</div>
+                  </div>
+                  <span style="font-size:13px;color:var(--text-muted)">30 days</span>
+                </div>
+              </div>
+            </div>
+            <div class="sso-card">
+              <h3>Bootstrap Admins</h3>
+              <p>These accounts always have Admin access regardless of stored role and cannot be removed.</p>
+              <div style="display:flex;flex-direction:column;gap:8px">
+                <div style="display:flex;align-items:center;gap:10px;padding:10px 12px;background:var(--bg-base);border-radius:8px;border:0.5px solid var(--border)">
+                  <div class="people-avatar" style="background:#0F8A77">SY</div>
+                  <div style="flex:1;font-size:13px;font-weight:500;color:var(--text-main)">shazin@yolkbrands.com</div>
+                  <span class="role-badge role-admin">Admin</span>
+                </div>
+                <div style="display:flex;align-items:center;gap:10px;padding:10px 12px;background:var(--bg-base);border-radius:8px;border:0.5px solid var(--border)">
+                  <div class="people-avatar" style="background:#0F8A77">ST</div>
+                  <div style="flex:1;font-size:13px;font-weight:500;color:var(--text-main)">steve@yolkbrands.com</div>
+                  <span class="role-badge role-admin">Admin</span>
+                </div>
+              </div>
+            </div>
           </div>
         </div>
       </div>
@@ -2214,17 +2294,15 @@ const TYPE_TAGS = {
 // NAVIGATION
 // ═══════════════════════════════════════════════════════════════
 const VIEW_TITLES = {
-  perch:         'The Perch',
-  calendar:      'Content Calendar',
-  dashboard:     'Approvals Queue',
-  analytics:     'Analytics & ROI',
-  reports:       'SEO Report',
-  techseo:       'Technical SEO',
-  localseo:      'Local SEO',
-  international: 'International SEO',
-  studio:        'AI Content Studio',
-  settings:      'Settings & Logs',
-  howto:         'How It Works',
+  perch:     'The Perch',
+  calendar:  'Content Calendar',
+  dashboard: 'Approvals Queue',
+  analytics: 'Analytics & Reports',
+  techseo:   'Technical SEO',
+  localseo:  'Local SEO',
+  studio:    'AI Content Studio',
+  settings:  'Settings & Logs',
+  howto:     'How It Works',
 };
 
 document.getElementById('nav-menu').addEventListener('click', e => {
@@ -2234,21 +2312,22 @@ document.getElementById('nav-menu').addEventListener('click', e => {
 });
 
 function switchView(target) {
+  // Remap legacy tab names that no longer have nav items
+  if (target === 'reports' || target === 'international') { switchView('analytics'); return; }
+
   document.querySelectorAll('.nav-item').forEach(n => n.classList.toggle('active', n.dataset.target === target));
   document.querySelectorAll('.page-view').forEach(v => v.classList.toggle('active', v.id === 'view-' + target));
   document.getElementById('top-title').textContent = VIEW_TITLES[target] || target;
-  try { localStorage.setItem('nestActiveTab', target); } catch {} // persist across refreshes
-  if (target === 'perch')         loadPerch();
-  else                            closePerchPanel();
-  if (target === 'calendar')      loadCalendarIfNeeded();
-  if (target === 'dashboard')     loadDashboardIfNeeded();
-  if (target === 'analytics')     loadGscIfNeeded();
-  if (target === 'reports')       loadReports();
-  if (target === 'techseo')       { loadTechnicalSeo(); loadTechDevKanban(techSeoState.brand); }
-  if (target === 'localseo')      { loadLocalSeo(); loadCitationData(); }
-  if (target === 'settings')      { renderAuditLog(); loadBrandCtx(); loadBrandExamples(); loadSlackWebhook(); checkGbpConnection(); checkGa4Connection(); loadCitationNap(); loadGoalSettings(); if (state.userRole === 'admin') { document.getElementById('users-panel').style.display = ''; loadUsersPanel(); } }
-  if (target === 'international') loadIntlDashboard();
-  if (target === 'howto')         loadHowItWorks();
+  try { localStorage.setItem('nestActiveTab', target); } catch {}
+  if (target === 'perch')      loadPerch();
+  else                         closePerchPanel();
+  if (target === 'calendar')   loadCalendarIfNeeded();
+  if (target === 'dashboard')  loadDashboardIfNeeded();
+  if (target === 'analytics')  { loadGscIfNeeded(); renderAnalyticsCards(); }
+  if (target === 'techseo')    { loadTechnicalSeo(); loadTechDevKanban(techSeoState.brand); }
+  if (target === 'localseo')   { loadLocalSeo(); loadCitationData(); }
+  if (target === 'settings')   { renderAuditLog(); loadBrandCtx(); loadBrandExamples(); loadSlackWebhook(); checkGbpConnection(); checkGa4Connection(); loadCitationNap(); loadGoalSettings(); if (state.userRole === 'admin') { document.getElementById('users-panel').style.display = ''; loadUsersPanel(); } }
+  if (target === 'howto')      loadHowItWorks();
 }
 
 // ═══════════════════════════════════════════════════════════════
@@ -2373,6 +2452,7 @@ async function loadGscIfNeeded() {
     state.gscRows.bonbird = bonbird;
     renderGscTable();
     updateDashboardMetrics();
+    renderAnalyticsCards();
   } catch (e) {
     gscLoaded = false;
     document.getElementById('gsc-tbody').innerHTML =
@@ -2429,32 +2509,70 @@ function switchAnalyticsView(pill) {
   document.querySelectorAll('#analytics-pills .pill').forEach(p => p.classList.remove('active'));
   pill.classList.add('active');
   state.activeAnalyticsBrand = pill.dataset.brand;
-  state.activeAnalyticsView  = pill.dataset.view;
-
-  document.getElementById('panel-gsc').style.display           = state.activeAnalyticsView === 'gsc'           ? 'block' : 'none';
-  document.getElementById('panel-comp').style.display          = state.activeAnalyticsView === 'comp'          ? 'block' : 'none';
-  document.getElementById('panel-backlinks').style.display     = state.activeAnalyticsView === 'backlinks'     ? 'block' : 'none';
-  document.getElementById('panel-audit').style.display         = state.activeAnalyticsView === 'audit'         ? 'block' : 'none';
-  document.getElementById('panel-opportunities').style.display = state.activeAnalyticsView === 'opportunities' ? 'block' : 'none';
-  if (state.activeAnalyticsView === 'opportunities') loadKeywordOpportunities();
-  if (state.activeAnalyticsView === 'audit') loadAuditHistory();
-
-  if (state.activeAnalyticsView === 'gsc') {
-    if (state.gscConnected) {
-      if (!gscLoaded) { loadGscIfNeeded(); } else { renderGscTable(); }
-    }
+  if (state.gscConnected) {
+    if (!gscLoaded) { loadGscIfNeeded(); } else { renderGscTable(); }
   }
+}
 
-  if (state.activeAnalyticsView === 'comp') {
-    // Trigger competitor matrix load if the UI script is loaded
-    if (window.competitorMatrix && typeof window.competitorMatrix.init === 'function') {
-      window.competitorMatrix.init();
-    }
+function switchAnalyticsTab(tab, btn) {
+  // Ensure we're on the analytics view
+  if (!document.getElementById('view-analytics').classList.contains('active')) {
+    switchView('analytics');
   }
+  // Show tabs, hide overview cards
+  document.getElementById('analytics-tabs').style.display = 'flex';
+  document.getElementById('analytics-overview-cards').style.display = 'none';
+  // Switch active tab button
+  document.querySelectorAll('#analytics-tabs .admin-tab').forEach(b => b.classList.remove('active'));
+  const activeBtn = btn || document.querySelector(`#analytics-tabs [data-atab="${tab}"]`);
+  if (activeBtn) activeBtn.classList.add('active');
+  // Switch panel
+  document.querySelectorAll('.analytics-tab-panel').forEach(p => p.style.display = 'none');
+  const panel = document.getElementById('atab-' + tab);
+  if (panel) panel.style.display = 'block';
+  // Trigger data loads
+  if (tab === 'rankings')     { if (!gscLoaded) loadGscIfNeeded(); else renderGscTable(); }
+  if (tab === 'competitors')  { loadAuditHistory(); if (window.competitorMatrix?.init) window.competitorMatrix.init(); }
+  if (tab === 'opportunities') loadKeywordOpportunities();
+  if (tab === 'backlinks')    loadBacklinksIfNeeded();
+  if (tab === 'markets')      loadIntlDashboard();
+  if (tab === 'report')       loadReports();
+}
 
-  if (state.activeAnalyticsView === 'backlinks') {
-    loadBacklinksIfNeeded();
-  }
+function showAnalyticsOverview() {
+  document.getElementById('analytics-tabs').style.display = 'none';
+  document.querySelectorAll('.analytics-tab-panel').forEach(p => p.style.display = 'none');
+  document.getElementById('analytics-overview-cards').style.display = 'grid';
+  renderAnalyticsCards();
+}
+
+function renderAnalyticsCards() {
+  const container = document.getElementById('analytics-overview-cards');
+  if (!container) return;
+  const pickl10   = (state.gscRows?.pickl   || []).filter(r => r.position <= 10).length;
+  const bonbird10 = (state.gscRows?.bonbird || []).filter(r => r.position <= 10).length;
+  const cards = [
+    { icon:'ti-chart-bar',       title:'Rankings',      metric: gscLoaded ? String(pickl10 + bonbird10) : '—', sub: gscLoaded ? 'keywords in top 10' : 'Connect GSC to load', desc:`Pickl: ${pickl10} · Bonbird: ${bonbird10}`, tab:'rankings',      color:'#1BBFA3' },
+    { icon:'ti-swords',          title:'Competitors',   metric:'—',                                              sub:'competitor matrix',                                      desc:'SERP API · Deep audit tool',                  tab:'competitors',   color:'#6366f1' },
+    { icon:'ti-target',          title:'Opportunities', metric:'—',                                              sub:'keyword gaps',                                           desc:'Content gaps · Quick wins · Push to top 10',  tab:'opportunities', color:'#f59e0b' },
+    { icon:'ti-link',            title:'Backlinks',     metric:'—',                                              sub:'referring domains',                                      desc:'Pickl · Bonbird backlink profiles',            tab:'backlinks',     color:'#10b981' },
+    { icon:'ti-world',           title:'Markets',       metric:'9',                                              sub:'active markets',                                         desc:'UAE · Bahrain · KSA · Jordan · Egypt + more',  tab:'markets',       color:'#3b82f6' },
+    { icon:'ti-file-analytics',  title:'Report',        metric:'PDF',                                            sub:'ready to export',                                        desc:'Rankings · AI Search · Pipeline summary',      tab:'report',        color:'#ef4444' },
+  ];
+  container.innerHTML = cards.map(c => `
+    <div class="card" onclick="switchAnalyticsTab('${c.tab}')" style="cursor:pointer;transition:border-color 0.15s"
+         onmouseenter="this.style.borderColor='${c.color}40'" onmouseleave="this.style.borderColor=''">
+      <div style="display:flex;align-items:center;gap:10px;margin-bottom:14px">
+        <div style="width:36px;height:36px;border-radius:10px;background:${c.color}18;display:flex;align-items:center;justify-content:center;flex-shrink:0">
+          <i class="ti ${c.icon}" style="font-size:17px;color:${c.color}"></i>
+        </div>
+        <div style="font-size:13px;font-weight:600;color:var(--text-main)">${c.title}</div>
+        <i class="ti ti-chevron-right" style="margin-left:auto;font-size:14px;color:var(--text-muted)"></i>
+      </div>
+      <div style="font-size:28px;font-weight:700;color:var(--text-main);line-height:1;margin-bottom:4px">${c.metric}</div>
+      <div style="font-size:12px;color:${c.color};font-weight:500;margin-bottom:6px">${c.sub}</div>
+      <div style="font-size:11px;color:var(--text-muted)">${c.desc}</div>
+    </div>`).join('');
 }
 
 function updateDashboardMetrics() {
@@ -3943,81 +4061,177 @@ function handleLogout() {
 
 // ── Users panel ───────────────────────────────────────────────────────────────
 
+function showUserTab(tab, btn) {
+  document.querySelectorAll('#users-panel .admin-tab').forEach(b => b.classList.remove('active'));
+  document.querySelectorAll('#users-panel .admin-panel').forEach(p => p.classList.remove('active'));
+  if (btn) btn.classList.add('active');
+  const panel = document.getElementById('users-tab-' + tab);
+  if (panel) panel.classList.add('active');
+  if (tab === 'brands') loadUserBrandsMatrix();
+}
+
+function _avatarColor(email) {
+  const COLORS = ['#0F8A77','#7c3aed','#D85A30','#A06000','#3B6D11','#b45309','#0369a1','#be185d'];
+  return COLORS[email.split('').reduce((a, c) => a + c.charCodeAt(0), 0) % COLORS.length];
+}
+
+function _initials(name, email) {
+  const n = name || email.split('@')[0];
+  return n.split(/[\s._-]+/).filter(Boolean).slice(0, 2).map(w => w[0]).join('').toUpperCase();
+}
+
+function _timeAgo(iso) {
+  if (!iso) return 'Never';
+  const diff = Date.now() - new Date(iso).getTime();
+  const mins = Math.floor(diff / 60000);
+  if (mins < 2) return 'Just now';
+  if (mins < 60) return `${mins}m ago`;
+  const hrs = Math.floor(mins / 60);
+  if (hrs < 24) return `${hrs}h ago`;
+  const days = Math.floor(hrs / 24);
+  return days === 1 ? 'Yesterday' : `${days}d ago`;
+}
+
+let _cachedUsers = [];
+
 async function loadUsersPanel() {
   const list = document.getElementById('users-list');
   if (!list) return;
-  list.innerHTML = '<div style="text-align:center;padding:16px;color:var(--text-muted);font-size:13px">Loading…</div>';
+  list.innerHTML = '<div style="text-align:center;padding:24px;color:var(--text-muted);font-size:13px">Loading…</div>';
   try {
-    const res  = await fetch('/api/users', { credentials: 'include' });
-    const data = await res.json();
-    const users = data.users || [];
-    const ROLE_COLORS = { admin: '#DF0070', manager: '#3b82f6', viewer: '#64748b', developer: '#059669' };
-    const ALL_BRANDS  = ['all','pickl','bonbird','southpour','shadowburg','shadowbird'];
-    const ALL_DEPTS   = ['all','seo','social','design','content'];
-    const brandLabel  = b => b === 'all' ? 'All Brands' : b ? b.charAt(0).toUpperCase()+b.slice(1) : '-- none --';
-    const deptLabel   = d => d === 'all' ? 'All Departments' : d ? d.charAt(0).toUpperCase()+d.slice(1) : '-- none --';
-    const timeAgo     = iso => {
-      if (!iso) return 'Never';
-      const diff = Date.now() - new Date(iso).getTime();
-      const mins = Math.floor(diff / 60000);
-      if (mins < 60) return mins < 2 ? 'Just now' : `${mins}m ago`;
-      const hrs = Math.floor(mins / 60);
-      if (hrs < 24) return `${hrs}h ago`;
-      const days = Math.floor(hrs / 24);
-      return days === 1 ? 'Yesterday' : `${days} days ago`;
-    };
-    list.innerHTML = `
-      <table style="width:100%;border-collapse:collapse;font-size:13px">
+    const res   = await fetch('/api/users', { credentials: 'include' });
+    const data  = await res.json();
+    _cachedUsers = data.users || [];
+    _renderUsersTable(_cachedUsers);
+  } catch (e) {
+    list.innerHTML = `<div style="color:var(--danger);padding:16px">${esc(e.message)}</div>`;
+  }
+}
+
+function _renderUsersTable(users) {
+  const list = document.getElementById('users-list');
+  if (!list) return;
+  const brandLabel = b => b === 'all' ? 'All' : b ? b.charAt(0).toUpperCase() + b.slice(1) : '';
+  const BRAND_COLORS = { pickl: '#f59e0b', bonbird: '#ef4444', southpour: '#10b981', shadowburg: '#8b5cf6', shadowbird: '#6366f1', all: '#1BBFA3' };
+  const roleClass = r => ({ admin: 'role-admin', manager: 'role-manager', viewer: 'role-viewer', developer: 'role-developer' }[r] || 'role-viewer');
+
+  list.innerHTML = `
+    <table class="user-table">
+      <thead>
+        <tr>
+          <th>User</th>
+          <th>Role</th>
+          <th>Brands</th>
+          <th>Last login</th>
+          <th></th>
+        </tr>
+      </thead>
+      <tbody>
+        ${users.map(u => {
+          const name     = u.name || u.email.split('@')[0];
+          const initials = _initials(u.name, u.email);
+          const color    = _avatarColor(u.email);
+          const brands   = u.brands && u.brands.length ? u.brands : [];
+          const lastLogin = _timeAgo(u.lastLogin);
+          const isRecent = u.lastLogin && (Date.now() - new Date(u.lastLogin).getTime()) < 7 * 86400000;
+          return `<tr>
+            <td>
+              <div style="display:flex;align-items:center;gap:10px">
+                <div class="people-avatar" style="background:${color}">${initials}</div>
+                <div>
+                  <div style="font-weight:500;color:var(--text-main)">${esc(name)}</div>
+                  <div style="font-size:11px;color:var(--text-muted)">${esc(u.email)}${u.isBootstrap ? ' · <span style="color:var(--accent)">bootstrap</span>' : ''}</div>
+                </div>
+              </div>
+            </td>
+            <td>
+              ${u.isBootstrap
+                ? `<span class="role-badge role-admin">Admin</span>`
+                : `<select onchange="updateUserField('${esc(u.email)}','role',this.value)" style="font-size:12px;padding:4px 8px;border-radius:6px;border:0.5px solid var(--border);background:var(--bg-surface);color:var(--text-main);cursor:pointer;font-family:var(--font-sans)">
+                    ${['viewer','manager','admin','developer'].map(r => `<option value="${r}" ${u.role===r?'selected':''}>${r.charAt(0).toUpperCase()+r.slice(1)}</option>`).join('')}
+                   </select>`
+              }
+            </td>
+            <td>
+              <div style="display:flex;flex-wrap:wrap;gap:4px;align-items:center">
+                ${brands.map(b => `<span style="font-size:11px;padding:2px 9px;border-radius:10px;background:${BRAND_COLORS[b]||'#64748b'}18;color:${BRAND_COLORS[b]||'#94a3b8'};border:0.5px solid ${BRAND_COLORS[b]||'#64748b'}40;font-weight:500">${brandLabel(b)}</span>`).join('') || '<span style="font-size:12px;color:var(--text-muted)">—</span>'}
+                ${u.isBootstrap ? '' : `<button onclick="showEditBrandsModal('${esc(u.email)}',${JSON.stringify(brands)})" style="width:20px;height:20px;border-radius:4px;background:var(--bg-hover);border:0.5px solid var(--border);color:var(--text-muted);cursor:pointer;font-size:11px;display:inline-flex;align-items:center;justify-content:center;line-height:1" title="Edit brand access"><i class="ti ti-pencil" style="font-size:10px"></i></button>`}
+              </div>
+            </td>
+            <td>
+              <span class="status-pill ${isRecent ? 'status-active' : 'status-pending'}">
+                <span style="width:6px;height:6px;border-radius:50%;background:${isRecent ? '#16a34a' : '#d97706'};display:inline-block"></span>
+                ${lastLogin}
+              </span>
+            </td>
+            <td style="text-align:right">
+              ${u.isBootstrap ? '' : `<button onclick="removeUser('${esc(u.email)}')" class="btn btn-outline" style="padding:4px 12px;font-size:12px;color:#ef4444;border-color:rgba(239,68,68,0.3)">Remove</button>`}
+            </td>
+          </tr>`;
+        }).join('')}
+      </tbody>
+    </table>`;
+}
+
+async function loadUserBrandsMatrix() {
+  const wrap = document.getElementById('users-brands-matrix');
+  if (!wrap) return;
+  const users = _cachedUsers.length ? _cachedUsers : (() => {
+    wrap.innerHTML = '<div style="text-align:center;padding:24px;color:var(--text-muted);font-size:13px">Load Users tab first.</div>';
+    return null;
+  })();
+  if (!users) return;
+
+  const BRANDS = ['pickl','bonbird','southpour','shadowburg','shadowbird'];
+  const BRAND_LABELS = { pickl:'Pickl', bonbird:'Bonbird', southpour:'Southpour', shadowburg:'Shadowburg', shadowbird:'Shadowbird' };
+
+  const hasBrand = (u, b) => !u.brands || u.brands.includes('all') || u.brands.includes(b);
+
+  wrap.innerHTML = `
+    <div class="info-box"><i class="ti ti-info-circle"></i><span>Toggle brand access per user. Changes save immediately. Bootstrap admins have access to all brands.</span></div>
+    <div style="overflow-x:auto">
+      <table class="perm-table">
         <thead>
-          <tr style="border-bottom:1px solid var(--border)">
-            <th style="text-align:left;padding:8px 12px;color:var(--text-muted);font-weight:600">User</th>
-            <th style="text-align:left;padding:8px 12px;color:var(--text-muted);font-weight:600">Role</th>
-            <th style="text-align:left;padding:8px 12px;color:var(--text-muted);font-weight:600">Brand</th>
-            <th style="text-align:left;padding:8px 12px;color:var(--text-muted);font-weight:600">Department</th>
-            <th style="text-align:left;padding:8px 12px;color:var(--text-muted);font-weight:600">Last Login</th>
-            <th style="padding:8px 12px"></th>
+          <tr>
+            <th>User</th>
+            ${BRANDS.map(b => `<th>${BRAND_LABELS[b]}</th>`).join('')}
           </tr>
         </thead>
         <tbody>
           ${users.map(u => `
-            <tr style="border-bottom:1px solid var(--border)">
-              <td style="padding:10px 12px">
-                <div style="font-weight:500">${esc(u.name || u.email.split('@')[0])}</div>
-                <div style="font-size:11px;color:var(--text-muted)">${esc(u.email)}</div>
-                ${u.isBootstrap ? '<div style="font-size:10px;color:var(--text-muted)">Bootstrap admin</div>' : ''}
-              </td>
-              <td style="padding:10px 12px">
-                ${u.isBootstrap
-                  ? `<span style="font-size:12px;font-weight:600;color:${ROLE_COLORS.admin}">admin</span>`
-                  : `<select onchange="updateUserField('${esc(u.email)}','role',this.value)" style="font-size:12px;padding:3px 6px;border-radius:6px;border:1px solid var(--border);background:var(--bg-surface);color:var(--text);cursor:pointer">
-                      ${['viewer','manager','admin','developer'].map(r => `<option value="${r}" ${u.role===r?'selected':''}>${r}</option>`).join('')}
-                    </select>`
-                }
-              </td>
-              <td style="padding:10px 12px">
-                <div style="display:flex;flex-wrap:wrap;gap:4px;align-items:center">
-                  ${(u.brands && u.brands.length ? u.brands : []).map(b =>
-                    `<span style="font-size:11px;padding:2px 8px;border-radius:99px;background:var(--bg-base);border:1px solid var(--border);font-weight:500">${brandLabel(b)}</span>`
-                  ).join('') || `<span style="font-size:12px;color:var(--text-muted)">—</span>`}
-                  ${u.isBootstrap ? '' : `<button onclick="showEditBrandsModal('${esc(u.email)}', ${JSON.stringify(u.brands || [])})" style="font-size:11px;color:var(--primary);background:none;border:none;cursor:pointer;padding:2px 4px" title="Edit brands">✏️</button>`}
+            <tr>
+              <td>
+                <div style="display:flex;align-items:center;gap:8px">
+                  <div class="people-avatar" style="background:${_avatarColor(u.email)};width:24px;height:24px;font-size:10px">${_initials(u.name, u.email)}</div>
+                  <div>
+                    <div style="font-size:13px">${esc(u.name || u.email.split('@')[0])}</div>
+                    <div style="font-size:11px;color:var(--text-muted)">${u.isBootstrap ? 'Bootstrap admin' : (u.role||'viewer')}</div>
+                  </div>
                 </div>
               </td>
-              <td style="padding:10px 12px">
-                <select onchange="updateUserField('${esc(u.email)}','department',this.value)" style="font-size:12px;padding:3px 6px;border-radius:6px;border:1px solid var(--border);background:var(--bg-surface);color:var(--text);cursor:pointer">
-                  <option value="">-- none --</option>
-                  ${ALL_DEPTS.map(d => `<option value="${d}" ${u.department===d?'selected':''}>${deptLabel(d)}</option>`).join('')}
-                </select>
-              </td>
-              <td style="padding:10px 12px;font-size:12px;color:var(--text-muted)">${timeAgo(u.lastLogin)}</td>
-              <td style="padding:10px 12px;text-align:right">
-                ${u.isBootstrap ? '' : `<button onclick="removeUser('${esc(u.email)}')" style="font-size:12px;color:#ef4444;background:none;border:none;cursor:pointer;padding:4px 8px;border-radius:4px" onmouseover="this.style.background='rgba(239,68,68,0.1)'" onmouseout="this.style.background='none'">Remove</button>`}
-              </td>
+              ${BRANDS.map(b => `
+                <td>
+                  <label class="nest-toggle">
+                    <input type="checkbox" ${hasBrand(u, b) ? 'checked' : ''} ${u.isBootstrap ? 'disabled' : ''} onchange="toggleBrandAccess('${esc(u.email)}','${b}',this.checked,${JSON.stringify(u.brands||[])})">
+                    <span class="nest-toggle-slider"></span>
+                  </label>
+                </td>`).join('')}
             </tr>`).join('')}
         </tbody>
-      </table>`;
-  } catch (e) {
-    list.innerHTML = `<div style="color:var(--danger);padding:16px">${esc(e.message)}</div>`;
-  }
+      </table>
+    </div>`;
+}
+
+async function toggleBrandAccess(email, brand, checked, currentBrands) {
+  let brands = currentBrands.filter(b => b !== 'all');
+  if (checked) { if (!brands.includes(brand)) brands.push(brand); }
+  else { brands = brands.filter(b => b !== brand); }
+  try {
+    await fetch('/api/users', { method: 'PUT', credentials: 'include', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ email, brands }) });
+    const u = _cachedUsers.find(u => u.email === email);
+    if (u) u.brands = brands;
+    showToast('Brand access updated', 'success');
+  } catch (e) { showToast('Failed to save', 'error'); }
 }
 
 async function updateUserField(email, field, value) {
@@ -5277,7 +5491,7 @@ function renderReports(brand, rows, techData, queue, matrixData) {
         ${compSummaries}
         <div style="margin-top:12px;display:flex;justify-content:space-between;align-items:center">
           <span style="font-size:12px;color:var(--text-muted)">${gapRows.length} total gaps across ${Object.keys(byComp).length} competitors</span>
-          <a onclick="switchView('analytics');setTimeout(()=>{document.querySelector('[data-view=gaps]')?.click()},400)" style="font-size:12px;color:var(--primary);cursor:pointer;font-weight:600">View full gap analysis + queue keywords →</a>
+          <a onclick="switchView('analytics');setTimeout(()=>switchAnalyticsTab('competitors'),400)" style="font-size:12px;color:var(--primary);cursor:pointer;font-weight:600">View full gap analysis + queue keywords →</a>
         </div>`;
     }
   }
@@ -6877,29 +7091,26 @@ function renderIntlDashboard() {
 function intlOpenKwOpps(brand, marketKey) {
   switchView('analytics');
   setTimeout(() => {
-    const pill = document.querySelector('[data-view="opportunities"]');
-    if (pill) { switchAnalyticsView(pill); }
+    switchAnalyticsTab('opportunities');
     setTimeout(() => {
       const brandEl  = document.getElementById('opp-brand-filter');
       const marketEl = document.getElementById('opp-market-filter');
-      if (brandEl)  { brandEl.value  = brand;     }
-      if (marketEl) { marketEl.value = marketKey; }
+      if (brandEl)  brandEl.value  = brand;
+      if (marketEl) marketEl.value = marketKey;
       loadKeywordOpportunities();
     }, 100);
   }, 200);
 }
 
-// Open Competitor Analysis pre-filled with market context
 function intlOpenAudit(brand, marketKey) {
   switchView('analytics');
   setTimeout(() => {
-    const pill = document.querySelector('[data-view="audit"]');
-    if (pill) { switchAnalyticsView(pill); }
+    switchAnalyticsTab('competitors');
     setTimeout(() => {
       const brandEl  = document.getElementById('audit-brand-select');
       const marketEl = document.getElementById('audit-market-select');
-      if (brandEl)  { brandEl.value  = brand;     }
-      if (marketEl) { marketEl.value = marketKey; }
+      if (brandEl)  brandEl.value  = brand;
+      if (marketEl) marketEl.value = marketKey;
     }, 100);
   }, 200);
 }
@@ -10049,9 +10260,9 @@ function renderPresentSlide() {
         <div style="margin-left:auto;display:flex;gap:6px;flex-wrap:wrap">${pfRow}</div>
       </div>
       <div style="font-size:14px;color:rgba(255,255,255,0.9);line-height:1.7;white-space:pre-wrap;margin-bottom:10px">${esc(post.caption || '(no caption)')}</div>
-      ${post.hashtags ? `<div style="font-size:12px;color:#818cf8;margin-bottom:10px">${esc(post.hashtags)}</div>` : ''}
+      ${post.hashtags ? `<div style="font-size:12px;color:#1BBFA3;margin-bottom:10px">${esc(post.hashtags)}</div>` : ''}
       ${post.visualNotes ? `<div style="background:rgba(255,255,255,0.05);border:1px solid rgba(255,255,255,0.1);border-radius:6px;padding:10px 12px"><div style="font-size:10px;font-weight:700;color:rgba(255,255,255,0.4);text-transform:uppercase;letter-spacing:0.04em;margin-bottom:4px">Visual Notes</div><div style="font-size:12px;color:rgba(255,255,255,0.7);white-space:pre-wrap">${esc(post.visualNotes)}</div></div>` : ''}
-      ${post.videoUrl ? `<div style="margin-top:10px"><a href="${esc(post.videoUrl)}" target="_blank" rel="noopener" style="color:#60a5fa;font-size:13px">▶ View Video</a></div>` : ''}
+      ${post.videoUrl ? `<div style="margin-top:10px"><a href="${esc(post.videoUrl)}" target="_blank" rel="noopener" style="color:#1BBFA3;font-size:13px">▶ View Video</a></div>` : ''}
       ${canApprovePresent ? `<div style="display:flex;gap:8px;margin-top:16px;padding-top:14px;border-top:1px solid rgba(255,255,255,0.1)">
         <button onclick="presentApprove('${post.id}')" style="flex:1;background:#16a34a;border:none;color:#fff;padding:8px 0;border-radius:7px;font-size:13px;font-weight:600;cursor:pointer">✅ Approve</button>
         <button onclick="presentRequestChanges('${post.id}')" style="flex:1;background:rgba(239,68,68,0.15);border:1px solid #ef4444;color:#ef4444;padding:8px 0;border-radius:7px;font-size:13px;font-weight:600;cursor:pointer">💬 Request Changes</button>
@@ -10073,7 +10284,7 @@ function renderPresentStrip() {
     const thumb = stripSrc
       ? `<img src="${stripSrc}" style="width:100%;height:100%;object-fit:cover;border-radius:5px" onerror="this.style.display='none'">`
       : `<div style="width:100%;height:100%;display:flex;align-items:center;justify-content:center;border-radius:5px;background:rgba(255,255,255,0.05)">${(p.platforms||[])[0] ? pfIcon((p.platforms||[])[0], 20, 'filter:brightness(0) invert(0.6)') : '<span style="font-size:16px">📋</span>'}</div>`;
-    return `<div onclick="calState.presentIdx=${i};renderPresentSlide();renderPresentStrip()" style="flex-shrink:0;width:64px;height:64px;border-radius:6px;cursor:pointer;border:2px solid ${i===idx ? '#3b82f6' : 'rgba(255,255,255,0.15)'};overflow:hidden;position:relative;transition:border-color 0.15s">
+    return `<div onclick="calState.presentIdx=${i};renderPresentSlide();renderPresentStrip()" style="flex-shrink:0;width:64px;height:64px;border-radius:6px;cursor:pointer;border:2px solid ${i===idx ? '#1BBFA3' : 'rgba(255,255,255,0.15)'};overflow:hidden;position:relative;transition:border-color 0.15s">
       ${thumb}
       <div style="position:absolute;bottom:2px;right:2px;width:8px;height:8px;border-radius:50%;background:${sc.color};border:1px solid #0f172a"></div>
     </div>`;
