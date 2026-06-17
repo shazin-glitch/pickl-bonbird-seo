@@ -51,15 +51,15 @@
 
 ---
 
-## Current Version: v7.0.5
+## Current Version: v7.1.7
 
 See SETUP.md → "Done (Full History)" for complete build log.
 
 **Next up (see memory for full deferred backlog):**
 - Slack bot OAuth — deep-link notifications to specific brand → market → calendar post
 - International keyword opportunities (UAE only right now)
-- Verify bugs: AI caption ignores image, PDF export truncated, video upload greyed out, deep audit not saving, "+30 more" keywords not clickable
 - Tone-of-voice check before approval queue
+- Arabic/native review workflow — "Pending native review" step before publishing Arabic content
 - Domain migration → thenest.yolkbrands.com (checklist in SETUP.md)
 
 **⚠️ Adding a new market — REQUIRED steps:**

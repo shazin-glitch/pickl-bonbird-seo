@@ -2608,7 +2608,59 @@ Empty state now shows:
 
 ---
 
-## Session: June 2026 — v7.1.5 — Edit & Re-push for published items
+## Session: June 2026 — v7.1.7 — Edit Draft modal button fix
+
+### Correct button logic per item type (index.html)
+- **meta_update and other non-draft types**: single button — "Save & Publish Live" (meta goes live immediately on push, no WP draft state exists — old label "Save & Approve as Draft" was misleading)
+- **blog_draft / page_creation / page_update**: two buttons — "Save → WP Draft" (edit_approve only) + green "Save & Publish Live" (edit_approve then publish in one step)
+- `buildEditPayload()` extracted as a shared closure to avoid duplicating the form-field reading logic between both button handlers
+
+---
+
+## Session: June 2026 — v7.1.6 — Brand context injected into ALL Claude call sites
+
+### Full audit of every Anthropic API call in the codebase
+
+Previously: brand context (menu, tone, voice examples) was only injected by the Monday scheduler jobs. Three other call sites were generating brand-facing content with zero brand context — causing hallucinated menu items, wrong tone, made-up locations.
+
+**Fixes:**
+
+`scheduler-background.js` — `runPageCreation`:
+- `brandPrompt` was passed as a parameter but never forwarded to the `callClaude` call
+- Fix: `system: brandPrompt || buildBrandPrompt(brandCtx)` now passed — landing pages get full brand context
+
+`approvals.js`:
+- Added import: `const { getBrandContext, getBrandExamples, buildBrandPrompt } = require('./_lib/brand')`
+- Local `callClaude` updated to support `opts.system` (previously only supported `maxTokens` integer — no system prompt support at all)
+- `rewriteWithClaude` (reject + requeue path): now fetches brand context + examples, passes as system prompt to every rewrite
+- `handleRewritePublished` (Edit & Re-push): switched from reading brandContext as raw Blobs text to using `getBrandContext` + `buildBrandPrompt` + `getBrandExamples` — same quality as scheduler
+
+`reviews.js` — `draftResponse`:
+- Added import from `_lib/brand`
+- Now fetches brand context, builds system prompt via `buildBrandPrompt` before drafting review responses
+
+**Already correct (no changes needed):**
+- `scheduler-background.js` quick_wins, meta_rewrites, content_gaps — all inject brand context + examples ✅
+- `international-seo-background.js` — all paths use `buildMarketPrompt(market, buildBrandPrompt(brandCtx))` ✅
+- `gbp-reviews.js` — correct but behind early return (activates when API approved) ✅
+
+---
+
+## Session: June 2026 — v7.1.5 — Edit & Re-push for published items + refinements
+
+### v7.1.5 — Core feature
+Every Published & Tracking card has an "✏️ Edit & Re-push" button. Modal pre-fills current SEO title / meta description / focus keyword. Manual edit or AI fix (describe what's wrong → Claude generates corrected meta → review → push). New approvals.js actions: `rewrite_published` + `republish`.
+
+### v7.1.5b — Smarter AI prompt + keyword lock + UI improvements
+- Modal styling fixed: uses `btn-primary`/`btn-outline` classes + `var(--bg-surface)` — Generate Fix button was invisible (white on white)
+- AI prompt rewritten: "fix ONLY what feedback describes, copy other fields verbatim" — previously Claude rewrote everything including the title when feedback only mentioned the description
+- Focus keyword hardcoded in JSON instruction AND enforced server-side — Claude can never change it regardless of what it returns
+- Keyword presence check: after AI generates, shows ✅/⚠️ badges for whether focus keyword appears in title and description
+
+### v7.1.5c → superseded by v7.1.6
+Brand context injection in `handleRewritePublished` was partially fixed here (raw text read from Blobs), then fully fixed in v7.1.6 using `buildBrandPrompt`.
+
+---
 
 ### New feature: Edit & Re-push (approvals.js + index.html)
 Every Published & Tracking card now has an "✏️ Edit & Re-push" button.

@@ -3196,29 +3196,74 @@ function editItem(id) {
     fields.push(`<div class="form-group"><label class="form-label">Content</label><textarea id="edit-body" rows="10" class="form-input" style="font-family:var(--font-sans);font-size:13px;resize:vertical">${esc(JSON.stringify(p, null, 2))}</textarea></div>`);
   }
 
+  const hasPublishStep = ['blog_draft', 'page_creation', 'page_update'].includes(item.type);
+  const draftLabel = hasPublishStep ? 'Save → WP Draft' : 'Save & Publish Live';
+  const modalDesc  = hasPublishStep
+    ? 'Save edits and push to WordPress as a draft — or use "Save & Publish Live" to do both in one step.'
+    : 'Save edits and push live to WordPress.';
+
+  function buildEditPayload() {
+    const updated = { ...p };
+    const title   = document.getElementById('edit-title')?.value;
+    const meta    = document.getElementById('edit-meta')?.value;
+    const keyword = document.getElementById('edit-keyword')?.value;
+    const body    = document.getElementById('edit-body')?.value;
+    const slug    = document.getElementById('edit-slug')?.value;
+    if (title   != null) { updated.title = title; updated.metaTitle = title; }
+    if (meta    != null) { updated.metaDescription = meta; updated.description = meta; }
+    if (keyword != null) updated.targetKeyword = keyword;
+    if (body    != null) updated.body = body;
+    if (slug    != null) updated.slug = slug;
+    return updated;
+  }
+
   openToolRaw(
     'Edit — ' + (item.title || item.type),
-    'Edit and save. "Save & Approve as Draft" pushes to WordPress as a draft.',
+    modalDesc,
     fields.join(''),
     async () => {
-      const updated = { ...p };
-      const title   = document.getElementById('edit-title')?.value;
-      const meta    = document.getElementById('edit-meta')?.value;
-      const keyword = document.getElementById('edit-keyword')?.value;
-      const body    = document.getElementById('edit-body')?.value;
-      const slug    = document.getElementById('edit-slug')?.value;
-      if (title   !== undefined && title   !== null) { updated.title = title; updated.metaTitle = title; }
-      if (meta    !== undefined && meta    !== null) { updated.metaDescription = meta; updated.description = meta; }
-      if (keyword !== undefined && keyword !== null) updated.targetKeyword = keyword;
-      if (body    !== undefined && body    !== null) updated.body = body;
-      if (slug    !== undefined && slug    !== null) updated.slug = slug;
-      await apiPost('/api/approvals', { action: 'edit_approve', id, payload: updated, actor: state.actor });
-      showToast('Saved & pushed as WP draft ✓', 'success');
+      const res = await apiPost('/api/approvals', { action: 'edit_approve', id, payload: buildEditPayload(), actor: state.actor });
+      if (res.pushResult && !res.pushResult.ok) throw new Error(res.pushResult.message || 'Push failed');
+      showToast(hasPublishStep ? 'Saved as WP draft ✓' : 'Saved & pushed ✓', 'success');
       await loadQueue();
       return true;
     },
-    'Save & Approve as Draft'
+    draftLabel
   );
+
+  // Inject "Save & Publish Live" button only for types with a two-step draft→publish flow
+  if (hasPublishStep) {
+    const old = document.getElementById('modal-publish-btn');
+    if (old) old.remove();
+    const publishBtn = document.createElement('button');
+    publishBtn.id = 'modal-publish-btn';
+    publishBtn.className = 'btn btn-primary';
+    publishBtn.style.background = '#059669';
+    publishBtn.textContent = '🚀 Save & Publish Live';
+    publishBtn.onclick = async () => {
+      publishBtn.disabled = true; publishBtn.textContent = 'Publishing…';
+      const draftBtn = document.getElementById('modal-run-btn');
+      if (draftBtn) draftBtn.disabled = true;
+      try {
+        const r1 = await apiPost('/api/approvals', { action: 'edit_approve', id, payload: buildEditPayload(), actor: state.actor });
+        if (r1.pushResult && !r1.pushResult.ok) throw new Error(r1.pushResult.message || 'Draft push failed');
+        const r2 = await apiPost('/api/approvals', { action: 'publish', id, actor: state.actor });
+        if (r2.publishResult?.ok !== false) {
+          showToast('Edited & published live ✓', 'success');
+        } else {
+          showToast('Saved as draft — publish step failed: ' + (r2.publishResult?.message || 'unknown'), 'warn');
+        }
+        closeTool();
+        await loadQueue();
+      } catch (e) {
+        showToast(e.message, 'error');
+        publishBtn.disabled = false; publishBtn.textContent = '🚀 Save & Publish Live';
+        if (draftBtn) draftBtn.disabled = false;
+      }
+    };
+    const runBtn = document.getElementById('modal-run-btn');
+    runBtn?.parentNode?.insertBefore(publishBtn, runBtn);
+  }
 }
 
 function removeCardFromQueue(id) {
