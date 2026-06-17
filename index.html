@@ -2366,6 +2366,9 @@ function updateQueueBadge(counts) {
 
 function filterQueue(pill) {
   const filter = pill.dataset.qfilter;
+  // Type pills that can filter within the published view
+  const TYPE_FILTERS = new Set(['blog_draft', 'meta_update', 'page_update', 'page_creation', 'onpage_suggestion', 'review_response', 'schema_update']);
+
   if (filter === 'published') {
     // Entering published view — reset type filter
     document.querySelectorAll('#queue-pills .pill').forEach(p => p.classList.remove('active'));
@@ -2373,18 +2376,19 @@ function filterQueue(pill) {
     state.activeQFilter = 'published';
     state.publishedTypeFilter = 'all';
     loadPublishedTracking();
-  } else if (state.activeQFilter === 'published') {
-    // Already in published view — treat type pills as published type filter, don't exit
+  } else if (state.activeQFilter === 'published' && TYPE_FILTERS.has(filter)) {
+    // In published view — type pill filters within the published view (doesn't exit)
     document.querySelectorAll('#queue-pills .pill').forEach(p => p.classList.remove('active'));
     pill.classList.add('active');
-    // Keep the Published & Tracking pill visually active too
     document.querySelector('[data-qfilter="published"]')?.classList.add('active');
     state.publishedTypeFilter = filter;
     loadPublishedTracking();
   } else {
+    // All other pills (including "All") always exit published view back to approval queue
     document.querySelectorAll('#queue-pills .pill').forEach(p => p.classList.remove('active'));
     pill.classList.add('active');
     state.activeQFilter = filter;
+    state.publishedTypeFilter = 'all';
     renderQueue();
   }
 }
@@ -2566,8 +2570,8 @@ function buildTrackingCard(item) {
   // Show what was actually published — varies by type
   let publishedContentHtml = '';
   if (item.type === 'meta_update') {
-    const seoTitle = p.title || p.seoTitle || null;
-    const seoDesc  = p.description || p.metaDescription || null;
+    const seoTitle = p.metaTitle || (p.title !== item.title ? p.title : null) || null;
+    const seoDesc  = p.metaDescription || p.description || null;
     if (seoTitle || seoDesc) {
       publishedContentHtml = `
         <div style="background:var(--bg-base);border-radius:8px;padding:10px 14px;margin-bottom:8px;font-size:12px">
@@ -2803,7 +2807,7 @@ function buildPreview(item) {
     ${p.voiceTopFix ? `<div style="margin-top:8px;padding:8px 12px;background:#fef3c7;border-left:3px solid #f59e0b;border-radius:0 6px 6px 0;font-size:12px;color:#92400e"><strong>⚠ Voice note:</strong> ${esc(p.voiceTopFix)}</div>` : ''}
     ${p.body ? `<div style="margin-top:10px"><button class="btn btn-outline" style="font-size:12px" onclick="previewContent('${esc(item.id)}')">📄 Read Full Content (~${Math.round(p.body.replace(/<[^>]+>/g,'').length/5)} words)</button></div>` : ''}`;
   if (item.type === 'meta_update') {
-    const newTitle = p.metaTitle || p.title || '—';
+    const newTitle = p.metaTitle || (p.title !== item.title ? p.title : null) || '—';
     const newDesc  = p.metaDescription || p.description || '—';
     const curTitle = p.currentMeta?.title || null;
     const curDesc  = p.currentMeta?.description || null;

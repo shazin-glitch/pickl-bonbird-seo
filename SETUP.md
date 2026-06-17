@@ -2608,6 +2608,39 @@ Empty state now shows:
 
 ---
 
+## Session: June 2026 — v7.1.3 — Fix meta_update writing card title instead of SEO title
+
+### Root cause
+- International pipeline (`queueApprovalItem`) sets `payload.title = item.title` (the card display name, e.g. "Meta update — Bahrain EN landing page") and stores the actual Claude SEO title in `payload.metaTitle`
+- `buildSeoMeta` was only reading `payload.title` → was writing the display name to Rank Math/Yoast instead of the real SEO title
+- Fix: `buildSeoMeta` now uses `p.metaTitle || p.title` for the SEO title, `p.metaDescription || p.description` for the description, `p.focusKeyword || p.targetKeyword` for the focus keyword
+- Approval card and tracking card "What was published" updated to use same priority — shows correct SEO title for both international and scheduler items
+
+### Navigation fix (index.html) — v7.1.2
+- Clicking "All" or non-type pills while in Published & Tracking view exits back to approval queue
+- Only type-specific pills (blog_draft, meta_update etc.) filter within published view
+
+---
+
+## Session: June 2026 — v7.1.2 — Navigation fix + Yoast/RankMath dual-plugin support
+
+### Published & Tracking navigation fix (index.html)
+- Clicking "All" or any non-type pill while in Published & Tracking view now correctly exits back to the approval queue
+- Previously, any pill click while in published view was treated as a published-type filter — no way out without reloading
+- Fix: only type-specific pills (blog_draft, meta_update, page_update etc.) filter within published view; "All" and other status pills always exit
+
+### Yoast + Rank Math dual-plugin support (wordpress.js) — v7.1.1
+- handleGetCurrentMeta: reads both rank_math_title and _yoast_wpseo_title, returns whichever has a value
+- handleUpdateMeta write verification: checks both plugins' title keys, passes if either matches
+- buildSeoMeta already writes to all three plugins simultaneously (no change)
+- WP Code snippet: register all 6 meta keys (3 Yoast + 3 Rank Math) on both sites
+
+### Known issue — KSA page bad SEO title
+- Claude generated "Meta update — Saudi Arabia EN landing page" as the Rank Math SEO title for eatpickl.com/ksa/ — this was queued before the prompt fix
+- Manually fix in WP admin → Rank Math SEO → update the title for the KSA page
+
+---
+
 ## Session: June 2026 — v7.1.0 — Meta update overhaul: evaluation, before/after, write verification
 
 ### Meta update — Claude now evaluates before replacing (scheduler-background.js)
@@ -2846,7 +2879,7 @@ Update "Current URL" from `yolkseo.netlify.app` to `thenest.yolkbrands.com`
 
 ---
 
-## Current Version: v7.1.0
+## Current Version: v7.1.3
 
 Last session built: Bug-fix batch (v7.0.2), added Yolk Brands to Content Calendar (v7.0.3 + v7.0.4), added Yolk Brands to The Perch (v7.0.5), fixed Reports tab crash (v7.0.6), Priority Gap → Queue Brief + keyword filtering fixes (v7.0.7), copy-to-market fix + GSC page data + URL Inspection indexing badges (v7.0.8).
 

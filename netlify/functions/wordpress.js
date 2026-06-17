@@ -289,10 +289,15 @@ async function handleGetPost(creds, body) {
 // ── shared helpers ───────────────────────────────────────────────
 function buildSeoMeta(p) {
   const meta = {};
-  if (p.title)         { meta._yoast_wpseo_title = p.title;          meta.rank_math_title = p.title;          meta._seopress_titles_title = p.title; }
-  if (p.description)   { meta._yoast_wpseo_metadesc = p.description;  meta.rank_math_description = p.description; meta._seopress_titles_desc = p.description; }
-  if (p.targetKeyword) { meta._yoast_wpseo_focuskw = p.targetKeyword; meta.rank_math_focus_keyword = p.targetKeyword; }
-  if (p.schema)        { meta._seo_custom_schema = typeof p.schema === 'string' ? p.schema : JSON.stringify(p.schema); }
+  // metaTitle takes priority over title — international pipeline stores SEO title in metaTitle,
+  // while title is the approval card display name (e.g. "Meta update — Bahrain EN landing page")
+  const seoTitle = p.metaTitle || p.title || null;
+  const seoDesc  = p.metaDescription || p.description || null;
+  const seoKw    = p.focusKeyword || p.targetKeyword || null;
+  if (seoTitle) { meta._yoast_wpseo_title = seoTitle;  meta.rank_math_title = seoTitle;       meta._seopress_titles_title = seoTitle; }
+  if (seoDesc)  { meta._yoast_wpseo_metadesc = seoDesc; meta.rank_math_description = seoDesc; meta._seopress_titles_desc = seoDesc; }
+  if (seoKw)    { meta._yoast_wpseo_focuskw = seoKw;   meta.rank_math_focus_keyword = seoKw; }
+  if (p.schema) { meta._seo_custom_schema = typeof p.schema === 'string' ? p.schema : JSON.stringify(p.schema); }
   return meta;
 }
 
