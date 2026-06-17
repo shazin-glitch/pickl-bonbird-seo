@@ -323,6 +323,39 @@ From Google's official AI Optimization Guide (June 2026):
 
 ---
 
+## Session: June 2026 — v7.3.2 — Dark mode panel fix + sidebar user block
+
+### Changes in this session
+
+#### Dark mode: task panel fully themed ✅
+
+`buildPanelHTML` and `openAddTaskModal` had pervasive hardcoded light-mode colours. All replaced with CSS vars:
+- Panel sticky header: `#f8fafc` → `var(--bg-subtle)`, `#e2e8f0` border → `var(--border)`
+- Panel section labels: `#64748b` → `var(--text-muted)` (Labels, Details, Description, Activity)
+- Panel title: `#1e293b` → `var(--text)`, close button `#64748b` → `var(--text-muted)`
+- Label buttons inactive state: `#f1f5f9` bg / `#e2e8f0` border / `#475569` text → CSS vars
+- Delete section divider: `#f1f5f9` → `var(--border)`
+- New Task modal: `#fff` bg → `var(--bg-surface)`, all inputs/selects → `var(--bg-subtle)` + `var(--border)` + `var(--text)`, labels → `var(--text-muted)`
+- Quick-add textarea + Add button: `#fff` / `#6366f1` → `var(--bg-surface)` / `var(--primary)`
+- Task card assignee avatar: `#6366f1` → `var(--primary)`
+- Comment cancel button: `#64748b` → `var(--text-muted)`
+
+#### Sidebar user block — user/sign-out moved to bottom left ✅
+
+Matching the IT intranet tool reference design:
+- **`top-header` hidden** (`display: none`) — 56px freed, view content moves flush to top
+- **`#perch-side-panel` top offset** changed from `52px` → `0` (full-height panel now)
+- **New `.sidebar-user` block** added to `sidebar-footer` (above theme toggle):
+  - Avatar (initial or Google picture), display name, role · department line
+  - Sign-out icon button (`ti-logout`) on the right — minimal, not a full button
+- **JS init** updated: populates `#sidebar-user-avatar`, `#sidebar-user-name`, `#sidebar-user-role` at login instead of the (now-hidden) top-header elements
+- **CSS** added: `.sidebar-user`, `.sidebar-user .avatar`, `.sidebar-user-info .name/.role`, `.sidebar-signout`
+
+### Revert notes
+- To revert: restore `.top-header { height: 56px; ... }`, restore `#perch-side-panel top: 52px`, remove `.sidebar-user` block from footer HTML and JS init
+
+---
+
 ## Session: June 2026 — v7.3.1 — Perch morning snapshot + AI performance narrative
 
 ### Changes in this session

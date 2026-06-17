@@ -127,9 +127,19 @@ body { font-family: var(--font-sans); background: var(--bg-base); color: var(--t
 .theme-toggle-thumb { position: absolute; width: 12px; height: 12px; background: white; border-radius: 50%; top: 2px; left: 2px; transition: left 0.2s; }
 .theme-toggle-track.on .theme-toggle-thumb { left: 14px; }
 
+/* ─── Sidebar user block ────────────────────────────────────────── */
+.sidebar-user { display: flex; align-items: center; gap: 10px; padding: 10px 12px; border-radius: var(--radius); cursor: default; user-select: none; }
+.sidebar-user:hover { background: rgba(255,255,255,0.06); }
+.sidebar-user .avatar { width: 30px; height: 30px; border-radius: 50%; background: var(--accent); color: #0D1F1C; font-size: 13px; font-weight: 700; display: flex; align-items: center; justify-content: center; flex-shrink: 0; }
+.sidebar-user-info { flex: 1; min-width: 0; }
+.sidebar-user-info .name { font-size: 12px; font-weight: 600; color: rgba(255,255,255,0.85); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.sidebar-user-info .role { font-size: 10px; color: rgba(255,255,255,0.38); text-transform: capitalize; }
+.sidebar-signout { background: none; border: none; color: rgba(255,255,255,0.3); cursor: pointer; font-size: 14px; padding: 4px; border-radius: 4px; flex-shrink: 0; transition: color 0.12s; }
+.sidebar-signout:hover { color: rgba(255,255,255,0.7); }
+
 /* ─── Main layout ──────────────────────────────────────────────── */
 .main-content { flex: 1; display: flex; flex-direction: column; overflow: hidden; }
-.top-header { height: 56px; background: var(--bg-surface); border-bottom: 0.5px solid var(--border); display: flex; align-items: center; justify-content: space-between; padding: 0 28px; flex-shrink: 0; }
+.top-header { display: none; }
 .page-title { font-size: 20px; font-weight: 600; color: var(--text-main); letter-spacing: -0.2px; }
 .view-hero { background: linear-gradient(100deg, var(--sidebar-bg) 0%, #0F2E29 100%); border-radius: 16px; padding: 24px 28px; margin-bottom: 24px; display: flex; align-items: center; gap: 16px; position: relative; overflow: hidden; flex-shrink: 0; }
 .view-hero::before { content:""; position:absolute; right:-40px; top:-40px; width:200px; height:200px; border-radius:50%; background:rgba(27,191,163,0.08); pointer-events:none; }
@@ -213,7 +223,7 @@ body { font-family: var(--font-sans); background: var(--bg-base); color: var(--t
 .perch-quick-add-form { margin-top: 6px; }
 .perch-quick-add-form textarea { width: 100%; padding: 8px 10px; border-radius: var(--radius); border: 2px solid var(--accent); background: var(--bg-surface); color: var(--text-main); font-size: 13px; resize: none; font-family: inherit; outline: none; }
 /* Side panel */
-#perch-side-panel { position: fixed; top: 52px; right: 0; bottom: 0; width: 400px; background: var(--bg-surface); border-left: 0.5px solid var(--border); z-index: 200; transform: translateX(100%); transition: transform 0.25s cubic-bezier(0.4,0,0.2,1); overflow-y: auto; box-shadow: var(--shadow-lg); }
+#perch-side-panel { position: fixed; top: 0; right: 0; bottom: 0; width: 400px; background: var(--bg-surface); border-left: 0.5px solid var(--border); z-index: 200; transform: translateX(100%); transition: transform 0.25s cubic-bezier(0.4,0,0.2,1); overflow-y: auto; box-shadow: var(--shadow-lg); }
 #perch-side-panel.open { transform: translateX(0); }
 .panel-field-row { display: flex; align-items: center; gap: 12px; padding: 8px 0; border-bottom: 0.5px solid var(--border); }
 .panel-field-label { font-size: 11px; font-weight: 600; color: var(--text-muted); width: 90px; flex-shrink: 0; text-transform: uppercase; letter-spacing: 0.04em; }
@@ -472,6 +482,16 @@ body { font-family: var(--font-sans); background: var(--bg-base); color: var(--t
   </nav>
 
   <div class="sidebar-footer">
+    <div class="sidebar-user">
+      <div class="avatar" id="sidebar-user-avatar">?</div>
+      <div class="sidebar-user-info">
+        <div class="name" id="sidebar-user-name">Loading…</div>
+        <div class="role" id="sidebar-user-role"></div>
+      </div>
+      <button class="sidebar-signout" onclick="handleLogout()" title="Sign out">
+        <i class="ti ti-logout"></i>
+      </button>
+    </div>
     <div class="theme-toggle" id="theme-toggle-btn" onclick="toggleTheme()">
       <span id="theme-toggle-label">☀️ Light mode</span>
       <div class="theme-toggle-track" id="theme-toggle-track">
@@ -2229,15 +2249,18 @@ const TYPE_TAGS = {
   // Sync theme toggle button to saved preference
   _syncThemeToggleUI(localStorage.getItem('nest-theme') || 'light');
 
-  // Update UI with real user info
-  const avatarEl = document.getElementById('user-avatar');
-  const nameEl   = document.getElementById('user-name');
+  // Update sidebar user block
+  const sidebarAvatar = document.getElementById('sidebar-user-avatar');
+  const sidebarName   = document.getElementById('sidebar-user-name');
+  const sidebarRole   = document.getElementById('sidebar-user-role');
+  const displayName   = currentUser.name || currentUser.email;
   if (currentUser.picture) {
-    avatarEl.innerHTML = `<img src="${currentUser.picture}" style="width:100%;height:100%;border-radius:50%;object-fit:cover">`;
+    sidebarAvatar.innerHTML = `<img src="${currentUser.picture}" style="width:100%;height:100%;border-radius:50%;object-fit:cover">`;
   } else {
-    avatarEl.textContent = (currentUser.name || currentUser.email).charAt(0).toUpperCase();
+    sidebarAvatar.textContent = displayName.charAt(0).toUpperCase();
   }
-  nameEl.textContent = currentUser.name || currentUser.email;
+  sidebarName.textContent = displayName;
+  if (sidebarRole) sidebarRole.textContent = state.userRole + (state.userDepartment ? ' · ' + state.userDepartment : '');
 
   // Apply role-based UI restrictions
   applyRoleRestrictions(state.userRole);
@@ -4766,10 +4789,10 @@ function renderPerchBoard() {
         <div class="perch-quick-add-form" id="quick-form-${col.id}" style="display:none">
           <textarea rows="2" id="quick-input-${col.id}" placeholder="Card title…"
             onkeydown="if(event.key==='Enter'&&!event.shiftKey){event.preventDefault();quickAddCard('${col.id}');}if(event.key==='Escape')hideQuickAdd('${col.id}');"
-            style="width:100%;padding:8px 10px;border-radius:8px;border:2px solid #6366f1;background:#fff;color:#1e293b;font-size:13px;resize:none;font-family:inherit;outline:none;margin-bottom:6px"></textarea>
+            style="width:100%;padding:8px 10px;border-radius:8px;border:2px solid var(--primary);background:var(--bg-surface);color:var(--text);font-size:13px;resize:none;font-family:inherit;outline:none;margin-bottom:6px"></textarea>
           <div style="display:flex;gap:6px">
-            <button onclick="quickAddCard('${col.id}')" style="padding:6px 14px;background:#6366f1;color:#fff;border:none;border-radius:6px;cursor:pointer;font-size:13px;font-weight:600">Add</button>
-            <button onclick="hideQuickAdd('${col.id}')" style="padding:6px 10px;background:none;border:none;color:#64748b;cursor:pointer;font-size:18px;line-height:1">✕</button>
+            <button onclick="quickAddCard('${col.id}')" style="padding:6px 14px;background:var(--primary);color:#fff;border:none;border-radius:6px;cursor:pointer;font-size:13px;font-weight:600">Add</button>
+            <button onclick="hideQuickAdd('${col.id}')" style="padding:6px 10px;background:none;border:none;color:var(--text-muted);cursor:pointer;font-size:18px;line-height:1">✕</button>
           </div>
         </div>
         <button class="perch-quick-add-btn" id="quick-btn-${col.id}" onclick="showQuickAdd('${col.id}')">+ Add a card</button>
@@ -4803,7 +4826,7 @@ function buildTaskCard(t) {
       </div>
       <div class="perch-card-footer">
         <div style="display:flex;align-items:center;gap:6px">
-          <div style="width:24px;height:24px;border-radius:50%;background:#6366f1;color:#fff;font-size:11px;font-weight:700;display:flex;align-items:center;justify-content:center;flex-shrink:0" title="${esc(assigneeName)}">${initial}</div>
+          <div style="width:24px;height:24px;border-radius:50%;background:var(--primary);color:#fff;font-size:11px;font-weight:700;display:flex;align-items:center;justify-content:center;flex-shrink:0" title="${esc(assigneeName)}">${initial}</div>
           <span class="perch-assignee">${esc(assigneeName)}</span>
         </div>
         <div style="display:flex;align-items:center;gap:8px">
@@ -4957,14 +4980,14 @@ function buildPanelHTML(task) {
   const labels = task.labels || [];
 
   return `
-    <div style="padding:20px 20px 0;border-bottom:1px solid #e2e8f0;background:#f8fafc;position:sticky;top:0;z-index:1">
+    <div style="padding:20px 20px 0;border-bottom:1px solid var(--border);background:var(--bg-subtle);position:sticky;top:0;z-index:1">
       <div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:12px">
-        <div style="font-size:11px;font-weight:700;color:#64748b;text-transform:uppercase;letter-spacing:0.5px">${bc.label} · ${dc.label}</div>
-        <button onclick="closePerchPanel()" style="background:none;border:none;color:#64748b;font-size:20px;cursor:pointer;line-height:1;padding:0">✕</button>
+        <div style="font-size:11px;font-weight:700;color:var(--text-muted);text-transform:uppercase;letter-spacing:0.5px">${bc.label} · ${dc.label}</div>
+        <button onclick="closePerchPanel()" style="background:none;border:none;color:var(--text-muted);font-size:20px;cursor:pointer;line-height:1;padding:0">✕</button>
       </div>
       <div contenteditable="true" id="panel-title"
            onblur="panelSave('${task.id}','title',this.textContent.trim())"
-           style="font-size:18px;font-weight:700;color:#1e293b;margin-bottom:16px;line-height:1.3;outline:none;padding:4px;border-radius:4px;cursor:text"
+           style="font-size:18px;font-weight:700;color:var(--text);margin-bottom:16px;line-height:1.3;outline:none;padding:4px;border-radius:4px;cursor:text"
            title="Click to edit">${esc(task.title)}</div>
     </div>
 
@@ -4972,12 +4995,12 @@ function buildPanelHTML(task) {
 
       <!-- Labels -->
       <div style="margin-bottom:20px">
-        <div style="font-size:11px;font-weight:700;color:#64748b;text-transform:uppercase;letter-spacing:0.5px;margin-bottom:8px">Labels</div>
+        <div style="font-size:11px;font-weight:700;color:var(--text-muted);text-transform:uppercase;letter-spacing:0.5px;margin-bottom:8px">Labels</div>
         <div style="display:flex;flex-wrap:wrap;gap:6px;margin-bottom:8px">
           ${LABEL_PRESETS.map(l => {
             const active = labels.some(x => x.c === l.c);
             return `<button onclick="toggleLabel('${task.id}','${l.c}')"
-              style="padding:4px 12px;border-radius:4px;background:${active ? l.c : '#f1f5f9'};color:${active ? '#fff' : '#475569'};border:2px solid ${active ? l.c : '#e2e8f0'};font-size:12px;font-weight:600;cursor:pointer;transition:all 0.12s">
+              style="padding:4px 12px;border-radius:4px;background:${active ? l.c : 'var(--bg-hover)'};color:${active ? '#fff' : 'var(--text-muted)'};border:2px solid ${active ? l.c : 'var(--border)'};font-size:12px;font-weight:600;cursor:pointer;transition:all 0.12s">
               ${esc(l.t)}</button>`;
           }).join('')}
         </div>
@@ -4985,7 +5008,7 @@ function buildPanelHTML(task) {
 
       <!-- Fields -->
       <div style="margin-bottom:20px">
-        <div style="font-size:11px;font-weight:700;color:#64748b;text-transform:uppercase;letter-spacing:0.5px;margin-bottom:8px">Details</div>
+        <div style="font-size:11px;font-weight:700;color:var(--text-muted);text-transform:uppercase;letter-spacing:0.5px;margin-bottom:8px">Details</div>
 
         <div class="panel-field-row">
           <div class="panel-field-label">Status</div>
@@ -5029,7 +5052,7 @@ function buildPanelHTML(task) {
 
       <!-- Description -->
       <div style="margin-bottom:20px">
-        <div style="font-size:11px;font-weight:700;color:#64748b;text-transform:uppercase;letter-spacing:0.5px;margin-bottom:8px">Description</div>
+        <div style="font-size:11px;font-weight:700;color:var(--text-muted);text-transform:uppercase;letter-spacing:0.5px;margin-bottom:8px">Description</div>
         <textarea id="panel-desc" rows="3" placeholder="Add a description…"
           onblur="panelSave('${task.id}','description',this.value)"
           style="width:100%;padding:10px 12px;border-radius:8px;border:1px solid var(--border);background:var(--bg-surface);color:var(--text);font-size:13px;resize:vertical;font-family:inherit;outline:none;transition:border 0.15s"
@@ -5039,7 +5062,7 @@ function buildPanelHTML(task) {
 
       <!-- Activity -->
       <div style="margin-bottom:20px">
-        <div style="font-size:11px;font-weight:700;color:#64748b;text-transform:uppercase;letter-spacing:0.5px;margin-bottom:12px">Activity</div>
+        <div style="font-size:11px;font-weight:700;color:var(--text-muted);text-transform:uppercase;letter-spacing:0.5px;margin-bottom:12px">Activity</div>
         <div style="display:flex;gap:8px;margin-bottom:16px">
           <div style="width:28px;height:28px;border-radius:50%;background:var(--primary);color:#fff;font-size:12px;font-weight:700;display:flex;align-items:center;justify-content:center;flex-shrink:0">${getUserName(state.userEmail).charAt(0).toUpperCase()}</div>
           <div style="flex:1">
@@ -5063,7 +5086,7 @@ function buildPanelHTML(task) {
       </div>
 
       <!-- Delete -->
-      <div style="padding-top:16px;border-top:1px solid #f1f5f9">
+      <div style="padding-top:16px;border-top:1px solid var(--border)">
         <button onclick="panelDeleteTask('${task.id}')" style="font-size:12px;color:#ef4444;background:none;border:1px solid rgba(239,68,68,0.3);padding:6px 14px;border-radius:8px;cursor:pointer">Delete task</button>
       </div>
 
@@ -5123,53 +5146,53 @@ function openAddTaskModal() {
   modal.id = 'perch-add-modal';
   modal.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,0.6);z-index:1000;display:flex;align-items:center;justify-content:center;padding:20px';
   modal.innerHTML = `
-    <div style="background:#fff;border-radius:12px;padding:28px;width:100%;max-width:480px;border:1px solid #e2e8f0;box-shadow:0 20px 60px rgba(0,0,0,0.15)">
+    <div style="background:var(--bg-surface);border-radius:12px;padding:28px;width:100%;max-width:480px;border:1px solid var(--border);box-shadow:0 20px 60px rgba(0,0,0,0.3)">
       <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:20px">
-        <div style="font-weight:700;font-size:17px;color:#1e293b">New Task</div>
-        <button onclick="closeAddModal()" style="background:none;border:none;color:#64748b;font-size:20px;cursor:pointer">✕</button>
+        <div style="font-weight:700;font-size:17px;color:var(--text)">New Task</div>
+        <button onclick="closeAddModal()" style="background:none;border:none;color:var(--text-muted);font-size:20px;cursor:pointer">✕</button>
       </div>
       <div style="display:flex;flex-direction:column;gap:14px">
         <div>
-          <label style="font-size:12px;font-weight:600;color:#64748b;display:block;margin-bottom:4px">TITLE *</label>
-          <input id="new-task-title" type="text" placeholder="What needs to be done?" style="width:100%;padding:9px 12px;border-radius:8px;border:1px solid #e2e8f0;background:#f8fafc;color:#1e293b;font-size:13px;outline:none" onfocus="this.style.borderColor='#6366f1'" onblur="this.style.borderColor='#e2e8f0'">
+          <label style="font-size:12px;font-weight:600;color:var(--text-muted);display:block;margin-bottom:4px">TITLE *</label>
+          <input id="new-task-title" type="text" placeholder="What needs to be done?" style="width:100%;padding:9px 12px;border-radius:8px;border:1px solid var(--border);background:var(--bg-subtle);color:var(--text);font-size:13px;outline:none" onfocus="this.style.borderColor='var(--primary)'" onblur="this.style.borderColor='var(--border)'">
         </div>
         <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px">
           <div>
-            <label style="font-size:12px;font-weight:600;color:#64748b;display:block;margin-bottom:4px">BRAND</label>
-            <select id="new-task-brand" style="width:100%;padding:8px 10px;border-radius:8px;border:1px solid #e2e8f0;background:#f8fafc;color:#1e293b;font-size:13px">
+            <label style="font-size:12px;font-weight:600;color:var(--text-muted);display:block;margin-bottom:4px">BRAND</label>
+            <select id="new-task-brand" style="width:100%;padding:8px 10px;border-radius:8px;border:1px solid var(--border);background:var(--bg-subtle);color:var(--text);font-size:13px">
               <option value="all">All Brands</option>
               <option value="pickl">Pickl</option><option value="bonbird">Bonbird</option><option value="yolk">Yolk Brands</option>
               <option value="southpour">Southpour</option><option value="shadowburg">Shadowburg</option><option value="shadowbird">Shadowbird</option>
             </select>
           </div>
           <div>
-            <label style="font-size:12px;font-weight:600;color:#64748b;display:block;margin-bottom:4px">DEPARTMENT</label>
-            <select id="new-task-dept" style="width:100%;padding:8px 10px;border-radius:8px;border:1px solid #e2e8f0;background:#f8fafc;color:#1e293b;font-size:13px">
+            <label style="font-size:12px;font-weight:600;color:var(--text-muted);display:block;margin-bottom:4px">DEPARTMENT</label>
+            <select id="new-task-dept" style="width:100%;padding:8px 10px;border-radius:8px;border:1px solid var(--border);background:var(--bg-subtle);color:var(--text);font-size:13px">
               <option value="seo">SEO</option><option value="social">Social</option>
               <option value="design">Design</option><option value="content">Content</option>
             </select>
           </div>
           <div>
-            <label style="font-size:12px;font-weight:600;color:#64748b;display:block;margin-bottom:4px">PRIORITY</label>
-            <select id="new-task-priority" style="width:100%;padding:8px 10px;border-radius:8px;border:1px solid #e2e8f0;background:#f8fafc;color:#1e293b;font-size:13px">
+            <label style="font-size:12px;font-weight:600;color:var(--text-muted);display:block;margin-bottom:4px">PRIORITY</label>
+            <select id="new-task-priority" style="width:100%;padding:8px 10px;border-radius:8px;border:1px solid var(--border);background:var(--bg-subtle);color:var(--text);font-size:13px">
               <option value="medium">🟡 Medium</option><option value="high">🔴 High</option><option value="low">🟢 Low</option>
             </select>
           </div>
           <div>
-            <label style="font-size:12px;font-weight:600;color:#64748b;display:block;margin-bottom:4px">DUE DATE</label>
-            <input id="new-task-due" type="date" style="width:100%;padding:8px 10px;border-radius:8px;border:1px solid #e2e8f0;background:#f8fafc;color:#1e293b;font-size:13px">
+            <label style="font-size:12px;font-weight:600;color:var(--text-muted);display:block;margin-bottom:4px">DUE DATE</label>
+            <input id="new-task-due" type="date" style="width:100%;padding:8px 10px;border-radius:8px;border:1px solid var(--border);background:var(--bg-subtle);color:var(--text);font-size:13px">
           </div>
         </div>
         <div>
-          <label style="font-size:12px;font-weight:600;color:#64748b;display:block;margin-bottom:4px">ASSIGN TO</label>
-          <select id="new-task-assignee" style="width:100%;padding:9px 12px;border-radius:8px;border:1px solid #e2e8f0;background:#f8fafc;color:#1e293b;font-size:13px">
+          <label style="font-size:12px;font-weight:600;color:var(--text-muted);display:block;margin-bottom:4px">ASSIGN TO</label>
+          <select id="new-task-assignee" style="width:100%;padding:9px 12px;border-radius:8px;border:1px solid var(--border);background:var(--bg-subtle);color:var(--text);font-size:13px">
             <option value="${state.userEmail}">${getUserName(state.userEmail)} (me)</option>
             ${perchUsers.filter(u => u.email !== state.userEmail).map(u => `<option value="${esc(u.email)}">${esc(u.name)}</option>`).join('')}
           </select>
         </div>
       </div>
       <div style="display:flex;gap:10px;justify-content:flex-end;margin-top:20px">
-        <button onclick="closeAddModal()" style="padding:9px 20px;border-radius:8px;border:1px solid #e2e8f0;background:transparent;color:#475569;font-size:13px;cursor:pointer">Cancel</button>
+        <button onclick="closeAddModal()" style="padding:9px 20px;border-radius:8px;border:1px solid var(--border);background:transparent;color:var(--text-muted);font-size:13px;cursor:pointer">Cancel</button>
         <button onclick="submitNewTask()" class="btn-primary" style="padding:9px 20px;font-size:13px">Create Task</button>
       </div>
     </div>`;
