@@ -389,11 +389,15 @@ Be harsh. Em dashes = automatic deduction. Generic = low score.`;
 // Called when score is 5-7 (warning zone). Attempts a targeted rewrite to fix
 // the specific issues Claude identified, then re-scores. If the rewrite scores
 // better, returns the improved content. If it's still poor, returns original.
-async function fixBrandVoice(content, voiceCheck, brandCtx, callClaudeFn) {
+//
+// brandExamples: real brand writing from Settings (injected so Claude has a reference point)
+// feedbackNotes: accumulated rejection feedback from approvals (things to never do)
+async function fixBrandVoice(content, voiceCheck, brandCtx, callClaudeFn, brandExamples = null, feedbackNotes = []) {
   const brandName  = brandCtx.name || 'the brand';
   const issues     = (voiceCheck.issues || []).join('\n- ');
   const topFix     = voiceCheck.topFix || '';
-  const examples   = brandCtx.examples?.slice(0, 800) || '';
+  // Prefer real brand writing examples over any examples stored in brandCtx
+  const examples   = brandExamples ? brandExamples.slice(0, 1500) : (brandCtx.examples?.slice(0, 800) || '');
 
   const fixPrompt = `You are rewriting content for ${brandName} to fix specific brand voice issues.
 
@@ -408,7 +412,8 @@ RULES:
 - Remove any em dashes (—), generic phrases, or AI-sounding language
 - Do NOT add new facts, locations, or claims
 - Do NOT change the word count significantly
-${examples ? `\nEXAMPLES OF ${brandName.toUpperCase()} VOICE:\n${examples}` : ''}
+${feedbackNotes.length ? `\nHUMAN FEEDBACK — past rejections, never repeat these:\n${feedbackNotes.map(n => `- ${n}`).join('\n')}` : ''}
+${examples ? `\nREAL ${brandName.toUpperCase()} WRITING — match this voice exactly:\n${examples}` : ''}
 
 CONTENT TO REWRITE:
 ${content}

@@ -323,6 +323,41 @@ From Google's official AI Optimization Guide (June 2026):
 
 ---
 
+## Session: June 2026 — v7.3.0 — Brand voice fix + International keyword discovery
+
+### Changes in this session
+
+#### Fix: Brand voice examples injected into auto-fix ✅
+
+**Root cause:** `fixBrandVoice` in `_lib/brand.js` was using `brandCtx.examples?.slice(0, 800)` — this path is always `undefined` because brand examples are stored separately in Blobs (`brandExamples:<brand>`), not inside `brandCtx`. Every auto-fix attempt was running without the real brand writing examples, making it much weaker than intended.
+
+**Fix:**
+- `_lib/brand.js` — `fixBrandVoice` signature extended: `(content, voiceCheck, brandCtx, callClaudeFn, brandExamples = null, feedbackNotes = [])`. Now injects real writing examples (up to 1500 chars) and accumulated rejection feedback into the fix prompt.
+- `scheduler-background.js` — `runQuickWins`, `runMetaRewrites`, `runContentGaps`, `runContentGapsWithOpportunities`, `runPageCreation` all receive `brandExamples` as a new 7th parameter. All 4 `fixBrandVoice` calls updated to pass it.
+- `international-seo-background.js` — `generateBlogDraft` already had `brandExamples` in scope; now passes it to `fixBrandVoice`.
+
+**Effect:** When auto-fixing 5-7 scoring content, Claude now has the real brand writing examples from Settings as a reference. Quality of auto-fixed content should increase significantly.
+
+#### Fix: International keyword discovery using correct location codes ✅
+
+**Root cause:** `getKeywordIdeas` in `keyword-discovery-background.js` hardcoded `kwLocationCode = 2784` (UAE country) regardless of which market was being processed. Bahrain, KSA, Qatar, Egypt, Jordan, Oman, Pakistan all received UAE keyword volume data instead of their own market's data.
+
+**Fix:**
+- `keyword-discovery-background.js` — `const kwLocationCode = locationCode === 21191 ? 2784 : locationCode;` — UAE city code maps to UAE country code for Labs; all international market codes (already country-level in INTERNATIONAL_MARKETS) pass through unchanged.
+- Brand-specific generic seeds: international markets now get brand-appropriate fallback seeds (`best burger in Bahrain` for Pickl, `best fried chicken in Bahrain` for Bonbird) instead of mixed Pickl/Bonbird seeds.
+
+**Markets now getting their own keyword data:**
+- Pickl: Bahrain (17000), KSA (2682), Qatar (179), Egypt (2818), Jordan (2144), Oman (2114)
+- Bonbird: Oman (2114), Pakistan (2586), Qatar (179)
+
+**UI + API:** Already fully built (market selector dropdown, `?market=` param, market-keyed Blob storage). The Monday cron already loops all 9 markets. Only the location code was wrong.
+
+### Revert notes
+- To revert voice fix: restore `fixBrandVoice(content, voiceCheck, brandCtx, callClaudeFn)` signature in brand.js, remove `brandExamples` from all callers
+- To revert intl keyword fix: restore `const kwLocationCode = 2784` in keyword-discovery-background.js
+
+---
+
 ## Session: June 2026 — v7.2.2 — View hero banners matching IT intranet tool
 
 ### Changes in this session

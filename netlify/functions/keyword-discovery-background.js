@@ -80,8 +80,9 @@ function applyStaticFilter(keywords) {
 // ── DataForSEO keyword ideas ──────────────────────────────────────────────────
 async function getKeywordIdeas(seeds, locationCode, authHeader) {
   try {
-    // Use UAE country code (2784) for keyword volume data — city code (21191) is for SERP only
-    const kwLocationCode = 2784; // United Arab Emirates country
+    // Labs requires country-level codes. UAE is passed as city (21191) so map it to country (2784).
+    // International markets already use country-level codes so pass through unchanged.
+    const kwLocationCode = locationCode === 21191 ? 2784 : locationCode;
     const res = await fetch(`${DATAFORSEO_BASE}/dataforseo_labs/google/keyword_ideas/live`, {
       method:  'POST',
       headers: { 'Content-Type': 'application/json', Authorization: authHeader },
@@ -245,9 +246,12 @@ async function discoverKeywords(brand, store, authHeader, force = false, marketK
   const brandCtx = await getBrandContext(brand);
   const brandName = brand.charAt(0).toUpperCase() + brand.slice(1);
 
-  // For international: use market seed keywords; for UAE: use brand seeds
-  const seeds         = isIntl
-    ? [...(market.seedKeywords?.en || []), `best burger in ${market.label}`, `best fried chicken in ${market.label}`, `burger restaurant ${market.label}`, `fast food ${market.label}`].filter(Boolean)
+  // For international: use market seed keywords + brand-appropriate generic seeds
+  const brandGenericSeeds = brand === 'pickl'
+    ? [`best burger in ${marketLabel}`, `burger restaurant ${marketLabel}`, `smash burger ${marketLabel}`]
+    : [`best fried chicken in ${marketLabel}`, `fried chicken restaurant ${marketLabel}`, `crispy chicken ${marketLabel}`];
+  const seeds = isIntl
+    ? [...(market.seedKeywords?.en || []), ...brandGenericSeeds].filter(Boolean)
     : (BRAND_SEEDS[brand] || []);
   const locationCode  = isIntl ? market.location_code : MARKET_LOCATIONS.UAE;
   const marketLabel   = isIntl ? market.label : 'UAE';

@@ -180,10 +180,10 @@ exports.handler = async (event) => {
       for (const jobName of jobs) {
         try {
           let r;
-          if (jobName === 'quick_wins')    r = await runQuickWins(brand, gscRows, dryRun, forceRun, brandCtx, brandPrompt);
-          else if (jobName === 'meta_rewrites') r = await runMetaRewrites(brand, gscRows, dryRun, forceRun, brandCtx, brandPrompt);
-          else if (jobName === 'content_gaps')  r = await runContentGapsWithOpportunities(brand, gscRows, dryRun, forceRun, brandCtx, brandPrompt);
-          else if (jobName === 'page_creation') r = await runPageCreation(brand, gscRows, dryRun, forceRun, brandCtx, brandPrompt);
+          if (jobName === 'quick_wins')    r = await runQuickWins(brand, gscRows, dryRun, forceRun, brandCtx, brandPrompt, brandExamples);
+          else if (jobName === 'meta_rewrites') r = await runMetaRewrites(brand, gscRows, dryRun, forceRun, brandCtx, brandPrompt, brandExamples);
+          else if (jobName === 'content_gaps')  r = await runContentGapsWithOpportunities(brand, gscRows, dryRun, forceRun, brandCtx, brandPrompt, brandExamples);
+          else if (jobName === 'page_creation') r = await runPageCreation(brand, gscRows, dryRun, forceRun, brandCtx, brandPrompt, brandExamples);
           else r = { queued: 0, error: 'unknown job: ' + jobName };
           summary.brands[brand].jobs[jobName] = r;
           summary.queued += r.queued || 0;
@@ -466,7 +466,7 @@ function seedKeywordsToRows(keywords) {
 // content (full HTML) for the existing page, not just a suggestion.
 // Queued as page_update → pushes via wordpress.js update_content.
 // ════════════════════════════════════════════════════════════════
-async function runQuickWins(brand, rows, dryRun, forceRun, brandCtx, brandPrompt) {
+async function runQuickWins(brand, rows, dryRun, forceRun, brandCtx, brandPrompt, brandExamples) {
   const cfg = BRANDS[brand];
   const alreadyQueued = await getQueuedKeywords(brand);
   const candidates = rows
@@ -522,7 +522,7 @@ Return ONLY valid JSON:
     // Brand voice check — auto-fix if score is 5-7 before queuing
     let voiceCheck = await runBrandVoiceCheck(parsed.body, brandCtx, (p, o) => callClaude(p, o)).catch(() => ({ score: 6, verdict: 'PASS' }));
     if (voiceCheck.score >= 5 && voiceCheck.score < 8) {
-      const fixed = await fixBrandVoice(parsed.body, voiceCheck, brandCtx, (p, o) => callClaude(p, o));
+      const fixed = await fixBrandVoice(parsed.body, voiceCheck, brandCtx, (p, o) => callClaude(p, o), brandExamples);
       if (fixed.improved) { parsed.body = fixed.content; voiceCheck = fixed.voiceCheck; }
     }
     console.log(`[quick_wins] ${r.keyword} — voice score: ${voiceCheck.score}/10 (${voiceCheck.verdict})`);
@@ -570,7 +570,7 @@ Return ONLY valid JSON:
 // page has content in WordPress before queuing, which stops meta
 // updates being generated for empty or non-existent pages.
 // ════════════════════════════════════════════════════════════════
-async function runMetaRewrites(brand, _rows, dryRun, forceRun, brandCtx, brandPrompt) {
+async function runMetaRewrites(brand, _rows, dryRun, forceRun, brandCtx, brandPrompt, brandExamples) {
   const cfg = BRANDS[brand];
 
   // Fetch keyword+page rows — real URLs from GSC
@@ -667,7 +667,7 @@ Return ONLY valid JSON:
 
       let voiceCheck = await runBrandVoiceCheck(parsed.body, brandCtx, (p, o) => callClaude(p, o)).catch(() => ({ score: 6, verdict: 'PASS', issues: [] }));
       if (voiceCheck.score >= 5 && voiceCheck.score < 8) {
-        const fixed = await fixBrandVoice(parsed.body, voiceCheck, brandCtx, (p, o) => callClaude(p, o));
+        const fixed = await fixBrandVoice(parsed.body, voiceCheck, brandCtx, (p, o) => callClaude(p, o), brandExamples);
         if (fixed.improved) { parsed.body = fixed.content; voiceCheck = fixed.voiceCheck; }
       }
       if (voiceCheck.score < 5) continue;
@@ -872,7 +872,7 @@ async function wpPageHasContent(brand, pageUrl) {
 // Queued as blog_draft → pushes via wordpress.js create_draft.
 // ════════════════════════════════════════════════════════════════
 // Wrapper: inject keyword opportunities as high-priority seed keywords
-async function runContentGapsWithOpportunities(brand, rows, dryRun, forceRun, brandCtx, brandPrompt) {
+async function runContentGapsWithOpportunities(brand, rows, dryRun, forceRun, brandCtx, brandPrompt, brandExamples) {
   const s = getStore({ name: 'seo-tool', siteID: process.env.NETLIFY_SITE_ID, token: process.env.NETLIFY_AUTH_TOKEN });
   try {
     const oppData = await s.get(`keywordOpportunities:${brand}`, { type: 'json' }).catch(() => null);
@@ -890,10 +890,10 @@ async function runContentGapsWithOpportunities(brand, rows, dryRun, forceRun, br
       }
     }
   } catch (e) { console.warn(`[${brand}] opportunities inject failed: ${e.message}`); }
-  return runContentGaps(brand, rows, dryRun, forceRun, brandCtx, brandPrompt);
+  return runContentGaps(brand, rows, dryRun, forceRun, brandCtx, brandPrompt, brandExamples);
 }
 
-async function runContentGaps(brand, rows, dryRun, forceRun, brandCtx, brandPrompt) {
+async function runContentGaps(brand, rows, dryRun, forceRun, brandCtx, brandPrompt, brandExamples) {
   const cfg = BRANDS[brand];
   const alreadyQueued = await getQueuedKeywords(brand);
 
@@ -974,7 +974,7 @@ Return ONLY valid JSON, no markdown, no fences:
   // Brand voice quality gate — auto-fix if in warning zone, then score
   let voiceCheck = await runBrandVoiceCheck(parsed.body, brandCtx, (p, o) => callClaude(p, o)).catch(() => ({ score: 6, verdict: 'PASS', issues: [] }));
   if (voiceCheck.score >= 5 && voiceCheck.score < 8) {
-    const fixed = await fixBrandVoice(parsed.body, voiceCheck, brandCtx, (p, o) => callClaude(p, o));
+    const fixed = await fixBrandVoice(parsed.body, voiceCheck, brandCtx, (p, o) => callClaude(p, o), brandExamples);
     if (fixed.improved) { parsed.body = fixed.content; voiceCheck = fixed.voiceCheck; }
   }
   console.log(`[content_gaps] "${parsed.targetKeyword}" — voice score: ${voiceCheck.score}/10 (${voiceCheck.verdict})`);
@@ -1028,7 +1028,7 @@ Return ONLY valid JSON, no markdown, no fences:
 // blog post. Claude builds the full page. Queued as page_creation
 // → pushes via wordpress.js create_page.
 // ════════════════════════════════════════════════════════════════
-async function runPageCreation(brand, rows, dryRun, forceRun, brandCtx, brandPrompt) {
+async function runPageCreation(brand, rows, dryRun, forceRun, brandCtx, brandPrompt, brandExamples) {
   const cfg = BRANDS[brand];
 
   // Filter for location/service intent keywords — these deserve pages not posts
@@ -1089,7 +1089,7 @@ Return ONLY a JSON object:
     let voiceCheck = await runBrandVoiceCheck(parsed.body, brandCtx, (p, o) => callClaude(p, o))
       .catch(() => ({ score: 6, verdict: 'PASS', issues: [], topFix: null }));
     if (voiceCheck.score >= 5 && voiceCheck.score < 8) {
-      const fixed = await fixBrandVoice(parsed.body, voiceCheck, brandCtx, (p, o) => callClaude(p, o));
+      const fixed = await fixBrandVoice(parsed.body, voiceCheck, brandCtx, (p, o) => callClaude(p, o), brandExamples);
       if (fixed.improved) { parsed.body = fixed.content; voiceCheck = fixed.voiceCheck; }
     }
     console.log(`[page_creation] "${r.keyword}" — voice score: ${voiceCheck.score}/10 (${voiceCheck.verdict})`);

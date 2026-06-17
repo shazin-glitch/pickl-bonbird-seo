@@ -586,7 +586,7 @@ Return EXACTLY this structure:
   if (result.content) {
     let voiceCheck = await runBrandVoiceCheck(result.content, brandCtx, callClaude).catch(() => ({ score: 6, verdict: 'PASS', issues: [] }));
     if (voiceCheck.score >= 5 && voiceCheck.score < 8) {
-      const fixed = await fixBrandVoice(result.content, voiceCheck, brandCtx, callClaude);
+      const fixed = await fixBrandVoice(result.content, voiceCheck, brandCtx, callClaude, brandExamples);
       if (fixed.improved) { result.content = fixed.content; voiceCheck = fixed.voiceCheck; }
     }
     result.voiceScore  = voiceCheck.score;
