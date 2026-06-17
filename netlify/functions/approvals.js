@@ -87,8 +87,22 @@ async function createItem(input) {
   await saveItem(item);
   const idx = await getIndex();
   idx.unshift(id);
-  if (idx.length > 500) idx.length = 500;
-  await setIndex(idx);
+  // Prune dead items (rejected/failed older than 30 days) — keep pushed/published/pending forever
+  // so the dedup window never loses track of what's been published
+  const cutoff = now - 30 * 24 * 60 * 60 * 1000;
+  const DEAD = new Set(['rejected', 'failed']);
+  const pruned = [];
+  for (const eid of idx) {
+    if (pruned.length >= 2000) break; // hard ceiling — should never be reached in practice
+    const existing = await store().get(KEY_ITEM(eid), { type: 'json' }).catch(() => null);
+    if (!existing) continue; // already deleted blob — drop from index
+    if (DEAD.has(existing.status) && existing.updatedAt < cutoff) {
+      await store().delete(KEY_ITEM(eid)).catch(() => null); // clean up the blob too
+      continue;
+    }
+    pruned.push(eid);
+  }
+  await setIndex(pruned);
   await addAudit({ at: now, actor: item.actor, action: 'queued', target: id, type: item.type, brand: item.brand, note: item.title });
   return item;
 }

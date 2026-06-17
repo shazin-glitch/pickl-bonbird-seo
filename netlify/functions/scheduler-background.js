@@ -55,9 +55,10 @@ function getLocationTag(url, brand) {
   return '🇦🇪 UAE';
 }
 
-// Keywords already queued this week — don't re-queue the same ones
+// Keywords already queued or published — don't re-queue the same ones
+// Limit matches the index cap (500) so no published items fall through the dedup window
 async function getQueuedKeywords(brand) {
-  const pending = await listApprovals({ brand, limit: 200 });
+  const pending = await listApprovals({ brand, limit: 500 });
   const keywords = new Set();
   for (const item of pending) {
     if (!item.payload) continue;
@@ -67,9 +68,9 @@ async function getQueuedKeywords(brand) {
   return keywords;
 }
 
-// Pages already with a pending item of a given type — prevents duplicate meta updates
+// Pages already with a queued/published item of a given type — prevents duplicate meta updates
 async function getQueuedPages(brand, type) {
-  const pending = await listApprovals({ brand, limit: 200 });
+  const pending = await listApprovals({ brand, limit: 500 });
   const pages = new Set();
   for (const item of pending) {
     if (item.type !== type) continue;

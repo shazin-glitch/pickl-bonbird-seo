@@ -2608,6 +2608,32 @@ Empty state now shows:
 
 ---
 
+## Session: June 2026 — v7.1.8 — Full UI/UX redesign + smart index pruning + dedup limit fix
+
+### Design system overhaul (index.html)
+- Replaced entire CSS with a Linear-inspired design system: Yolk teal accent (`#1BBFA3`), always-dark sidebar (`#0D1F1C`), zinc neutrals for light/dark main content
+- Added Inter font (Google Fonts) + Tabler Icons CDN — proper icon library replacing emoji nav items
+- Design tokens: `--accent`, `--accent-subtle`, `--accent-text`, shadow scale (xs/sm/md/lg/modal), radius scale (sm/base/lg/xl/full), full dark mode via `[data-theme="dark"]`
+- Sidebar: always-dark with teal active state, left-border accent, section labels (Workspace / Analytics / SEO / Tools), Tabler icon per nav item
+- Light/dark toggle button in sidebar footer — persists to localStorage
+- Buttons: unified `.btn` base class + `.btn-primary/.btn-outline/.btn-ghost/.btn-danger/.btn-sm/.btn-lg` — removed all `onmouseover/onmouseout` inline hover hacks
+- Cards: `0.5px` borders (more refined), `var(--shadow-sm)` lifted shadow
+- Pills: teal active state, full border-radius
+- Avatar: teal background with white initial
+- User role badge + name label: extracted to CSS classes, removed inline styles
+- Metric cards: uppercase label, tighter spacing, teal `metric-sub` colour
+- Tables: `bg-subtle` header background, consistent `0.5px` borders
+- All calendar status pills, Kanban columns, form inputs, modals, toasts updated to use design tokens
+
+### Smart index pruning (approvals.js)
+- Replaced hard 500-item cap (was silently dropping published items from dedup) with smart pruning: dead items (rejected/failed) older than 30 days get deleted from Blobs; pushed/published/pending kept forever
+- Max index raised to 2000 entries before pruning kicks in
+
+### Dedup window fix (scheduler-background.js)
+- `getQueuedKeywords` + `getQueuedPages` limit raised 200 → 500 — prevents already-published keywords re-entering the queue after ~3–4 Monday runs
+
+---
+
 ## Session: June 2026 — v7.1.7 — Edit Draft modal button fix
 
 ### Correct button logic per item type (index.html)
