@@ -14,6 +14,7 @@
 //   identify      log a new actor name (first session)
 
 const { getStore } = require('@netlify/blobs');
+const { getBrandContext, getBrandExamples, buildBrandPrompt } = require('./_lib/brand');
 
 const CORS = {
   'Access-Control-Allow-Origin': '*',
@@ -388,9 +389,13 @@ async function handleRewritePublished(body, actor) {
     ? `Language: Arabic. Rules — keep brand names in English (Pickl, Bonbird). "smash burger" → "سماش برغر" (NEVER "لحم بقري مسحوق"). Gulf Arabic style, not MSA.`
     : `Language: English. UAE restaurant tone.`;
 
-  const prompt = `You are a UAE restaurant SEO copywriter for ${item.brand}.
+  // Brand context + examples — same quality gate as scheduler
+  const brandCtx      = await getBrandContext(item.brand).catch(() => null);
+  const brandExamples = await getBrandExamples(item.brand).catch(() => null);
+  const systemPrompt  = buildBrandPrompt(brandCtx, brandExamples) || `You are a UAE restaurant SEO copywriter for ${item.brand}.`;
 
-The user flagged a problem with a published page. Fix ONLY what the feedback describes. Preserve everything else verbatim.
+  const prompt = `You are a UAE restaurant SEO copywriter for ${item.brand}.
+The user flagged a problem with a published page. Fix ONLY what the feedback describes. If the current text contains factually wrong menu items or locations, also correct those even if not mentioned in feedback.
 
 TARGET PAGE: ${p.url || '—'}
 FOCUS KEYWORD — do NOT change this: "${currentKw}"
@@ -398,13 +403,12 @@ FOCUS KEYWORD — do NOT change this: "${currentKw}"
 CURRENT VALUES:
 SEO Title: ${currentTitle}
 Meta Description: ${currentDesc}
-Focus Keyword: ${currentKw}
 
-USER FEEDBACK (fix only this): "${feedback}"
+USER FEEDBACK: "${feedback}"
 
 RULES:
-1. The focus keyword must stay exactly: "${currentKw}" — never change it
-2. Only modify the field(s) the feedback is about — copy other fields exactly as shown above
+1. Focus keyword stays exactly: "${currentKw}" — never change it
+2. Fix what feedback asks. Also remove any factually wrong menu items or locations not in the brand context above.
 3. SEO title: 50-60 chars, must contain the focus keyword naturally
 4. Meta description: 150-160 chars, must contain the focus keyword naturally
 5. ${langRules}
@@ -413,7 +417,7 @@ Return ONLY valid JSON — no markdown, no explanation:
 {"metaTitle":"...","metaDescription":"...","focusKeyword":"${currentKw}"}`;
 
   try {
-    const text = await callClaude(prompt, 1000);
+    const text = await callClaude(prompt, { max_tokens: 1000, system: systemPrompt });
     const proposed = extractJson(text);
     if (!proposed) return bad(500, 'Claude did not return valid JSON');
     // Enforce focus keyword never changes
@@ -525,12 +529,15 @@ async function pushItem(item) {
 
 // ── Claude rewrite ───────────────────────────────────────────────
 async function callClaude(prompt, maxTokens) {
-  const key = process.env.ANTHROPIC_API_KEY;
+  const opts   = typeof maxTokens === 'object' ? maxTokens : { max_tokens: maxTokens };
+  const key    = process.env.ANTHROPIC_API_KEY;
   if (!key) throw new Error('ANTHROPIC_API_KEY not set');
+  const body   = { model: 'claude-sonnet-4-6', max_tokens: opts.max_tokens || 2000, messages: [{ role: 'user', content: prompt }] };
+  if (opts.system) body.system = opts.system;
   const res = await fetch('https://api.anthropic.com/v1/messages', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json', 'x-api-key': key, 'anthropic-version': '2023-06-01' },
-    body: JSON.stringify({ model: 'claude-sonnet-4-6', max_tokens: maxTokens || 2000, messages: [{ role: 'user', content: prompt }] }),
+    body: JSON.stringify(body),
   });
   const data = await res.json();
   if (!res.ok) throw new Error(data.error?.message || `Anthropic ${res.status}`);
@@ -551,17 +558,22 @@ function extractJson(text) {
 async function rewriteWithClaude(item, feedback) {
   const p = item.payload || {};
   const brand = item.brand;
+
+  const brandCtx  = await getBrandContext(brand).catch(() => null);
+  const brandExamples = await getBrandExamples(brand).catch(() => null);
+  const system    = buildBrandPrompt(brandCtx, brandExamples) || undefined;
+
   const prompts = {
-    blog_draft:       `You are a UAE restaurant SEO copywriter for ${brand}. Rewrite this blog post addressing feedback: "${feedback}"\n\nOriginal title: ${p.title}\nOriginal meta: ${p.metaDescription}\nKeyword: ${p.targetKeyword}\n\nReturn ONLY JSON: {"title":"...","metaDescription":"...","targetKeyword":"...","slug":"...","excerpt":"...","body":"<full HTML>"}`,
-    meta_update:      `Rewrite SEO meta for ${brand} (UAE restaurant). Feedback: "${feedback}"\nURL: ${p.url}, Title: ${p.title}, Description: ${p.description}\n\nReturn ONLY JSON: {"url":"...","title":"(50-60 chars)","description":"(150-160 chars)","targetKeyword":"..."}`,
-    onpage_suggestion:`Revise this on-page suggestion for ${brand}. Feedback: "${feedback}"\n${JSON.stringify(p)}\n\nReturn ONLY JSON in the same shape.`,
-    review_response:  `Rewrite this review response for ${brand}. Feedback: "${feedback}"\nReview: "${p.reviewText}"\nOriginal: "${p.responseText}"\n\nReturn ONLY JSON: {"reviewId":"${p.reviewId}","reviewText":"${(p.reviewText||'').replace(/"/g,'\\"')}","responseText":"(under 120 words, warm, UAE keyword natural)"}`,
-    schema_update:    `Revise this schema for ${brand}. Feedback: "${feedback}"\n${JSON.stringify(p.schema||p)}\n\nReturn ONLY JSON: {"schema":<JSON-LD object>,"url":"${p.url||''}","postId":${p.postId||null}}`,
+    blog_draft:       `Rewrite this blog post addressing feedback: "${feedback}"\n\nOriginal title: ${p.title}\nOriginal meta: ${p.metaDescription}\nKeyword: ${p.targetKeyword}\n\nReturn ONLY JSON: {"title":"...","metaDescription":"...","targetKeyword":"...","slug":"...","excerpt":"...","body":"<full HTML>"}`,
+    meta_update:      `Rewrite SEO meta addressing feedback: "${feedback}"\nURL: ${p.url}, Title: ${p.metaTitle || p.title}, Description: ${p.metaDescription || p.description}\n\nReturn ONLY JSON: {"url":"...","metaTitle":"(50-60 chars)","metaDescription":"(150-160 chars)","targetKeyword":"..."}`,
+    onpage_suggestion:`Revise this on-page suggestion based on feedback: "${feedback}"\n${JSON.stringify(p)}\n\nReturn ONLY JSON in the same shape.`,
+    review_response:  `Rewrite this review response based on feedback: "${feedback}"\nReview: "${p.reviewText}"\nOriginal: "${p.responseText}"\n\nReturn ONLY JSON: {"reviewId":"${p.reviewId}","reviewText":"${(p.reviewText||'').replace(/"/g,'\\"')}","responseText":"(under 120 words, warm, UAE keyword natural)"}`,
+    schema_update:    `Revise this schema based on feedback: "${feedback}"\n${JSON.stringify(p.schema||p)}\n\nReturn ONLY JSON: {"schema":<JSON-LD object>,"url":"${p.url||''}","postId":${p.postId||null}}`,
   };
   const prompt = prompts[item.type];
   if (!prompt) return null;
   try {
-    const text = await callClaude(prompt, 3000);
+    const text = await callClaude(prompt, { max_tokens: 3000, system });
     return extractJson(text);
   } catch (e) {
     console.error('rewrite failed:', e.message);

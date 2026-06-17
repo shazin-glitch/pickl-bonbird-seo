@@ -18,6 +18,7 @@
 //   post_response -> push approved reply to GBP (or placeholder success)
 
 const { store, createApproval, callClaude, ok, bad, preflight, parseBody } = require('./_lib/store');
+const { getBrandContext, buildBrandPrompt } = require('./_lib/brand');
 
 const SITE_URL = process.env.URL || 'https://yolkseo.netlify.app';
 const BRANDS = {
@@ -161,8 +162,10 @@ async function fetchLiveReviews(brand) {
 // ── Draft response via Claude ────────────────────────────────────
 async function draftResponse(brand, review) {
   const cfg = BRANDS[brand];
-  const prompt = `Write a professional Google review response for ${cfg.name} (UAE restaurant). Sentiment: ${review.sentiment}. Reviewer: ${review.reviewerName}. Stars: ${review.starRating}/5. Review: "${review.text}". Response: warm, includes restaurant name + Dubai/UAE keyword naturally, addresses specific points, under 120 words. For negative reviews, take ownership and offer a next step. Output ONLY the response text.`;
-  try { const { text } = await callClaude(prompt, { max_tokens: 400 }); return text.trim(); } catch (_) { return ''; }
+  const brandCtx = await getBrandContext(brand).catch(() => null);
+  const system   = buildBrandPrompt(brandCtx) || `You are a customer service rep for ${cfg.name}, a UAE restaurant.`;
+  const prompt = `Write a Google review response. Sentiment: ${review.sentiment}. Reviewer: ${review.reviewerName}. Stars: ${review.starRating}/5. Review: "${review.text}"\n\nRules: warm and on-brand, mention the restaurant name naturally, address specific points raised, under 120 words, include a UAE/Dubai keyword naturally. For negative reviews: take ownership, apologise, offer a next step. Output ONLY the response text — no labels, no quotes.`;
+  try { const { text } = await callClaude(prompt, { max_tokens: 400, system }); return text.trim(); } catch (_) { return ''; }
 }
 
 // ── Seen-IDs dedupe ──────────────────────────────────────────────

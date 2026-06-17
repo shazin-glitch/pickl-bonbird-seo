@@ -1056,7 +1056,8 @@ Return ONLY a JSON object:
   "rationale": "Why a dedicated page for this keyword will outrank blog content"
 }`;
 
-    const { text } = await callClaude(prompt, { max_tokens: 1800 });
+    const systemPrompt = brandPrompt || buildBrandPrompt(brandCtx);
+    const { text } = await callClaude(prompt, { max_tokens: 1800, system: systemPrompt });
     const parsed = extractJson(text);
     if (!parsed || !parsed.body || !parsed.title) continue;
     if (dryRun) { queued++; continue; }
