@@ -384,25 +384,41 @@ async function handleRewritePublished(body, actor) {
   const currentKw    = p.focusKeyword || p.targetKeyword || '';
 
   const isArabic = /[؀-ۿ]/.test(currentTitle + currentDesc);
-  const arabicRules = isArabic ? `\nArabic rules: keep brand names in English (Pickl, Bonbird), "smash burger" → "سماش برغر" (never "لحم بقري مسحوق"), Gulf Arabic style.\n` : '';
+  const langRules = isArabic
+    ? `Language: Arabic. Rules — keep brand names in English (Pickl, Bonbird). "smash burger" → "سماش برغر" (NEVER "لحم بقري مسحوق"). Gulf Arabic style, not MSA.`
+    : `Language: English. UAE restaurant tone.`;
 
-  const prompt = `You are a UAE restaurant SEO copywriter for ${item.brand}. Fix this SEO meta based on feedback.
-${arabicRules}
-Current SEO Title: ${currentTitle}
-Current Meta Description: ${currentDesc}
-Current Focus Keyword: ${currentKw}
-Page URL: ${p.url || '—'}
+  const prompt = `You are a UAE restaurant SEO copywriter for ${item.brand}.
 
-Feedback / what is wrong: "${feedback}"
+The user flagged a problem with a published page. Fix ONLY what the feedback describes. Preserve everything else verbatim.
+
+TARGET PAGE: ${p.url || '—'}
+FOCUS KEYWORD — do NOT change this: "${currentKw}"
+
+CURRENT VALUES:
+SEO Title: ${currentTitle}
+Meta Description: ${currentDesc}
+Focus Keyword: ${currentKw}
+
+USER FEEDBACK (fix only this): "${feedback}"
+
+RULES:
+1. The focus keyword must stay exactly: "${currentKw}" — never change it
+2. Only modify the field(s) the feedback is about — copy other fields exactly as shown above
+3. SEO title: 50-60 chars, must contain the focus keyword naturally
+4. Meta description: 150-160 chars, must contain the focus keyword naturally
+5. ${langRules}
 
 Return ONLY valid JSON — no markdown, no explanation:
-{"metaTitle":"(50-60 chars, include brand, include focus keyword naturally)","metaDescription":"(150-160 chars, compelling, includes keyword)","focusKeyword":"(primary target keyword)"}`;
+{"metaTitle":"...","metaDescription":"...","focusKeyword":"${currentKw}"}`;
 
   try {
     const text = await callClaude(prompt, 1000);
     const proposed = extractJson(text);
     if (!proposed) return bad(500, 'Claude did not return valid JSON');
-    return ok({ proposed });
+    // Enforce focus keyword never changes
+    proposed.focusKeyword = currentKw;
+    return ok({ proposed, focusKeyword: currentKw });
   } catch (e) {
     console.error('rewrite_published failed:', e.message);
     return bad(500, e.message);
