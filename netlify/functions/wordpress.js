@@ -194,11 +194,11 @@ async function handleUpdateMeta(creds, payload) {
   const res = await wpFetch(creds, `/wp/v2/${endpoint}/${postId}`, { method: 'POST', body: updates });
   if (!res.ok) return fail(res.status, `WP meta update failed: ${describeError(res)}`);
 
-  // Verify the meta was actually written (silent failure if meta keys not registered for REST)
+  // Verify the meta was actually written — check both Yoast and Rank Math keys
   const verify = await wpFetch(creds, `/wp/v2/${endpoint}/${postId}?context=edit`);
-  const writtenMeta = verify.ok ? (verify.data?.meta || {}) : null;
-  const yoastTitle = writtenMeta?._yoast_wpseo_title || null;
-  const metaWritten = yoastTitle === payload.title;
+  const writtenMeta  = verify.ok ? (verify.data?.meta || {}) : null;
+  const writtenTitle = writtenMeta?.rank_math_title || writtenMeta?._yoast_wpseo_title || null;
+  const metaWritten  = writtenTitle === payload.title;
 
   return win({
     ok: true, id: postId, postType: endpoint, ref: res.data.link,
@@ -226,13 +226,14 @@ async function handleGetCurrentMeta(creds, payload) {
   if (!res.ok) return win({ found: false });
 
   const m = res.data?.meta || {};
+  // Check both Rank Math and Yoast — take whichever has a value (both may be installed)
   return win({
-    found:       true,
+    found:        true,
     postId,
-    postType:    endpoint,
-    currentTitle: m._yoast_wpseo_title || res.data?.yoast_head_json?.title || null,
-    currentDesc:  m._yoast_wpseo_metadesc || res.data?.yoast_head_json?.description || null,
-    currentKw:    m._yoast_wpseo_focuskw || null,
+    postType:     endpoint,
+    currentTitle: m.rank_math_title || m._yoast_wpseo_title || res.data?.yoast_head_json?.title || null,
+    currentDesc:  m.rank_math_description || m._yoast_wpseo_metadesc || res.data?.yoast_head_json?.description || null,
+    currentKw:    m.rank_math_focus_keyword || m._yoast_wpseo_focuskw || null,
     wpTitle:      res.data?.title?.rendered || null,
   });
 }
