@@ -323,6 +323,29 @@ From Google's official AI Optimization Guide (June 2026):
 
 ---
 
+## Session: June 2026 — v7.3.5 — Quick wins routes missing pages to page_creation
+
+### Changes in this session
+
+#### Fix: runQuickWins routes missing pages to page_creation instead of skipping ✅
+
+Previously: if `wpPageCheck` returned `hasContent: false`, `runQuickWins` logged and `continue`d — killing the ranking opportunity entirely.
+
+Now mirrors `runMetaRewrites` pattern exactly:
+- Pre-pass splits candidates into `validCandidates` (WP page exists) and `pageCreationNeeded` (missing/empty)
+- Missing pages get a Claude-generated `page_creation` approval — same voice check + `fixBrandVoice` loop
+- Existing pages proceed as before with `page_update` approval
+- Return now includes `pageCreationsQueued` count alongside `queued`
+- Prompt for page_creation highlights the position signal: "Google ranks pos X for this keyword — building the page captures this traffic"
+
+`runQuickWins` no longer kills any ranking opportunity; missing pages become new page creation items.
+
+### Revert notes
+- Revert pre-pass split back to single loop with `continue` on `!hasContent`
+- Remove `pageCreationNeeded` array and associated loop
+
+---
+
 ## Session: June 2026 — v7.3.4 — Page update URL fixes + existence check
 
 ### Changes in this session
@@ -3279,7 +3302,7 @@ Update "Current URL" from `yolkseo.netlify.app` to `thenest.yolkbrands.com`
 
 ---
 
-## Current Version: v7.3.1
+## Current Version: v7.3.5
 
 Last session built: Bug-fix batch (v7.0.2), added Yolk Brands to Content Calendar (v7.0.3 + v7.0.4), added Yolk Brands to The Perch (v7.0.5), fixed Reports tab crash (v7.0.6), Priority Gap → Queue Brief + keyword filtering fixes (v7.0.7), copy-to-market fix + GSC page data + URL Inspection indexing badges (v7.0.8).
 

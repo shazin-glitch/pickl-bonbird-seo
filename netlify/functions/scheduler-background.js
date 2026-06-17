@@ -560,15 +560,94 @@ async function runQuickWins(brand, rows, dryRun, forceRun, brandCtx, brandPrompt
   if (dryRun) return { queued: 0, candidates: candidates.length, preview: candidates.map(r => r.keyword) };
 
   let queued = 0;
+  let pageCreationsQueued = 0;
   const items = []; // item snapshots for Slack
+  const validCandidates    = [];
+  const pageCreationNeeded = [];
+
+  // Pre-pass: split candidates into existing pages (page_update) vs missing pages (page_creation)
   for (const r of candidates) {
-    // Skip pages that no longer exist or have no content in WordPress
     const { hasContent } = await wpPageCheck(brand, r.page);
     if (!hasContent) {
-      console.log(`[quick_wins] ${r.page} — not found or empty in WP, skipping`);
-      continue;
+      console.log(`[quick_wins] ${r.page} — not found in WP, routing to page_creation (pos ${r.position}, ${r.impressions} impressions)`);
+      pageCreationNeeded.push(r);
+    } else {
+      validCandidates.push(r);
     }
+  }
 
+  // Queue page_creation for missing pages — ranking 11-20 with no page is a prime opportunity
+  for (const r of pageCreationNeeded) {
+    try {
+      const systemPrompt = brandPrompt || buildBrandPrompt(brandCtx);
+      const brandName    = brandCtx?.name || cfg.name;
+      const { text } = await callClaude(`
+Create a full landing page for ${brandName} targeting the keyword "${r.keyword}".
+Google is already ranking something at position ${r.position} for this keyword (${r.impressions} impressions) but the page doesn't properly exist — building it now can capture this traffic.
+
+Requirements:
+- H1 leads naturally with "${r.keyword}" — a line someone would actually say, not an SEO title
+- 3 H2 sections covering the keyword topic with specific ${brandName} context
+- FAQ with 4 questions people actually search — answer in the brand's voice, not a textbook
+- Internal links to /menu, /locations
+- Image placeholder comments: <!-- IMAGE: [specific description] -->
+- 600-900 words total
+- CTA that sounds like ${brandName}
+
+Return ONLY valid JSON:
+{
+  "title": "SEO title 55-60 chars",
+  "description": "Meta description 150-158 chars",
+  "targetKeyword": "${r.keyword}",
+  "slug": "url-slug",
+  "pageHeading": "H1 text",
+  "excerpt": "short description",
+  "body": "<full HTML content>",
+  "rationale": "why this page will rank"
+}`, { max_tokens: 1800, system: systemPrompt });
+
+      const parsed = extractJson(text);
+      if (!parsed?.body) continue;
+
+      let voiceCheck = await runBrandVoiceCheck(parsed.body, brandCtx, (p, o) => callClaude(p, o)).catch(() => ({ score: 6, verdict: 'PASS', issues: [] }));
+      if (voiceCheck.score >= 5 && voiceCheck.score < 8) {
+        const fixed = await fixBrandVoice(parsed.body, voiceCheck, brandCtx, (p, o) => callClaude(p, o), brandExamples);
+        if (fixed.improved) { parsed.body = fixed.content; voiceCheck = fixed.voiceCheck; }
+      }
+      if (voiceCheck.score < 5) { console.warn(`[quick_wins] page_creation voice score too low for ${r.page}`); continue; }
+
+      await createApproval({
+        type:  'page_creation',
+        brand,
+        actor: 'claude (scheduler)',
+        locationTag: getLocationTag(r.page, brand),
+        title: `New page opportunity: "${r.keyword}" — pos ${r.position}, ${r.impressions} impressions`,
+        reason: `Google ranks pos ${r.position} for "${r.keyword}" (${r.impressions} impressions) but the page doesn't exist. Creating it can capture this traffic.`,
+        payload: {
+          url:           r.page,
+          title:         parsed.title,
+          description:   parsed.description,
+          targetKeyword: parsed.targetKeyword || r.keyword,
+          slug:          parsed.slug,
+          pageHeading:   parsed.pageHeading,
+          excerpt:       parsed.excerpt,
+          body:          parsed.body,
+          pageType:      'seo',
+          wpAction:      'create_page',
+          voiceScore:    voiceCheck.score,
+          impressions:   r.impressions,
+          currentPos:    r.position,
+        },
+      });
+      console.log(`[quick_wins] Queued page_creation for ${r.page} (pos ${r.position}, ${r.impressions} impressions)`);
+      pageCreationsQueued++;
+    } catch (e) {
+      console.error('[quick_wins] page_creation error for', r.page, ':', e.message);
+    }
+  }
+
+  // Queue page_update for existing pages
+  for (const r of validCandidates) {
     const systemPrompt = brandPrompt || buildBrandPrompt(brandCtx);
     const userPrompt = `The page targeting "${r.keyword}" ranks position ${r.position}. Rewrite it to push into the top 10.
 
@@ -643,7 +722,7 @@ Return ONLY valid JSON:
     items.push({ type: 'page_update', title: parsed.title || r.keyword, keyword: r.keyword, position: r.position, voiceScore: voiceCheck.score, tier: tier.tier });
     queued++;
   }
-  return { queued, candidates: candidates.length, items };
+  return { queued, pageCreationsQueued, candidates: candidates.length, items };
 }
 
 // ════════════════════════════════════════════════════════════════
