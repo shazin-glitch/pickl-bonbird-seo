@@ -343,7 +343,20 @@ Return ONLY JSON:
     } catch (e) { console.error(`${tag} page_update failed: ${e.message}`); }
   }
 
-  // ── CONTENT GAPS: pos 21-35 → blog_draft ─────────────────────────────────
+  // ── CONTENT GAPS: pos 21-35 ──────────────────────────────────────────────────
+  // For each candidate, check if the ranking page is already a dedicated post (depth > market root).
+  // If yes → page_update (fix what exists, don't create competing content).
+  // If no (ranking via market root/category only) → blog_draft (create dedicated page).
+  function isDedicatedPage(pageUrl) {
+    const path = pageUrl.replace(/^https?:\/\/[^\/]+/, '').replace(/\/$/, '').toLowerCase();
+    const slug = market.marketSlug.toLowerCase();
+    // Market root: /bahrain or /bahrain-something but no child segment
+    if (path === `/${slug}` || path === `/${slug}/`) return false;
+    // Dedicated post: /bahrain/some-post — has a child segment
+    if (path.startsWith(`/${slug}/`) && path.split('/').filter(Boolean).length > 1) return true;
+    return false;
+  }
+
   const contentGaps = Object.values(pageMap)
     .filter(r => r.position > 20 && r.position <= 35 && r.impressions >= 20)
     .filter(r => force || !alreadyQueuedKws.has(r.keyword.toLowerCase().trim()))
@@ -353,15 +366,64 @@ Return ONLY JSON:
 
   for (const r of contentGaps) {
     try {
-      const brandName  = brandCtx?.name || market.brand;
-      const menuItems  = brandCtx?.menu ? [
-        ...(brandCtx.menu.cheeseburgers || []).slice(0, 3),
-        ...(brandCtx.menu.chickenSandos || brandCtx.menu.sandwiches || []).slice(0, 2),
-      ].join(', ') : '';
+      const existingPage = isDedicatedPage(r.page);
 
-      const userPrompt = `Write a focused blog post for ${brandName} in ${market.label} targeting "${r.keyword}".
+      if (existingPage) {
+        // Dedicated page already exists but ranking poorly — update it, don't create a competing one
+        const userPrompt = `This ${market.brand === 'pickl' ? 'Pickl' : 'Bonbird'} page already exists but ranks at position ${r.position.toFixed(1)} for "${r.keyword}" in ${market.label} — it needs on-page improvements to break into page 1.
 
-This keyword already shows ${r.impressions} impressions at position ${r.position.toFixed(1)} — a dedicated page will capture this traffic.
+PAGE: ${r.page}
+KEYWORD: "${r.keyword}"
+POSITION: ${r.position.toFixed(1)}
+IMPRESSIONS: ${r.impressions}
+MARKET: ${market.label}
+NOTE: This is an existing page. Do NOT suggest creating a new page — suggest how to improve this one.${feedbackNotes.length ? `
+
+HUMAN FEEDBACK — NEVER do any of the following:
+${feedbackNotes.map(n => `- ${n}`).join('\n')}` : ''}
+
+Provide 4-6 specific on-page improvements (content depth, heading structure, internal links, keyword coverage, E-E-A-T signals) to push it from position ${r.position.toFixed(1)} into top 10.
+
+Return ONLY JSON:
+{"title":"Page update: [keyword]","suggestions":["specific change 1","specific change 2","specific change 3"],"rationale":"one sentence on why improving this page beats creating a new one","targetKeyword":"${r.keyword}"}`;
+
+        const raw    = await callClaude(marketCtx, userPrompt);
+        const parsed = extractJson(raw);
+        if (!parsed?.suggestions) { console.warn(`${tag} content-gap page_update parse error`); continue; }
+
+        await createApproval({
+          type:    'page_update',
+          brand:   market.brand,
+          market:  market.marketKey,
+          actor:   'claude (intl-opps)',
+          locationTag: `${market.flag} ${market.label}`,
+          reason:  parsed.rationale || `Existing page at pos ${r.position.toFixed(1)} for "${r.keyword}" — improve rather than duplicate`,
+          payload: {
+            url:              r.page,
+            targetKeyword:    r.keyword,
+            currentPos:       r.position,
+            impressions:      r.impressions,
+            suggestions:      parsed.suggestions,
+            suggestionTitle:  parsed.title,
+            suggestionDetail: parsed.suggestions.join(' | '),
+            wpBase:  wp.base, wpUser: wp.user, wpPass: wp.pass,
+            language: 'en',
+          },
+        });
+        queued++;
+        console.log(`${tag} queued page_update (existing, pos ${r.position.toFixed(1)}): ${r.page}`);
+
+      } else {
+        // Only the market root or category page is ranking — no dedicated page exists yet
+        const brandName  = brandCtx?.name || market.brand;
+        const menuItems  = brandCtx?.menu ? [
+          ...(brandCtx.menu.cheeseburgers || []).slice(0, 3),
+          ...(brandCtx.menu.chickenSandos || brandCtx.menu.sandwiches || []).slice(0, 2),
+        ].join(', ') : '';
+
+        const userPrompt = `Write a focused blog post for ${brandName} in ${market.label} targeting "${r.keyword}".
+
+This keyword shows ${r.impressions} impressions at position ${r.position.toFixed(1)} but only the market root page (${r.page}) is ranking — there is no dedicated page for this topic yet. A dedicated post will capture this traffic properly.
 
 LANGUAGE: English
 WORD COUNT: 400-550 words
@@ -391,42 +453,43 @@ ${r.keyword}
 ### BODY
 [full post in HTML — h2 headings, short paragraphs]`;
 
-      const raw      = await callClaude(marketCtx, userPrompt);
-      const title    = parseSection(raw, 'TITLE').trim();
-      const slug     = parseSection(raw, 'SLUG').trim().replace(/[^a-z0-9-]/g, '');
-      const metaDesc = parseSection(raw, 'META_DESCRIPTION').trim();
-      const body     = parseSection(raw, 'BODY').trim();
-      if (!title || !body) { console.warn(`${tag} blog_draft parse error`); continue; }
+        const raw      = await callClaude(marketCtx, userPrompt);
+        const title    = parseSection(raw, 'TITLE').trim();
+        const slug     = parseSection(raw, 'SLUG').trim().replace(/[^a-z0-9-]/g, '');
+        const metaDesc = parseSection(raw, 'META_DESCRIPTION').trim();
+        const body     = parseSection(raw, 'BODY').trim();
+        if (!title || !body) { console.warn(`${tag} blog_draft parse error`); continue; }
 
-      const metaContent = `${title}\n${metaDesc}`;
-      const voiceCheck  = await runBrandVoiceCheck(metaContent, brandCtx, callClaude)
-        .catch(() => ({ score: null, issues: [], verdict: 'UNKNOWN' }));
+        const metaContent = `${title}\n${metaDesc}`;
+        const voiceCheck  = await runBrandVoiceCheck(metaContent, brandCtx, callClaude)
+          .catch(() => ({ score: null, issues: [], verdict: 'UNKNOWN' }));
 
-      await createApproval({
-        type:    'blog_draft',
-        brand:   market.brand,
-        market:  market.marketKey,
-        actor:   'claude (intl-opps)',
-        locationTag: `${market.flag} ${market.label}`,
-        reason:  `Content gap — pos ${r.position.toFixed(1)} with ${r.impressions} impressions for "${r.keyword}"`,
-        payload: {
-          title, slug, body,
-          metaTitle:       title,
-          metaDescription: metaDesc,
-          targetKeyword:   r.keyword,
-          focusKeyword:    r.keyword,
-          currentPos:      r.position,
-          impressions:     r.impressions,
-          voiceScore:      voiceCheck.score,
-          voiceIssues:     voiceCheck.issues,
-          voiceTopFix:     voiceCheck.issues?.[0] || null,
-          wpBase:  wp.base, wpUser: wp.user, wpPass: wp.pass,
-          language: 'en',
-        },
-      });
-      queued++;
-      console.log(`${tag} queued blog_draft: "${title}" (pos ${r.position.toFixed(1)})`);
-    } catch (e) { console.error(`${tag} blog_draft failed: ${e.message}`); }
+        await createApproval({
+          type:    'blog_draft',
+          brand:   market.brand,
+          market:  market.marketKey,
+          actor:   'claude (intl-opps)',
+          locationTag: `${market.flag} ${market.label}`,
+          reason:  `No dedicated page — market root ranks at pos ${r.position.toFixed(1)} for "${r.keyword}" (${r.impressions} impressions)`,
+          payload: {
+            title, slug, body,
+            metaTitle:       title,
+            metaDescription: metaDesc,
+            targetKeyword:   r.keyword,
+            focusKeyword:    r.keyword,
+            currentPos:      r.position,
+            impressions:     r.impressions,
+            voiceScore:      voiceCheck.score,
+            voiceIssues:     voiceCheck.issues,
+            voiceTopFix:     voiceCheck.issues?.[0] || null,
+            wpBase:  wp.base, wpUser: wp.user, wpPass: wp.pass,
+            language: 'en',
+          },
+        });
+        queued++;
+        console.log(`${tag} queued blog_draft (new, no dedicated page): "${title}" (pos ${r.position.toFixed(1)})`);
+      }
+    } catch (e) { console.error(`${tag} content-gap failed: ${e.message}`); }
   }
 
   return { queued, quickWins: quickWins.length, contentGaps: contentGaps.length };
