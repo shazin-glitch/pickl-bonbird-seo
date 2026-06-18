@@ -323,6 +323,30 @@ From Google's official AI Optimization Guide (June 2026):
 
 ---
 
+## Session: June 2026 — v7.3.8 — Run Audit control + Dismiss Visible fix + filter spacing
+
+### Unified Run Audit control (Approvals Queue)
+The "Run Audit Now" button is now **scope-aware**, driven by the selected **brand pill + market dropdown** (the two filters that map to a run; type/search/the Pending-Published toggle are view-only and ignored). Button label shows the live scope (e.g. "Run Audit · Pickl · All Intl").
+- `getAuditScope()` → builds run targets from brand+market: UAE → `scheduler-background` (POST `{brand}`); international → per-market `international-seo-background?market=<key>`. Handles `All markets` (UAE + all intl for the brand[s]), `🇦🇪 UAE`, `🌍 All International`, and a specific flag market (incl. both brands when a shared flag like Qatar/Oman is picked with brand=All).
+- `runScopedAudit()` confirms with the scope + run count, fires all targets (awaited 202s), toasts, refreshes the queue after ~45s.
+- `updateRunAuditLabel()` keeps the button label in sync (called from `filterBrand`, `filterMarketSelect`, `loadQueue`).
+- Replaced `runAuditNow` (all-jobs-both-brands-UAE-only). **Retired orphaned `runIntlSeo`** (its `#intl-run-btn` never existed in the DOM; relied on a synchronous `data.summary` background functions never return) + removed its readonly-list refs. Per-market ▶ Run in Markets (`runIntlMarket`) kept.
+
+### Fixes
+- **Dismiss Visible (and every nestConfirm dialog) did nothing** — `runConfirmCallback()` called `closeConfirmModal()` (which nulls `_confirmCallback`) BEFORE invoking it, so the confirmed action never ran. Fixed: capture `const cb = _confirmCallback` before closing, then invoke.
+- **Approval queue filter spacing** — 24px margin + 18px padding + a `--border` divider below `#queue-filters` so the toolbar is visually distinct from the card list.
+
+### Revert notes
+- Run Audit: repoint the button to a `runAuditNow` that POSTs `{}`; remove `getAuditScope`/`runScopedAudit`/`updateRunAuditLabel`; restore `runIntlSeo` from git history if needed.
+- runConfirmCallback: revert to `closeConfirmModal(); if (_confirmCallback) _confirmCallback();` (re-introduces the bug — don't).
+- Spacing: restore `#queue-filters` style to `margin-bottom:4px` with no padding/border.
+
+### Next
+- **Markets tab** rework into a per-market intelligence dashboard (it's the only international hub — keep + sharpen).
+- **Authentication hardening** (unauthenticated db-save/approvals/calendar/wordpress + forgeable actor) — deferred to its own session.
+
+---
+
 ## Session: June 2026 — v7.3.7 — Approval queue redesign + audit/citation fixes
 
 ### Approval Queue — filter UI redesign

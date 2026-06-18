@@ -832,9 +832,9 @@ body { font-family: var(--font-sans); background: var(--bg-base); color: var(--t
           </select>
           <button id="queue-dismiss-selected-btn" class="btn btn-outline" onclick="dismissSelected(this)" style="font-size:12px;color:#ef4444;border-color:#ef4444;display:none">🗑 Dismiss Selected (<span id="queue-selected-count">0</span>)</button>
           <button class="btn btn-outline" onclick="dismissVisible(this)" style="font-size:12px;color:#ef4444;border-color:#ef4444" title="Dismiss all currently visible items. With no filters active, this clears the entire queue.">🗑 Dismiss Visible</button>
-          <button class="btn btn-primary" onclick="runAuditNow(this)">
+          <button class="btn btn-primary" id="run-audit-btn" onclick="runScopedAudit(this)" title="Runs an audit for the brand + market you've selected below">
             <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="23 4 23 10 17 10"/><path d="M20.49 15a9 9 0 1 1-2.12-9.36L23 10"/></svg>
-            Run Audit Now
+            Run Audit <span class="run-audit-scope" style="opacity:.8;font-weight:500"></span>
           </button>
         </div>
       </div>
@@ -846,7 +846,7 @@ body { font-family: var(--font-sans); background: var(--bg-base); color: var(--t
       </div>
 
       <!-- Filter row: brand pills + type/market dropdowns + search (apply to both views) -->
-      <div class="pill-nav" id="queue-filters" style="margin-top:8px;margin-bottom:4px;align-items:center;gap:8px;flex-wrap:wrap">
+      <div class="pill-nav" id="queue-filters" style="margin-top:8px;margin-bottom:24px;padding-bottom:18px;border-bottom:1px solid var(--border);align-items:center;gap:8px;flex-wrap:wrap">
         <div class="pill active" data-bfilter="all" onclick="filterBrand(this)">All Brands</div>
         <div class="pill" data-bfilter="pickl" onclick="filterBrand(this)" style="border:1.5px solid #DF0070;color:#DF0070;background:transparent">Pickl</div>
         <div class="pill" data-bfilter="bonbird" onclick="filterBrand(this)" style="border:1.5px solid #C5161A;color:#C5161A;background:transparent">Bonbird</div>
@@ -2668,6 +2668,7 @@ async function loadQueue() {
   if (typeSel) typeSel.value = state.activeQFilter;
   const mktSel = document.getElementById('queue-market-filter');
   if (mktSel) mktSel.value = state.activeMFilter;
+  updateRunAuditLabel();
 
   if (savedB) {
     const bPill = document.querySelector(`[data-bfilter="${CSS.escape(savedB)}"]`);
@@ -2731,6 +2732,7 @@ function filterTypeSelect(value) {
 function filterMarketSelect(value) {
   state.activeMFilter = value;
   localStorage.setItem('nestMFilter', value);
+  updateRunAuditLabel();
   renderQueueOrPublished();
 }
 
@@ -2977,6 +2979,7 @@ function filterBrand(pill) {
   else { pill.style.background = ''; pill.style.color = ''; pill.style.border = ''; }
   state.activeBFilter = brand;
   localStorage.setItem('nestBFilter', brand);
+  updateRunAuditLabel();
   renderQueueOrPublished();
 }
 
@@ -3441,8 +3444,11 @@ function closeConfirmModal() {
   _confirmCallback = null;
 }
 function runConfirmCallback() {
+  // Capture before closing — closeConfirmModal() nulls _confirmCallback, so
+  // invoking it after close meant the confirm action never ran (Dismiss Visible etc.).
+  const cb = _confirmCallback;
   closeConfirmModal();
-  if (_confirmCallback) _confirmCallback();
+  if (cb) cb();
 }
 
 async function dismissVisible(btn) {
@@ -3661,31 +3667,77 @@ function removeCardFromQueue(id) {
 }
 
 // ─── RUN AUDIT NOW ───────────────────────────────────────────────
-async function runAuditNow(btn) {
-  if (!confirm('Run a full SEO audit on both Pickl and Bonbird? This may take 20–40 seconds.')) return;
-  const orig = btn.innerHTML;
-  btn.innerHTML = '<span class="spinner"></span> Auditing…';
-  btn.disabled = true;
-  try {
-    // Call background function directly — the /api/scheduler wrapper has
-    // unreliable internal fetch due to process.env.URL in Netlify functions
-    await fetch('/.netlify/functions/scheduler-background', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({}),
-    });
-    // Background function returns 202 immediately and keeps running
-    showToast('Audit running — new items will appear in 30-60 seconds', 'success');
-    // Poll for new items after 45 seconds
-    setTimeout(async () => {
-      await loadQueue();
-      showToast('Queue refreshed', '');
-    }, 45000);
-    await loadQueue();
-  } catch (e) {
-    showToast('Audit failed: ' + e.message, 'error');
+// ── Scoped Run Audit ─────────────────────────────────────────────────────────
+// Scope is driven by the selected brand pill + market dropdown (the two filters
+// that map to a run). UAE → scheduler-background; international → per-market
+// international-seo-background. Type/search/the Pending-Published toggle are
+// view-only and ignored here.
+function getAuditScope() {
+  const brand  = state.activeBFilter;   // 'all' | 'pickl' | 'bonbird'
+  const market = state.activeMFilter;   // 'all' | '__intl__' | '🇦🇪 UAE' | flag string
+  const brands = brand === 'all' ? ['pickl', 'bonbird'] : [brand];
+  const brandLabel  = brand === 'all' ? 'All brands' : (brand === 'pickl' ? 'Pickl' : 'Bonbird');
+  const marketLabel = market === 'all' ? 'All markets' : market === '__intl__' ? 'All International' : market;
+
+  const targets = [];
+  if (market === 'all' || market === '🇦🇪 UAE') {
+    brands.forEach(b => targets.push({ type: 'uae', brand: b }));
   }
-  btn.innerHTML = orig; btn.disabled = false;
+  if (market === 'all' || market === '__intl__') {
+    for (const [k, m] of Object.entries(INTL_MARKETS)) {
+      if (brands.includes(m.brand)) targets.push({ type: 'intl', marketKey: k });
+    }
+  } else if (market !== 'all' && market !== '🇦🇪 UAE') {
+    // A specific international flag market (e.g. "🇶🇦 Qatar" → both brands' Qatar if brand=All)
+    for (const [k, m] of Object.entries(INTL_MARKETS)) {
+      if (brands.includes(m.brand) && `${m.flag} ${m.label}` === market) targets.push({ type: 'intl', marketKey: k });
+    }
+  }
+  return { brandLabel, marketLabel, targets };
+}
+
+function updateRunAuditLabel() {
+  const span = document.querySelector('#run-audit-btn .run-audit-scope');
+  if (!span) return;
+  const b = state.activeBFilter === 'all' ? 'All' : (state.activeBFilter === 'pickl' ? 'Pickl' : 'Bonbird');
+  const m = state.activeMFilter === 'all' ? 'All markets' : state.activeMFilter === '__intl__' ? 'All Intl' : state.activeMFilter;
+  span.textContent = `· ${b} · ${m}`;
+}
+
+async function runScopedAudit(btn) {
+  const { brandLabel, marketLabel, targets } = getAuditScope();
+  if (!targets.length) { showToast('No audit targets for this scope', 'error'); return; }
+  const uaeN  = targets.filter(t => t.type === 'uae').length;
+  const intlN = targets.filter(t => t.type === 'intl').length;
+
+  nestConfirm(
+    `Run audit — ${brandLabel} · ${marketLabel}?`,
+    `Fires ${targets.length} background run${targets.length !== 1 ? 's' : ''}${uaeN ? ` · UAE ${uaeN}` : ''}${intlN ? ` · international ${intlN}` : ''}. New items appear in the queue in ~60s. Uses DataForSEO + Claude credits.`,
+    async () => {
+      const orig = btn.innerHTML;
+      btn.disabled = true;
+      btn.innerHTML = '<span class="spinner"></span> Auditing…';
+      try {
+        for (const t of targets) {
+          if (t.type === 'uae') {
+            await fetch('/.netlify/functions/scheduler-background', {
+              method: 'POST', headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({ brand: t.brand }),
+            }).catch(e => console.error('[audit] UAE trigger failed:', e.message));
+          } else {
+            await fetch(`/.netlify/functions/international-seo-background?market=${t.marketKey}`)
+              .catch(e => console.error('[audit] intl trigger failed:', e.message));
+          }
+        }
+        showToast(`Audit started — ${brandLabel} · ${marketLabel}. New items in ~60s.`, 'success');
+        setTimeout(async () => { await loadQueue(); showToast('Queue refreshed', ''); }, 45000);
+      } catch (e) {
+        showToast('Audit failed: ' + e.message, 'error');
+      }
+      btn.disabled = false;
+      btn.innerHTML = orig;
+    }
+  );
 }
 
 // ═══════════════════════════════════════════════════════════════
@@ -4170,9 +4222,7 @@ function applyRoleRestrictions(role) {
     '[onclick*="dismissItem"]',
     '[onclick*="rejectItem"]',
     '[onclick*="editItem"]',
-    '[onclick*="runIntlSeo"]',
     '[onclick*="runIntlMarket"]',
-    '#intl-run-btn',
     '#run-audit-btn',
     '[onclick*="saveBrandCtx"]',
     '[onclick*="resetBrandCtx"]',
@@ -7387,37 +7437,11 @@ async function runIntlMarket(marketKey, force = false) {
   }
 }
 
-async function runIntlSeo() {
-  const btn = document.getElementById('intl-run-btn');
-  btn.textContent = '⏳ Running…';
-  btn.disabled = true;
-
-  const { activeBrand, activeMarket } = intlState;
-  const marketParam = activeMarket !== 'all' ? activeMarket : (activeBrand !== 'all' ? activeBrand : 'all');
-
-  const log     = document.getElementById('intl-run-log');
-  const logBody = document.getElementById('intl-run-log-content');
-  log.style.display = 'block';
-  logBody.innerHTML = `⏳ Running international SEO — market: ${marketParam}…<br>
-<span style="color:var(--text-muted)">This runs as a background function. Results will appear in your approvals queue.</span><br>`;
-
-  try {
-    const res  = await fetch(`/.netlify/functions/international-seo-background?market=${marketParam}`);
-    const data = await res.json().catch(() => ({}));
-    if (data.summary) {
-      logBody.innerHTML += `✅ Complete — ${data.summary.queued} items queued to approvals<br>`;
-      if (data.summary.queued > 0) {
-        logBody.innerHTML += `<a href="#" onclick="switchView('dashboard');return false;" style="color:var(--primary)">→ View in approvals queue</a><br>`;
-      }
-    }
-    intlState.loaded = false;
-  } catch (e) {
-    logBody.innerHTML += `❌ ${esc(e.message)}<br>`;
-  }
-
-  btn.textContent = '▶ Run Now';
-  btn.disabled = false;
-}
+// Retired in v7.3.8 — international runs are now triggered from the unified
+// "Run Audit" control on the Approvals Queue (runScopedAudit), or per-market via
+// the ▶ Run buttons in Markets (runIntlMarket). runIntlSeo was orphaned (its
+// #intl-run-btn never existed in the DOM) and relied on a synchronous data.summary
+// that background functions never return.
 
 // ── Slack webhook settings ─────────────────────────────────────────────────
 async function loadSlackWebhook() {
