@@ -67,7 +67,7 @@
       .cm-table-wrap { overflow-x:auto; border-radius:10px; border:1px solid rgba(255,255,255,0.07); }
       .cm-table { width:100%; border-collapse:collapse; font-size:0.82rem; min-width:640px; }
       .cm-table th { background:rgba(255,255,255,0.04); color:var(--text-muted,#64748b); font-weight:600; font-size:0.72rem; text-transform:uppercase; letter-spacing:0.05em; padding:10px 14px; text-align:left; white-space:nowrap; border-bottom:1px solid rgba(255,255,255,0.06); }
-      .cm-table td { padding:10px 14px; border-bottom:1px solid rgba(255,255,255,0.04); color:var(--text-primary,#1e293b); vertical-align:middle; }
+      .cm-table td { padding:10px 14px; border-bottom:1px solid rgba(255,255,255,0.04); color:var(--text-main); vertical-align:middle; }
       .cm-table tr:last-child td { border-bottom:none; }
       .cm-table tr:hover td { background:rgba(255,255,255,0.02); }
       .cm-keyword { font-weight:500; }
@@ -102,7 +102,7 @@
       .cm-summary-cards { display:grid; grid-template-columns:repeat(auto-fit,minmax(160px,1fr)); gap:12px; margin-bottom:20px; }
       .cm-summary-card { background:rgba(255,255,255,0.03); border:1px solid rgba(255,255,255,0.07); border-radius:10px; padding:14px 16px; }
       .cm-summary-card-label { font-size:0.7rem; text-transform:uppercase; letter-spacing:0.05em; color:var(--text-muted,#64748b); margin-bottom:6px; }
-      .cm-summary-card-value { font-size:1.5rem; font-weight:700; color:var(--text-primary,#1e293b); }
+      .cm-summary-card-value { font-size:1.5rem; font-weight:700; color:var(--text-main); }
       .cm-summary-card-sub { font-size:0.72rem; color:var(--text-muted,#64748b); margin-top:2px; }
       .cm-view-toggle { display:flex; gap:6px; flex-wrap:wrap; }
       .cm-view-btn { padding:5px 12px; border-radius:6px; font-size:0.78rem; font-weight:500; border:1px solid rgba(0,0,0,0.15); background:transparent; color:var(--text-secondary,#475569); cursor:pointer; transition:all 0.15s; }
@@ -115,11 +115,11 @@
       .cm-kw-section-title { font-size:0.8rem; font-weight:700; text-transform:uppercase; letter-spacing:0.05em; color:var(--text-muted,#64748b); margin-bottom:10px; display:flex; align-items:center; gap:8px; }
       .cm-kw-count { background:rgba(0,0,0,0.07); border-radius:10px; padding:1px 7px; font-size:0.72rem; font-weight:600; }
       .cm-kw-grid { display:flex; flex-wrap:wrap; gap:6px; }
-      .cm-kw-tag { display:inline-flex; align-items:center; gap:5px; background:rgba(0,0,0,0.05); border:1px solid rgba(0,0,0,0.1); border-radius:20px; padding:4px 10px 4px 12px; font-size:0.78rem; color:var(--text-primary,#1e293b); }
+      .cm-kw-tag { display:inline-flex; align-items:center; gap:5px; background:rgba(0,0,0,0.05); border:1px solid rgba(0,0,0,0.1); border-radius:20px; padding:4px 10px 4px 12px; font-size:0.78rem; color:var(--text-main); }
       .cm-kw-tag-delete { background:none; border:none; cursor:pointer; padding:0; color:#94a3b8; font-size:1rem; line-height:1; display:flex; align-items:center; transition:color 0.15s; }
       .cm-kw-tag-delete:hover { color:#ef4444; }
       .cm-kw-add-row { display:flex; gap:8px; margin-top:14px; }
-      .cm-kw-add-input { flex:1; padding:7px 12px; border-radius:7px; font-size:0.82rem; border:1px solid rgba(0,0,0,0.15); outline:none; color:var(--text-primary,#1e293b); background:#fff; }
+      .cm-kw-add-input { flex:1; padding:7px 12px; border-radius:7px; font-size:0.82rem; border:1px solid var(--border,rgba(0,0,0,0.15)); outline:none; color:var(--text-main); background:var(--bg-surface,#fff); }
       .cm-kw-add-input:focus { border-color:#3b82f6; box-shadow:0 0 0 3px rgba(59,130,246,0.1); }
       .cm-kw-add-btn { padding:7px 16px; border-radius:7px; font-size:0.82rem; font-weight:600; background:#1e293b; color:#fff; border:none; cursor:pointer; }
       .cm-kw-save-bar { margin-top:16px; padding:12px 16px; background:#fffbeb; border:1px solid #fcd34d; border-radius:8px; display:flex; align-items:center; justify-content:space-between; gap:12px; font-size:0.82rem; color:#92400e; }
@@ -135,7 +135,7 @@
       .cm-poll-status { font-size:0.75rem; color:#3b82f6; margin-top:4px; text-align:center; }
       /* Share of Voice chart */
       .cm-sov-chart-wrap { background:rgba(255,255,255,0.03); border:1px solid rgba(255,255,255,0.07); border-radius:10px; padding:20px; margin-bottom:20px; }
-      .cm-sov-chart-title { font-size:0.85rem; font-weight:700; margin-bottom:16px; color:var(--text-primary,#1e293b); }
+      .cm-sov-chart-title { font-size:0.85rem; font-weight:700; margin-bottom:16px; color:var(--text-main); }
       .cm-sov-bars { display:flex; flex-direction:column; gap:8px; }
       .cm-sov-bar-row { display:flex; align-items:center; gap:10px; }
       .cm-sov-bar-label { width:140px; font-size:0.78rem; font-weight:500; text-align:right; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; color:var(--text-secondary,#475569); flex-shrink:0; }

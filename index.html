@@ -823,7 +823,7 @@ body { font-family: var(--font-sans); background: var(--bg-base); color: var(--t
           <div class="section-desc">Review, edit, or reject AI-generated optimizations before they go live.</div>
         </div>
         <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap">
-          <select id="queue-sort" class="form-input" onchange="renderQueue()" style="font-size:12px;padding:5px 10px;width:auto;font-family:var(--font-sans)">
+          <select id="queue-sort" class="form-input" onchange="renderQueueOrPublished()" style="font-size:12px;padding:5px 10px;width:auto;font-family:var(--font-sans)">
             <option value="">Default order</option>
             <option value="voice_desc">Voice score ↑</option>
             <option value="position_asc">Position (best first)</option>
@@ -839,35 +839,40 @@ body { font-family: var(--font-sans); background: var(--bg-base); color: var(--t
         </div>
       </div>
 
-      <div class="pill-nav" id="queue-pills">
-        <div class="pill active" data-qfilter="all" onclick="filterQueue(this)">All Approvals</div>
-        <div class="pill" data-qfilter="meta_update" onclick="filterQueue(this)">Meta Updates</div>
-        <div class="pill" data-qfilter="onpage_suggestion" onclick="filterQueue(this)">On-Page Edits</div>
-        <div class="pill" data-qfilter="blog_draft" onclick="filterQueue(this)">Blog Drafts</div>
-        <div class="pill" data-qfilter="review_response" onclick="filterQueue(this)">Review Replies</div>
-        <div class="pill" data-qfilter="page_creation" onclick="filterQueue(this)">New Pages</div>
-        <div class="pill" data-qfilter="page_update" onclick="filterQueue(this)">Page Updates</div>
-        <div class="pill" data-qfilter="published" onclick="filterQueue(this)" style="margin-left:8px;border-left:1px solid var(--border);padding-left:12px">📈 Published & Tracking</div>
+      <!-- View toggle: Pending queue vs Published & Tracking -->
+      <div class="pill-nav" id="queue-view-toggle">
+        <div class="pill active" data-view="pending" onclick="switchQueueView(this)">Pending Queue</div>
+        <div class="pill" data-view="published" onclick="switchQueueView(this)">📈 Published &amp; Tracking</div>
       </div>
 
-      <!-- Brand filter -->
-      <div class="pill-nav" id="brand-pills" style="margin-top:8px">
+      <!-- Filter row: brand pills + type/market dropdowns + search (apply to both views) -->
+      <div class="pill-nav" id="queue-filters" style="margin-top:8px;margin-bottom:4px;align-items:center;gap:8px;flex-wrap:wrap">
         <div class="pill active" data-bfilter="all" onclick="filterBrand(this)">All Brands</div>
         <div class="pill" data-bfilter="pickl" onclick="filterBrand(this)" style="border:1.5px solid #DF0070;color:#DF0070;background:transparent">Pickl</div>
         <div class="pill" data-bfilter="bonbird" onclick="filterBrand(this)" style="border:1.5px solid #C5161A;color:#C5161A;background:transparent">Bonbird</div>
-      </div>
-
-      <!-- Market filter -->
-      <div class="pill-nav" id="market-pills" style="margin-top:8px;margin-bottom:4px">
-        <div class="pill active" data-mfilter="all" onclick="filterMarket(this)">All Markets</div>
-        <div class="pill" data-mfilter="🇦🇪 UAE" onclick="filterMarket(this)">🇦🇪 UAE</div>
-        <div class="pill" data-mfilter="🇧🇭 Bahrain" onclick="filterMarket(this)">🇧🇭 Bahrain</div>
-        <div class="pill" data-mfilter="🇸🇦 Saudi Arabia" onclick="filterMarket(this)">🇸🇦 Saudi Arabia</div>
-        <div class="pill" data-mfilter="🇯🇴 Jordan" onclick="filterMarket(this)">🇯🇴 Jordan</div>
-        <div class="pill" data-mfilter="🇶🇦 Qatar" onclick="filterMarket(this)">🇶🇦 Qatar</div>
-        <div class="pill" data-mfilter="🇪🇬 Egypt" onclick="filterMarket(this)">🇪🇬 Egypt</div>
-        <div class="pill" data-mfilter="🇴🇲 Oman" onclick="filterMarket(this)">🇴🇲 Oman</div>
-        <div class="pill" data-mfilter="🇵🇰 Pakistan" onclick="filterMarket(this)">🇵🇰 Pakistan</div>
+        <span style="width:1px;height:20px;background:var(--border);margin:0 2px"></span>
+        <select id="queue-type-filter" class="form-input" onchange="filterTypeSelect(this.value)" style="font-size:12px;padding:5px 10px;width:auto;font-family:var(--font-sans)">
+          <option value="all">All types</option>
+          <option value="meta_update">Meta updates</option>
+          <option value="onpage_suggestion">On-page edits</option>
+          <option value="blog_draft">Blog drafts</option>
+          <option value="review_response">Review replies</option>
+          <option value="page_creation">New pages</option>
+          <option value="page_update">Page updates</option>
+        </select>
+        <select id="queue-market-filter" class="form-input" onchange="filterMarketSelect(this.value)" style="font-size:12px;padding:5px 10px;width:auto;font-family:var(--font-sans)">
+          <option value="all">All markets</option>
+          <option value="__intl__">🌍 All International</option>
+          <option value="🇦🇪 UAE">🇦🇪 UAE</option>
+          <option value="🇧🇭 Bahrain">🇧🇭 Bahrain</option>
+          <option value="🇸🇦 Saudi Arabia">🇸🇦 Saudi Arabia</option>
+          <option value="🇯🇴 Jordan">🇯🇴 Jordan</option>
+          <option value="🇶🇦 Qatar">🇶🇦 Qatar</option>
+          <option value="🇪🇬 Egypt">🇪🇬 Egypt</option>
+          <option value="🇴🇲 Oman">🇴🇲 Oman</option>
+          <option value="🇵🇰 Pakistan">🇵🇰 Pakistan</option>
+        </select>
+        <input id="queue-search" type="search" placeholder="🔍 Search keyword / title…" oninput="onQueueSearch(this.value)" style="font-size:12px;padding:5px 10px;width:210px;max-width:100%;border:1px solid var(--border);border-radius:7px;background:var(--bg-surface);color:var(--text-main);font-family:var(--font-sans)" />
       </div>
 
       <div class="queue-list" id="queue-list">
@@ -2094,9 +2099,12 @@ body { font-family: var(--font-sans); background: var(--bg-base); color: var(--t
 <!-- ═══ ADD KEYWORD MODAL ═══ -->
 <div class="tool-modal-overlay" id="kw-modal" style="display:none" onclick="if(event.target===this)closeKwModal()">
   <div class="tool-modal" style="max-width:480px">
-    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:20px">
+    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px">
       <h2>Add Target Keyword</h2>
       <button class="btn btn-ghost" onclick="closeKwModal()">✕</button>
+    </div>
+    <div style="font-size:12px;color:var(--text-muted);line-height:1.5;margin-bottom:20px;padding:10px 12px;background:var(--bg-base);border-radius:8px;border:1px solid var(--border)">
+      Starts <strong>tracking this keyword's rank</strong> (via GSC) and adds it to the brand's <strong>competitor matrix</strong> for side-by-side SERP comparison. It does <strong>not</strong> queue content — to make the scheduler write content for a keyword, add it to the <strong>Seed Keywords</strong> list in How It Works.
     </div>
     <div class="form-group">
       <label class="form-label">Keyword</label>
@@ -2187,10 +2195,11 @@ const state = {
     bonbird: []
   },
   queue: [],
-  activeQFilter: 'all',
+  queueView: 'pending',     // 'pending' | 'published' — top-level view toggle
+  activeQFilter: 'all',     // type filter ('all' or a content type) — applies to both views
   activeBFilter: 'all',
-  activeMFilter: 'all',
-  publishedTypeFilter: 'all',
+  activeMFilter: 'all',     // market filter ('all' | '__intl__' | a flag locationTag) — both views
+  queueSearch: '',          // keyword/title search — both views
   activeAnalyticsBrand: 'all',
   activeAnalyticsView: 'gsc',
   currentTool: null,
@@ -2639,35 +2648,41 @@ function updateDashboardMetrics() {
 // ═══════════════════════════════════════════════════════════════
 async function loadQueue() {
   // Restore filter state from localStorage
-  const savedQ = localStorage.getItem('nestQFilter');
-  const savedB = localStorage.getItem('nestBFilter');
-  const savedM = localStorage.getItem('nestMFilter');
-  if (savedQ) {
-    state.activeQFilter = savedQ;
-    const qPill = document.querySelector(`[data-qfilter="${CSS.escape(savedQ)}"]`);
-    if (qPill) { document.querySelectorAll('#queue-pills .pill').forEach(p => p.classList.remove('active')); qPill.classList.add('active'); }
-  }
+  const savedView = localStorage.getItem('nestQView');
+  let   savedQ    = localStorage.getItem('nestQFilter');
+  const savedB    = localStorage.getItem('nestBFilter');
+  const savedM    = localStorage.getItem('nestMFilter');
+
+  // Migrate the old combined filter: 'published' used to live in nestQFilter.
+  if (savedQ === 'published') { state.queueView = 'published'; savedQ = 'all'; localStorage.setItem('nestQFilter', 'all'); }
+
+  state.queueView = savedView || state.queueView;
+  if (savedQ) state.activeQFilter = savedQ;
+  if (savedM) state.activeMFilter = savedM;
+  if (savedB) state.activeBFilter = savedB;
+
+  // Reflect restored state in the controls
+  document.querySelectorAll('#queue-view-toggle .pill').forEach(p =>
+    p.classList.toggle('active', p.dataset.view === state.queueView));
+  const typeSel = document.getElementById('queue-type-filter');
+  if (typeSel) typeSel.value = state.activeQFilter;
+  const mktSel = document.getElementById('queue-market-filter');
+  if (mktSel) mktSel.value = state.activeMFilter;
+
   if (savedB) {
-    state.activeBFilter = savedB;
     const bPill = document.querySelector(`[data-bfilter="${CSS.escape(savedB)}"]`);
     if (bPill) {
-      document.querySelectorAll('#brand-pills .pill').forEach(p => { p.classList.remove('active'); const b=p.dataset.bfilter; if(b==='pickl'){p.style.background='transparent';p.style.color='#DF0070';p.style.border='1.5px solid #DF0070';}else if(b==='bonbird'){p.style.background='transparent';p.style.color='#C5161A';p.style.border='1.5px solid #C5161A';}else{p.style.background='';p.style.color='';p.style.border='';} });
+      document.querySelectorAll('#queue-filters .pill[data-bfilter]').forEach(p => { p.classList.remove('active'); const b=p.dataset.bfilter; if(b==='pickl'){p.style.background='transparent';p.style.color='#DF0070';p.style.border='1.5px solid #DF0070';}else if(b==='bonbird'){p.style.background='transparent';p.style.color='#C5161A';p.style.border='1.5px solid #C5161A';}else{p.style.background='';p.style.color='';p.style.border='';} });
       bPill.classList.add('active');
       if (savedB==='pickl'){bPill.style.background='#DF0070';bPill.style.color='#fff';bPill.style.border='1.5px solid #DF0070';}
       else if(savedB==='bonbird'){bPill.style.background='#C5161A';bPill.style.color='#fff';bPill.style.border='1.5px solid #C5161A';}
     }
   }
-  if (savedM) {
-    state.activeMFilter = savedM;
-    const mPill = document.querySelector(`[data-mfilter="${CSS.escape(savedM)}"]`);
-    if (mPill) { document.querySelectorAll('#market-pills .pill').forEach(p => p.classList.remove('active')); mPill.classList.add('active'); }
-  }
 
   try {
     const data = await apiGet('/api/approvals?status=pending');
     state.queue = data.items || [];
-    if (state.activeQFilter === 'published') loadPublishedTracking();
-    else renderQueue();
+    renderQueueOrPublished();
     updateQueueBadge(data.counts);
   } catch (e) {
     document.getElementById('queue-list').innerHTML =
@@ -2691,73 +2706,75 @@ function updateQueueBadge(counts) {
   else { badge.style.display = 'none'; }
 }
 
-function filterQueue(pill) {
-  const filter = pill.dataset.qfilter;
-  // Type pills that can filter within the published view
-  const TYPE_FILTERS = new Set(['blog_draft', 'meta_update', 'page_update', 'page_creation', 'onpage_suggestion', 'review_response', 'schema_update']);
+// ── Queue controls (toggle + dropdowns + search) ─────────────────────────────
+// All filters (type, brand, market, search) apply to BOTH the pending queue and
+// the Published & Tracking view. The toggle only switches which view renders.
+function renderQueueOrPublished() {
+  if (state.queueView === 'published') loadPublishedTracking();
+  else renderQueue();
+}
 
-  if (filter === 'published') {
-    // Entering published view — reset type filter
-    document.querySelectorAll('#queue-pills .pill').forEach(p => p.classList.remove('active'));
-    pill.classList.add('active');
-    state.activeQFilter = 'published';
-    state.publishedTypeFilter = 'all';
-    localStorage.setItem('nestQFilter', 'published');
-    loadPublishedTracking();
-  } else if (state.activeQFilter === 'published' && TYPE_FILTERS.has(filter)) {
-    // In published view — type pill filters within the published view (doesn't exit)
-    document.querySelectorAll('#queue-pills .pill').forEach(p => p.classList.remove('active'));
-    pill.classList.add('active');
-    document.querySelector('[data-qfilter="published"]')?.classList.add('active');
-    state.publishedTypeFilter = filter;
-    loadPublishedTracking();
-  } else {
-    // All other pills (including "All") always exit published view back to approval queue
-    document.querySelectorAll('#queue-pills .pill').forEach(p => p.classList.remove('active'));
-    pill.classList.add('active');
-    state.activeQFilter = filter;
-    state.publishedTypeFilter = 'all';
-    localStorage.setItem('nestQFilter', filter);
-    renderQueue();
+function switchQueueView(pill) {
+  document.querySelectorAll('#queue-view-toggle .pill').forEach(p => p.classList.remove('active'));
+  pill.classList.add('active');
+  state.queueView = pill.dataset.view;
+  localStorage.setItem('nestQView', state.queueView);
+  renderQueueOrPublished();
+}
+
+function filterTypeSelect(value) {
+  state.activeQFilter = value;
+  localStorage.setItem('nestQFilter', value);
+  renderQueueOrPublished();
+}
+
+function filterMarketSelect(value) {
+  state.activeMFilter = value;
+  localStorage.setItem('nestMFilter', value);
+  renderQueueOrPublished();
+}
+
+let _queueSearchTimer = null;
+function onQueueSearch(value) {
+  state.queueSearch = value;
+  clearTimeout(_queueSearchTimer);
+  _queueSearchTimer = setTimeout(renderQueueOrPublished, 200);
+}
+
+// Shared filter predicates — used by both views + Dismiss Visible so they always agree.
+function queueMarketMatch(item) {
+  const m = state.activeMFilter;
+  if (m === 'all') return true;
+  if (m === '__intl__') return !!item.locationTag && item.locationTag !== '🇦🇪 UAE';
+  return item.locationTag === m;
+}
+function queueSearchMatch(item) {
+  const q = (state.queueSearch || '').trim().toLowerCase();
+  if (!q) return true;
+  const p = item.payload || {};
+  return [item.title, item.reason, item.trackingKeyword, p.targetKeyword, p.keyword, p.title, p.slug, p.pageHeading]
+    .filter(Boolean).join(' ').toLowerCase().includes(q);
+}
+// The pending-queue visible set — shared by renderQueue + dismissVisible.
+function getVisibleQueueItems() {
+  let items = state.queue;
+  if (state.activeQFilter !== 'all') items = items.filter(i => i.type === state.activeQFilter);
+  if (state.activeBFilter !== 'all') items = items.filter(i => i.brand === state.activeBFilter);
+  items = items.filter(queueMarketMatch).filter(queueSearchMatch);
+  // Market access restriction — hide items outside an international-only user's markets
+  if (state.userMarkets?.length) {
+    const flagMap = { bahrain:'🇧🇭', ksa:'🇸🇦', qatar:'🇶🇦', egypt:'🇪🇬', jordan:'🇯🇴', oman:'🇴🇲', pakistan:'🇵🇰' };
+    const allowedFlags = new Set(state.userMarkets.map(k => flagMap[k.split('_').slice(1).join('_')] || null).filter(Boolean));
+    items = items.filter(i => i.locationTag && i.locationTag !== '🇦🇪 UAE' && [...allowedFlags].some(f => i.locationTag.startsWith(f)));
   }
+  return items;
 }
 
 function renderQueue() {
   state.queueSelected.clear();
   updateQueueSelectBar();
   const list = document.getElementById('queue-list');
-  let items = state.queue;
-
-  // Apply all three filters + market restrictions
-  if (state.activeQFilter !== 'all') items = items.filter(i => i.type === state.activeQFilter);
-  if (state.activeBFilter !== 'all') items = items.filter(i => i.brand === state.activeBFilter);
-  if (state.activeMFilter !== 'all') items = items.filter(i => i.locationTag === state.activeMFilter);
-  // Market access restriction — hide items outside user's allowed markets
-  if (state.userMarkets?.length) {
-    const allowedFlags = new Set(state.userMarkets.map(k => {
-      // Map market key to flag prefix (e.g. 'pickl_bahrain' → '🇧🇭')
-      const flagMap = { bahrain:'🇧🇭', ksa:'🇸🇦', qatar:'🇶🇦', egypt:'🇪🇬', jordan:'🇯🇴', oman:'🇴🇲', pakistan:'🇵🇰' };
-      const part = k.split('_').slice(1).join('_');
-      return flagMap[part] || null;
-    }).filter(Boolean));
-    items = items.filter(i => {
-      if (!i.locationTag || i.locationTag === '🇦🇪 UAE') return false; // UAE blocked for international-only
-      return [...allowedFlags].some(flag => i.locationTag.startsWith(flag));
-    });
-  }
-
-  // Update type pill counts (based on brand+market filtered set first)
-  let baseItems = state.queue;
-  if (state.activeBFilter !== 'all') baseItems = baseItems.filter(i => i.brand === state.activeBFilter);
-  if (state.activeMFilter !== 'all') baseItems = baseItems.filter(i => i.locationTag === state.activeMFilter);
-
-  document.querySelectorAll('#queue-pills .pill').forEach(p => {
-    const f = p.dataset.qfilter;
-    if (f === 'published') return; // don't count published in pending queue
-    const count = f === 'all' ? baseItems.length : baseItems.filter(i => i.type === f).length;
-    const label = p.textContent.replace(/ \(\d+\)/, '');
-    p.textContent = count > 0 ? `${label} (${count})` : label;
-  });
+  let items = getVisibleQueueItems();
 
   // Sort
   const qSort = document.getElementById('queue-sort')?.value || '';
@@ -2771,11 +2788,12 @@ function renderQueue() {
     });
   }
 
+  const noFilters = state.activeQFilter === 'all' && state.activeBFilter === 'all' && state.activeMFilter === 'all' && !(state.queueSearch || '').trim();
   if (!items.length) {
     list.innerHTML = `<div class="empty-state">
       <div class="empty-state-icon">✅</div>
       <h3>Queue is clear</h3>
-      <p>${state.activeQFilter === 'all' && state.activeBFilter === 'all' && state.activeMFilter === 'all' ? 'No pending actions. Run an audit to generate new suggestions.' : 'No items match the selected filters.'}</p>
+      <p>${noFilters ? 'No pending actions. Run an audit to generate new suggestions.' : 'No items match the selected filters.'}</p>
     </div>`;
     return;
   }
@@ -2798,18 +2816,17 @@ async function loadPublishedTracking() {
       ...(data2.items || []),
     ].filter(i => i.trackingKeyword || i.payload?.targetKeyword);
 
-    // Apply brand filter
+    // Same unified filters as the pending view (type + brand + market + search)
+    if (state.activeQFilter !== 'all') items = items.filter(i => i.type === state.activeQFilter);
     if (state.activeBFilter !== 'all') items = items.filter(i => i.brand === state.activeBFilter);
-    // Apply market filter
-    if (state.activeMFilter !== 'all') items = items.filter(i => i.locationTag === state.activeMFilter);
-    // Apply type filter (set by clicking type pills while in published view)
-    if (state.publishedTypeFilter !== 'all') items = items.filter(i => i.type === state.publishedTypeFilter);
+    items = items.filter(queueMarketMatch).filter(queueSearchMatch);
 
     // Active filter summary for header
     const activeFilters = [];
-    if (state.publishedTypeFilter !== 'all') activeFilters.push(TYPE_LABELS[state.publishedTypeFilter] || state.publishedTypeFilter);
-    if (state.activeBFilter !== 'all')       activeFilters.push(BRAND_LABELS[state.activeBFilter] || state.activeBFilter);
-    if (state.activeMFilter !== 'all')       activeFilters.push(state.activeMFilter);
+    if (state.activeQFilter !== 'all') activeFilters.push(TYPE_LABELS[state.activeQFilter] || state.activeQFilter);
+    if (state.activeBFilter !== 'all') activeFilters.push(BRAND_LABELS[state.activeBFilter] || state.activeBFilter);
+    if (state.activeMFilter !== 'all') activeFilters.push(state.activeMFilter === '__intl__' ? '🌍 International' : state.activeMFilter);
+    if ((state.queueSearch || '').trim()) activeFilters.push(`“${state.queueSearch.trim()}”`);
     const filterNote = activeFilters.length ? ` — ${activeFilters.join(' · ')}` : '';
 
     if (!items.length) {
@@ -2946,7 +2963,7 @@ function buildTrackingCard(item) {
 }
 
 function filterBrand(pill) {
-  document.querySelectorAll('#brand-pills .pill').forEach(p => {
+  document.querySelectorAll('#queue-filters .pill[data-bfilter]').forEach(p => {
     p.classList.remove('active');
     const b = p.dataset.bfilter;
     if (b === 'pickl') { p.style.background = 'transparent'; p.style.color = '#DF0070'; p.style.border = '1.5px solid #DF0070'; }
@@ -2960,26 +2977,17 @@ function filterBrand(pill) {
   else { pill.style.background = ''; pill.style.color = ''; pill.style.border = ''; }
   state.activeBFilter = brand;
   localStorage.setItem('nestBFilter', brand);
-  if (state.activeQFilter === 'published') loadPublishedTracking();
-  else renderQueue();
+  renderQueueOrPublished();
 }
 
-function filterMarket(pill) {
-  document.querySelectorAll('#market-pills .pill').forEach(p => p.classList.remove('active'));
-  pill.classList.add('active');
-  state.activeMFilter = pill.dataset.mfilter;
-  localStorage.setItem('nestMFilter', pill.dataset.mfilter);
-  if (state.activeQFilter === 'published') loadPublishedTracking();
-  else renderQueue();
-}
-
-// Pre-filter dashboard by market — called from International SEO "View Queue"
+// Pre-filter the approval queue by market — called from International SEO "View Queue"
 function filterDashboardByMarket(locationTag) {
   switchView('dashboard');
   // Small delay to let the view render first
   setTimeout(() => {
-    const pill = document.querySelector(`[data-mfilter="${locationTag}"]`);
-    if (pill) filterMarket(pill);
+    const sel = document.getElementById('queue-market-filter');
+    if (sel) sel.value = locationTag;
+    filterMarketSelect(locationTag);
   }, 100);
 }
 
@@ -3438,18 +3446,17 @@ function runConfirmCallback() {
 }
 
 async function dismissVisible(btn) {
-  // Get currently visible items based on active filters
-  let visible = state.queue;
-  if (state.activeQFilter !== 'all') visible = visible.filter(i => i.type === state.activeQFilter);
-  if (state.activeBFilter !== 'all') visible = visible.filter(i => i.brand === state.activeBFilter);
-  if (state.activeMFilter !== 'all') visible = visible.filter(i => i.locationTag === state.activeMFilter);
+  if (state.queueView === 'published') { showToast('Switch to the Pending Queue to dismiss items', ''); return; }
+  // Exactly the items currently shown (same type + brand + market + search set)
+  const visible = getVisibleQueueItems();
 
   if (!visible.length) { showToast('Nothing to dismiss', ''); return; }
 
   const filterDesc = [
     state.activeBFilter !== 'all' ? state.activeBFilter : '',
     state.activeQFilter !== 'all' ? state.activeQFilter.replace(/_/g,' ') : '',
-    state.activeMFilter !== 'all' ? state.activeMFilter : '',
+    state.activeMFilter === '__intl__' ? 'international' : (state.activeMFilter !== 'all' ? state.activeMFilter : ''),
+    (state.queueSearch || '').trim() ? `“${state.queueSearch.trim()}”` : '',
   ].filter(Boolean).join(' · ') || 'all';
 
   nestConfirm(
@@ -8074,7 +8081,10 @@ function renderOpportunitiesTable() {
     const updatedAt = kwOppData?.updatedAt;
     const ideasFetched = kwOppData?.ideasFetched;
     const lastRun = updatedAt ? `Last run: ${new Date(updatedAt).toLocaleDateString('en-GB',{day:'numeric',month:'short',hour:'2-digit',minute:'2-digit'})}` : '';
-    const diagInfo = ideasFetched !== undefined ? `DataForSEO returned ${ideasFetched} ideas — ${ideasFetched === 0 ? 'check DataForSEO balance and location code' : 'Claude filtered all as irrelevant (check brand context in Settings)'}` : '';
+    // Prefer the real DataForSEO outcome string when present; otherwise fall back to the old guess.
+    const diagInfo = kwOppData?.ideasDiag
+      ? kwOppData.ideasDiag + (ideasFetched > 0 ? ' — Claude filtered all as irrelevant (check brand context in Settings)' : '')
+      : (ideasFetched !== undefined ? `DataForSEO returned ${ideasFetched} ideas — ${ideasFetched === 0 ? 'check DataForSEO balance and location code' : 'Claude filtered all as irrelevant (check brand context in Settings)'}` : '');
     table.innerHTML = `<div style="text-align:center;padding:40px;background:var(--bg-surface);border-radius:10px;border:1px solid var(--border)">
       <div style="font-size:28px;margin-bottom:10px">🎯</div>
       <div style="font-weight:600;margin-bottom:6px">No keyword opportunities${tierFilter ? ' for this tier' : ' yet'}</div>
@@ -11348,7 +11358,7 @@ function fmtRelativeDate(iso) {
   return new Date(iso).toLocaleDateString('en-GB', { day: 'numeric', month: 'short' });
 }
 </script>
-<script src="/js/competitor-matrix-ui.js?v=6.9bf"></script>
+<script src="/js/competitor-matrix-ui.js?v=7.3.7"></script>
 <!-- ═══ PERCH SIDE PANEL ═══ -->
 <div id="perch-side-panel">
   <div id="perch-panel-content" style="padding:0"></div>

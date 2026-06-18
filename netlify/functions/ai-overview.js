@@ -54,10 +54,12 @@ exports.handler = async (event) => {
         return { statusCode: 400, headers, body: JSON.stringify({ error: 'Invalid brand' }) };
       }
 
-      // Fire background function — returns 202 immediately, runs up to 15 min
+      // Fire background function — returns 202 immediately, runs up to 15 min.
+      // MUST await — an un-awaited fetch is frozen when the function returns, so the
+      // background invocation never fires. Awaiting resolves on the fast 202.
       const base  = process.env.URL || 'http://localhost:8888';
       const bgUrl = `${base}/.netlify/functions/ai-overview-background?brand=${brand}`;
-      fetch(bgUrl).catch(e => console.error('[ai-overview] bg trigger failed:', e.message));
+      await fetch(bgUrl).catch(e => console.error('[ai-overview] bg trigger failed:', e.message));
 
       return {
         statusCode: 202,

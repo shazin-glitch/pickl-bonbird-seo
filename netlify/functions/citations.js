@@ -213,7 +213,10 @@ exports.handler = async (event) => {
         // GET until the per-platform checkedAt timestamps update.
         const base  = process.env.URL || 'http://localhost:8888';
         const bgUrl = `${base}/.netlify/functions/citations-background?brand=${brand}`;
-        fetch(bgUrl).catch(e => console.error('[citations] bg trigger failed:', e.message));
+        // MUST await — an un-awaited fetch is frozen when the function returns, so
+        // the background invocation never actually fires. Awaiting resolves on the
+        // fast 202 (the 15-min job runs separately), so this stays well within limits.
+        await fetch(bgUrl).catch(e => console.error('[citations] bg trigger failed:', e.message));
         return {
           statusCode: 202,
           headers,

@@ -323,6 +323,34 @@ From Google's official AI Optimization Guide (June 2026):
 
 ---
 
+## Session: June 2026 — v7.3.7 — Approval queue redesign + audit/citation fixes
+
+### Approval Queue — filter UI redesign
+Replaced 3 stacked rows of ~20 pills with a compact bar: a **Pending ↔ Published toggle**, 3 brand pills, and **Type / Market dropdowns** + a **keyword/title search box**. All filters (type, brand, market, search) now apply to BOTH the Pending and Published & Tracking views.
+- New market dropdown option **"🌍 All International"** (`__intl__`) → every non-UAE market for the selected brand in one view.
+- `state.queueView` ('pending'|'published') added; `state.activeQFilter` is now purely the type filter (no longer overloaded with 'published'); `publishedTypeFilter` removed; `state.queueSearch` added.
+- New: `renderQueueOrPublished`, `switchQueueView`, `filterTypeSelect`, `filterMarketSelect`, `onQueueSearch`, and shared predicates `queueMarketMatch`/`queueSearchMatch`/`getVisibleQueueItems` (used by render + Dismiss Visible so they always agree). `filterQueue`/pill-based `filterMarket` removed. Old `nestQFilter='published'` localStorage auto-migrates to the toggle.
+- `filterDashboardByMarket` now drives the market dropdown; sort dropdown re-renders the active view.
+
+### Bug fixes
+- **Citations blank (+ backlinks + ai-overview):** the manual-refresh trigger fired the background function with a non-awaited `fetch()` then returned — in serverless the request is frozen before it sends, so the background job never ran and nothing was written. Now `await`ed (resolves on the fast 202). This is why citations were always blank.
+- **KSA "0 ideas" diagnostic:** `getKeywordIdeas` swallowed DataForSEO's real response, so the UI guessed "check balance/location". Now returns `{ ideas, diag }` and stores `ideasDiag` (real status_code/message or "OK but 0 ideas for loc X from N seeds"), surfaced in the Keyword Opportunities empty state. KSA config itself is correct (location_code 2682, real Riyadh seeds) — likely cause is English seeds in an Arabic-dominant market under the volume>10 filter; the UI now shows the true reason.
+- **Competitor matrix dim "plum" text (dark mode):** `.cm-table td` etc. used `var(--text-primary,#1e293b)` but the app has no `--text-primary` → near-black fallback. Changed to `var(--text-main)`; themed the white keyword-input bg. Cache-bust bumped to `?v=7.3.7`.
+- **"+ Add Keyword" clarity:** added an in-modal note explaining it tracks rank (GSC) + adds to the competitor matrix, and does NOT queue content (that's the Seed Keywords list).
+
+### Revert notes
+- Queue redesign: restore the 3 `pill-nav` blocks (queue-pills/brand-pills/market-pills) + `filterQueue`/`filterMarket`, revert `renderQueue`/`loadPublishedTracking`/`loadQueue`/`dismissVisible` to the pre-helper versions, restore `state.activeQFilter='published'` semantics + `publishedTypeFilter`.
+- Citations/backlinks/ai-overview: drop the `await` on the bg trigger (not recommended — that's the fix).
+- KSA diag: revert `getKeywordIdeas` to return a bare array; remove `ideasDiag` from result + UI.
+- Competitor colors: revert `var(--text-main)` → `var(--text-primary,#1e293b)`.
+
+### Still open (next)
+- Unified **Run Audit control** on the Approvals Queue (brand + market scope; UAE→scheduler-background, intl→international-seo-background; fix intl trigger's broken synchronous summary).
+- **Markets tab** rework into a per-market intelligence dashboard (it's the only international hub — keep + sharpen, don't remove).
+- **Authentication hardening** (unauthenticated db-save/approvals/calendar/wordpress + forgeable actor) — deferred to its own session.
+
+---
+
 ## Session: June 2026 — v7.3.6 — Bug-fix sweep + international page creation + Bonbird brand merge
 
 Full review of the codebase (5 parallel passes) → fixed every confirmed functionality bug. Authentication hardening deliberately deferred to a following session. All files `node --check` clean; key data-flows verified by execution.

@@ -265,7 +265,9 @@ exports.handler = async (event) => {
       // (netlify.toml redirects do not apply to them). UI polls GET until fetchedAt changes.
       const base  = process.env.URL || 'http://localhost:8888';
       const bgUrl = `${base}/.netlify/functions/backlinks-background?brand=${brand}`;
-      fetch(bgUrl).catch(e => console.error('[backlinks] bg trigger failed:', e.message));
+      // MUST await — an un-awaited fetch is frozen when the function returns, so the
+      // background invocation never fires. Awaiting resolves on the fast 202.
+      await fetch(bgUrl).catch(e => console.error('[backlinks] bg trigger failed:', e.message));
 
       return {
         statusCode: 202,

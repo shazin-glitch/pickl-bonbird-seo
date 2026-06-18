@@ -78,11 +78,13 @@ function applyStaticFilter(keywords) {
 }
 
 // ── DataForSEO keyword ideas ──────────────────────────────────────────────────
+// Returns { ideas: [...], diag: "<human-readable reason>" } so the UI can show
+// the REAL DataForSEO outcome instead of guessing "balance/location code".
 async function getKeywordIdeas(seeds, locationCode, authHeader) {
+  // Labs requires country-level codes. UAE is passed as city (21191) so map it to country (2784).
+  // International markets already use country-level codes so pass through unchanged.
+  const kwLocationCode = locationCode === 21191 ? 2784 : locationCode;
   try {
-    // Labs requires country-level codes. UAE is passed as city (21191) so map it to country (2784).
-    // International markets already use country-level codes so pass through unchanged.
-    const kwLocationCode = locationCode === 21191 ? 2784 : locationCode;
     const res = await fetch(`${DATAFORSEO_BASE}/dataforseo_labs/google/keyword_ideas/live`, {
       method:  'POST',
       headers: { 'Content-Type': 'application/json', Authorization: authHeader },
@@ -99,20 +101,23 @@ async function getKeywordIdeas(seeds, locationCode, authHeader) {
       }]),
     });
 
-    const data = await res.json();
-    const taskId     = data.tasks?.[0]?.id || 'no-task-id';
-    const taskStatus = data.tasks?.[0]?.status_code;
-    const taskMsg    = data.tasks?.[0]?.status_message;
-    console.log(`[kw-discovery] keyword_ideas top-level: ${data.status_code} | task id: ${taskId} | task status: ${taskStatus} | task msg: ${taskMsg}`);
+    const data       = await res.json();
+    const task       = data.tasks?.[0] || {};
+    const taskStatus = task.status_code;
+    const taskMsg    = task.status_message;
+    console.log(`[kw-discovery] keyword_ideas top-level: ${data.status_code} | task id: ${task.id || 'no-task-id'} | task status: ${taskStatus} | task msg: ${taskMsg} | loc: ${kwLocationCode} | seeds: ${seeds.length}`);
 
     if (data.status_code !== 20000) {
       console.warn(`[kw-discovery] keyword_ideas failed ${data.status_code}: ${data.status_message}`);
-      return [];
+      return { ideas: [], diag: `DataForSEO error ${data.status_code}: ${data.status_message}` };
+    }
+    if (taskStatus && taskStatus !== 20000) {
+      return { ideas: [], diag: `DataForSEO task error ${taskStatus}: ${taskMsg} (loc ${kwLocationCode})` };
     }
 
-    const items = data.tasks?.[0]?.result?.[0]?.items || [];
+    const items = task.result?.[0]?.items || [];
     console.log(`[kw-discovery] keyword_ideas raw items: ${items.length}`);
-    return items.map(item => {
+    const ideas = items.map(item => {
       const info = item.keyword_info || {};
       return {
         keyword:     item.keyword || '',
@@ -122,9 +127,14 @@ async function getKeywordIdeas(seeds, locationCode, authHeader) {
       };
     }).filter(k => k.keyword && k.volume > 0);
 
+    const diag = items.length === 0
+      ? `DataForSEO OK but returned 0 ideas for location ${kwLocationCode} (en) from ${seeds.length} seeds — these English seeds likely have no tracked volume in this market; try Arabic/native seeds`
+      : `${items.length} ideas fetched, ${ideas.length} with volume>10`;
+    return { ideas, diag };
+
   } catch (e) {
     console.warn('[kw-discovery] keyword_ideas error:', e.message);
-    return [];
+    return { ideas: [], diag: `Request failed: ${e.message}` };
   }
 }
 
@@ -288,8 +298,8 @@ async function discoverKeywords(brand, store, authHeader, force = false, marketK
   }
   console.log(`${tag} competitor keywords loaded: ${Object.keys(compMap).length} unique`);
 
-  const ideas = await getKeywordIdeas(seeds, locationCode, authHeader);
-  console.log(`${tag} DataForSEO returned ${ideas.length} keyword ideas (${marketLabel})`);
+  const { ideas, diag: ideasDiag } = await getKeywordIdeas(seeds, locationCode, authHeader);
+  console.log(`${tag} DataForSEO returned ${ideas.length} keyword ideas (${marketLabel}) — ${ideasDiag}`);
 
   // Static off-menu filter first (cheap, no API call), then Claude for brand/intent relevance
   const staticFilteredIdeas = applyStaticFilter(ideas);
@@ -367,6 +377,7 @@ async function discoverKeywords(brand, store, authHeader, force = false, marketK
     summary,
     gscKeywords:   Object.keys(gscMap).length,
     ideasFetched:  ideas.length,
+    ideasDiag,     // real DataForSEO outcome string (shown in the UI empty state)
   };
 
   await store.set(storeKey, JSON.stringify(result));
