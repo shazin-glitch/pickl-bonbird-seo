@@ -206,9 +206,22 @@ exports.handler = async (event) => {
         if (!brand || !['pickl', 'bonbird'].includes(brand)) {
           return { statusCode: 400, headers, body: JSON.stringify({ error: 'Invalid brand' }) };
         }
-        const authHeader = getAuthHeader();
-        const results    = await checkBrand(brand, store, authHeader);
-        return { statusCode: 200, headers, body: JSON.stringify({ ok: true, brand, results }) };
+        // Fire the background function and return immediately. checkBrand polls
+        // DataForSEO for 5 platforms (~1-7 min), which exceeds the synchronous
+        // function limit. Background functions MUST be called at
+        // /.netlify/functions/<name> directly (redirects don't apply). UI polls
+        // GET until the per-platform checkedAt timestamps update.
+        const base  = process.env.URL || 'http://localhost:8888';
+        const bgUrl = `${base}/.netlify/functions/citations-background?brand=${brand}`;
+        fetch(bgUrl).catch(e => console.error('[citations] bg trigger failed:', e.message));
+        return {
+          statusCode: 202,
+          headers,
+          body: JSON.stringify({
+            ok:      true,
+            message: `Check started for ${brand} — poll GET /api/citations?brand=${brand} until checkedAt updates`,
+          }),
+        };
       }
 
       return { statusCode: 400, headers, body: JSON.stringify({ error: 'Unknown action' }) };

@@ -248,7 +248,7 @@ function isEmbeddableImage(url) {
 
 // ─── Calendar: review needed ──────────────────────────────────────────────────
 function buildCalendarReviewNeeded({ brand, market, postId, caption, scheduledDate, scheduledTime,
-                                     submittedBy, approverName, platforms, postType, imageUrl }) {
+                                     submittedBy, approverName, platforms, postType, imageUrl, slideCount }) {
   const captionPreview = (caption || '').slice(0, 200) + ((caption||'').length > 200 ? '…' : '');
   const blocks = [
     { type: 'header', text: { type: 'plain_text', text: '📋 New post ready for your review', emoji: true } },
@@ -257,8 +257,8 @@ function buildCalendarReviewNeeded({ brand, market, postId, caption, scheduledDa
 
   if (isEmbeddableImage(imageUrl)) {
     blocks.push({ type: 'image', image_url: imageUrl, alt_text: `${brand} ${postType} post` });
-    if (data.slideCount > 1) {
-      blocks.push({ type: 'context', elements: [{ type: 'mrkdwn', text: `🎠 Carousel · ${data.slideCount} slides — open The Nest to review all` }] });
+    if (slideCount > 1) {
+      blocks.push({ type: 'context', elements: [{ type: 'mrkdwn', text: `🎠 Carousel · ${slideCount} slides — open The Nest to review all` }] });
     }
   }
 

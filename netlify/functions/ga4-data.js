@@ -58,7 +58,13 @@ async function refreshTokenIfNeeded(tokens, store) {
     await store.set("ga4Tokens", JSON.stringify(updated)).catch(() => {});
     return data.access_token;
   }
-  return tokens.access_token;
+  // Refresh failed (e.g. invalid_grant — refresh token revoked/expired). Do NOT
+  // return the stale access token: it would 401 downstream and the UI would
+  // wrongly keep showing "connected". Signal a dead token so the handler can
+  // clear it and prompt a reconnect.
+  const expired = new Error('GA4 refresh failed: ' + (data.error_description || data.error || 'no access_token returned'));
+  expired.code = 'GA4_TOKEN_EXPIRED';
+  throw expired;
 }
 
 async function runReport(propertyId, accessToken, reportBody) {
@@ -68,7 +74,17 @@ async function runReport(propertyId, accessToken, reportBody) {
     body: JSON.stringify(reportBody),
   });
   const data = await res.json();
-  if (data.error) throw new Error(data.error.message || "GA4 API error");
+  if (data.error) {
+    // 401 / UNAUTHENTICATED means the token died between expiry checks (e.g.
+    // revoked server-side). Mark it so the handler prompts a reconnect rather
+    // than surfacing a raw error while still claiming "connected".
+    if (data.error.code === 401 || data.error.status === 'UNAUTHENTICATED') {
+      const expired = new Error('GA4 token unauthorized');
+      expired.code = 'GA4_TOKEN_EXPIRED';
+      throw expired;
+    }
+    throw new Error(data.error.message || "GA4 API error");
+  }
   return data;
 }
 
@@ -266,6 +282,12 @@ exports.handler = async (event) => {
 
   } catch (err) {
     console.error("[ga4-data] Error:", err.message);
+    // Dead OAuth token → clear it and report not-connected so the UI shows the
+    // existing "Connect GA4" recovery button instead of a stuck "connected" state.
+    if (err.code === 'GA4_TOKEN_EXPIRED') {
+      await store.delete("ga4Tokens").catch(() => {});
+      return { statusCode: 200, headers: CORS, body: JSON.stringify({ notConnected: true, reason: 'token_expired' }) };
+    }
     return { statusCode: 200, headers: CORS, body: JSON.stringify({ error: err.message, connected: true }) };
   }
 };

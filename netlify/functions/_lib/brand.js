@@ -117,23 +117,42 @@ const BONBIRD_DEFAULT = {
     'Signature sides: Chicken Salt Fries, Mac & Three Cheese, Bon Gravy',
     'Community-first brand — every customer is a Champ',
   ],
+  // Menu — item NAMES only (no pricing). Grounds content generation AND feeds
+  // keywordMatchesMenu, which rejects off-menu dishes (e.g. butter chicken).
+  // Sourced from the official Bonbird 2025 menu artwork.
   menu: {
     spiceSystem: 'Spice levels: Plain Jane / Medium / Hot / XXX — OR — Flavours: Garlic Parm / Jamaican Tang / Jalapeño / Lemon Pepper / Chicken Salt',
+    boneIn: [
+      'Bone-in fried chicken — on the bone, by the bucket or box (2, 3, 5, 8 or 12 piece)',
+    ],
+    tenders: [
+      'Fresh fried chicken tenders — your way (2, 3, 5, 8 or 12 piece)',
+    ],
     sandwiches: [
-      'Classic Chicken Burger — fresh fried chicken, lettuce and herb mayo (AED29)',
-      'The Good Good Chicken Burger — fresh fried chicken, lettuce and good good sauce (AED28)',
-      'The Korean Chicken Burger — fresh fried chicken, cabbage, gochujang sauce and ranch (AED30)',
-      'The Chicken Melt — fresh fried chicken, triple cheese, cabbage and good good sauce (AED28)',
+      'Classic Chicken Burger — fresh fried chicken, lettuce and herb mayo',
+      'The Good Good Chicken Burger — fresh fried chicken, lettuce and Good Good Sauce',
+      'The Korean Chicken Burger — fresh fried chicken, cabbage, gochujang sauce and ranch',
+      'The Chicken Melt — fresh fried chicken, triple cheese, cabbage and Good Good Sauce',
     ],
     wraps: [
-      'Classic Wrap / Good Good Wrap / Buffalo Wrap / Korean Wrap (Bon Wrap or Snack-A-Wrap)',
+      'Classic Wrap — chicken tenders, cheese, lettuce, tomato and herb mayo (Bon Wrap or Snack-A-Wrap)',
+      'Good Good Wrap — chicken tenders, cheese, lettuce, tomato and Good Good Sauce',
+      'Buffalo Wrap — chicken tenders, cheese, lettuce, tomato and buffalo sauce',
+      'Korean Wrap — chicken tenders, cabbage, cheese, tomato, gochujang sauce and ranch',
     ],
     riceBowls: [
       'Classic Chicken Rice Bowl — fresh fried chicken, turmeric rice, lettuce, tomato, herb mayo',
       'Korean Chicken Rice Bowl — fresh fried chicken, turmeric rice, cabbage, tomato, gochujang sauce, ranch',
     ],
     sides: [
-      'Chicken Salt Fries | Mac & Three Cheese | Mash Potato | Bon Gravy | Slaw | Dill & Chilli Pickles',
+      'Plain Fries', 'Chicken Salt Fries', 'Spicy Fries', 'Mac & Three Cheese', 'Mash Potato',
+      'Bon Gravy', 'Turmeric Rice', 'Slaw', 'Dill Pickles', 'Chilli Pickles', 'Bag of Chicken Salt',
+    ],
+    shakes: [
+      'Vanilla Shake', 'Chocolate Shake', 'Strawberry Shake', 'Ice cream (single or double scoop)',
+    ],
+    sauces: [
+      'Good Good Sauce', 'Herb Mayo', 'Buffalo', 'Gochujang', 'Ranch',
     ],
   },
   brandLanguage: [
@@ -166,8 +185,17 @@ const BONBIRD_DEFAULT = {
 async function getBrandContext(brand) {
   const s = store();
   const stored = await s.get(`brandContext:${brand}`, { type: 'json' }).catch(() => null);
-  if (stored) return stored;
-  return brand === 'pickl' ? PICKL_DEFAULT : BONBIRD_DEFAULT;
+  const base   = brand === 'pickl' ? PICKL_DEFAULT : BONBIRD_DEFAULT;
+  if (!stored) return base;
+  // Merge Settings edits ON TOP of the built-in default rather than replacing it
+  // wholesale. The Settings form only manages voice fields (tone, positioning,
+  // brandLanguage, doNot, etc.) and historically saved `menu: {}`, which wiped
+  // the menu from the context Claude sees — so it invented off-menu dishes
+  // (e.g. butter chicken) and keywordMatchesMenu lost its reference list.
+  // Backfill any field the Settings save left empty/missing from the default.
+  const merged = { ...base, ...stored };
+  if (!stored.menu || Object.keys(stored.menu).length === 0) merged.menu = base.menu;
+  return merged;
 }
 
 async function setBrandContext(brand, context) {
@@ -204,11 +232,14 @@ function buildBrandPrompt(ctx, userExamples) {
     } else if (ctx.menu.sandwiches) {
       menuLines = [
         `Spice/Flavour system: ${ctx.menu.spiceSystem || ''}`,
+        `Bone-In: ${(ctx.menu.boneIn || []).join(' | ')}`,
+        `Tenders: ${(ctx.menu.tenders || []).join(' | ')}`,
         `Sandwiches: ${(ctx.menu.sandwiches || []).join(' | ')}`,
         `Wraps: ${(ctx.menu.wraps || []).join(' | ')}`,
         `Rice Bowls: ${(ctx.menu.riceBowls || []).join(' | ')}`,
         `Sides: ${(ctx.menu.sides || []).join(' | ')}`,
-      ].join('\n');
+        `Shakes: ${(ctx.menu.shakes || []).join(' | ')}`,
+      ].filter(l => !/:\s*$/.test(l)).join('\n');
     }
   }
 

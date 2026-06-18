@@ -85,8 +85,11 @@ async function queryOpenAI(query) {
 async function queryPerplexity(query) {
   const key = process.env.PERPLEXITY_API_KEY;
   if (!key) return { text: null, error: "key_missing" };
-  // Try current models in order of preference
-  for (const model of ["llama-3.1-sonar-small-128k-online", "sonar-small-online", "sonar"]) {
+  // Try current models in order of preference. The old llama-3.1-sonar-*/-online
+  // model IDs are deprecated by Perplexity and return model-not-found, which made
+  // every call fall through to "all models failed" (0% mentions). sonar/sonar-pro
+  // are the current online-search models.
+  for (const model of ["sonar", "sonar-pro"]) {
     try {
       const res  = await fetch("https://api.perplexity.ai/chat/completions", {
         method:  "POST",

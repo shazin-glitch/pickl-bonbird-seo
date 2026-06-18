@@ -179,8 +179,12 @@ async function processBrand(brand, store, authHeader) {
   return snapshot;
 }
 
-exports.handler = async () => {
-  console.log('[backlinks-bg] Starting Monday backlink monitoring run');
+exports.handler = async (event) => {
+  // On-demand manual refresh passes ?brand=pickl|bonbird; the Monday cron passes
+  // no query string and runs both brands.
+  const only   = event?.queryStringParameters?.brand;
+  const brands = only && BRAND_DOMAINS[only] ? [only] : ['pickl', 'bonbird'];
+  console.log(`[backlinks-bg] Starting backlink monitoring run for: ${brands.join(', ')}`);
 
   const store      = getStore({
     name:   'seo-tool',
@@ -190,7 +194,7 @@ exports.handler = async () => {
   const authHeader = getAuthHeader();
   const results    = {};
 
-  for (const brand of ['pickl', 'bonbird']) {
+  for (const brand of brands) {
     try {
       results[brand] = await processBrand(brand, store, authHeader);
     } catch (e) {

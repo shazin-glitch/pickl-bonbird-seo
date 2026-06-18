@@ -545,8 +545,22 @@ Write the performance brief. Lead with the overall direction. Cover position mov
 // content (full HTML) for the existing page, not just a suggestion.
 // Queued as page_update → pushes via wordpress.js update_content.
 // ════════════════════════════════════════════════════════════════
-async function runQuickWins(brand, rows, dryRun, forceRun, brandCtx, brandPrompt, brandExamples) {
+async function runQuickWins(brand, _rows, dryRun, forceRun, brandCtx, brandPrompt, brandExamples) {
   const cfg = BRANDS[brand];
+
+  // Fetch keyword+page rows so every candidate carries the REAL page URL Google
+  // ranks for. The rows passed in come from fetchGscDirect, which aggregates by
+  // query and has NO .page field — so r.page was undefined here, breaking the WP
+  // existence check, the page_update target URL, and the location tag. Same
+  // approach runMetaRewrites uses; fetchGscWithPages is cached so this is cheap.
+  let rows = [];
+  try {
+    rows = await fetchGscWithPages(cfg.gsc);
+  } catch (e) {
+    console.warn('[quick_wins] fetchGscWithPages failed:', e.message);
+    return { queued: 0, candidates: 0, skipped: 'GSC page fetch failed: ' + e.message };
+  }
+
   const alreadyQueued = await getQueuedKeywords(brand);
   const candidates = rows
     .filter(r => r.position >= 11 && r.position <= 20 && r.impressions >= 50)
@@ -611,7 +625,7 @@ Return ONLY valid JSON:
 
       let voiceCheck = await runBrandVoiceCheck(parsed.body, brandCtx, (p, o) => callClaude(p, o)).catch(() => ({ score: 6, verdict: 'PASS', issues: [] }));
       if (voiceCheck.score >= 5 && voiceCheck.score < 8) {
-        const fixed = await fixBrandVoice(parsed.body, voiceCheck, brandCtx, (p, o) => callClaude(p, o), brandExamples);
+        const fixed = await fixBrandVoice(parsed.body, voiceCheck, brandCtx, (p, o) => callClaude(p, o), brandExamples, await getBrandFeedback(brand));
         if (fixed.improved) { parsed.body = fixed.content; voiceCheck = fixed.voiceCheck; }
       }
       if (voiceCheck.score < 5) { console.warn(`[quick_wins] page_creation voice score too low for ${r.page}`); continue; }
@@ -687,7 +701,7 @@ Return ONLY valid JSON:
     // Brand voice check — auto-fix if score is 5-7 before queuing
     let voiceCheck = await runBrandVoiceCheck(parsed.body, brandCtx, (p, o) => callClaude(p, o)).catch(() => ({ score: 6, verdict: 'PASS' }));
     if (voiceCheck.score >= 5 && voiceCheck.score < 8) {
-      const fixed = await fixBrandVoice(parsed.body, voiceCheck, brandCtx, (p, o) => callClaude(p, o), brandExamples);
+      const fixed = await fixBrandVoice(parsed.body, voiceCheck, brandCtx, (p, o) => callClaude(p, o), brandExamples, await getBrandFeedback(brand));
       if (fixed.improved) { parsed.body = fixed.content; voiceCheck = fixed.voiceCheck; }
     }
     console.log(`[quick_wins] ${r.keyword} — voice score: ${voiceCheck.score}/10 (${voiceCheck.verdict})`);
@@ -840,7 +854,7 @@ Return ONLY valid JSON:
 
       let voiceCheck = await runBrandVoiceCheck(parsed.body, brandCtx, (p, o) => callClaude(p, o)).catch(() => ({ score: 6, verdict: 'PASS', issues: [] }));
       if (voiceCheck.score >= 5 && voiceCheck.score < 8) {
-        const fixed = await fixBrandVoice(parsed.body, voiceCheck, brandCtx, (p, o) => callClaude(p, o), brandExamples);
+        const fixed = await fixBrandVoice(parsed.body, voiceCheck, brandCtx, (p, o) => callClaude(p, o), brandExamples, await getBrandFeedback(brand));
         if (fixed.improved) { parsed.body = fixed.content; voiceCheck = fixed.voiceCheck; }
       }
       if (voiceCheck.score < 5) continue;
@@ -1074,7 +1088,11 @@ async function runContentGapsWithOpportunities(brand, rows, dryRun, forceRun, br
         console.log(`[${brand}] Injecting ${topGaps.length} keyword opportunities into content gaps`);
         const existing = await loadSeedKeywords(brand);
         const merged   = [...new Set([...topGaps, ...existing])];
-        await s.setJSON(`seedKeywords:${brand}`, merged);
+        // Must match the shape seed-keywords.js reads/writes ({ brand, keywords, updatedAt }).
+        // Writing a bare array made seed-keywords.js read stored.keywords === undefined →
+        // fall back to defaults, so the injection was lost AND the user's curated seed
+        // list got clobbered. Write the object shape so it actually persists.
+        await s.setJSON(`seedKeywords:${brand}`, { brand, keywords: merged, updatedAt: new Date().toISOString() });
       }
     }
   } catch (e) { console.warn(`[${brand}] opportunities inject failed: ${e.message}`); }
@@ -1162,7 +1180,7 @@ Return ONLY valid JSON, no markdown, no fences:
   // Brand voice quality gate — auto-fix if in warning zone, then score
   let voiceCheck = await runBrandVoiceCheck(parsed.body, brandCtx, (p, o) => callClaude(p, o)).catch(() => ({ score: 6, verdict: 'PASS', issues: [] }));
   if (voiceCheck.score >= 5 && voiceCheck.score < 8) {
-    const fixed = await fixBrandVoice(parsed.body, voiceCheck, brandCtx, (p, o) => callClaude(p, o), brandExamples);
+    const fixed = await fixBrandVoice(parsed.body, voiceCheck, brandCtx, (p, o) => callClaude(p, o), brandExamples, await getBrandFeedback(brand));
     if (fixed.improved) { parsed.body = fixed.content; voiceCheck = fixed.voiceCheck; }
   }
   console.log(`[content_gaps] "${parsed.targetKeyword}" — voice score: ${voiceCheck.score}/10 (${voiceCheck.verdict})`);
@@ -1277,7 +1295,7 @@ Return ONLY a JSON object:
     let voiceCheck = await runBrandVoiceCheck(parsed.body, brandCtx, (p, o) => callClaude(p, o))
       .catch(() => ({ score: 6, verdict: 'PASS', issues: [], topFix: null }));
     if (voiceCheck.score >= 5 && voiceCheck.score < 8) {
-      const fixed = await fixBrandVoice(parsed.body, voiceCheck, brandCtx, (p, o) => callClaude(p, o), brandExamples);
+      const fixed = await fixBrandVoice(parsed.body, voiceCheck, brandCtx, (p, o) => callClaude(p, o), brandExamples, await getBrandFeedback(brand));
       if (fixed.improved) { parsed.body = fixed.content; voiceCheck = fixed.voiceCheck; }
     }
     console.log(`[page_creation] "${r.keyword}" — voice score: ${voiceCheck.score}/10 (${voiceCheck.verdict})`);

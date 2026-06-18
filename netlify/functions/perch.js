@@ -18,7 +18,7 @@
 //   Southpour     → standalone, no sibling
 
 const { getStore } = require('@netlify/blobs');
-const { newId, getSetting, setSetting, logAudit, ok, bad, preflight, parseBody, CORS } = require('./_lib/store');
+const { store, newId, getSetting, setSetting, logAudit, ok, bad, preflight, parseBody, CORS } = require('./_lib/store');
 
 const SITE_URL = process.env.URL || 'https://yolkseo.netlify.app';
 

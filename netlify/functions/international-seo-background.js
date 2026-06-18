@@ -173,6 +173,7 @@ async function runMarketDataDrivenSEO(market, brandCtx, brandExamples, force = f
   const brandPrompt    = buildBrandPrompt(brandCtx, brandExamples);
   const marketCtx      = buildMarketPrompt(market, brandPrompt, 'en');
   const brandName      = brandCtx?.name || market.brand;
+  const voiceFn        = voiceClaudeAdapter(brandName);
   const menuItems      = brandCtx?.menu ? [
     ...(brandCtx.menu.cheeseburgers || []).slice(0, 3),
     ...(brandCtx.menu.chickenSandos || brandCtx.menu.sandwiches || []).slice(0, 2),
@@ -218,7 +219,7 @@ Return ONLY a JSON array:
     try {
       // Brand voice check on generated title + description
       const metaContent = `${p.title}\n${p.description}`;
-      const voiceCheck  = await runBrandVoiceCheck(metaContent, brandCtx, callClaude)
+      const voiceCheck  = await runBrandVoiceCheck(metaContent, brandCtx, voiceFn)
         .catch(() => ({ score: null, issues: [], verdict: 'UNKNOWN' }));
 
       await createApproval({
@@ -286,7 +287,10 @@ async function runMarketKeywordOpportunities(market, brandCtx, brandExamples, fo
   const brandPrompt        = buildBrandPrompt(brandCtx, brandExamples);
   const marketCtx          = buildMarketPrompt(market, brandPrompt, 'en');
   const wp                 = getWpCredentials(market);
+  const brandName          = brandCtx?.name || (market.brand === 'pickl' ? 'Pickl' : 'Bonbird');
+  const voiceFn            = voiceClaudeAdapter(brandName);
   let queued               = 0;
+  let pageCreations        = 0;
 
   // ── QUICK WINS: pos 11-20 → page_update ──────────────────────────────────
   const quickWins = Object.values(pageMap)
@@ -294,6 +298,7 @@ async function runMarketKeywordOpportunities(market, brandCtx, brandExamples, fo
     .filter(r => force || !alreadyQueuedKws.has(r.keyword.toLowerCase().trim()))
     .filter(r => force || !alreadyQueuedPages.has(r.page.toLowerCase().replace(/\/$/, '')))
     .filter(r => keywordMatchesMenu(r.keyword, brandCtx))
+    .filter(r => keywordMatchesMarket(r.keyword, market.marketKey))
     .sort((a, b) => b.impressions - a.impressions)
     .slice(0, 2);
 
@@ -357,10 +362,23 @@ Return ONLY JSON:
     return false;
   }
 
+  // Local/service search intent → deserves a dedicated landing PAGE, not a blog
+  // post (mirrors how the UAE scheduler splits page_creation vs content_gaps).
+  function hasLocationIntent(keyword) {
+    const kw = keyword.toLowerCase();
+    const signals = [
+      market.label, market.marketSlug,
+      ...(market.locations || []),
+      'delivery', 'near me', 'order', 'restaurant', 'best',
+    ].filter(Boolean).map(s => String(s).toLowerCase());
+    return signals.some(s => kw.includes(s));
+  }
+
   const contentGaps = Object.values(pageMap)
     .filter(r => r.position > 20 && r.position <= 35 && r.impressions >= 20)
     .filter(r => force || !alreadyQueuedKws.has(r.keyword.toLowerCase().trim()))
     .filter(r => keywordMatchesMenu(r.keyword, brandCtx))
+    .filter(r => keywordMatchesMarket(r.keyword, market.marketKey))
     .sort((a, b) => b.impressions - a.impressions)
     .slice(0, 1);
 
@@ -413,9 +431,74 @@ Return ONLY JSON:
         queued++;
         console.log(`${tag} queued page_update (existing, pos ${r.position.toFixed(1)}): ${r.page}`);
 
+      } else if (hasLocationIntent(r.keyword)) {
+        // Location/service intent + no dedicated page → full landing PAGE.
+        // International port of the UAE scheduler's runPageCreation — previously
+        // these gaps only ever produced a blog post, never a proper landing page.
+        const userPrompt = `Create a complete, conversion-focused landing page for ${brandName} in ${market.label} targeting "${r.keyword}".
+
+Google shows ${r.impressions} impressions at position ${r.position.toFixed(1)} but only the market root (${r.page}) is ranking — there is no dedicated page for this yet. Building one captures this traffic.
+
+This is a STANDALONE PAGE (not a blog post):
+- H1 leads naturally with "${r.keyword}" — a line someone would actually say
+- 3-4 H2 sections: why ${brandName} is the best option in ${market.label}, local area context, menu highlights relevant to this keyword, how to order/visit
+- Reference real ${market.label} locations (${market.locations?.join(', ') || market.label}) and real menu items by name
+- Internal links to the market menu and locations pages
+- Image placeholder comments: <!-- IMAGE: [specific food photo description] -->
+- CTA section at the bottom (Order Now / Find Us / View Menu)
+- 500-800 words — punchy, not padded${feedbackNotes.length ? `
+
+HUMAN FEEDBACK — NEVER do any of the following:
+${feedbackNotes.map(n => `- ${n}`).join('\n')}` : ''}
+
+Return ONLY JSON:
+{"title":"SEO title 55-60 chars","description":"meta description 150-158 chars","targetKeyword":"${r.keyword}","slug":"market-aware-url-slug e.g best-burger-${market.marketSlug}","pageHeading":"H1 text","excerpt":"short description for page lists","body":"<full page HTML — h2, p, ul, strong, image placeholder comments — no outer html/body tags>","pageType":"location|service","rationale":"why a dedicated page will outrank the market root"}`;
+
+        const raw    = await callClaude(marketCtx, userPrompt);
+        const parsed = extractJson(raw);
+        if (!parsed?.body || !parsed?.title) { console.warn(`${tag} page_creation parse error`); continue; }
+
+        // Brand voice gate — auto-fix 5-7, skip below 5 (mirrors UAE runPageCreation)
+        let voiceCheck = await runBrandVoiceCheck(parsed.body, brandCtx, voiceFn)
+          .catch(() => ({ score: 6, issues: [], verdict: 'PASS', topFix: null }));
+        if (voiceCheck.score >= 5 && voiceCheck.score < 8) {
+          const fixed = await fixBrandVoice(parsed.body, voiceCheck, brandCtx, voiceFn, brandExamples);
+          if (fixed.improved) { parsed.body = fixed.content; voiceCheck = fixed.voiceCheck; }
+        }
+        if (voiceCheck.score < 5) { console.warn(`${tag} page_creation voice ${voiceCheck.score}/10 too low — skipped`); continue; }
+
+        await createApproval({
+          type:    'page_creation',
+          brand:   market.brand,
+          market:  market.marketKey,
+          actor:   'claude (intl-opps)',
+          locationTag: `${market.flag} ${market.label}`,
+          title:   `New ${market.label} page: ${parsed.title}`,
+          reason:  parsed.rationale || `No dedicated page — market root ranks pos ${r.position.toFixed(1)} for "${r.keyword}" (${r.impressions} impressions). Nest under /${market.marketSlug}/ at publish.`,
+          payload: {
+            title:         parsed.title,
+            description:   parsed.description,
+            targetKeyword: parsed.targetKeyword || r.keyword,
+            slug:          parsed.slug,
+            pageHeading:   parsed.pageHeading,
+            excerpt:       parsed.excerpt,
+            body:          parsed.body,
+            pageType:      parsed.pageType || 'location',
+            wpAction:      'create_page',
+            voiceScore:    voiceCheck.score,
+            voiceIssues:   voiceCheck.issues,
+            voiceTopFix:   voiceCheck.topFix || voiceCheck.issues?.[0] || null,
+            currentPos:    r.position,
+            impressions:   r.impressions,
+            wpBase:  wp.base, wpUser: wp.user, wpPass: wp.pass,
+            language: 'en',
+          },
+        });
+        queued++; pageCreations++;
+        console.log(`${tag} queued page_creation (location intent, pos ${r.position.toFixed(1)}): "${parsed.title}"`);
+
       } else {
-        // Only the market root or category page is ranking — no dedicated page exists yet
-        const brandName  = brandCtx?.name || market.brand;
+        // Informational intent + no dedicated page → blog post (existing behavior)
         const menuItems  = brandCtx?.menu ? [
           ...(brandCtx.menu.cheeseburgers || []).slice(0, 3),
           ...(brandCtx.menu.chickenSandos || brandCtx.menu.sandwiches || []).slice(0, 2),
@@ -461,7 +544,7 @@ ${r.keyword}
         if (!title || !body) { console.warn(`${tag} blog_draft parse error`); continue; }
 
         const metaContent = `${title}\n${metaDesc}`;
-        const voiceCheck  = await runBrandVoiceCheck(metaContent, brandCtx, callClaude)
+        const voiceCheck  = await runBrandVoiceCheck(metaContent, brandCtx, voiceFn)
           .catch(() => ({ score: null, issues: [], verdict: 'UNKNOWN' }));
 
         await createApproval({
@@ -492,7 +575,7 @@ ${r.keyword}
     } catch (e) { console.error(`${tag} content-gap failed: ${e.message}`); }
   }
 
-  return { queued, quickWins: quickWins.length, contentGaps: contentGaps.length };
+  return { queued, quickWins: quickWins.length, contentGaps: contentGaps.length, pageCreations };
 }
 
 // ── Claude content generation ─────────────────────────────────────────────────
@@ -515,6 +598,18 @@ async function callClaude(systemPrompt, userPrompt) {
   if (!res.ok) throw new Error(`Claude API error ${res.status}: ${await res.text()}`);
   const data = await res.json();
   return data.content?.[0]?.text || '';
+}
+
+// Adapter so _lib/brand.js voice helpers (which call cb(prompt, opts) and read
+// `.text`) work with the local callClaude(systemPrompt, userPrompt) → string.
+// Passing callClaude directly makes the voice check silently fail and fall back
+// to a neutral score — i.e. the gate becomes a no-op. Use this everywhere a
+// voice check/fix runs in this file.
+function voiceClaudeAdapter(brandName) {
+  return (prompt) => callClaude(
+    `You are ${brandName}'s copywriter and brand-voice analyst. Follow the instructions exactly and return only what is asked.`,
+    prompt,
+  );
 }
 
 // ── Parse Claude's structured output ─────────────────────────────────────────
@@ -584,9 +679,10 @@ Return EXACTLY this structure:
 
   // Brand voice quality check — auto-fix if in warning zone
   if (result.content) {
-    let voiceCheck = await runBrandVoiceCheck(result.content, brandCtx, callClaude).catch(() => ({ score: 6, verdict: 'PASS', issues: [] }));
+    const voiceFn = voiceClaudeAdapter(brandCtx?.name || (market.brand === 'pickl' ? 'Pickl' : 'Bonbird'));
+    let voiceCheck = await runBrandVoiceCheck(result.content, brandCtx, voiceFn).catch(() => ({ score: 6, verdict: 'PASS', issues: [] }));
     if (voiceCheck.score >= 5 && voiceCheck.score < 8) {
-      const fixed = await fixBrandVoice(result.content, voiceCheck, brandCtx, callClaude, brandExamples);
+      const fixed = await fixBrandVoice(result.content, voiceCheck, brandCtx, voiceFn, brandExamples);
       if (fixed.improved) { result.content = fixed.content; voiceCheck = fixed.voiceCheck; }
     }
     result.voiceScore  = voiceCheck.score;
@@ -618,7 +714,7 @@ ARABIC RULES — non-negotiable:
 
   const userPrompt = `Write an optimised meta title and meta description for the ${market.brand === 'pickl' ? 'Pickl' : 'Bonbird'} ${market.label} landing page.
 
-URL: ${market.siteUrl}
+URL: ${buildPostUrl(market, 'meta_update', '', language)}
 Language: ${isArabic ? 'Arabic (Gulf dialect)' : 'English'}
 Top keywords to target: ${keywords.slice(0, 5).join(', ')}
 ${arabicRules}
@@ -649,7 +745,7 @@ async function generateOnPageSuggestion(market, brandCtx, brandExamples, languag
   const isArabic  = language === 'ar';
   const marketCtx = buildMarketPrompt(market, buildBrandPrompt(brandCtx, brandExamples), language);
 
-  const userPrompt = `Analyse the ${market.brand === 'pickl' ? 'Pickl' : 'Bonbird'} ${market.label} landing page at ${market.siteUrl} and provide one specific on-page SEO improvement.
+  const userPrompt = `Analyse the ${market.brand === 'pickl' ? 'Pickl' : 'Bonbird'} ${market.label} landing page at ${buildPostUrl(market, 'meta_update', '', language)} and provide one specific on-page SEO improvement.
 
 Language: ${isArabic ? 'Arabic (local dialect)' : 'English'}
 Target keywords: ${keywords.slice(0, 5).join(', ')}

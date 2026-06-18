@@ -247,17 +247,19 @@ async function discoverKeywords(brand, store, authHeader, force = false, marketK
   const brandName = brand.charAt(0).toUpperCase() + brand.slice(1);
 
   // For international: use market seed keywords + brand-appropriate generic seeds
+  // NOTE: marketLabel/locationCode declared BEFORE brandGenericSeeds — they are
+  // referenced inside the template literals below (TDZ crash if declared after).
+  const marketLabel   = isIntl ? market.label : 'UAE';
+  const locationCode  = isIntl ? market.location_code : MARKET_LOCATIONS.UAE;
   const brandGenericSeeds = brand === 'pickl'
     ? [`best burger in ${marketLabel}`, `burger restaurant ${marketLabel}`, `smash burger ${marketLabel}`]
     : [`best fried chicken in ${marketLabel}`, `fried chicken restaurant ${marketLabel}`, `crispy chicken ${marketLabel}`];
   const seeds = isIntl
     ? [...(market.seedKeywords?.en || []), ...brandGenericSeeds].filter(Boolean)
     : (BRAND_SEEDS[brand] || []);
-  const locationCode  = isIntl ? market.location_code : MARKET_LOCATIONS.UAE;
-  const marketLabel   = isIntl ? market.label : 'UAE';
 
   // Load GSC cache — international pages live on same GSC property
-  const GSC_URL   = brand === 'pickl' ? 'https://eatpickl.com/' : 'https://bonbirdchicken.com/';
+  const GSC_URL   = brand === 'pickl' ? 'https://eatpickl.com/' : 'sc-domain:bonbirdchicken.com';
   const gscCache  = await store.get(`gscCache:${GSC_URL}`, { type: 'json' }).catch(() => null);
   const gscMap    = {};
   if (gscCache?.rows) {

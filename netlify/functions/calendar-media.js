@@ -172,7 +172,7 @@ exports.handler = async (event) => {
       if (!gcsBucket || !gcsKeyStr) return { statusCode: 503, headers: JSON_HEADERS, body: JSON.stringify({ error: 'GCS not configured' }) };
       try {
         const sa         = JSON.parse(gcsKeyStr);
-        const token      = await gcsGetToken(sa);
+        const token      = await getGCSToken(sa);
         const objectName = `calendar/${Date.now()}_${filename.replace(/[^a-zA-Z0-9._-]/g, '_')}`;
         // Initiate a resumable upload session — returns Location URL for direct browser upload
         const initRes = await fetch(

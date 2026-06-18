@@ -53,9 +53,13 @@ exports.handler = async (event) => {
               .filter(r => r.position >= 11 && r.position <= 20 && r.impressions >= 50)
               .filter(r => forceRun || !alreadyQueued.has(r.keyword.toLowerCase()));
           } else if (job === 'meta_rewrites') {
-            const exp = pos => Math.max(0.5, 30 / pos);
+            // Mirror the real run's CTR model (scheduler-background.js): ctr is a
+            // decimal (0-1), expected CTR = 0.30/pos, gap threshold 0.015. The old
+            // 30/pos · 1.5 formula was on a 0-100 scale, so the preview count had no
+            // relation to what the real run actually queues.
+            const exp = pos => Math.max(0.005, 0.30 / pos);
             candidates = rows
-              .filter(r => r.position <= 20 && r.impressions >= 100 && (exp(r.position) - r.ctr) > 1.5)
+              .filter(r => r.position <= 20 && r.impressions >= 100 && (exp(r.position) - r.ctr) > 0.015)
               .filter(r => forceRun || !alreadyQueued.has(r.keyword.toLowerCase()));
           } else if (job === 'content_gaps') {
             candidates = rows

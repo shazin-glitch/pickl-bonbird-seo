@@ -323,6 +323,52 @@ From Google's official AI Optimization Guide (June 2026):
 
 ---
 
+## Session: June 2026 — v7.3.6 — Bug-fix sweep + international page creation + Bonbird brand merge
+
+Full review of the codebase (5 parallel passes) → fixed every confirmed functionality bug. Authentication hardening deliberately deferred to a following session. All files `node --check` clean; key data-flows verified by execution.
+
+### Crash / broken-feature fixes
+- **keyword-discovery-background.js** — TDZ crash: `marketLabel` was used in `brandGenericSeeds` before its `const` declaration → `ReferenceError` on every run (engine produced nothing). Moved `marketLabel`/`locationCode` declarations above first use.
+- **keyword-discovery-background.js** — Bonbird read `gscCache:https://bonbirdchicken.com/` but the canonical key is `gscCache:sc-domain:bonbirdchicken.com` → cache always missed, `ourPosition` always null. Fixed key.
+- **slack-notify.js** — `buildCalendarReviewNeeded` referenced undefined `data.slideCount` → every image/carousel "review needed" Slack notification threw. Added `slideCount` to the destructure.
+- **perch.js** — `store` was not in the `_lib/store` import list but `store().delete(...)` was called → task DELETE always 500'd. Added `store` to import.
+- **calendar-media.js** — `gcsGetToken` typo (function is `getGCSToken`) → signed-URL upload path always 500'd. Fixed name.
+- **scheduler-background.js `runQuickWins`** — operated on `fetchGscDirect` rows which have no `.page`, yet used `r.page` for the WP existence check, `page_update` target URL, and location tag → `url:undefined` items + v7.3.5 missing-page routing dead. Now fetches `fetchGscWithPages` (like `runMetaRewrites`). (`runPageCreation` left as-is — its UAE-only location tag is correct via the `getLocationTag(undefined)`→UAE fallback.)
+
+### Timeout / recovery fixes
+- **backlinks.js + backlinks-background.js** — manual "Refresh Now" ran ~5 min of DataForSEO polling synchronously → 502. Now fires `backlinks-background?brand=` and returns 202; background accepts `?brand=`; frontend `refreshBacklinks` polls GET until `fetchedAt` changes.
+- **citations.js + citations-background.js** — same fix for "Check All"; background accepts `?brand=`; frontend `checkAllCitations` polls on per-platform `checkedAt`.
+- **ga4-data.js** — on a revoked/expired refresh token it returned the stale access token + `connected:true`, so the UI was stuck "connected" while every report 401'd. `refreshTokenIfNeeded` now throws `GA4_TOKEN_EXPIRED`, `runReport` flags 401/UNAUTHENTICATED, and the handler clears `ga4Tokens` + returns `notConnected:true` (reuses the existing "Connect GA4" button).
+
+### International SEO — page creation feature + fixes
+- **international-seo-background.js** — `runMarketKeywordOpportunities` content-gap branch is now intent-aware: a gap with no dedicated page → **`page_creation`** (full landing page, ported from the UAE `runPageCreation`, with the same voice gate) when the keyword has location/service intent, else `blog_draft` as before. New `hasLocationIntent()` helper; `pageCreations` count in the return. Uses the existing `create_page` push path (brand-resolved WP creds).
+- **Voice gate was a silent no-op across 3 intl functions** — the local `callClaude(systemPrompt, userPrompt)` was passed straight into `_lib/brand.js` voice helpers (which call `cb(prompt, opts)` + read `.text`), so checks threw and fell back to a neutral score. Added module-level `voiceClaudeAdapter()` and applied it in `runMarketDataDrivenSEO`, `runMarketKeywordOpportunities`, and `generateBlogDraft`.
+- Added `keywordMatchesMarket` filter to intl quick-wins + content-gaps (was only on `runMarketDataDrivenSEO`) → no more wrong-market keywords.
+- `generateMetaUpdate` / `generateOnPageSuggestion` used `market.siteUrl` (undefined → literal "URL: undefined" in the prompt). Now use `buildPostUrl(market, 'meta_update', '', language)`.
+
+### Other confirmed bugs
+- **scheduler.js** — dry-run meta-rewrites preview used a 0–100 CTR scale (`30/pos`, threshold `1.5`) while the real run uses decimals (`0.30/pos`, `0.015`) → meaningless preview count. Aligned.
+- **scheduler-background.js** — all 5 `fixBrandVoice` calls stopped at `brandExamples`, never passing rejection feedback. Now append `await getBrandFeedback(brand)`.
+- **scheduler-background.js `runContentGapsWithOpportunities`** — wrote a **raw array** to `seedKeywords:<brand>`, but `seed-keywords.js` reads `stored.keywords` → injection lost AND the user's curated seed list clobbered to defaults. Now writes `{ brand, keywords, updatedAt }`.
+- **competitor-matrix-background.js** — `fetchCompetitorRankedKeywords` ignored its `locationCode` param and hardcoded UAE `2784` → intl matrix runs pulled UAE data. Added `labsLoc` remap (21191→2784, intl codes pass through).
+- **llm-mentions-background.js** — Perplexity model IDs (`llama-3.1-sonar-*`, `*-online`) deprecated → always "all models failed" (0% mentions). Updated to `sonar`/`sonar-pro`.
+
+### Bonbird brand context merge + Settings fix (root cause of "butter chicken" suggestions)
+- **`saveBrandCtx()` (index.html)** wrote `menu: {}`, and **`getBrandContext()`** returned the Settings override *wholesale* → every Settings save wiped the menu → Claude generated off-menu dishes (butter chicken) and `keywordMatchesMenu` lost its reference list.
+  - `getBrandContext` now **merges the Settings override on top of the brand default** and backfills `menu` if the save left it empty/missing. Voice fields override; the canonical menu is never lost. Benefits scheduler, international, and keyword-discovery pipelines.
+  - `saveBrandCtx` no longer sends an empty `menu`.
+- Merged the full official Bonbird menu (bone-in, tenders, sandwiches, wraps, rice bowls, sides, shakes, sauces — **names only, no pricing**) into `BONBIRD_DEFAULT.menu`; `buildBrandPrompt` now surfaces Bone-In/Tenders/Shakes.
+- Deleted the orphan `_lib/bonbird-brand.js` (was never imported; its header said "drop into brand.js" — that merge is now done). Its competitor list + seed keywords belong in `competitorConfig:bonbird` / the seed list, not the prompt context.
+
+### Revert notes
+- Crash fixes: each is a localised one/two-line change — restore the prior identifier/key/import. `runQuickWins`: revert the `fetchGscWithPages` block back to using the passed-in `rows`.
+- Backlinks/citations async: restore the synchronous `refreshBrand`/`checkBrand` calls in the POST handlers; revert the background handlers to no-`event`; restore the non-polling frontend functions.
+- GA4: restore `return tokens.access_token` in `refreshTokenIfNeeded`, the plain `throw` in `runReport`, and `{ error, connected:true }` in the catch.
+- Intl page creation: remove the `hasLocationIntent` branch (revert to single `else` blog_draft), remove `voiceClaudeAdapter` (revert to bare `callClaude`), remove the `keywordMatchesMarket` filters, restore `market.siteUrl`.
+- Bonbird merge: revert `getBrandContext` to `if (stored) return stored`, restore the old `BONBIRD_DEFAULT.menu`, restore `menu:{}` in `saveBrandCtx`, restore `_lib/bonbird-brand.js` from git history.
+
+---
+
 ## Session: June 2026 — v7.3.5 — Quick wins routes missing pages to page_creation
 
 ### Changes in this session

@@ -495,6 +495,12 @@ async function fetchCompetitorRankedKeywords(competitors, locationCode, authHead
   const resultsMap = {};
   let labsError    = null; // store first error for UI display
 
+  // Labs requires country-level codes; Dubai city (21191) returns 0 results.
+  // Remap UAE-city/default → UAE country (2784); international markets already
+  // pass a country code, so they flow through. Previously this was hardcoded to
+  // 2784, so a per-market matrix run still pulled UAE competitor keywords.
+  const labsLoc = (!locationCode || locationCode === 21191) ? 2784 : locationCode;
+
   // Test the Labs endpoint with the first competitor before running all
   // This surfaces auth/plan errors without burning through all competitors
   const firstDomain = competitors[0]?.domain.replace(/^www\./, "");
@@ -503,7 +509,7 @@ async function fetchCompetitorRankedKeywords(competitors, locationCode, authHead
       const testRes = await fetch(LABS_RANKED_KEYWORDS_URL, {
         method:  "POST",
         headers: { Authorization: authHeader, "Content-Type": "application/json" },
-        body: JSON.stringify([{ target: firstDomain, location_code: 2784, language_code: "en", limit: 1 }]),
+        body: JSON.stringify([{ target: firstDomain, location_code: labsLoc, language_code: "en", limit: 1 }]),
       });
       const testData = await testRes.json();
       console.log(`[competitor-matrix] Labs test — HTTP ${testRes.status}, status_code: ${testData.status_code}, msg: ${testData.status_message}`);
@@ -536,7 +542,7 @@ async function fetchCompetitorRankedKeywords(competitors, locationCode, authHead
         headers: { Authorization: authHeader, "Content-Type": "application/json" },
         body: JSON.stringify([{
           target:        domain,
-          location_code: 2784, // UAE country — Labs requires country-level (21191 Dubai city returns 0)
+          location_code: labsLoc, // remapped above: UAE city 21191 → 2784; intl markets pass through
           language_code: "en",
           filters: [["keyword_data.keyword_info.search_volume", ">", 0]],
           order_by: ["keyword_data.keyword_info.search_volume,desc"],

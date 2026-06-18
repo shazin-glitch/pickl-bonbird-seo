@@ -258,10 +258,23 @@ exports.handler = async (event) => {
         return { statusCode: 400, headers, body: JSON.stringify({ error: 'Invalid brand' }) };
       }
 
-      const authHeader = getAuthHeader();
-      const snapshot   = await refreshBrand(brand, store, authHeader);
+      // Fire the background function (up to 15 min) and return immediately. Running
+      // refreshBrand inline here times out — it polls DataForSEO for 1 own + 4
+      // competitor domains (~5 min), well past the synchronous function limit.
+      // Background functions MUST be called at /.netlify/functions/<name> directly
+      // (netlify.toml redirects do not apply to them). UI polls GET until fetchedAt changes.
+      const base  = process.env.URL || 'http://localhost:8888';
+      const bgUrl = `${base}/.netlify/functions/backlinks-background?brand=${brand}`;
+      fetch(bgUrl).catch(e => console.error('[backlinks] bg trigger failed:', e.message));
 
-      return { statusCode: 200, headers, body: JSON.stringify({ ok: true, brand, snapshot }) };
+      return {
+        statusCode: 202,
+        headers,
+        body: JSON.stringify({
+          ok:      true,
+          message: `Refresh started for ${brand} — poll GET /api/backlinks?brand=${brand} until fetchedAt updates`,
+        }),
+      };
     }
 
     return { statusCode: 405, headers, body: JSON.stringify({ error: 'Method not allowed' }) };

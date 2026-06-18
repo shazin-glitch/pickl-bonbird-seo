@@ -3992,7 +3992,9 @@ async function saveBrandCtx() {
     brandLanguage: splitLines(document.getElementById('bctx-language').value),
     doNot: splitLines(document.getElementById('bctx-donot').value),
     locations: { areas: document.getElementById('bctx-locations').value.split(',').map(s => s.trim()).filter(Boolean) },
-    menu: {},
+    // NOTE: deliberately do NOT send `menu` — this form doesn't edit it. The
+    // backend (getBrandContext) backfills the canonical menu from the brand
+    // default, so the saved voice fields layer on top without wiping the menu.
   };
   status.textContent = 'Saving…';
   try {
@@ -6254,27 +6256,59 @@ async function renderBacklinks(data) {
 
 async function refreshBacklinks(brand) {
   const btn = document.getElementById(`bl-refresh-${brand}`);
+  const label = `↻ Refresh ${brand.charAt(0).toUpperCase() + brand.slice(1)}`;
+  const resetBtn = () => { if (btn) { btn.disabled = false; btn.textContent = label; } };
   if (btn) { btn.disabled = true; btn.textContent = '⏳ Fetching…'; }
 
+  // The backend now runs the DataForSEO polling in a background function and
+  // returns 202 immediately (running it inline timed out). Capture the current
+  // fetchedAt, fire the refresh, then poll GET until it changes.
+  let prevFetchedAt = null;
   try {
-    showToast(`Fetching ${brand} backlinks… this takes ~2 mins`, 'info');
-    const res  = await fetch('/api/backlinks', {
+    const cur = await fetch(`/api/backlinks?brand=${brand}`, { credentials: 'include' }).then(r => r.json());
+    prevFetchedAt = cur?.[brand]?.fetchedAt || null;
+  } catch {}
+
+  try {
+    const res = await fetch('/api/backlinks', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       credentials: 'include',
       body: JSON.stringify({ brand, action: 'refresh' }),
     });
-    const data = await res.json();
-    if (!res.ok) throw new Error(data.error || 'Fetch failed');
-
-    showToast(`Backlinks updated for ${brand}`, 'success');
-    backlinksLoaded = false;
-    await renderBacklinks();
+    if (!res.ok && res.status !== 202) {
+      const d = await res.json().catch(() => ({}));
+      throw new Error(d.error || 'Refresh failed');
+    }
   } catch (e) {
-    showToast(`Backlink fetch failed: ${e.message}`, 'error');
-  } finally {
-    if (btn) { btn.disabled = false; btn.textContent = `↻ Refresh ${brand.charAt(0).toUpperCase() + brand.slice(1)}`; }
+    showToast(`Backlink refresh failed: ${e.message}`, 'error');
+    resetBtn();
+    return;
   }
+
+  showToast(`Fetching ${brand} backlinks… this takes ~2-3 mins`, 'info');
+
+  // Poll every 30s until fetchedAt changes, max 10 minutes
+  const started = Date.now();
+  const pollTimer = setInterval(async () => {
+    if (Date.now() - started > 10 * 60 * 1000) {
+      clearInterval(pollTimer);
+      showToast('Backlink refresh timed out — try again shortly.', 'error');
+      resetBtn();
+      return;
+    }
+    try {
+      const all = await fetch(`/api/backlinks?brand=${brand}`, { credentials: 'include' }).then(r => r.json());
+      const newFetchedAt = all?.[brand]?.fetchedAt || null;
+      if (newFetchedAt && newFetchedAt !== prevFetchedAt) {
+        clearInterval(pollTimer);
+        showToast(`Backlinks updated for ${brand}`, 'success');
+        backlinksLoaded = false;
+        await renderBacklinks();
+        resetBtn();
+      }
+    } catch {}
+  }, 30000);
 }
 
 
@@ -11157,35 +11191,68 @@ async function checkAllCitations() {
   const loadingEl = document.getElementById('citation-loading');
   if (loadingEl) loadingEl.style.display = '';
 
-  for (const brand of ['pickl', 'bonbird']) {
+  const brands = ['pickl', 'bonbird'];
+
+  // The backend now runs the DataForSEO SERP polling in a background function and
+  // returns 202 immediately (running it inline timed out). Capture each brand's
+  // current checkedAt, fire both checks, then poll GET until they update.
+  const prev = {};
+  try {
+    const cur = await fetch('/api/citations?brand=all', { credentials: 'include' }).then(r => r.json());
+    for (const b of brands) prev[b] = cur?.[b]?.data?.[0]?.checkedAt || null;
+  } catch {}
+
+  for (const brand of brands) {
     citationState.checking[brand] = true;
     renderCitationTracker(brand);
-
     try {
-      const res  = await fetch('/api/citations', {
+      await fetch('/api/citations', {
         method:      'POST',
         credentials: 'include',
         headers:     { 'Content-Type': 'application/json' },
         body:        JSON.stringify({ action: 'check', brand }),
       });
-      const result = await res.json();
-
-      if (!citationState.data[brand]) citationState.data[brand] = { nap: {}, data: [], status: {} };
-      citationState.data[brand].data = result.results || [];
     } catch (e) {
-      console.error(`[citations] check failed for ${brand}:`, e.message);
+      console.error(`[citations] check trigger failed for ${brand}:`, e.message);
     }
-
-    citationState.checking[brand] = false;
-    renderCitationTracker(brand);
-
-    // 2s gap between brands
-    if (brand === 'pickl') await new Promise(r => setTimeout(r, 2000));
   }
 
-  if (loadingEl) loadingEl.style.display = 'none';
-  if (btn) { btn.disabled = false; btn.textContent = '🔄 Check All Now'; }
-  showToast('Citation check complete', '');
+  const finish = () => {
+    for (const b of brands) citationState.checking[b] = false;
+    if (loadingEl) loadingEl.style.display = 'none';
+    if (btn) { btn.disabled = false; btn.textContent = '🔄 Check All Now'; }
+    brands.forEach(renderCitationTracker);
+  };
+
+  // Poll every 30s until both brands' checkedAt changes, max 10 minutes
+  const started = Date.now();
+  const done = {};
+  const pollTimer = setInterval(async () => {
+    if (Date.now() - started > 10 * 60 * 1000) {
+      clearInterval(pollTimer);
+      finish();
+      showToast('Citation check timed out — try again shortly.', 'error');
+      return;
+    }
+    try {
+      const all = await fetch('/api/citations?brand=all', { credentials: 'include' }).then(r => r.json());
+      for (const b of brands) {
+        const newCheckedAt = all?.[b]?.data?.[0]?.checkedAt || null;
+        if (!done[b] && newCheckedAt && newCheckedAt !== prev[b]) {
+          done[b] = true;
+          if (!citationState.data[b]) citationState.data[b] = { nap: {}, data: [], status: {} };
+          citationState.data[b].data = all[b].data || [];
+          citationState.checking[b] = false;
+          renderCitationTracker(b);
+        }
+      }
+      if (brands.every(b => done[b])) {
+        clearInterval(pollTimer);
+        finish();
+        showToast('Citation check complete', '');
+      }
+    } catch {}
+  }, 30000);
 }
 
 async function markCitationStatus(brand, platform, status) {

@@ -8,8 +8,12 @@
 const { getStore } = require('@netlify/blobs');
 const { checkBrand } = require('./citations');
 
-exports.handler = async () => {
-  console.log('[citations-bg] Starting Monday citation check run');
+exports.handler = async (event) => {
+  // On-demand manual check passes ?brand=pickl|bonbird; the Monday cron passes
+  // no query string and runs both brands.
+  const only   = event?.queryStringParameters?.brand;
+  const brands = only && ['pickl', 'bonbird'].includes(only) ? [only] : ['pickl', 'bonbird'];
+  console.log(`[citations-bg] Starting citation check run for: ${brands.join(', ')}`);
 
   const store = getStore({
     name:   'seo-tool',
@@ -23,7 +27,7 @@ exports.handler = async () => {
 
   const results = {};
 
-  for (const brand of ['pickl', 'bonbird']) {
+  for (const brand of brands) {
     try {
       console.log(`[citations-bg] Checking ${brand}…`);
       results[brand] = await checkBrand(brand, store, authHeader);
