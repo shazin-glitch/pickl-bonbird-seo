@@ -3,10 +3,15 @@
 //
 // Flow:
 //   1. Account Management API  → list accounts
-//   2. Business Information API → list locations (readMask — do NOT encodeURIComponent;
-//      commas must be literal or the API returns empty objects)
+//   2. Business Information API → list locations (readMask MUST be encodeURIComponent'd)
 //   3. v4 Reviews API           → per-location ratings + unanswered review queue
-//      (graceful: if v4 not yet approved, returns reviewsApiPending:true)
+//
+// CRITICAL — location name format mismatch between APIs:
+//   The Business Information v1 API returns location names as "locations/{id}"
+//   (NO account prefix). The legacy v4 Reviews API REQUIRES the full path
+//   "accounts/{accountId}/locations/{id}/reviews". Calling v4 with just
+//   "locations/{id}" returns 400 "Invalid Request Message". We therefore rebuild
+//   each location's v4 resource name from the account it was listed under.
 
 const { getStore } = require('@netlify/blobs');
 
@@ -35,8 +40,8 @@ exports.handler = async (event) => {
     return { statusCode: 200, headers: CORS, body: JSON.stringify({ notConnected: true }) };
   }
 
-  // Cache v7 — revert readMask encoding fix; v6 had broken Business Information API calls
-  const cacheKey = `gbpCache:${brand}:v7`;
+  // Cache v8 — fix v4 reviews path (was missing accounts/{id}/ prefix → 400)
+  const cacheKey = `gbpCache:${brand}:v8`;
   try {
     const cached = await store.get(cacheKey, { type: 'json' });
     if (cached?.cachedAt && (Date.now() - cached.cachedAt) < CACHE_TTL_MS && cached.locations) {
@@ -103,7 +108,7 @@ exports.handler = async (event) => {
             break;
           }
           for (const loc of locData.locations || []) {
-            allLocations.push(parseLocation(loc));
+            allLocations.push(parseLocation(loc, account.name));
           }
           pageToken = locData.nextPageToken || '';
         } while (pageToken);
@@ -128,16 +133,14 @@ exports.handler = async (event) => {
 
     if (brandLocations.length) {
       try {
-        // Log the first location's ID format and URL so we can verify it's correct
         if (brandLocations[0]) {
-          console.log('[gbp-data] First loc.id:', brandLocations[0].id);
-          console.log('[gbp-data] First reviews URL:', `${REVIEW_BASE}/${brandLocations[0].id}/reviews?pageSize=50`);
+          console.log('[gbp-data] First reviews URL:', `${REVIEW_BASE}/${brandLocations[0].v4Name}/reviews?pageSize=50`);
         }
 
         const reviewResults = await Promise.all(
           brandLocations.map(async (loc) => {
             try {
-              const url = `${REVIEW_BASE}/${loc.id}/reviews?pageSize=50`;
+              const url = `${REVIEW_BASE}/${loc.v4Name}/reviews?pageSize=50`;
               const res  = await fetch(url, { headers: { Authorization: auth } });
               if (!res.ok) {
                 const errBody = await res.json().catch(() => ({}));
@@ -175,7 +178,7 @@ exports.handler = async (event) => {
           for (const r of unanswered.slice(0, 5)) {
             unansweredReviews.push({
               id:           r.reviewId,
-              locationId:   loc.id,
+              locationId:   loc.v4Name,
               locationName: loc.name,
               rating:       { ONE: 1, TWO: 2, THREE: 3, FOUR: 4, FIVE: 5 }[r.starRating] || 5,
               comment:      r.comment || '',
@@ -214,7 +217,7 @@ exports.handler = async (event) => {
   }
 };
 
-function parseLocation(loc) {
+function parseLocation(loc, accountName) {
   const address = [
     ...(loc.storefrontAddress?.addressLines || []),
     loc.storefrontAddress?.locality,
@@ -233,10 +236,15 @@ function parseLocation(loc) {
   const tl    = title.toLowerCase();
   const brand = tl.includes('pickl') ? 'pickl' : tl.includes('bonbird') ? 'bonbird' : null;
 
-  console.log(`[gbp-data] "${title}": hasHours=${hasHours} hasDesc=${!!loc.profile?.description} hasPhone=${!!loc.phoneNumbers?.primaryPhone}`);
+  // Build the v4 resource name: "accounts/{id}/locations/{id}". The Business
+  // Information API returns loc.name as "locations/{id}" (no account prefix),
+  // but the v4 Reviews API requires the account-qualified path or it 404s.
+  const locId  = (loc.name || '').split('/').pop();
+  const v4Name = accountName && locId ? `${accountName}/locations/${locId}` : loc.name;
 
   return {
     id:               loc.name,
+    v4Name,
     name:             title,
     brand,
     address,

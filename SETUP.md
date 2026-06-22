@@ -244,7 +244,7 @@ The Nest is Yolk Brands' central marketing operations platform. It started as an
 | `perchTask:<id>` | Individual Perch marketing task |
 | `slackWebhookUrl` | Slack webhook URL |
 | `gbpTokens` | Google Business Profile OAuth tokens |
-| `gbpCache:<brand>:v7` | GBP location health + ratings + unanswered reviews — 6hr TTL |
+| `gbpCache:<brand>:v8` | GBP location health + ratings + unanswered reviews — 6hr TTL |
 | `scheduler:lastrun` | Last scheduler run summary |
 | `intlProcessed:<marketKey>:<lang>` | International dedup check |
 
@@ -387,6 +387,34 @@ The "Run Audit Now" button is now **scope-aware**, driven by the selected **bran
 
 ### Next
 - **Authentication follow-ups** — Slack signature verification on slack-callback.js; OAuth state CSRF nonce; role-tier granularity (viewer-can't-publish); reviews.js mutation gating.
+
+---
+
+## Session: June 2026 — v7.4.7 — Fix v4 reviews location-name format (the real "no data" bug)
+
+After v7.4.4–v7.4.6, locations + hours + descriptions all loaded correctly (logs confirmed `hasHours=true hasDesc=true hasPhone=true` for every Pickl listing), but **ratings/reviews stayed empty**. Netlify logs showed the v4 reviews call returning **404** with the URL:
+```
+https://mybusiness.googleapis.com/v4/locations/16693459919947765190/reviews   ❌
+```
+
+### Root cause
+The Business Information v1 API returns each location's `name` as **`locations/{id}`** (no account prefix). The legacy v4 Reviews API requires the **account-qualified** path:
+```
+https://mybusiness.googleapis.com/v4/accounts/{accountId}/locations/{id}/reviews   ✅
+```
+Calling v4 with the bare `locations/{id}` path 404s. v7.4.4 built the reviews URL from `loc.id` (= `locations/{id}`), so every reviews call failed → `reviewsApiPending` stayed effectively dead and all ratings showed `—`.
+
+### Fix (`gbp-data.js`)
+- `parseLocation(loc, accountName)` now also computes **`v4Name`** = `${accountName}/locations/${locId}` (rebuilds the account-qualified path from the account the location was listed under in Step 2's loop).
+- Step 3 reviews call uses `loc.v4Name` instead of `loc.id`.
+- Unanswered review objects carry `locationId: loc.v4Name` so the reply endpoint in `gbp-reviews.js` (`PUT /v4/{locationId}/reviews/{reviewId}/reply`) also gets the correct account-qualified path — publishing replies works without further change.
+- **Cache bumped v7 → v8.**
+
+### readMask note (settled)
+readMask **MUST** be `encodeURIComponent`'d (v7.4.6 restored this). v7.4.4 wrongly removed it → 400 "Invalid Request Message" on the locations list. Do not remove it again.
+
+### Revert notes
+- `gbp-data.js`: drop the `v4Name` field + `accountName` param from parseLocation; revert Step 3 to `loc.id`; revert cache to v7. (But this re-breaks reviews — don't.)
 
 ---
 
@@ -3580,9 +3608,9 @@ Update "Current URL" from `yolkseo.netlify.app` to `thenest.yolkbrands.com`
 
 ---
 
-## Current Version: v7.4.4
+## Current Version: v7.4.7
 
-Last session built: GBP reviews layer activated — real ratings, unanswered review queue, AI reply drafting, publish to Google.
+Last session built: GBP reviews layer activated + fixed the v4 location-name format bug (Business Info returns `locations/{id}`, v4 Reviews needs `accounts/{accId}/locations/{id}`). Ratings/reviews now fetch correctly.
 
 ### Yolk Brands — Content Calendar Setup
 - Brand key: `yolk` | Colour: `#F5B800`
