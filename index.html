@@ -4632,6 +4632,8 @@ let intlState = {
   runStatus:       {},
   marketRankings:  {},
   kwOpps:          {},
+  gscRows:         { pickl: [], bonbird: [] },
+  allItems:        [],
   loaded:          false,
 };
 
@@ -7260,20 +7262,22 @@ async function loadIntlDashboard() {
       }
     }
 
-    // Load keyword opportunities summaries per market (parallel)
+    // Load keyword opportunities per market (parallel) — store full response
     const kwOpps = {};
     const oppFetches = Object.entries(INTL_MARKETS).map(async ([mk, m]) => {
       try {
         const d = await apiGet(`/api/keyword-opportunities?brand=${m.brand}&market=${mk}`);
-        if (d?.summary) kwOpps[mk] = d.summary;
+        if (d) kwOpps[mk] = d; // { opportunities, summary, updatedAt }
       } catch { /* non-critical */ }
     });
     await Promise.all(oppFetches);
 
-    intlState.runStatus    = marketCounts;
+    intlState.runStatus      = marketCounts;
     intlState.marketRankings = marketRankings;
-    intlState.kwOpps       = kwOpps;
-    intlState.loaded       = true;
+    intlState.kwOpps         = kwOpps;
+    intlState.gscRows        = { pickl: pickRows, bonbird: bonRows };
+    intlState.allItems       = items;
+    intlState.loaded         = true;
     renderIntlDashboard();
   } catch (e) {
     document.getElementById('intl-market-grid').innerHTML =
@@ -7285,9 +7289,21 @@ function renderIntlDashboard() {
   const grid = document.getElementById('intl-market-grid');
   const { activeBrand, activeMarket } = intlState;
 
-  const entries = Object.entries(INTL_MARKETS).filter(([key, m]) => {
+  // Per-market detail view
+  if (activeMarket !== 'all') {
+    const m = INTL_MARKETS[activeMarket];
+    if (m) {
+      grid.style.cssText = 'display:block';
+      grid.innerHTML = renderMarketDetail(activeMarket, m);
+      return;
+    }
+  }
+
+  // Grid view
+  grid.style.cssText = 'display:grid;grid-template-columns:repeat(auto-fill,minmax(340px,1fr));gap:16px';
+
+  const entries = Object.entries(INTL_MARKETS).filter(([, m]) => {
     if (activeBrand !== 'all' && m.brand !== activeBrand) return false;
-    if (activeMarket !== 'all' && key !== activeMarket) return false;
     return true;
   });
 
@@ -7299,13 +7315,23 @@ function renderIntlDashboard() {
   grid.innerHTML = entries.map(([key, m]) => {
     const count    = intlState.runStatus[key] || 0;
     const rankings = intlState.marketRankings?.[key] || {};
-    const opps     = intlState.kwOpps?.[key] || {};
+    const kwData   = intlState.kwOpps?.[key] || {};
+    const summary  = kwData.summary || kwData; // backward compat if old shape
+    const opps     = kwData.opportunities || [];
     const bgCol    = m.brand === 'pickl' ? '#DF0070' : '#C5161A';
     const brandLbl = m.brand === 'pickl' ? 'Pickl' : 'Bonbird';
     const langs    = m.languages.map(l => l === 'ar' ? 'Arabic' : 'English').join(' + ');
-    const gaps     = (opps.content_gap || 0) + (opps.push || 0) + (opps.quick_win || 0);
+    const gaps     = (summary.content_gap || 0) + (summary.push || 0) + (summary.quick_win || 0);
+    const topOpp   = opps.find(o => o.tier === 'quick_win') || opps[0];
+    const topOppHtml = topOpp
+      ? `<div style="background:rgba(0,0,0,0.15);border-radius:6px;padding:7px 10px;margin-bottom:10px;font-size:11px;color:#fff;display:flex;justify-content:space-between;align-items:center;gap:8px">
+           <span style="overflow:hidden;text-overflow:ellipsis;white-space:nowrap;flex:1">⚡ ${esc(topOpp.keyword)}</span>
+           <span style="flex-shrink:0;opacity:0.7">pos&nbsp;${Math.round(topOpp.position || 0)}</span>
+         </div>`
+      : '';
 
-    return `<div style="background:${bgCol};border-radius:12px;overflow:hidden;position:relative;display:flex;flex-direction:column">
+    return `<div style="background:${bgCol};border-radius:12px;overflow:hidden;position:relative;display:flex;flex-direction:column;cursor:pointer"
+        onclick="selectMarketDetail('${key}')">
       ${m.isNew ? `<div style="position:absolute;top:14px;right:14px;background:#fff;color:${bgCol};font-size:10px;font-weight:800;padding:2px 8px;border-radius:4px;letter-spacing:0.05em">NEW</div>` : ''}
 
       <div style="padding:18px 18px 12px">
@@ -7317,8 +7343,7 @@ function renderIntlDashboard() {
           </div>
         </div>
 
-        <!-- Intelligence metrics row -->
-        <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:8px;margin-bottom:12px">
+        <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:8px;margin-bottom:10px">
           <div style="background:rgba(0,0,0,0.2);border-radius:6px;padding:8px;text-align:center">
             <div style="font-size:18px;font-weight:800;color:#fff">${rankings.top10 || 0}</div>
             <div style="font-size:10px;color:rgba(255,255,255,0.6);margin-top:1px">Top 10</div>
@@ -7332,25 +7357,167 @@ function renderIntlDashboard() {
             <div style="font-size:10px;color:rgba(255,255,255,0.6);margin-top:1px">Queued</div>
           </div>
         </div>
+
+        ${topOppHtml}
       </div>
 
-      <!-- Action buttons -->
-      <div style="padding:10px 12px 14px;display:flex;gap:6px;margin-top:auto;flex-wrap:wrap">
-        <button onclick="runIntlMarket('${key}')"
-          style="flex:1;min-width:60px;padding:6px 0;border-radius:6px;border:1px solid rgba(255,255,255,0.4);background:transparent;color:#fff;font-size:11px;font-weight:600;cursor:pointer"
-          onmouseover="this.style.background='rgba(255,255,255,0.15)'" onmouseout="this.style.background='transparent'">▶ Run</button>
+      <div style="padding:8px 12px 12px;display:flex;gap:6px;margin-top:auto" onclick="event.stopPropagation()">
         <button onclick="filterDashboardByMarket('${m.flag} ${m.label}')"
-          style="flex:1;min-width:60px;padding:6px 0;border-radius:6px;border:1px solid rgba(255,255,255,0.4);background:transparent;color:#fff;font-size:11px;font-weight:600;cursor:pointer"
+          style="flex:1;padding:6px 0;border-radius:6px;border:1px solid rgba(255,255,255,0.4);background:transparent;color:#fff;font-size:11px;font-weight:600;cursor:pointer"
           onmouseover="this.style.background='rgba(255,255,255,0.15)'" onmouseout="this.style.background='transparent'">📋 Queue</button>
         <button onclick="intlOpenKwOpps('${m.brand}','${key}')"
-          style="flex:1;min-width:60px;padding:6px 0;border-radius:6px;border:none;background:rgba(255,255,255,0.2);color:#fff;font-size:11px;font-weight:600;cursor:pointer"
+          style="flex:1;padding:6px 0;border-radius:6px;border:none;background:rgba(255,255,255,0.2);color:#fff;font-size:11px;font-weight:600;cursor:pointer"
           onmouseover="this.style.background='rgba(255,255,255,0.3)'" onmouseout="this.style.background='rgba(255,255,255,0.2)'">🎯 Keywords</button>
-        <button onclick="intlOpenAudit('${m.brand}','${key}')"
-          style="flex:1;min-width:60px;padding:6px 0;border-radius:6px;border:none;background:rgba(255,255,255,0.2);color:#fff;font-size:11px;font-weight:600;cursor:pointer"
-          onmouseover="this.style.background='rgba(255,255,255,0.3)'" onmouseout="this.style.background='rgba(255,255,255,0.2)'">🔍 Audit</button>
+        <button onclick="runIntlMarket('${key}')"
+          style="flex:1;padding:6px 0;border-radius:6px;border:none;background:rgba(255,255,255,0.2);color:#fff;font-size:11px;font-weight:600;cursor:pointer"
+          onmouseover="this.style.background='rgba(255,255,255,0.3)'" onmouseout="this.style.background='rgba(255,255,255,0.2)'">▶ Run</button>
       </div>
     </div>`;
   }).join('');
+}
+
+function selectMarketDetail(key) {
+  intlState.activeMarket = key;
+  document.querySelectorAll('[data-intl-market]').forEach(p => p.classList.remove('active'));
+  const pill = document.querySelector(`[data-intl-market="${key}"]`);
+  if (pill) pill.classList.add('active');
+  renderIntlDashboard();
+}
+
+function renderMarketDetail(key, m) {
+  const rankings    = intlState.marketRankings?.[key] || {};
+  const kwData      = intlState.kwOpps?.[key] || {};
+  const summary     = kwData.summary || {};
+  const opps        = (kwData.opportunities || []).slice(0, 10);
+  const count       = intlState.runStatus[key] || 0;
+  const brandLbl    = m.brand === 'pickl' ? 'Pickl' : 'Bonbird';
+  const langs       = m.languages.map(l => l === 'ar' ? 'Arabic' : 'English').join(' + ');
+  const bgCol       = m.brand === 'pickl' ? '#DF0070' : '#C5161A';
+  const marketKeyPart = key.split('_').slice(1).join('_'); // 'pickl_bahrain' → 'bahrain'
+
+  // GSC rows for this market, sorted by impressions
+  const allGscRows = intlState.gscRows[m.brand] || [];
+  const mktRows    = allGscRows
+    .filter(r => r.page && r.page.includes(`/${m.marketSlug}`))
+    .sort((a, b) => (b.impressions || 0) - (a.impressions || 0))
+    .slice(0, 8);
+
+  // Average position
+  const posRows = allGscRows.filter(r => r.page && r.page.includes(`/${m.marketSlug}`) && r.position);
+  const avgPos  = posRows.length
+    ? Math.round(posRows.reduce((s, r) => s + r.position, 0) / posRows.length)
+    : null;
+
+  // Pending approval items for this market
+  const mktItems = intlState.allItems
+    .filter(it => it.brand === m.brand && it.market === marketKeyPart)
+    .slice(0, 5);
+
+  const TIER_BADGE = {
+    quick_win:   '<span style="background:#f59e0b;color:#000;font-size:10px;font-weight:700;padding:1px 7px;border-radius:3px;flex-shrink:0">⚡ Quick Win</span>',
+    push:        '<span style="background:#6366f1;color:#fff;font-size:10px;font-weight:700;padding:1px 7px;border-radius:3px;flex-shrink:0">📈 Push</span>',
+    content_gap: '<span style="background:#0ea5e9;color:#fff;font-size:10px;font-weight:700;padding:1px 7px;border-radius:3px;flex-shrink:0">🎯 Gap</span>',
+  };
+  const TYPE_LABEL = { page_update: 'Page update', blog_draft: 'Blog draft', page_creation: 'New page', meta_update: 'Meta update', hreflang: 'Hreflang' };
+
+  const metricCells = [
+    ['Top 10',    rankings.top10 || 0,                                      '#fff'],
+    ['Total KW',  rankings.total || 0,                                      '#fff'],
+    ['Avg Pos',   avgPos !== null ? `#${avgPos}` : '—',                     avgPos && avgPos <= 20 ? '#4ade80' : '#fff'],
+    ['Quick Wins',summary.quick_win || 0,                                   summary.quick_win > 0 ? '#fbbf24' : '#fff'],
+    ['Gaps',      (summary.content_gap || 0) + (summary.push || 0),        (summary.content_gap || 0) + (summary.push || 0) > 0 ? '#60a5fa' : '#fff'],
+    ['Queued',    count,                                                     count > 0 ? '#4ade80' : '#fff'],
+  ].map(([label, val, color]) => `
+    <div style="background:rgba(0,0,0,0.18);border-radius:8px;padding:12px 10px;text-align:center;flex:1">
+      <div style="font-size:20px;font-weight:800;color:${color}">${val}</div>
+      <div style="font-size:10px;color:rgba(255,255,255,0.65);margin-top:3px">${label}</div>
+    </div>`).join('');
+
+  return `
+    <div style="background:linear-gradient(135deg,${bgCol},${bgCol}bb);border-radius:12px;padding:20px 24px 18px;margin-bottom:20px">
+      <div style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:14px;margin-bottom:18px">
+        <div style="display:flex;align-items:center;gap:16px">
+          <span style="font-size:44px;line-height:1">${m.flag}</span>
+          <div>
+            <div style="font-size:22px;font-weight:800;color:#fff;line-height:1.2">${m.label}</div>
+            <div style="font-size:13px;color:rgba(255,255,255,0.75);margin-top:3px">${brandLbl} · ${langs}</div>
+          </div>
+        </div>
+        <div style="display:flex;gap:8px;flex-wrap:wrap">
+          <button onclick="runIntlMarket('${key}')"
+            style="padding:8px 16px;border-radius:7px;border:1px solid rgba(255,255,255,0.5);background:transparent;color:#fff;font-size:12px;font-weight:600;cursor:pointer"
+            onmouseover="this.style.background='rgba(255,255,255,0.15)'" onmouseout="this.style.background='transparent'">▶ Run Pipeline</button>
+          <button onclick="filterDashboardByMarket('${m.flag} ${m.label}')"
+            style="padding:8px 16px;border-radius:7px;border:none;background:rgba(255,255,255,0.2);color:#fff;font-size:12px;font-weight:600;cursor:pointer"
+            onmouseover="this.style.background='rgba(255,255,255,0.3)'" onmouseout="this.style.background='rgba(255,255,255,0.2)'">📋 View Queue</button>
+          <button onclick="intlOpenKwOpps('${m.brand}','${key}')"
+            style="padding:8px 16px;border-radius:7px;border:none;background:rgba(255,255,255,0.2);color:#fff;font-size:12px;font-weight:600;cursor:pointer"
+            onmouseover="this.style.background='rgba(255,255,255,0.3)'" onmouseout="this.style.background='rgba(255,255,255,0.2)'">🎯 Keywords</button>
+        </div>
+      </div>
+      <div style="display:flex;gap:10px;flex-wrap:wrap">${metricCells}</div>
+    </div>
+
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:16px;margin-bottom:16px">
+      <div style="background:var(--bg-surface);border:1px solid var(--border);border-radius:10px;padding:18px">
+        <h3 style="font-size:13px;font-weight:700;color:var(--text);margin:0 0 12px">Top Ranking Keywords</h3>
+        ${mktRows.length ? `
+          <div style="overflow-x:auto">
+          <table style="width:100%;border-collapse:collapse;font-size:12px">
+            <thead><tr>
+              <th style="text-align:left;padding-bottom:8px;font-weight:600;color:var(--text-muted)">Keyword</th>
+              <th style="text-align:right;padding-bottom:8px;font-weight:600;color:var(--text-muted)">Pos</th>
+              <th style="text-align:right;padding-bottom:8px;font-weight:600;color:var(--text-muted)">Impr</th>
+            </tr></thead>
+            <tbody>
+              ${mktRows.map(r => `<tr style="border-top:1px solid var(--border)">
+                <td style="padding:7px 0;color:var(--text);max-width:160px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${esc(r.keys?.[0] || r.keyword || '—')}</td>
+                <td style="text-align:right;padding:7px 0;font-weight:600;color:${r.position <= 10 ? '#16a34a' : r.position <= 20 ? '#f59e0b' : 'var(--text-muted)'}">${Math.round(r.position || 0)}</td>
+                <td style="text-align:right;padding:7px 0;color:var(--text-muted)">${(r.impressions || 0).toLocaleString()}</td>
+              </tr>`).join('')}
+            </tbody>
+          </table>
+          </div>` :
+          '<div style="color:var(--text-muted);font-size:12px;text-align:center;padding:16px 0">No GSC data yet for this market.<br>Run the pipeline to populate rankings.</div>'
+        }
+      </div>
+
+      <div style="background:var(--bg-surface);border:1px solid var(--border);border-radius:10px;padding:18px">
+        <h3 style="font-size:13px;font-weight:700;color:var(--text);margin:0 0 12px">
+          Pending Items
+          ${count > 0 ? `<span style="font-size:12px;font-weight:400;color:var(--text-muted)">(${count})</span>` : ''}
+        </h3>
+        ${mktItems.length ? `
+          <div style="display:flex;flex-direction:column;gap:6px">
+            ${mktItems.map(it => `
+              <div style="display:flex;gap:8px;align-items:center;padding:8px 10px;background:var(--bg-subtle);border-radius:6px;font-size:12px">
+                <span style="flex-shrink:0;color:var(--text-muted);font-size:11px">${TYPE_LABEL[it.type] || it.type}</span>
+                <span style="color:var(--text);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;flex:1">${esc(it.title || it.targetKeyword || '—')}</span>
+              </div>`).join('')}
+            ${count > mktItems.length ? `<div style="font-size:11px;color:var(--text-muted);text-align:center;padding:4px 0">+${count - mktItems.length} more in queue</div>` : ''}
+          </div>` :
+          '<div style="color:var(--text-muted);font-size:12px;text-align:center;padding:16px 0">No pending items for this market.</div>'
+        }
+      </div>
+    </div>
+
+    ${opps.length ? `
+    <div style="background:var(--bg-surface);border:1px solid var(--border);border-radius:10px;padding:18px">
+      <h3 style="font-size:13px;font-weight:700;color:var(--text);margin:0 0 12px">Keyword Opportunities</h3>
+      <div style="display:flex;flex-direction:column;gap:6px">
+        ${opps.map(o => `
+          <div style="display:flex;align-items:center;gap:10px;padding:8px 10px;background:var(--bg-subtle);border-radius:6px;font-size:12px">
+            ${TIER_BADGE[o.tier] || ''}
+            <span style="flex:1;color:var(--text);overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${esc(o.keyword)}</span>
+            <span style="color:var(--text-muted);flex-shrink:0">pos&nbsp;${Math.round(o.position || 0)}</span>
+            <span style="color:var(--text-muted);flex-shrink:0">${(o.impressions || 0).toLocaleString()}&nbsp;impr</span>
+          </div>`).join('')}
+      </div>
+    </div>` : `
+    <div style="background:var(--bg-surface);border:1px solid var(--border);border-radius:10px;padding:18px;text-align:center;color:var(--text-muted)">
+      <div style="font-size:14px;margin-bottom:6px">No keyword opportunities stored yet</div>
+      <div style="font-size:12px">Run the pipeline to discover opportunities for this market.</div>
+    </div>`}`;
 }
 
 // Open Keyword Opportunities for a specific market
