@@ -12,6 +12,7 @@
 
 const { getStore } = require('@netlify/blobs');
 const { newId, ok, bad, preflight, parseBody, CORS } = require('./_lib/store');
+const { authorize, denied } = require('./_lib/auth');
 
 const SITE_URL = process.env.URL || 'https://yolkseo.netlify.app';
 
@@ -143,12 +144,20 @@ exports.handler = async (event) => {
   // ── POST ──────────────────────────────────────────────────────────────────
   if (event.httpMethod !== 'POST') return bad(405, 'Method not allowed');
 
+  // Auth gate on all mutations. slack-callback (calendar approve) passes the
+  // x-nest-internal token; the browser path uses the session cookie.
+  const auth = await authorize(event);
+  if (!auth.ok) return denied();
+
   const body = parseBody(event);
   if (!body) return bad(400, 'Invalid JSON');
 
   const { action } = body;
-  const actor      = body.actor      || 'unknown';
-  const actorEmail = body.actorEmail || '';
+  // Prefer the verified session identity over client-supplied values so the
+  // calendar approver model + audit trail can't be forged. Internal/service
+  // calls keep their stated actor (e.g. Slack approvals).
+  const actor      = auth.via === 'session' ? (auth.user.name || auth.user.email) : (body.actor || 'system');
+  const actorEmail = auth.via === 'session' ? auth.user.email : (body.actorEmail || '');
   const now        = new Date().toISOString();
 
   // ── create ────────────────────────────────────────────────────────────────

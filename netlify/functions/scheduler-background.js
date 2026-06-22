@@ -16,6 +16,7 @@ const {
   ok, bad, preflight, parseBody,
 } = require('./_lib/store');
 const { getBrandContext, buildBrandPrompt, runBrandVoiceCheck, fixBrandVoice, getBrandExamples } = require('./_lib/brand');
+const { internalHeaders } = require('./_lib/auth');
 const { getStore } = require('@netlify/blobs');
 
 // ── Brand feedback helper ─────────────────────────────────────────
@@ -906,7 +907,7 @@ Return ONLY valid JSON:
     try {
       const cmRes = await fetch(`${base}/.netlify/functions/wordpress`, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: internalHeaders({ 'Content-Type': 'application/json' }),
         body: JSON.stringify({ action: 'get_current_meta', brand, payload: { url: r.page } }),
       });
       const cmData = await cmRes.json().catch(() => null);

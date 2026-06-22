@@ -67,12 +67,24 @@ exports.handler = async (event) => {
 
       // Decode id_token to get user info (Google signs it — safe to decode payload)
       const idToken   = tokens.id_token;
+      if (!idToken) {
+        return { statusCode: 302, headers: { Location: '/login.html?error=no_id_token' }, body: '' };
+      }
       const payload   = JSON.parse(Buffer.from(idToken.split('.')[1], 'base64').toString());
       const email     = (payload.email || '').toLowerCase();
       const name      = payload.name || email;
       const picture   = payload.picture || '';
 
-      // Check if user has access
+      // Block explicitly-unverified Google emails. Domain is NOT a hard gate —
+      // access is controlled by the allowlist below (bootstrap admins + anyone
+      // added in Settings → Users), which works for ANY domain. To grant a
+      // non-yolkbrands user, add them in Settings → Users.
+      if (payload.email_verified === false) {
+        return { statusCode: 302, headers: { Location: '/login.html?error=email_unverified' }, body: '' };
+      }
+
+      // Check if user has access — closed allowlist: bootstrap OR an explicit
+      // userRole:<email> record (created via Settings → Users), regardless of domain.
       const isBootstrap = BOOTSTRAP_ADMINS.includes(email);
       let hasAccess = isBootstrap;
       let role = 'admin';

@@ -15,6 +15,7 @@
 
 const { getStore } = require('@netlify/blobs');
 const { getBrandContext, getBrandExamples, buildBrandPrompt } = require('./_lib/brand');
+const { authorize, denied, internalHeaders } = require('./_lib/auth');
 
 const CORS = {
   'Access-Control-Allow-Origin': '*',
@@ -200,10 +201,17 @@ exports.handler = async (event) => {
 
   if (event.httpMethod !== 'POST') return bad(405, 'Method Not Allowed');
 
+  // Auth gate on all mutations. Internal callers (international-seo creating items)
+  // pass the x-nest-internal token; the browser path uses the session cookie.
+  const auth = await authorize(event);
+  if (!auth.ok) return denied();
+
   const body = parseBody(event);
   if (body === null) return bad(400, 'Invalid JSON');
 
-  const actor = body.actor || 'unknown';
+  // Derive actor from the verified session (no longer trust body.actor) so the
+  // audit log can't be forged. Internal/service calls keep their stated actor.
+  const actor = auth.via === 'session' ? auth.user.email : (body.actor || 'system');
 
   try {
     switch (body.action) {
@@ -393,7 +401,7 @@ async function handlePublishItem(body, actor) {
   const base = SITE_URL.replace(/\/$/, '');
   const res = await fetch(base + '/.netlify/functions/wordpress', {
     method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
+    headers: internalHeaders({ 'Content-Type': 'application/json' }),
     body: JSON.stringify({ action: 'publish', brand: item.brand, payload: { postId, postType } }),
   });
   const data = await res.json().catch(() => ({}));
@@ -561,7 +569,7 @@ async function pushItem(item) {
   try {
     const res = await fetch(base + endpoint, {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
+      headers: internalHeaders({ 'Content-Type': 'application/json' }),
       body: JSON.stringify(pushBody),
     });
     const data = await res.json().catch(() => ({}));

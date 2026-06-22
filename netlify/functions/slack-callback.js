@@ -11,6 +11,7 @@
 //   dismiss_item  — dismisses/rejects an SEO approval item
 
 const { getSetting, setSetting, getStore } = require('./_lib/store');
+const { internalHeaders } = require('./_lib/auth');
 
 const SITE_URL = process.env.URL || 'https://yolkseo.netlify.app';
 
@@ -99,7 +100,7 @@ exports.handler = async (event) => {
     } else if (actionId === 'approve_calendar_post') {
       const res  = await fetch(`${SITE_URL}/api/calendar`, {
         method:  'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: internalHeaders({ 'Content-Type': 'application/json' }),
         body: JSON.stringify({ action: 'approve', id: itemId, actor: slackUser + ' (via Slack)', actorEmail: '' }),
       });
       const data = await res.json().catch(() => ({}));

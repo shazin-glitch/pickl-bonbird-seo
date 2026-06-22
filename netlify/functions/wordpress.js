@@ -16,9 +16,11 @@
 //   list_posts      search posts + pages
 //   get_post        get single item by ID
 
+const { authorize } = require('./_lib/auth');
+
 const CORS = {
   'Access-Control-Allow-Origin': '*',
-  'Access-Control-Allow-Headers': 'Content-Type',
+  'Access-Control-Allow-Headers': 'Content-Type, Cookie, x-nest-internal',
   'Access-Control-Allow-Methods': 'POST, OPTIONS',
 };
 
@@ -64,6 +66,11 @@ async function wpFetch(creds, path, opts) {
 exports.handler = async (event) => {
   if (event.httpMethod === 'OPTIONS') return { statusCode: 200, headers: CORS, body: '' };
   if (event.httpMethod !== 'POST') return fail(405, 'Method Not Allowed');
+  // Auth gate — publishes/creates content live to WordPress. Internal callers
+  // (approvals pushItem, scheduler) pass the x-nest-internal token; the browser
+  // path uses the session cookie. Was fully open before.
+  const auth = await authorize(event);
+  if (!auth.ok) return fail(401, 'Not authenticated');
   let body;
   try { body = JSON.parse(event.body); } catch (_) { return fail(400, 'Invalid JSON'); }
   const { action, brand } = body;

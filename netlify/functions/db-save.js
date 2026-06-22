@@ -1,13 +1,18 @@
 const { getStore } = require('@netlify/blobs');
+const { authorize, denied } = require('./_lib/auth');
 
 exports.handler = async (event) => {
   if (event.httpMethod === 'OPTIONS') {
-    return { statusCode: 200, headers: { 'Access-Control-Allow-Origin': '*', 'Access-Control-Allow-Headers': 'Content-Type', 'Access-Control-Allow-Methods': 'POST, OPTIONS' }, body: '' };
+    return { statusCode: 200, headers: { 'Access-Control-Allow-Origin': '*', 'Access-Control-Allow-Headers': 'Content-Type, Cookie', 'Access-Control-Allow-Methods': 'POST, OPTIONS' }, body: '' };
   }
 
   if (event.httpMethod !== 'POST') {
     return { statusCode: 405, body: 'Method Not Allowed' };
   }
+
+  // Auth gate — was fully open: anyone could overwrite gscTokens/slackWebhookUrl/etc.
+  const auth = await authorize(event);
+  if (!auth.ok) return denied();
 
   let body;
   try {

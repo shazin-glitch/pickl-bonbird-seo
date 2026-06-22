@@ -323,6 +323,50 @@ From Google's official AI Optimization Guide (June 2026):
 
 ---
 
+## Session: June 2026 — v7.3.9 — Authentication hardening (mutating endpoints)
+
+Closed the critical hole: `db-save`, `approvals`, `calendar`, `wordpress` were fully unauthenticated (anyone could overwrite data / publish live / burn credits). Now every **mutation** requires a valid session OR an internal service token. Reads (GETs) left open.
+
+### New: `_lib/auth.js`
+- `authorize(event)` → `{ ok, via:'session'|'internal'|null, user }`. Two trust paths:
+  - **Session** — browser `yolk_session` cookie → `userSession:<token>` Blob → role (same mechanism as auth-user.js). `apiGet`/`apiPost` are same-origin so the cookie rides along automatically.
+  - **Internal** — `x-nest-internal` header = `sha256('nest-internal:' + NETLIFY_AUTH_TOKEN)`. That env var is in every function context, so **no new env var** and no deploy-ordering break. For function-to-function + cron calls that have no session.
+- `internalHeaders()` (spread into fetch headers for internal callers), `denied()` (401), `getSessionUser()`.
+
+### Gated (mutations only)
+- **db-save.js** — `authorize` (browser-only; no internal callers).
+- **wordpress.js** — `authorize`; internal callers pass the token.
+- **approvals.js** — POST gated; `actor` now derived from the verified session (was forgeable `body.actor`); its two wordpress fetches send `internalHeaders()`.
+- **calendar.js** — POST gated; `actor`/`actorEmail` derived from session; internal calls keep stated actor.
+
+### Internal callers updated to send the token
+- `approvals.js` → wordpress (publish + pushItem). `scheduler-background.js` → wordpress (get_current_meta). `international-seo-background.js` → approvals (create). `slack-callback.js` → calendar (approve).
+
+### OAuth callback (`auth-callback.js`)
+- **Access model = closed allowlist (Option A):** bootstrap admins OR an explicit `userRole:<email>` record created via Settings → Users — works for **ANY domain**. Domain is **not** a hard gate (so external/partner emails can be granted by adding them in Settings → Users). Blocks only explicitly-unverified Google emails (`email_verified === false`) and guards missing `id_token`.
+- **To give another domain access:** add the user in Settings → Users (no code change/redeploy needed).
+- (Option B — a configurable auto-allow-domain list so Yolk staff self-onboard as viewer — was considered and deferred; allowlist chosen for tighter control.)
+
+### ⚠️ Verify after deploy (could not be tested locally — needs live session + Blobs)
+1. **Login still works** (domain check didn't lock anyone out).
+2. **Settings save** works (db-save + session).
+3. **Approve → WP Draft / Publish Live** works (browser session → approvals → wordpress internal token).
+4. **Manual scheduler run** still publishes / get_current_meta works (cron internal token).
+5. **International audit** creates items (intl → approvals internal token).
+6. **Slack approve** still works (slack-callback → calendar internal token).
+If publishing or the Monday pipeline breaks, the internal-token path is the suspect — **rollback = revert this commit**.
+
+### Deliberately deferred (auth follow-ups, lower severity / higher breakage risk)
+- **Slack signature verification** on `slack-callback.js` (HMAC w/ SLACK_SIGNING_SECRET) — it's still a public endpoint; a forged Slack payload can approve/dismiss. The internal token only stops direct anonymous calls to calendar/approvals.
+- **OAuth `state` CSRF nonce** (random state in a cookie, verified on callback) — skipped this pass (highest login-breakage risk).
+- **Role-tier granularity** (viewer-can't-publish): currently any authenticated user passes; closing the anonymous hole was the priority.
+- **reviews.js** mutation gating (lower priority).
+
+### Revert notes
+- Remove the `authorize`/`denied` import + the gate block from db-save/wordpress/approvals/calendar; revert `internalHeaders(...)` back to `{ 'Content-Type': 'application/json' }` in the 4 internal callers; revert auth-callback domain/email_verified/id_token guard; delete `_lib/auth.js`.
+
+---
+
 ## Session: June 2026 — v7.3.8 — Run Audit control + Dismiss Visible fix + filter spacing
 
 ### Unified Run Audit control (Approvals Queue)

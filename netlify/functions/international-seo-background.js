@@ -15,6 +15,7 @@ const { getStore } = require('@netlify/blobs');
 const { INTERNATIONAL_MARKETS, getMarketsForBrand, buildMarketPrompt, getWpCredentials, buildPostUrl } = require('./_lib/international-config');
 const { getBrandContext, getBrandExamples, buildBrandPrompt, runBrandVoiceCheck, fixBrandVoice } = require('./_lib/brand');
 const { fetchGscDirect, fetchGscWithPages, listApprovals, createApproval, extractJson } = require('./_lib/store');
+const { internalHeaders } = require('./_lib/auth');
 
 // ── Brand feedback helper ─────────────────────────────────────────
 async function getBrandFeedback(brand) {
@@ -786,7 +787,7 @@ async function queueApprovalItem(item) {
 
   const res = await fetch(`${siteUrl}/.netlify/functions/approvals`, {
     method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
+    headers: internalHeaders({ 'Content-Type': 'application/json' }),
     body: JSON.stringify({
       action: 'create',
       actor:  'claude',
