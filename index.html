@@ -6416,14 +6416,16 @@ async function loadLocalSeo() {
       return;
     }
 
-    // Connected (tokens exist) but the Google API call returned an error —
-    // e.g. quota=0, API not enabled, scope not granted. Surface the real reason
-    // instead of rendering an empty tab.
-    if (data.error) {
+    // Connected (tokens exist) but either the Google API returned an error
+    // (quota=0, API not enabled, scope not granted) or it succeeded with zero
+    // locations (debugNote). Surface the real reason instead of an empty tab.
+    const noLocs = !(data.locations || []).length;
+    if (data.error || (noLocs && data.debugNote)) {
+      const title = data.error ? 'Google Business Profile API error' : 'Connected — but no locations found';
       document.getElementById('localseo-error').style.display = '';
       document.getElementById('localseo-error-msg').innerHTML =
-        `<div style="font-weight:600;color:var(--text-main);margin-bottom:8px">Google Business Profile API error</div>` +
-        `<div style="margin-bottom:14px">${esc(data.error)}</div>` +
+        `<div style="font-weight:600;color:var(--text-main);margin-bottom:8px">${title}</div>` +
+        (data.error ? `<div style="margin-bottom:14px">${esc(data.error)}</div>` : '') +
         (data.debugNote ? `<div style="font-size:12px;color:var(--text-muted);margin-bottom:14px">${esc(data.debugNote)}</div>` : '') +
         `<button onclick="connectGbp()" class="btn btn-primary" style="padding:8px 20px;font-size:13px">🔄 Reconnect Google Business Profile</button>`;
       state.gbpConnected = true;

@@ -390,6 +390,33 @@ The "Run Audit Now" button is now **scope-aware**, driven by the selected **bran
 
 ---
 
+## Session: June 2026 — v7.4.2 — GBP location listing fixed (root cause of "No locations returned")
+
+User confirmed GBP quota form approved + the 3 modern APIs enabled (Account Management, Business Information, Performance). Reconnect succeeded ("connection successful") but Local SEO still showed **"No locations returned from Google"**. Root cause found in `gbp-data.js`:
+
+### Three bugs
+1. **Wrong API for listing locations (the killer).** Step 2 listed locations from the **Account Management API** (`mybusinessaccountmanagement…/accounts/{id}/locations`) — that API has no locations endpoint. Locations live in the **Business Information API**. The call 404'd. (Regression: SETUP.md previously recorded a "fix" moving location listing *to* Account Management — wrong direction.)
+2. **Missing `readMask`.** Business Information `locations.list` **requires** a `readMask` query param or returns `400 INVALID_ARGUMENT`. None was sent.
+3. **Silent swallow.** Both failures were caught by `catch { console.warn }` and the empty result had no `error` field, so the v7.4.1 surfacing couldn't show it → generic "No locations returned" with zero signal. PLUS the empty result was cached for 6h.
+
+### Fix (`gbp-data.js`)
+- List locations from `BIZ_INFO_BASE` with `readMask=name,title,storefrontAddress,phoneNumbers,websiteUri,regularHours,metadata,profile`, with `pageToken` pagination.
+- Parse locations **directly from the list response** — dropped the separate per-location detail loop (Step 3), saving N requests + quota.
+- Capture `locError`; if 0 locations + error → return `{ error }` (front-end surfaces it). If 0 locations + no error → return `debugNote` ("connected to N accounts but 0 locations…").
+- **Cache key bumped `v2` → `v3`** to bust the stale empty cache. Only non-empty results are now cached.
+
+### Fix (`index.html` `loadLocalSeo`)
+- Extended the v7.4.1 error branch to also fire on `debugNote` when 0 locations, with a distinct title ("Connected — but no locations found") so the 0-locations case is no longer a blank tab.
+
+### If it STILL shows 0 locations after this deploy
+The connected Google account doesn't *manage* the Pickl/Bonbird GBP listings, OR they're under a different account. The debugNote will say how many accounts were seen. Reconnect with the owning Google account.
+
+### Revert notes
+- `gbp-data.js`: restore Step 2 (Account Management list) + Step 3 (per-location detail loop), revert cache key to v2.
+- `index.html`: revert the branch condition to `if (data.error)` only.
+
+---
+
 ## Session: June 2026 — v7.4.1 — Markets run-log fix + GBP error surfacing (diagnostic pass)
 
 ### Markets ▶ Run log (index.html `runIntlMarket`)
@@ -845,7 +872,7 @@ Replaced all hardcoded colour islands in the task panel (built from `buildTaskCa
 - Add User modal: proper form with email + role + brand + department at invite time
 - Last Login column in Users table (relative time)
 - Performance Summary updated to reflect actual build state
-- GBP data fix: Account Management API used for listing locations (was using wrong API)
+- GBP data fix: Account Management API used for listing locations (was using wrong API) — ⚠️ SUPERSEDED by v7.4.2: locations MUST be listed from the Business Information API with a readMask, NOT Account Management. Do not revert.
 - Removed duplicate updateUserRole function
 - Approval cards: context bar showing keyword, current position, goal, impressions, page URL
 - Published & Tracking tab in Approvals Queue — tracks position movement after publish (updated every Monday)
@@ -3501,7 +3528,7 @@ Update "Current URL" from `yolkseo.netlify.app` to `thenest.yolkbrands.com`
 
 ---
 
-## Current Version: v7.4.1
+## Current Version: v7.4.2
 
 Last session built: Bug-fix batch (v7.0.2), added Yolk Brands to Content Calendar (v7.0.3 + v7.0.4), added Yolk Brands to The Perch (v7.0.5), fixed Reports tab crash (v7.0.6), Priority Gap → Queue Brief + keyword filtering fixes (v7.0.7), copy-to-market fix + GSC page data + URL Inspection indexing badges (v7.0.8).
 

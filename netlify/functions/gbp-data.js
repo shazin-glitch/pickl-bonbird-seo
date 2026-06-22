@@ -32,8 +32,8 @@ exports.handler = async (event) => {
     return { statusCode: 200, headers: CORS, body: JSON.stringify({ notConnected: true }) };
   }
 
-  // Check cache (v2 key to bust any stale cache)
-  const cacheKey = `gbpCache:${brand}:v2`;
+  // Check cache (v3 key — v2 cached the broken empty-locations result for 6h)
+  const cacheKey = `gbpCache:${brand}:v3`;
   try {
     const cached = await store.get(cacheKey, { type: 'json' });
     if (cached?.cachedAt && (Date.now() - cached.cachedAt) < CACHE_TTL_MS && cached.locations) {
@@ -80,35 +80,41 @@ exports.handler = async (event) => {
       return { statusCode: 200, headers: CORS, body: JSON.stringify({ locations: [], reviews: [], reviewsApiPending: true, cachedAt: Date.now(), debugNote: 'No accounts returned — check GBP account has locations' }) };
     }
 
-    // ── Step 2: List locations via Account Management API ─────────────────────
-    const allLocationNames = [];
+    // ── Step 2: List locations via the BUSINESS INFORMATION API ───────────────
+    // Locations are NOT in the Account Management API (that only has accounts +
+    // admins). locations.list lives in Business Information and REQUIRES a
+    // readMask or it returns 400 INVALID_ARGUMENT. The list response already
+    // contains the full location objects, so no per-location detail call is
+    // needed (saves N requests + quota).
+    const readMask = 'name,title,storefrontAddress,phoneNumbers,websiteUri,regularHours,metadata,profile';
+    const allLocations = [];
+    let locError = null;
     for (const account of accounts.slice(0, 10)) {
       try {
-        const locRes  = await fetch(`${ACCOUNT_MGMT_BASE}/${account.name}/locations?pageSize=100`, { headers: { Authorization: auth } });
-        const locData = await locRes.json();
-        console.log(`[gbp-data] Locations for ${account.name}:`, JSON.stringify(locData).slice(0, 300));
-        for (const loc of locData.locations || []) {
-          allLocationNames.push(loc.name); // e.g. "accounts/123/locations/456"
-        }
-      } catch (e) { console.warn('[gbp-data] Location list failed for', account.name, ':', e.message); }
+        let pageToken = '';
+        do {
+          const url = `${BIZ_INFO_BASE}/${account.name}/locations?readMask=${encodeURIComponent(readMask)}&pageSize=100${pageToken ? `&pageToken=${pageToken}` : ''}`;
+          const locRes  = await fetch(url, { headers: { Authorization: auth } });
+          const locData = await locRes.json();
+          console.log(`[gbp-data] Locations for ${account.name}:`, JSON.stringify(locData).slice(0, 300));
+          if (!locRes.ok) {
+            locError = locData.error?.message || `Locations API failed (${locRes.status})`;
+            break;
+          }
+          for (const loc of locData.locations || []) {
+            allLocations.push(parseLocation(loc));
+          }
+          pageToken = locData.nextPageToken || '';
+        } while (pageToken);
+      } catch (e) {
+        locError = e.message;
+        console.warn('[gbp-data] Location list failed for', account.name, ':', e.message);
+      }
     }
 
-    // ── Step 3: Get details for each location via Business Information API ─────
-    const allLocations = [];
-    for (const locName of allLocationNames.slice(0, 50)) {
-      try {
-        // Convert account management name format to business information format
-        const bizInfoName = locName; // same format: accounts/{id}/locations/{id}
-        const detailRes  = await fetch(`${BIZ_INFO_BASE}/${bizInfoName}`, { headers: { Authorization: auth } });
-        const detail     = await detailRes.json();
-
-        if (detailRes.ok) {
-          allLocations.push(parseLocation(detail));
-        } else {
-          // Fallback: use basic info from account management
-          allLocations.push({ id: locName, name: locName.split('/').pop(), address: '', health: 'green', flags: [] });
-        }
-      } catch (e) { console.warn('[gbp-data] Detail fetch failed for', locName, ':', e.message); }
+    // No locations AND an API error → surface the real reason (front-end shows it).
+    if (!allLocations.length && locError) {
+      return { statusCode: 200, headers: CORS, body: JSON.stringify({ error: locError, locations: [], reviews: [], reviewsApiPending: true, cachedAt: Date.now() }) };
     }
 
     const result = {
@@ -117,9 +123,12 @@ exports.handler = async (event) => {
       reviews: [],
       reviewsApiPending: true,
       cachedAt: Date.now(),
+      ...(allLocations.length ? {} : { debugNote: `Connected to ${accounts.length} account(s) but found 0 locations. Make sure the Google account you connected manages the ${brand} listings.` }),
     };
 
-    await store.set(cacheKey, JSON.stringify(result)).catch(() => {});
+    // Only cache successful (non-empty) results so a transient failure doesn't
+    // stick in cache for 6h.
+    if (allLocations.length) await store.set(cacheKey, JSON.stringify(result)).catch(() => {});
 
     return { statusCode: 200, headers: CORS, body: JSON.stringify(result) };
 
