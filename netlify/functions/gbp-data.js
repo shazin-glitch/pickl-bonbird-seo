@@ -35,8 +35,8 @@ exports.handler = async (event) => {
     return { statusCode: 200, headers: CORS, body: JSON.stringify({ notConnected: true }) };
   }
 
-  // Cache v6 — bust v5 (was cached before Google My Business API v4 was enabled)
-  const cacheKey = `gbpCache:${brand}:v6`;
+  // Cache v7 — revert readMask encoding fix; v6 had broken Business Information API calls
+  const cacheKey = `gbpCache:${brand}:v7`;
   try {
     const cached = await store.get(cacheKey, { type: 'json' });
     if (cached?.cachedAt && (Date.now() - cached.cachedAt) < CACHE_TTL_MS && cached.locations) {
@@ -84,17 +84,17 @@ exports.handler = async (event) => {
     }
 
     // ── Step 2: List locations via Business Information API ───────────────────
-    // IMPORTANT: readMask must NOT be encodeURIComponent'd. Encoding commas as
-    // %2C causes the API to treat the whole string as one field name and return
-    // empty objects — regularHours and profile fields come back missing.
-    const readMask = 'name,title,storefrontAddress,phoneNumbers,websiteUri,regularHours,metadata,profile';
+    // readMask MUST be encodeURIComponent'd — the Business Information API
+    // requires commas to be encoded (%2C) or it rejects the request with
+    // "Invalid Request Message" (400).
+    const readMask = encodeURIComponent('name,title,storefrontAddress,phoneNumbers,websiteUri,regularHours,metadata,profile');
     const allLocations = [];
     let locError = null;
     for (const account of accounts.slice(0, 10)) {
       try {
         let pageToken = '';
         do {
-          const url = `${BIZ_INFO_BASE}/${account.name}/locations?readMask=${readMask}&pageSize=100${pageToken ? `&pageToken=${pageToken}` : ''}`;
+          const url = `${BIZ_INFO_BASE}/${account.name}/locations?readMask=${readMask}&pageSize=100${pageToken ? `&pageToken=${encodeURIComponent(pageToken)}` : ''}`;
           const locRes  = await fetch(url, { headers: { Authorization: auth } });
           const locData = await locRes.json();
           console.log(`[gbp-data] Locations for ${account.name}:`, JSON.stringify(locData).slice(0, 500));
@@ -128,12 +128,23 @@ exports.handler = async (event) => {
 
     if (brandLocations.length) {
       try {
+        // Log the first location's ID format and URL so we can verify it's correct
+        if (brandLocations[0]) {
+          console.log('[gbp-data] First loc.id:', brandLocations[0].id);
+          console.log('[gbp-data] First reviews URL:', `${REVIEW_BASE}/${brandLocations[0].id}/reviews?pageSize=50`);
+        }
+
         const reviewResults = await Promise.all(
           brandLocations.map(async (loc) => {
             try {
-              const res = await fetch(`${REVIEW_BASE}/${loc.id}/reviews?pageSize=50`, { headers: { Authorization: auth } });
-              console.log(`[gbp-data] Reviews ${loc.name}: ${res.status}`);
-              if (!res.ok) return null;
+              const url = `${REVIEW_BASE}/${loc.id}/reviews?pageSize=50`;
+              const res  = await fetch(url, { headers: { Authorization: auth } });
+              if (!res.ok) {
+                const errBody = await res.json().catch(() => ({}));
+                console.error(`[gbp-data] Reviews ${res.status} for ${loc.name}:`, JSON.stringify(errBody).slice(0, 300));
+                return null;
+              }
+              console.log(`[gbp-data] Reviews OK for ${loc.name}`);
               return { loc, data: await res.json() };
             } catch (e) {
               console.warn('[gbp-data] Reviews failed for', loc.name, ':', e.message);
