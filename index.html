@@ -2320,6 +2320,15 @@ const TYPE_TAGS = {
     switchView('localseo');
   }
 
+  // Surface OAuth callback errors (GBP / GA4 / GSC flows redirect to /?error=…).
+  // Without this, a failed reconnect silently lands back on the dashboard.
+  const oauthErr = urlParams.get('error');
+  if (oauthErr) {
+    window.history.replaceState({}, '', '/');
+    showToast('⚠️ Google connection failed: ' + decodeURIComponent(oauthErr), 'error');
+    console.warn('[oauth] callback error:', oauthErr);
+  }
+
   // Handle GA4 OAuth redirect
   if (urlParams.get('ga4_connected') === '1') {
     window.history.replaceState({}, '', '/');
@@ -6407,6 +6416,20 @@ async function loadLocalSeo() {
       return;
     }
 
+    // Connected (tokens exist) but the Google API call returned an error —
+    // e.g. quota=0, API not enabled, scope not granted. Surface the real reason
+    // instead of rendering an empty tab.
+    if (data.error) {
+      document.getElementById('localseo-error').style.display = '';
+      document.getElementById('localseo-error-msg').innerHTML =
+        `<div style="font-weight:600;color:var(--text-main);margin-bottom:8px">Google Business Profile API error</div>` +
+        `<div style="margin-bottom:14px">${esc(data.error)}</div>` +
+        (data.debugNote ? `<div style="font-size:12px;color:var(--text-muted);margin-bottom:14px">${esc(data.debugNote)}</div>` : '') +
+        `<button onclick="connectGbp()" class="btn btn-primary" style="padding:8px 20px;font-size:13px">🔄 Reconnect Google Business Profile</button>`;
+      state.gbpConnected = true;
+      return;
+    }
+
     state.gbpConnected = true;
     document.getElementById('localseo-content').style.display = '';
     document.getElementById('localseo-last-updated').textContent = data.cachedAt
@@ -7586,15 +7609,13 @@ async function runIntlMarket(marketKey, force = false) {
   try {
     const url = `/.netlify/functions/international-seo-background?market=${marketKey}${force ? '&force=true' : ''}`;
     const res = await fetch(url);
-    const data = await res.json().catch(() => ({}));
 
-    if (data.summary) {
-      logBody.innerHTML += `✅ Done — ${data.summary.queued} items queued, ${data.summary.skipped} skipped, ${data.summary.errors} errors<br>`;
-      if (data.summary.queued > 0) {
-        logBody.innerHTML += `<a href="#" onclick="switchView('dashboard');return false;" style="color:var(--primary)">→ View in approvals queue</a><br>`;
-      }
+    if (res.status === 202 || res.status === 200) {
+      logBody.innerHTML += `✅ Pipeline triggered — running in background (2–3 min).<br>`;
+      logBody.innerHTML += `<a href="#" onclick="switchView('dashboard');return false;" style="color:var(--primary)">→ Check approvals queue when ready</a><br>`;
     } else {
-      logBody.innerHTML += `⚠️ Completed with response: ${JSON.stringify(data).slice(0, 200)}<br>`;
+      const data = await res.json().catch(() => ({}));
+      logBody.innerHTML += `⚠️ Unexpected status ${res.status}: ${JSON.stringify(data).slice(0, 200)}<br>`;
     }
 
     // Reset loaded flag so next dashboard view refreshes counts

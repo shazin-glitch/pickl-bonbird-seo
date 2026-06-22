@@ -386,8 +386,65 @@ The "Run Audit Now" button is now **scope-aware**, driven by the selected **bran
 - Spacing: restore `#queue-filters` style to `margin-bottom:4px` with no padding/border.
 
 ### Next
-- **Markets tab** rework into a per-market intelligence dashboard (it's the only international hub — keep + sharpen).
-- **Authentication hardening** (unauthenticated db-save/approvals/calendar/wordpress + forgeable actor) — deferred to its own session.
+- **Authentication follow-ups** — Slack signature verification on slack-callback.js; OAuth state CSRF nonce; role-tier granularity (viewer-can't-publish); reviews.js mutation gating.
+
+---
+
+## Session: June 2026 — v7.4.1 — Markets run-log fix + GBP error surfacing (diagnostic pass)
+
+### Markets ▶ Run log (index.html `runIntlMarket`)
+- Background functions return `202` with `{}` — they never send a `summary`. The old code checked `data.summary` and always fell into the `⚠️ Completed with response: {}` branch. Now checks `res.status === 202/200` → `✅ Pipeline triggered — running in background (2–3 min)` + a link to the approvals queue.
+
+### GBP / Local SEO — two swallowed-error bugs fixed (diagnostic only, no activation yet)
+Goal of this pass: make GBP connection failures **visible** so we can see the real Google error (user reported "reconnect did nothing" + Google API usage showing errors).
+1. **Page load ignored `?error=`** — GBP/GA4/GSC OAuth callbacks redirect to `/?error=…` on failure, but only `?gbp_connected=1` (success) was handled → failed reconnect silently returned to dashboard. Added an `oauthErr = urlParams.get('error')` handler → toast + console.warn with the decoded reason.
+2. **`loadLocalSeo()` ignored `data.error`** — `gbp-data.js` returns `{ error, locations:[], reviewsApiPending:true }` (status 200) when the Google API call fails (quota=0, API not enabled, scope not granted), but the front-end only checked `data.notConnected` then rendered an empty tab. Added a `data.error` branch → shows the error state with the real message + `data.debugNote` + a Reconnect button.
+
+### GBP architecture notes (for next session — activation)
+- **No separate GBP API key.** GBP uses the shared OAuth app (`GOOGLE_CLIENT_ID`/`SECRET`). Credential = `gbpTokens` Blob (access+refresh) written by `auth-callback.js` on the `state=gbp` flow. Nothing extra needed in Netlify env vars.
+- **Quota gotcha:** Business Profile APIs default to **0 quota** — enabling the APIs is not enough; you must be granted quota via the Business Profile API access request form. User confirmed (June 2026) the **API access/quota form was approved** → should now be unblocked.
+- **Reviews = legacy v4 only:** reviews are available *only* via `mybusiness.googleapis.com/v4` (no v1 equivalent). `gbp-reviews.js` already has the full implementation written behind a stub early-return; activation = remove stub + add token refresh (currently reads `access_token` with no refresh → 401s after 1h).
+- **`gbp-data.js` never fetches ratings/reviews** — hardcodes `rating:null`, `reviewsApiPending:true`. Avg Rating / Unanswered cards show `—` until v4 reviews fetch is added per location.
+- **AI replies must be on-demand** (per-card button → `/api/claude`), NOT inline in `gbp-data.js` (10+ Claude calls would exceed the ~26s function timeout).
+
+### Revert notes
+- `runIntlMarket`: restore the `if (data.summary) {…} else {⚠️}` block.
+- GBP: remove the `oauthErr` handler block and the `data.error` branch in `loadLocalSeo`.
+
+---
+
+## Session: June 2026 — v7.4.0 — Markets tab rework: per-market intelligence dashboard
+
+Reworked Analytics → Markets from a simple card grid into a full per-market intelligence hub.
+
+### Grid view (all/brand filter) — enhanced cards
+- Each card now shows a **top opportunity preview** below the metrics row: `⚡ keyword — pos N` (first quick_win opportunity, or first opportunity of any tier)
+- Card body is now **clickable** — clicking anywhere on the card (except the action buttons) opens the detail view for that market
+- Removed the ▶ Run button from action row (replaced by ▶ Run in detail view); kept 📋 Queue and 🎯 Keywords as quick-links
+- `kwOpps` now stores the full API response (`{ opportunities, summary, updatedAt }`) instead of just `summary`
+
+### Per-market detail view (new)
+Triggered by clicking a market pill or card. Renders full-width inside the grid container:
+- **Gradient header** — large flag, market name, brand/language, action buttons (▶ Run Pipeline / 📋 View Queue / 🎯 Keywords)
+- **6-metric row** — Top 10, Total KW, Avg Position (green if ≤20), Quick Wins (amber), Gaps (blue), Queued (green)
+- **Top Ranking Keywords table** — GSC rows filtered to this market's URL slug, sorted by impressions (keyword / position / impressions). Shows "No GSC data yet" empty state.
+- **Pending Items panel** — approval queue items for this market with type label and title (up to 5 shown, +N more count). Shows "No pending items" empty state.
+- **Keyword Opportunities list** — up to 10 items, tier-badged (⚡ Quick Win / 📈 Push / 🎯 Gap) with keyword, position, impressions
+- **Empty state** when no opportunities stored yet, prompting to run the pipeline
+
+### New functions
+- `selectMarketDetail(key)` — sets `intlState.activeMarket`, syncs pill state, renders detail
+- `renderMarketDetail(key, m)` — builds full detail HTML string; filters `intlState.gscRows` and `intlState.allItems` by market (no extra API calls)
+
+### intlState additions
+- `gscRows: { pickl: [], bonbird: [] }` — stored at load time; reused by detail view
+- `allItems: []` — all pending approval items; filtered per-market in detail view
+
+### Navigation
+- Detail → grid: click any brand pill or the "All" market pill (existing `switchIntlView` handles this)
+
+### Revert notes
+- Remove `selectMarketDetail` and `renderMarketDetail` functions; restore the original `renderIntlDashboard` from git history (no routing to detail, no top-opp preview); revert `kwOpps[mk] = d` → `if (d?.summary) kwOpps[mk] = d.summary`; remove `gscRows`/`allItems` from `intlState`
 
 ---
 
@@ -3444,7 +3501,7 @@ Update "Current URL" from `yolkseo.netlify.app` to `thenest.yolkbrands.com`
 
 ---
 
-## Current Version: v7.3.5
+## Current Version: v7.4.1
 
 Last session built: Bug-fix batch (v7.0.2), added Yolk Brands to Content Calendar (v7.0.3 + v7.0.4), added Yolk Brands to The Perch (v7.0.5), fixed Reports tab crash (v7.0.6), Priority Gap → Queue Brief + keyword filtering fixes (v7.0.7), copy-to-market fix + GSC page data + URL Inspection indexing badges (v7.0.8).
 
