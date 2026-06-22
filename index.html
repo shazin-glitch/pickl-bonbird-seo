@@ -6385,6 +6385,7 @@ async function refreshBacklinks(brand) {
 // ═══════════════════════════════════════════════════════════════
 
 const localSeoState = { brand: 'pickl' };
+const reviewStore = {}; // keyed by reviewId — holds full review objects for draftReviewReply
 
 function switchLocalSeoBrand(brand) {
   localSeoState.brand = brand;
@@ -6564,20 +6565,23 @@ function renderReviewQueue(reviews, brand, apiPending) {
   badge.style.display = '';
   badge.textContent = reviews.length + ' pending';
 
+  // Store reviews for access in draftReviewReply without inline encoding
+  reviews.forEach(r => { reviewStore[r.id] = r; });
+
   el.innerHTML = reviews.map(r => `
-    <div style="border:1px solid var(--border);border-radius:10px;padding:14px;margin-bottom:10px">
+    <div id="review-card-${esc(r.id)}" style="border:1px solid var(--border);border-radius:10px;padding:14px;margin-bottom:10px">
       <div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:8px">
         <div>
           <span style="color:#f59e0b">${'★'.repeat(r.rating || 5)}${'☆'.repeat(5 - (r.rating || 5))}</span>
-          <span style="font-size:11px;color:var(--text-muted);margin-left:8px">${esc(r.locationName || '')} · ${r.relativeTime || ''}</span>
+          <span style="font-size:11px;color:var(--text-muted);margin-left:8px">${esc(r.locationName || '')} · ${esc(r.relativeTime || '')}</span>
         </div>
-        <span style="font-size:11px;background:${(r.voiceScore||0)>=8?'#d1fae5':(r.voiceScore||0)>=5?'#fef3c7':'#fef2f2'};color:${(r.voiceScore||0)>=8?'#059669':(r.voiceScore||0)>=5?'#d97706':'#dc2626'};padding:2px 7px;border-radius:99px;font-weight:600">Voice ${r.voiceScore||'—'}/10</span>
+        <span style="font-size:11px;color:var(--text-muted);font-style:italic">${esc(r.reviewerName || '')}</span>
       </div>
-      <div style="font-size:13px;color:var(--text-main);margin-bottom:10px">"${esc(r.comment || 'Rating only')}"</div>
-      <div style="background:var(--bg-base);border-radius:8px;padding:10px;margin-bottom:10px;font-size:13px;color:var(--text-muted);font-style:italic">"${esc(r.draftReply || '')}"</div>
-      <div style="display:flex;gap:8px">
+      <div style="font-size:13px;color:var(--text-main);margin-bottom:10px;line-height:1.5">"${esc(r.comment || 'Rating only — no comment')}"</div>
+      <textarea id="reply-ta-${esc(r.id)}" rows="3" placeholder="Write a reply, or click Draft with AI…" style="width:100%;box-sizing:border-box;padding:8px 10px;border:1px solid var(--border);border-radius:6px;font-size:13px;font-family:inherit;resize:vertical;min-height:60px;background:var(--bg-base);color:var(--text-main);margin-bottom:10px">${esc(r.draftReply || '')}</textarea>
+      <div style="display:flex;gap:8px;flex-wrap:wrap">
         <button onclick="approveReviewReply('${esc(r.id)}','${esc(r.locationId)}')" class="btn btn-primary" style="padding:6px 14px;font-size:12px">✓ Approve & Publish</button>
-        <button onclick="editReviewReply('${esc(r.id)}')" class="btn btn-outline" style="padding:6px 12px;font-size:12px">Edit</button>
+        <button id="draft-btn-${esc(r.id)}" onclick="draftReviewReply('${esc(r.id)}')" class="btn btn-outline" style="padding:6px 12px;font-size:12px">✏️ Draft with AI</button>
         <button onclick="dismissReview('${esc(r.id)}')" style="padding:6px 10px;background:none;border:1px solid var(--border);border-radius:6px;font-size:12px;cursor:pointer;color:var(--text-muted)">Skip</button>
       </div>
     </div>`).join('');
@@ -6601,15 +6605,51 @@ function renderLocalSeoFlags(locations, brand) {
 }
 
 async function approveReviewReply(reviewId, locationId) {
+  const ta    = document.getElementById('reply-ta-' + reviewId);
+  const reply = ta?.value?.trim();
+  if (!reply) { showToast('Write or draft a reply first', 'error'); return; }
+  const btn = document.querySelector(`[onclick="approveReviewReply('${reviewId}','${locationId}')"]`);
+  if (btn) { btn.disabled = true; btn.textContent = '⏳ Publishing…'; }
   try {
-    await fetch('/api/gbp-reviews', { method: 'POST', credentials: 'include', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ action: 'publish_reply', reviewId, locationId }) });
-    showToast('Reply published', 'success');
-    loadLocalSeo();
-  } catch { showToast('Failed to publish reply', 'error'); }
+    const res  = await fetch('/api/gbp-reviews', { method: 'POST', credentials: 'include', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ action: 'publish_reply', reviewId, locationId, reply }) });
+    const data = await res.json();
+    if (data.error) throw new Error(data.error);
+    showToast('Reply published ✅', 'success');
+    document.getElementById('review-card-' + reviewId)?.remove();
+    delete reviewStore[reviewId];
+  } catch (e) {
+    showToast('Failed to publish: ' + e.message, 'error');
+    if (btn) { btn.disabled = false; btn.textContent = '✓ Approve & Publish'; }
+  }
 }
 
-function editReviewReply(reviewId) { showToast('Edit mode coming soon', ''); }
-function dismissReview(reviewId) { showToast('Review skipped', ''); loadLocalSeo(); }
+async function draftReviewReply(reviewId) {
+  const review = reviewStore[reviewId];
+  if (!review) return;
+  const btn = document.getElementById('draft-btn-' + reviewId);
+  const ta  = document.getElementById('reply-ta-' + reviewId);
+  if (!btn || !ta) return;
+  btn.disabled = true; btn.textContent = '⏳ Drafting…';
+  try {
+    const res  = await fetch('/api/gbp-reviews', { method: 'POST', credentials: 'include', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ action: 'draft', brand: localSeoState.brand, stars: review.rating, comment: review.comment }) });
+    const data = await res.json();
+    if (data.error) throw new Error(data.error);
+    ta.value = data.draft || '';
+    btn.textContent = '↺ Re-draft';
+  } catch (e) {
+    showToast('AI draft failed: ' + e.message, 'error');
+    btn.textContent = '✏️ Draft with AI';
+  }
+  btn.disabled = false;
+}
+
+function dismissReview(reviewId) {
+  document.getElementById('review-card-' + reviewId)?.remove();
+  delete reviewStore[reviewId];
+  if (!document.querySelectorAll('[id^="review-card-"]').length) {
+    document.getElementById('localseo-review-queue').innerHTML = `<div style="text-align:center;padding:32px;color:var(--text-muted);font-size:13px">No unanswered reviews. 🎉</div>`;
+  }
+}
 
 // ── Hreflang generator ────────────────────────────────────────────────────────
 async function generateHreflang() {

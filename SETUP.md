@@ -244,7 +244,7 @@ The Nest is Yolk Brands' central marketing operations platform. It started as an
 | `perchTask:<id>` | Individual Perch marketing task |
 | `slackWebhookUrl` | Slack webhook URL |
 | `gbpTokens` | Google Business Profile OAuth tokens |
-| `gbpCache:<brand>` | GBP location health data — 6hr TTL |
+| `gbpCache:<brand>:v5` | GBP location health + ratings + unanswered reviews — 6hr TTL |
 | `scheduler:lastrun` | Last scheduler run summary |
 | `intlProcessed:<marketKey>:<lang>` | International dedup check |
 
@@ -387,6 +387,39 @@ The "Run Audit Now" button is now **scope-aware**, driven by the selected **bran
 
 ### Next
 - **Authentication follow-ups** — Slack signature verification on slack-callback.js; OAuth state CSRF nonce; role-tier granularity (viewer-can't-publish); reviews.js mutation gating.
+
+---
+
+## Session: June 2026 — v7.4.4 — GBP reviews layer activated
+
+### What changed
+**`gbp-data.js`**
+- **readMask encoding fixed** — was using `encodeURIComponent(readMask)` which encodes commas as `%2C`; some Google API versions don't re-decode them, causing `regularHours` and `profile` fields to come back empty (hence false "No hours set" / "No description" flags). Fix: pass readMask literally in the URL string.
+- **v4 Reviews API added (Step 3)** — after fetching `brandLocations`, parallel-fetches `mybusiness.googleapis.com/v4/{loc.id}/reviews?pageSize=50` for each location. Populates `rating`, `totalReviews`, `unansweredReviews` on each location object. Sets `reviewsApiPending: false` when any call succeeds. Graceful fallback: if all calls return 403 (API not yet approved), `reviewsApiPending` stays `true` and locations keep `rating: null`.
+- Low-rating locations (< 4.0★) are flagged `health: 'red'` and get a "Low rating (X★)" flag tag.
+- Unanswered reviews (up to 5 per location) are collected into `data.reviews` array for the review queue.
+- **Cache bumped to v5** (v4 cached unfiltered data + missing ratings).
+- Added `timeAgo()` helper.
+
+**`gbp-reviews.js`** — fully un-stubbed:
+- `POST { action: 'draft', brand, stars, comment }` → calls Claude with brand voice prompt → returns `{ draft }`. No GBP tokens needed.
+- `POST { action: 'publish_reply', reviewId, locationId, reply }` → token refresh → `PUT /v4/{locationId}/reviews/{reviewId}/reply` → returns `{ published: true }`.
+
+**`index.html`**
+- `const reviewStore = {}` — stores full review objects so `draftReviewReply` can access comment/stars without inline HTML encoding.
+- Review cards redesigned: comment → editable `<textarea>` (pre-filled with `draftReply` if present) + "Draft with AI" button.
+- `approveReviewReply(reviewId, locationId)` — reads textarea value, sends it as `reply` in POST body, removes card from DOM on success.
+- `draftReviewReply(reviewId)` — calls `POST /api/gbp-reviews { action: 'draft', ... }`, fills textarea with result.
+- `dismissReview(reviewId)` — removes card from DOM without API call; shows "No unanswered reviews 🎉" when last card is gone.
+
+### Still pending
+- **Photos** — `photoCount: null` until v4 media API is added.
+- If v4 reviews API is not yet approved for this Google account, `reviewsApiPending` stays `true` → pending notice shows (no change from before). Ratings will populate automatically on next cache refresh once approved.
+
+### Revert notes
+- `gbp-data.js`: restore `encodeURIComponent(readMask)`, remove Step 3 reviews block, revert cache key to v4.
+- `gbp-reviews.js`: restore the two early-return stubs at top of GET and POST handlers.
+- `index.html`: revert `reviewStore`, review card HTML, and the three review functions.
 
 ---
 
@@ -3547,9 +3580,9 @@ Update "Current URL" from `yolkseo.netlify.app` to `thenest.yolkbrands.com`
 
 ---
 
-## Current Version: v7.4.3
+## Current Version: v7.4.4
 
-Last session built: Bug-fix batch (v7.0.2), added Yolk Brands to Content Calendar (v7.0.3 + v7.0.4), added Yolk Brands to The Perch (v7.0.5), fixed Reports tab crash (v7.0.6), Priority Gap → Queue Brief + keyword filtering fixes (v7.0.7), copy-to-market fix + GSC page data + URL Inspection indexing badges (v7.0.8).
+Last session built: GBP reviews layer activated — real ratings, unanswered review queue, AI reply drafting, publish to Google.
 
 ### Yolk Brands — Content Calendar Setup
 - Brand key: `yolk` | Colour: `#F5B800`

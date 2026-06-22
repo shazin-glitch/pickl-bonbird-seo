@@ -1,15 +1,18 @@
 // netlify/functions/gbp-data.js
-// Fetches Google Business Profile location health data.
+// Fetches GBP location health data + ratings/reviews via v4 API.
 //
 // Flow:
-//   1. Account Management API → list accounts
-//   2. Account Management API → list locations under each account
-//   3. Business Information API → get details per location (name, address, hours, etc.)
+//   1. Account Management API  → list accounts
+//   2. Business Information API → list locations (readMask — do NOT encodeURIComponent;
+//      commas must be literal or the API returns empty objects)
+//   3. v4 Reviews API           → per-location ratings + unanswered review queue
+//      (graceful: if v4 not yet approved, returns reviewsApiPending:true)
 
 const { getStore } = require('@netlify/blobs');
 
 const ACCOUNT_MGMT_BASE = 'https://mybusinessaccountmanagement.googleapis.com/v1';
 const BIZ_INFO_BASE     = 'https://mybusinessbusinessinformation.googleapis.com/v1';
+const REVIEW_BASE       = 'https://mybusiness.googleapis.com/v4';
 const CACHE_TTL_MS      = 6 * 60 * 60 * 1000; // 6 hours
 
 const CORS = {
@@ -32,8 +35,8 @@ exports.handler = async (event) => {
     return { statusCode: 200, headers: CORS, body: JSON.stringify({ notConnected: true }) };
   }
 
-  // Check cache (v4 key — v3 cached unfiltered all-brand locations)
-  const cacheKey = `gbpCache:${brand}:v4`;
+  // Cache v5 — adds v4 ratings + unanswered reviews; fixes readMask encoding
+  const cacheKey = `gbpCache:${brand}:v5`;
   try {
     const cached = await store.get(cacheKey, { type: 'json' });
     if (cached?.cachedAt && (Date.now() - cached.cachedAt) < CACHE_TTL_MS && cached.locations) {
@@ -80,12 +83,10 @@ exports.handler = async (event) => {
       return { statusCode: 200, headers: CORS, body: JSON.stringify({ locations: [], reviews: [], reviewsApiPending: true, cachedAt: Date.now(), debugNote: 'No accounts returned — check GBP account has locations' }) };
     }
 
-    // ── Step 2: List locations via the BUSINESS INFORMATION API ───────────────
-    // Locations are NOT in the Account Management API (that only has accounts +
-    // admins). locations.list lives in Business Information and REQUIRES a
-    // readMask or it returns 400 INVALID_ARGUMENT. The list response already
-    // contains the full location objects, so no per-location detail call is
-    // needed (saves N requests + quota).
+    // ── Step 2: List locations via Business Information API ───────────────────
+    // IMPORTANT: readMask must NOT be encodeURIComponent'd. Encoding commas as
+    // %2C causes the API to treat the whole string as one field name and return
+    // empty objects — regularHours and profile fields come back missing.
     const readMask = 'name,title,storefrontAddress,phoneNumbers,websiteUri,regularHours,metadata,profile';
     const allLocations = [];
     let locError = null;
@@ -93,10 +94,10 @@ exports.handler = async (event) => {
       try {
         let pageToken = '';
         do {
-          const url = `${BIZ_INFO_BASE}/${account.name}/locations?readMask=${encodeURIComponent(readMask)}&pageSize=100${pageToken ? `&pageToken=${pageToken}` : ''}`;
+          const url = `${BIZ_INFO_BASE}/${account.name}/locations?readMask=${readMask}&pageSize=100${pageToken ? `&pageToken=${pageToken}` : ''}`;
           const locRes  = await fetch(url, { headers: { Authorization: auth } });
           const locData = await locRes.json();
-          console.log(`[gbp-data] Locations for ${account.name}:`, JSON.stringify(locData).slice(0, 300));
+          console.log(`[gbp-data] Locations for ${account.name}:`, JSON.stringify(locData).slice(0, 500));
           if (!locRes.ok) {
             locError = locData.error?.message || `Locations API failed (${locRes.status})`;
             break;
@@ -112,19 +113,77 @@ exports.handler = async (event) => {
       }
     }
 
-    // No locations AND an API error → surface the real reason (front-end shows it).
     if (!allLocations.length && locError) {
       return { statusCode: 200, headers: CORS, body: JSON.stringify({ error: locError, locations: [], reviews: [], reviewsApiPending: true, cachedAt: Date.now() }) };
     }
 
-    // Filter to the requested brand (locations tagged by name in parseLocation).
+    // Filter to requested brand (inferred from listing title in parseLocation)
     const brandLocations = allLocations.filter(l => l.brand === brand);
+
+    // ── Step 3: v4 Reviews API — ratings + unanswered queue ──────────────────
+    // Graceful: if API returns 403 (not yet approved) all locations stay with
+    // rating:null and reviewsApiPending stays true.
+    let reviewsApiPending = true;
+    const unansweredReviews = [];
+
+    if (brandLocations.length) {
+      try {
+        const reviewResults = await Promise.all(
+          brandLocations.map(async (loc) => {
+            try {
+              const res = await fetch(`${REVIEW_BASE}/${loc.id}/reviews?pageSize=50`, { headers: { Authorization: auth } });
+              console.log(`[gbp-data] Reviews ${loc.name}: ${res.status}`);
+              if (!res.ok) return null;
+              return { loc, data: await res.json() };
+            } catch (e) {
+              console.warn('[gbp-data] Reviews failed for', loc.name, ':', e.message);
+              return null;
+            }
+          })
+        );
+
+        if (reviewResults.some(r => r !== null)) reviewsApiPending = false;
+
+        for (const result of reviewResults) {
+          if (!result) continue;
+          const { loc, data } = result;
+
+          loc.rating        = typeof data.averageRating === 'number' ? parseFloat(data.averageRating.toFixed(1)) : null;
+          loc.totalReviews  = data.totalReviewCount || 0;
+
+          const unanswered  = (data.reviews || []).filter(r => !r.reviewReply);
+          loc.unansweredReviews = unanswered.length;
+
+          if (loc.rating && loc.rating < 4.0) {
+            loc.flags.push(`Low rating (${loc.rating}★)`);
+            loc.health = 'red';
+          } else if (loc.unansweredReviews > 3) {
+            if (loc.health === 'green') loc.health = 'amber';
+          }
+
+          for (const r of unanswered.slice(0, 5)) {
+            unansweredReviews.push({
+              id:           r.reviewId,
+              locationId:   loc.id,
+              locationName: loc.name,
+              rating:       { ONE: 1, TWO: 2, THREE: 3, FOUR: 4, FIVE: 5 }[r.starRating] || 5,
+              comment:      r.comment || '',
+              reviewerName: r.reviewer?.displayName || 'Google User',
+              relativeTime: timeAgo(r.updateTime),
+              draftReply:   '',
+            });
+          }
+        }
+      } catch (e) {
+        console.warn('[gbp-data] Reviews step failed:', e.message);
+      }
+    }
 
     const result = {
       brand,
       locations: brandLocations,
-      reviews: [],
-      reviewsApiPending: true,
+      reviews: unansweredReviews,
+      reviewsApiPending,
       cachedAt: Date.now(),
       ...(brandLocations.length ? {} : {
         debugNote: allLocations.length
@@ -133,8 +192,7 @@ exports.handler = async (event) => {
       }),
     };
 
-    // Only cache successful (non-empty) results so a transient failure doesn't
-    // stick in cache for 6h.
+    // Only cache non-empty results
     if (brandLocations.length) await store.set(cacheKey, JSON.stringify(result)).catch(() => {});
 
     return { statusCode: 200, headers: CORS, body: JSON.stringify(result) };
@@ -156,23 +214,22 @@ function parseLocation(loc) {
   const flags    = [];
   let health     = 'green';
 
-  if (!hasHours)                           { flags.push('No hours set');      health = 'amber'; }
-  if (!loc.profile?.description)           { flags.push('No description');    if (health === 'green') health = 'amber'; }
-  if (!loc.phoneNumbers?.primaryPhone)     { flags.push('No phone number');   if (health === 'green') health = 'amber'; }
+  if (!hasHours)                         { flags.push('No hours set');   health = 'amber'; }
+  if (!loc.profile?.description)         { flags.push('No description'); if (health === 'green') health = 'amber'; }
+  if (!loc.phoneNumbers?.primaryPhone)   { flags.push('No phone');       if (health === 'green') health = 'amber'; }
 
-  // Infer brand from the listing title (both brands live under one Google
-  // account, so the brand param can't filter at the API level). Used by the
-  // handler to filter to the requested brand.
   const title = loc.title || loc.name?.split('/').pop() || 'Location';
   const tl    = title.toLowerCase();
   const brand = tl.includes('pickl') ? 'pickl' : tl.includes('bonbird') ? 'bonbird' : null;
+
+  console.log(`[gbp-data] "${title}": hasHours=${hasHours} hasDesc=${!!loc.profile?.description} hasPhone=${!!loc.phoneNumbers?.primaryPhone}`);
 
   return {
     id:               loc.name,
     name:             title,
     brand,
     address,
-    rating:           null, // from reviews API (pending approval)
+    rating:           null,
     totalReviews:     null,
     unansweredReviews: 0,
     hasHours,
@@ -181,4 +238,15 @@ function parseLocation(loc) {
     flags,
     googleMapsUri:    loc.metadata?.mapsUri || null,
   };
+}
+
+function timeAgo(isoString) {
+  if (!isoString) return '';
+  const diff  = Date.now() - new Date(isoString).getTime();
+  const hours = Math.floor(diff / 3600000);
+  if (hours < 1)  return 'just now';
+  if (hours < 24) return `${hours}h ago`;
+  const days = Math.floor(hours / 24);
+  if (days < 7)   return `${days}d ago`;
+  return `${Math.floor(days / 7)}w ago`;
 }
