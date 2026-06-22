@@ -3642,9 +3642,9 @@ Update "Current URL" from `yolkseo.netlify.app` to `thenest.yolkbrands.com`
 
 ---
 
-## Current Version: v7.4.9
+## Current Version: v7.4.10
 
-Last session built: Voice gate hardening across all intl content paths.
+Last session built: Voice gate hardening + refinement loop across all intl content paths.
 - `_lib/brand.js` — `hardStripBannedTokens()` (deterministically removes em/en dashes before queuing); fixed `fixBrandVoice` improved logic to accept rewrites that clear flagged issues even when numeric score is flat (`issuesCleared` check).
 - `international-seo-background.js` — raised queue bar to ≥8/10 across all intl paths (was ≥5): `generateBlogDraft` returns null + logs rejection; `processMarketLanguage` blog loop handles null; meta_update in both `runMarketDataDrivenSEO` and `processMarketLanguage` now has fix+gate; `runMarketKeywordOpportunities` blog_draft now gates on body (not just meta title/description); all `fixBrandVoice` calls now pass `feedbackNotes`; `page_creation` threshold raised from <5 to <8.
 - UAE scheduler paths (`scheduler-background.js`) already had correct ≥5 reject + feedbackNotes — left untouched.

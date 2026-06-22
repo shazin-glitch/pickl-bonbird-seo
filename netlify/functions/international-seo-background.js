@@ -231,8 +231,8 @@ Return ONLY a JSON array:
           voiceCheck = fixed.voiceCheck;
         }
       }
-      if (voiceCheck.score !== null && voiceCheck.score < 5) {
-        console.warn(`${tag} meta_update voice ${voiceCheck.score}/10 too low — skipped (${matched.page})`);
+      if (voiceCheck.score !== null && voiceCheck.score < 8) {
+        console.warn(`${tag} meta_update voice ${voiceCheck.score}/10 — gate reject (${matched.page})`);
         continue;
       }
 
@@ -1058,8 +1058,8 @@ async function processMarketLanguage(store, marketKey, market, language, force =
           metaVoice = fixed.voiceCheck;
         }
       }
-      if (metaVoice.score < 5) {
-        console.warn(`${tag} — meta update voice ${metaVoice.score}/10 too low — skipped`);
+      if (metaVoice.score < 8) {
+        console.warn(`${tag} — meta update voice ${metaVoice.score}/10 — gate reject`);
       } else {
         const wp = getWpCredentials(market);
         const id = await queueApprovalItem({

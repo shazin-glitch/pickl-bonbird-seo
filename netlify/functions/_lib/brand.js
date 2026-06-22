@@ -424,13 +424,20 @@ Be harsh. Em dashes = automatic deduction. Generic = low score.`;
 // brandExamples: real brand writing from Settings (injected so Claude has a reference point)
 // feedbackNotes: accumulated rejection feedback from approvals (things to never do)
 async function fixBrandVoice(content, voiceCheck, brandCtx, callClaudeFn, brandExamples = null, feedbackNotes = []) {
-  const brandName  = brandCtx.name || 'the brand';
-  const issues     = (voiceCheck.issues || []).join('\n- ');
-  const topFix     = voiceCheck.topFix || '';
-  // Prefer real brand writing examples over any examples stored in brandCtx
-  const examples   = brandExamples ? brandExamples.slice(0, 1500) : (brandCtx.examples?.slice(0, 800) || '');
+  const brandName = brandCtx.name || 'the brand';
+  const examples  = brandExamples ? brandExamples.slice(0, 1500) : (brandCtx.examples?.slice(0, 800) || '');
 
-  const fixPrompt = `You are rewriting content for ${brandName} to fix specific brand voice issues.
+  let workingContent = content;
+  let workingCheck   = voiceCheck;
+  let anyImproved    = false;
+
+  for (let attempt = 1; attempt <= 3; attempt++) {
+    if (workingCheck.score >= 8) break; // already passing — stop
+
+    const issues   = (workingCheck.issues || []).join('\n- ');
+    const topFix   = workingCheck.topFix || '';
+
+    const fixPrompt = `You are rewriting content for ${brandName} to fix specific brand voice issues.
 
 ISSUES TO FIX:
 - ${issues}
@@ -447,26 +454,34 @@ ${feedbackNotes.length ? `\nHUMAN FEEDBACK — past rejections, never repeat the
 ${examples ? `\nREAL ${brandName.toUpperCase()} WRITING — match this voice exactly:\n${examples}` : ''}
 
 CONTENT TO REWRITE:
-${content}
+${workingContent}
 
 Return ONLY the rewritten content — no explanation, no preamble.`;
 
-  try {
-    const result  = await callClaudeFn(fixPrompt, { max_tokens: 2500 });
-    const fixed   = result.text || result;
-    if (!fixed || fixed.length < 100) return { content, improved: false };
+    try {
+      const result = await callClaudeFn(fixPrompt, { max_tokens: 2500 });
+      const fixed  = result.text || result;
+      if (!fixed || fixed.length < 100) break;
 
-    // Re-score the fixed version
-    const recheck = await runBrandVoiceCheck(fixed, brandCtx, callClaudeFn);
-    // Accept a rewrite that clears flagged issues even if the numeric score is flat
-    const issuesCleared = (voiceCheck.issues?.length || 0) > 0 && (recheck.issues?.length || 0) < (voiceCheck.issues?.length || 0);
-    const improved = recheck.score > voiceCheck.score || (issuesCleared && recheck.score >= voiceCheck.score - 1);
-    console.log(`[brand-voice] Auto-fix: ${voiceCheck.score} → ${recheck.score}/10 (${improved ? 'improved' : 'no change'})`);
-    return { content: improved ? fixed : content, voiceCheck: improved ? recheck : voiceCheck, improved };
-  } catch (e) {
-    console.warn('[brand-voice] Auto-fix failed:', e.message);
-    return { content, improved: false };
+      const recheck = await runBrandVoiceCheck(fixed, brandCtx, callClaudeFn);
+      const issuesCleared = (workingCheck.issues?.length || 0) > 0 && (recheck.issues?.length || 0) < (workingCheck.issues?.length || 0);
+      const improved = recheck.score > workingCheck.score || (issuesCleared && recheck.score >= workingCheck.score - 1);
+      console.log(`[brand-voice] Fix attempt ${attempt}/3: ${workingCheck.score} → ${recheck.score}/10 (${improved ? 'improved' : 'stalled'})`);
+
+      if (improved) {
+        workingContent = fixed;
+        workingCheck   = recheck;
+        anyImproved    = true;
+      } else {
+        break; // stalled — further attempts won't help
+      }
+    } catch (e) {
+      console.warn('[brand-voice] Fix attempt failed:', e.message);
+      break;
+    }
   }
+
+  return { content: workingContent, voiceCheck: workingCheck, improved: anyImproved };
 }
 
 // ── Deterministic pre-queue strip ────────────────────────────────────────────────
