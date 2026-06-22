@@ -6384,7 +6384,7 @@ async function refreshBacklinks(brand) {
 // LOCAL SEO — Google Business Profile
 // ═══════════════════════════════════════════════════════════════
 
-const localSeoState = { brand: 'pickl' };
+const localSeoState = { brand: 'pickl', allReviews: [], reviewFilter: null };
 const reviewStore = {}; // keyed by reviewId — holds full review objects for draftReviewReply
 
 function switchLocalSeoBrand(brand) {
@@ -6439,9 +6439,12 @@ async function loadLocalSeo() {
       ? 'Updated ' + new Date(data.cachedAt).toLocaleDateString('en-GB', { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' })
       : '';
 
+    localSeoState.allReviews  = data.reviews || [];
+    localSeoState.reviewFilter = null;
+
     renderLocalSeoSummary(data.locations || []);
     renderLocationCards(data.locations || []);
-    renderReviewQueue(data.reviews || [], brand, data.reviewsApiPending);
+    renderReviewQueue(brand, data.reviewsApiPending);
     renderLocalSeoFlags(data.locations || [], brand);
 
     // Update badge
@@ -6495,7 +6498,9 @@ function renderLocationCards(locations) {
     const healthDot = `<span style="width:8px;height:8px;border-radius:50%;background:${healthColor};display:inline-block;margin-right:6px;flex-shrink:0"></span>`;
     const rating = loc.rating ? `⭐ ${loc.rating.toFixed(1)}` : '⭐ —';
     const reviews = loc.totalReviews ? `${loc.totalReviews} reviews` : 'No reviews';
-    const unanswered = loc.unansweredReviews ? `<span style="color:#ef4444;font-weight:600">${loc.unansweredReviews} unanswered</span>` : '<span style="color:#059669">All replied</span>';
+    const unanswered = loc.unansweredReviews
+      ? `<span onclick="filterReviewQueue('${esc(loc.v4Name || loc.id)}')" title="Show these reviews" style="color:#ef4444;font-weight:600;cursor:pointer;text-decoration:underline">${loc.unansweredReviews} unanswered</span>`
+      : '<span style="color:#059669">All replied</span>';
     const photos = loc.photoCount != null ? `${loc.photoCount} photos` : '—';
     const flags = loc.flags || [];
 
@@ -6519,7 +6524,18 @@ function renderLocationCards(locations) {
   }).join('');
 }
 
-function renderReviewQueue(reviews, brand, apiPending) {
+function filterReviewQueue(locationId) {
+  localSeoState.reviewFilter = locationId;
+  renderReviewQueue(localSeoState.brand, false);
+  document.getElementById('localseo-review-queue').scrollIntoView({ behavior: 'smooth', block: 'start' });
+}
+
+function clearReviewFilter() {
+  localSeoState.reviewFilter = null;
+  renderReviewQueue(localSeoState.brand, false);
+}
+
+function renderReviewQueue(brand, apiPending) {
   const el = document.getElementById('localseo-review-queue');
   // Treat undefined as pending — safety net for stale cached responses
   if (apiPending !== false) {
@@ -6556,26 +6572,41 @@ function renderReviewQueue(reviews, brand, apiPending) {
     return;
   }
 
-  if (!reviews.length) {
-    el.innerHTML = `<div style="text-align:center;padding:32px;color:var(--text-muted);font-size:13px">No unanswered reviews. 🎉</div>`;
-    return;
-  }
+  const all      = localSeoState.allReviews || [];
+  const filter   = localSeoState.reviewFilter;
+  const reviews  = filter ? all.filter(r => r.locationId === filter) : all;
+
+  // Keep the full set in reviewStore so drafting works for any card
+  all.forEach(r => { reviewStore[r.id] = r; });
 
   const badge = document.getElementById('localseo-review-badge');
   badge.style.display = '';
-  badge.textContent = reviews.length + ' pending';
+  badge.textContent = all.length + ' pending';
 
-  // Store reviews for access in draftReviewReply without inline encoding
-  reviews.forEach(r => { reviewStore[r.id] = r; });
+  // Filter bar — shows when a single location is selected
+  let filterBar = '';
+  if (filter) {
+    const f = all.find(r => r.locationId === filter);
+    const label = f ? (f.locationName + (f.locationAddr ? ' · ' + f.locationAddr : '')) : 'this location';
+    filterBar = `<div style="display:flex;align-items:center;justify-content:space-between;gap:10px;background:var(--bg-base);border:1px solid var(--border);border-radius:8px;padding:8px 12px;margin-bottom:12px">
+      <div style="font-size:12px;color:var(--text-main)">📍 Showing <strong>${reviews.length}</strong> unanswered for <strong>${esc(label)}</strong></div>
+      <button onclick="clearReviewFilter()" style="padding:4px 10px;background:none;border:1px solid var(--border);border-radius:6px;font-size:11px;cursor:pointer;color:var(--text-muted)">✕ Show all</button>
+    </div>`;
+  }
 
-  el.innerHTML = reviews.map(r => `
+  if (!reviews.length) {
+    el.innerHTML = filterBar + `<div style="text-align:center;padding:32px;color:var(--text-muted);font-size:13px">No unanswered reviews ${filter ? 'for this location' : ''}. 🎉</div>`;
+    return;
+  }
+
+  el.innerHTML = filterBar + reviews.map(r => `
     <div id="review-card-${esc(r.id)}" style="border:1px solid var(--border);border-radius:10px;padding:14px;margin-bottom:10px">
-      <div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:8px">
-        <div>
+      <div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:8px;gap:10px">
+        <div style="min-width:0">
           <span style="color:#f59e0b">${'★'.repeat(r.rating || 5)}${'☆'.repeat(5 - (r.rating || 5))}</span>
-          <span style="font-size:11px;color:var(--text-muted);margin-left:8px">${esc(r.locationName || '')} · ${esc(r.relativeTime || '')}</span>
+          <div style="font-size:11px;color:var(--text-muted);margin-top:3px">${esc(r.locationName || '')}${r.locationAddr ? ' · ' + esc(r.locationAddr) : ''} · ${esc(r.relativeTime || '')}</div>
         </div>
-        <span style="font-size:11px;color:var(--text-muted);font-style:italic">${esc(r.reviewerName || '')}</span>
+        <span style="font-size:11px;color:var(--text-muted);font-style:italic;flex-shrink:0">${esc(r.reviewerName || '')}</span>
       </div>
       <div style="font-size:13px;color:var(--text-main);margin-bottom:10px;line-height:1.5">"${esc(r.comment || 'Rating only — no comment')}"</div>
       <textarea id="reply-ta-${esc(r.id)}" rows="3" placeholder="Write a reply, or click Draft with AI…" style="width:100%;box-sizing:border-box;padding:8px 10px;border:1px solid var(--border);border-radius:6px;font-size:13px;font-family:inherit;resize:vertical;min-height:60px;background:var(--bg-base);color:var(--text-main);margin-bottom:10px">${esc(r.draftReply || '')}</textarea>
@@ -6588,16 +6619,24 @@ function renderReviewQueue(reviews, brand, apiPending) {
 }
 
 function renderLocalSeoFlags(locations, brand) {
+  // Distinguish identical titles (all Bonbird listings are "Bonbird Chicken
+  // Shop") by appending the address.
+  const dup = {};
+  locations.forEach(l => { dup[l.name] = (dup[l.name] || 0) + 1; });
+  const vlabel = l => (dup[l.name] > 1 && l.address) ? `${l.name} (${l.address})` : l.name;
+
   const flags = [];
   const unanswered = locations.reduce((s, l) => s + (l.unansweredReviews || 0), 0);
   const lowRating = locations.filter(l => l.rating && l.rating < 4.0);
-  const noPhotos = locations.filter(l => (l.photoCount || 0) < 5);
+  const noPhotos = locations.filter(l => l.photoCount != null && l.photoCount < 5);
   const missingHours = locations.filter(l => !l.hasHours);
+  const noDescription = locations.filter(l => (l.flags || []).includes('No description'));
 
   if (unanswered > 0) flags.push(`<div style="padding:8px 0;border-bottom:1px solid var(--border);display:flex;gap:10px;align-items:center"><span style="font-size:16px">💬</span><div><strong style="color:#dc2626">${unanswered} unanswered reviews</strong> — affects local ranking and customer trust</div></div>`);
-  if (lowRating.length) flags.push(`<div style="padding:8px 0;border-bottom:1px solid var(--border);display:flex;gap:10px;align-items:center"><span style="font-size:16px">⭐</span><div><strong style="color:#dc2626">${lowRating.map(l => l.name).join(', ')}</strong> — below 4.0 stars, local pack visibility reduced</div></div>`);
-  if (noPhotos.length) flags.push(`<div style="padding:8px 0;border-bottom:1px solid var(--border);display:flex;gap:10px;align-items:center"><span style="font-size:16px">📸</span><div><strong style="color:#d97706">${noPhotos.map(l => l.name).join(', ')}</strong> — fewer than 5 photos, upload more to improve listing appeal</div></div>`);
-  if (missingHours.length) flags.push(`<div style="padding:8px 0;border-bottom:1px solid var(--border);display:flex;gap:10px;align-items:center"><span style="font-size:16px">🕐</span><div><strong style="color:#d97706">${missingHours.map(l => l.name).join(', ')}</strong> — hours not set, customers can't see opening times</div></div>`);
+  if (lowRating.length) flags.push(`<div style="padding:8px 0;border-bottom:1px solid var(--border);display:flex;gap:10px;align-items:center"><span style="font-size:16px">⭐</span><div><strong style="color:#dc2626">${lowRating.map(vlabel).join(', ')}</strong> — below 4.0 stars, local pack visibility reduced</div></div>`);
+  if (noDescription.length) flags.push(`<div style="padding:8px 0;border-bottom:1px solid var(--border);display:flex;gap:10px;align-items:center"><span style="font-size:16px">📝</span><div><strong style="color:#d97706">${noDescription.length} listing${noDescription.length > 1 ? 's' : ''}</strong> — no business description set, add one to improve relevance</div></div>`);
+  if (noPhotos.length) flags.push(`<div style="padding:8px 0;border-bottom:1px solid var(--border);display:flex;gap:10px;align-items:center"><span style="font-size:16px">📸</span><div><strong style="color:#d97706">${noPhotos.map(vlabel).join(', ')}</strong> — fewer than 5 photos, upload more to improve listing appeal</div></div>`);
+  if (missingHours.length) flags.push(`<div style="padding:8px 0;border-bottom:1px solid var(--border);display:flex;gap:10px;align-items:center"><span style="font-size:16px">🕐</span><div><strong style="color:#d97706">${missingHours.map(vlabel).join(', ')}</strong> — hours not set, customers can't see opening times</div></div>`);
 
   document.getElementById('localseo-flags').innerHTML = flags.length
     ? flags.join('')
@@ -6615,11 +6654,27 @@ async function approveReviewReply(reviewId, locationId) {
     const data = await res.json();
     if (data.error) throw new Error(data.error);
     showToast('Reply published ✅', 'success');
-    document.getElementById('review-card-' + reviewId)?.remove();
-    delete reviewStore[reviewId];
+    removeReviewFromQueue(reviewId);
   } catch (e) {
     showToast('Failed to publish: ' + e.message, 'error');
     if (btn) { btn.disabled = false; btn.textContent = '✓ Approve & Publish'; }
+  }
+}
+
+// Remove a review from the card list + state + badge after publish/skip
+function removeReviewFromQueue(reviewId) {
+  document.getElementById('review-card-' + reviewId)?.remove();
+  delete reviewStore[reviewId];
+  localSeoState.allReviews = (localSeoState.allReviews || []).filter(r => r.id !== reviewId);
+  const badge = document.getElementById('localseo-review-badge');
+  if (badge) {
+    if (localSeoState.allReviews.length) badge.textContent = localSeoState.allReviews.length + ' pending';
+    else badge.style.display = 'none';
+  }
+  if (!document.querySelectorAll('[id^="review-card-"]').length) {
+    const filtered = !!localSeoState.reviewFilter;
+    document.getElementById('localseo-review-queue').innerHTML =
+      `<div style="text-align:center;padding:32px;color:var(--text-muted);font-size:13px">No unanswered reviews ${filtered ? 'for this location' : ''}. 🎉</div>`;
   }
 }
 
@@ -6644,11 +6699,7 @@ async function draftReviewReply(reviewId) {
 }
 
 function dismissReview(reviewId) {
-  document.getElementById('review-card-' + reviewId)?.remove();
-  delete reviewStore[reviewId];
-  if (!document.querySelectorAll('[id^="review-card-"]').length) {
-    document.getElementById('localseo-review-queue').innerHTML = `<div style="text-align:center;padding:32px;color:var(--text-muted);font-size:13px">No unanswered reviews. 🎉</div>`;
-  }
+  removeReviewFromQueue(reviewId);
 }
 
 // ── Hreflang generator ────────────────────────────────────────────────────────

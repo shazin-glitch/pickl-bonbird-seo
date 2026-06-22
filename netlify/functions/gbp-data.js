@@ -40,8 +40,8 @@ exports.handler = async (event) => {
     return { statusCode: 200, headers: CORS, body: JSON.stringify({ notConnected: true }) };
   }
 
-  // Cache v8 — fix v4 reviews path (was missing accounts/{id}/ prefix → 400)
-  const cacheKey = `gbpCache:${brand}:v8`;
+  // Cache v9 — adds photoCount (v4 media) + per-review locationAddr; newest-first
+  const cacheKey = `gbpCache:${brand}:v9`;
   try {
     const cached = await store.get(cacheKey, { type: 'json' });
     if (cached?.cachedAt && (Date.now() - cached.cachedAt) < CACHE_TTL_MS && cached.locations) {
@@ -133,34 +133,49 @@ exports.handler = async (event) => {
 
     if (brandLocations.length) {
       try {
-        if (brandLocations[0]) {
-          console.log('[gbp-data] First reviews URL:', `${REVIEW_BASE}/${brandLocations[0].v4Name}/reviews?pageSize=50`);
-        }
+        // Fetch reviews (newest first) AND media (photo count) per location, in
+        // parallel. We only read totalMediaItemCount from media, so pageSize=1.
+        const orderBy = encodeURIComponent('updateTime desc');
 
-        const reviewResults = await Promise.all(
+        const perLocation = await Promise.all(
           brandLocations.map(async (loc) => {
+            const out = { loc, data: null, photoCount: null };
+
+            // Reviews → ratings, counts, unanswered queue
             try {
-              const url = `${REVIEW_BASE}/${loc.v4Name}/reviews?pageSize=50`;
-              const res  = await fetch(url, { headers: { Authorization: auth } });
-              if (!res.ok) {
+              const url = `${REVIEW_BASE}/${loc.v4Name}/reviews?pageSize=50&orderBy=${orderBy}`;
+              const res = await fetch(url, { headers: { Authorization: auth } });
+              if (res.ok) {
+                out.data = await res.json();
+              } else {
                 const errBody = await res.json().catch(() => ({}));
-                console.error(`[gbp-data] Reviews ${res.status} for ${loc.name}:`, JSON.stringify(errBody).slice(0, 300));
-                return null;
+                console.error(`[gbp-data] Reviews ${res.status} for ${loc.name}:`, JSON.stringify(errBody).slice(0, 200));
               }
-              console.log(`[gbp-data] Reviews OK for ${loc.name}`);
-              return { loc, data: await res.json() };
             } catch (e) {
               console.warn('[gbp-data] Reviews failed for', loc.name, ':', e.message);
-              return null;
             }
+
+            // Media → total photo count
+            try {
+              const mres = await fetch(`${REVIEW_BASE}/${loc.v4Name}/media?pageSize=1`, { headers: { Authorization: auth } });
+              if (mres.ok) {
+                const md = await mres.json();
+                if (typeof md.totalMediaItemCount === 'number') out.photoCount = md.totalMediaItemCount;
+              } else {
+                console.warn(`[gbp-data] Media ${mres.status} for ${loc.name}`);
+              }
+            } catch (e) {
+              console.warn('[gbp-data] Media failed for', loc.name, ':', e.message);
+            }
+
+            return out;
           })
         );
 
-        if (reviewResults.some(r => r !== null)) reviewsApiPending = false;
-
-        for (const result of reviewResults) {
-          if (!result) continue;
-          const { loc, data } = result;
+        for (const { loc, data, photoCount } of perLocation) {
+          if (photoCount != null) loc.photoCount = photoCount;
+          if (!data) continue;
+          reviewsApiPending = false;
 
           loc.rating        = typeof data.averageRating === 'number' ? parseFloat(data.averageRating.toFixed(1)) : null;
           loc.totalReviews  = data.totalReviewCount || 0;
@@ -168,18 +183,25 @@ exports.handler = async (event) => {
           const unanswered  = (data.reviews || []).filter(r => !r.reviewReply);
           loc.unansweredReviews = unanswered.length;
 
+          // Health rules: RED = rating below 4.0 (hurts local-pack ranking).
+          // AMBER = listing data gaps (set in parseLocation) OR a lot of
+          // unanswered reviews. GREEN = healthy.
           if (loc.rating && loc.rating < 4.0) {
             loc.flags.push(`Low rating (${loc.rating}★)`);
             loc.health = 'red';
-          } else if (loc.unansweredReviews > 3) {
-            if (loc.health === 'green') loc.health = 'amber';
+          } else if (loc.unansweredReviews > 10 && loc.health === 'green') {
+            loc.health = 'amber';
           }
 
-          for (const r of unanswered.slice(0, 5)) {
+          // Queue every unanswered review for this location (up to the fetched
+          // page of 50, newest first). Tagged with address so identical titles
+          // (e.g. all "Bonbird Chicken Shop") are distinguishable + filterable.
+          for (const r of unanswered.slice(0, 50)) {
             unansweredReviews.push({
               id:           r.reviewId,
               locationId:   loc.v4Name,
               locationName: loc.name,
+              locationAddr: loc.address || '',
               rating:       { ONE: 1, TWO: 2, THREE: 3, FOUR: 4, FIVE: 5 }[r.starRating] || 5,
               comment:      r.comment || '',
               reviewerName: r.reviewer?.displayName || 'Google User',

@@ -244,7 +244,7 @@ The Nest is Yolk Brands' central marketing operations platform. It started as an
 | `perchTask:<id>` | Individual Perch marketing task |
 | `slackWebhookUrl` | Slack webhook URL |
 | `gbpTokens` | Google Business Profile OAuth tokens |
-| `gbpCache:<brand>:v8` | GBP location health + ratings + unanswered reviews — 6hr TTL |
+| `gbpCache:<brand>:v9` | GBP location health + ratings + reviews + photo counts — 6hr TTL |
 | `scheduler:lastrun` | Last scheduler run summary |
 | `intlProcessed:<marketKey>:<lang>` | International dedup check |
 
@@ -387,6 +387,34 @@ The "Run Audit Now" button is now **scope-aware**, driven by the selected **bran
 
 ### Next
 - **Authentication follow-ups** — Slack signature verification on slack-callback.js; OAuth state CSRF nonce; role-tier granularity (viewer-can't-publish); reviews.js mutation gating.
+
+---
+
+## Session: June 2026 — v7.4.8 — GBP polish: photos, per-listing filter, venue disambiguation
+
+After v7.4.7 made ratings/reviews load, Shazin asked for: photo counts, click-into-"X unanswered" per listing, an explanation of red-flag logic, Bonbird venue disambiguation (all listings titled "Bonbird Chicken Shop"), and review pagination.
+
+### `gbp-data.js`
+- **Photo counts** — added v4 media API call (`GET /v4/{v4Name}/media?pageSize=1`), reads `totalMediaItemCount` → `loc.photoCount`. Fetched in parallel with reviews per location.
+- **Newest-first** — reviews call now uses `orderBy=updateTime desc` (URL-encoded).
+- **Uncapped queue** — was `unanswered.slice(0,5)` per location; now `slice(0,50)` (the full fetched page) so the per-listing filter shows everything we know about.
+- **`locationAddr`** added to each queued review (= `loc.address`) so the UI can distinguish identical titles.
+- **Health rules (documented):** RED = rating < 4.0. AMBER = listing data gaps (no hours / no description / no phone, set in parseLocation) OR >10 unanswered reviews. GREEN = healthy. Currently 0 red because all venues are 4.5–4.7 — working as intended, not broken.
+- Cache v8 → v9.
+
+### `index.html`
+- `localSeoState` gains `allReviews` + `reviewFilter`. `renderReviewQueue(brand, apiPending)` now reads from state (no longer takes a reviews array).
+- **Click-to-filter** — each location card's "X unanswered" is now a clickable link → `filterReviewQueue(v4Name)` filters the queue to that listing + scrolls to it. A filter bar with "✕ Show all" (`clearReviewFilter()`) shows the active filter + count.
+- **Per-review venue line** now shows `locationName · locationAddr · timeAgo` so Bonbird reviews are attributable to the right shop.
+- `removeReviewFromQueue(reviewId)` helper — on publish/skip, removes the card AND splices `allReviews` AND updates the badge (so it doesn't reappear when re-filtering). Used by both `approveReviewReply` and `dismissReview`.
+- `renderLocalSeoFlags` — guards photo flag against null (`photoCount != null && < 5`), adds a "No description" aggregate flag, and labels duplicate-titled venues with their address.
+
+### Pagination note
+Reviews fetch the **newest 50 per location** (no follow-on pageToken loop). Unanswered reviews are almost always recent, so this covers active management. If a venue ever has >50 unanswered, older ones won't appear until newer ones are handled. A full pageToken loop can be added later if needed.
+
+### Still pending
+- Photos shows a count only — no thumbnail/upload UI.
+- Rating-only reviews (no comment) are queued alongside commented ones; could be deprioritised/separated later.
 
 ---
 
@@ -3608,9 +3636,9 @@ Update "Current URL" from `yolkseo.netlify.app` to `thenest.yolkbrands.com`
 
 ---
 
-## Current Version: v7.4.7
+## Current Version: v7.4.8
 
-Last session built: GBP reviews layer activated + fixed the v4 location-name format bug (Business Info returns `locations/{id}`, v4 Reviews needs `accounts/{accId}/locations/{id}`). Ratings/reviews now fetch correctly.
+Last session built: GBP — photo counts (v4 media API), click-to-filter review queue per listing, address shown per review (disambiguates identical Bonbird titles), newest-first reviews, documented health-flag rules.
 
 ### Yolk Brands — Content Calendar Setup
 - Brand key: `yolk` | Colour: `#F5B800`
