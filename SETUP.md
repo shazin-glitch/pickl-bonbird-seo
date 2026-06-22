@@ -244,7 +244,7 @@ The Nest is Yolk Brands' central marketing operations platform. It started as an
 | `perchTask:<id>` | Individual Perch marketing task |
 | `slackWebhookUrl` | Slack webhook URL |
 | `gbpTokens` | Google Business Profile OAuth tokens |
-| `gbpCache:<brand>:v5` | GBP location health + ratings + unanswered reviews — 6hr TTL |
+| `gbpCache:<brand>:v6` | GBP location health + ratings + unanswered reviews — 6hr TTL |
 | `scheduler:lastrun` | Last scheduler run summary |
 | `intlProcessed:<marketKey>:<lang>` | International dedup check |
 

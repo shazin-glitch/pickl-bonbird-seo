@@ -35,8 +35,8 @@ exports.handler = async (event) => {
     return { statusCode: 200, headers: CORS, body: JSON.stringify({ notConnected: true }) };
   }
 
-  // Cache v5 — adds v4 ratings + unanswered reviews; fixes readMask encoding
-  const cacheKey = `gbpCache:${brand}:v5`;
+  // Cache v6 — bust v5 (was cached before Google My Business API v4 was enabled)
+  const cacheKey = `gbpCache:${brand}:v6`;
   try {
     const cached = await store.get(cacheKey, { type: 'json' });
     if (cached?.cachedAt && (Date.now() - cached.cachedAt) < CACHE_TTL_MS && cached.locations) {
