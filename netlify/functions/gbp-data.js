@@ -32,8 +32,8 @@ exports.handler = async (event) => {
     return { statusCode: 200, headers: CORS, body: JSON.stringify({ notConnected: true }) };
   }
 
-  // Check cache (v3 key — v2 cached the broken empty-locations result for 6h)
-  const cacheKey = `gbpCache:${brand}:v3`;
+  // Check cache (v4 key — v3 cached unfiltered all-brand locations)
+  const cacheKey = `gbpCache:${brand}:v4`;
   try {
     const cached = await store.get(cacheKey, { type: 'json' });
     if (cached?.cachedAt && (Date.now() - cached.cachedAt) < CACHE_TTL_MS && cached.locations) {
@@ -117,18 +117,25 @@ exports.handler = async (event) => {
       return { statusCode: 200, headers: CORS, body: JSON.stringify({ error: locError, locations: [], reviews: [], reviewsApiPending: true, cachedAt: Date.now() }) };
     }
 
+    // Filter to the requested brand (locations tagged by name in parseLocation).
+    const brandLocations = allLocations.filter(l => l.brand === brand);
+
     const result = {
       brand,
-      locations: allLocations,
+      locations: brandLocations,
       reviews: [],
       reviewsApiPending: true,
       cachedAt: Date.now(),
-      ...(allLocations.length ? {} : { debugNote: `Connected to ${accounts.length} account(s) but found 0 locations. Make sure the Google account you connected manages the ${brand} listings.` }),
+      ...(brandLocations.length ? {} : {
+        debugNote: allLocations.length
+          ? `Found ${allLocations.length} location(s) in this Google account, but none are named as "${brand}". Locations are matched to a brand by their listing name.`
+          : `Connected to ${accounts.length} account(s) but found 0 locations. Make sure the Google account you connected manages the ${brand} listings.`,
+      }),
     };
 
     // Only cache successful (non-empty) results so a transient failure doesn't
     // stick in cache for 6h.
-    if (allLocations.length) await store.set(cacheKey, JSON.stringify(result)).catch(() => {});
+    if (brandLocations.length) await store.set(cacheKey, JSON.stringify(result)).catch(() => {});
 
     return { statusCode: 200, headers: CORS, body: JSON.stringify(result) };
 
@@ -153,9 +160,17 @@ function parseLocation(loc) {
   if (!loc.profile?.description)           { flags.push('No description');    if (health === 'green') health = 'amber'; }
   if (!loc.phoneNumbers?.primaryPhone)     { flags.push('No phone number');   if (health === 'green') health = 'amber'; }
 
+  // Infer brand from the listing title (both brands live under one Google
+  // account, so the brand param can't filter at the API level). Used by the
+  // handler to filter to the requested brand.
+  const title = loc.title || loc.name?.split('/').pop() || 'Location';
+  const tl    = title.toLowerCase();
+  const brand = tl.includes('pickl') ? 'pickl' : tl.includes('bonbird') ? 'bonbird' : null;
+
   return {
     id:               loc.name,
-    name:             loc.title || loc.name?.split('/').pop() || 'Location',
+    name:             title,
+    brand,
     address,
     rating:           null, // from reviews API (pending approval)
     totalReviews:     null,

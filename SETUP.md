@@ -390,6 +390,25 @@ The "Run Audit Now" button is now **scope-aware**, driven by the selected **bran
 
 ---
 
+## Session: June 2026 — v7.4.3 — GBP brand filtering (Pickl/Bonbird pills now work)
+
+v7.4.2 made locations load (23 returned), but the Pickl/Bonbird pills did nothing — all 23 showed regardless. Cause: both brands live under ONE Google account ("Appetite"/Yolk), and `gbp-data.js` never filtered by the `?brand` param (it was used only for cache key + label).
+
+### Fix (`gbp-data.js`)
+- `parseLocation` now infers a `brand` from the listing title: name contains "pickl" → `pickl`, "bonbird" → `bonbird`, else `null` (e.g. "Appetite Head Office" is dropped from both brand views).
+- Handler filters `allLocations` to `brandLocations` by the requested brand before building the result. debugNote distinguishes "found N but none matched <brand>" from "0 locations at all".
+- **Cache key `v3` → `v4`** — v3 had cached the unfiltered 23-location result for both brands.
+
+### Still NOT pulling (next batch — needs other APIs)
+- **Rating / Reviews / Unanswered** → legacy **v4 reviews API** (`mybusiness.googleapis.com/v4`), still stubbed in `gbp-reviews.js`. `gbp-data.js` hardcodes `rating:null`, `unansweredReviews:0`.
+- **Photos** → **v4 media API**, not built (`photoCount:null`).
+- **Description / Hours flags** come from the Business Info data we DO have — likely genuine (many listings have no description set). Add a raw-response debug dump if they look wrong.
+
+### Revert notes
+- `gbp-data.js`: remove the `brand` field from parseLocation + the `brandLocations` filter (return `allLocations`), revert cache key to v3.
+
+---
+
 ## Session: June 2026 — v7.4.2 — GBP location listing fixed (root cause of "No locations returned")
 
 User confirmed GBP quota form approved + the 3 modern APIs enabled (Account Management, Business Information, Performance). Reconnect succeeded ("connection successful") but Local SEO still showed **"No locations returned from Google"**. Root cause found in `gbp-data.js`:
@@ -3528,7 +3547,7 @@ Update "Current URL" from `yolkseo.netlify.app` to `thenest.yolkbrands.com`
 
 ---
 
-## Current Version: v7.4.2
+## Current Version: v7.4.3
 
 Last session built: Bug-fix batch (v7.0.2), added Yolk Brands to Content Calendar (v7.0.3 + v7.0.4), added Yolk Brands to The Perch (v7.0.5), fixed Reports tab crash (v7.0.6), Priority Gap → Queue Brief + keyword filtering fixes (v7.0.7), copy-to-market fix + GSC page data + URL Inspection indexing badges (v7.0.8).
 
