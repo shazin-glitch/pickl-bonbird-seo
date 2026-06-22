@@ -51,16 +51,16 @@
 
 ---
 
-## Current Version: v7.3.9
+## Current Version: v7.4.9
 
 See SETUP.md → "Done (Full History)" for complete build log.
 
 **Next up (see memory for full deferred backlog):**
 - Slack bot OAuth — deep-link notifications to specific brand → market → calendar post
 - International keyword opportunities (UAE only right now)
-- Tone-of-voice check before approval queue
 - Arabic/native review workflow — "Pending native review" step before publishing Arabic content
 - Domain migration → thenest.yolkbrands.com (checklist in SETUP.md)
+- GBP deeper dive (scope TBD — Shazin said "I want to get more in depth on this")
 
 **⚠️ Adding a new market — REQUIRED steps:**
 1. Add to `CAL_MARKETS` in `index.html`

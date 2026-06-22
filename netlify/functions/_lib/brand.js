@@ -458,7 +458,9 @@ Return ONLY the rewritten content — no explanation, no preamble.`;
 
     // Re-score the fixed version
     const recheck = await runBrandVoiceCheck(fixed, brandCtx, callClaudeFn);
-    const improved = recheck.score > voiceCheck.score;
+    // Accept a rewrite that clears flagged issues even if the numeric score is flat
+    const issuesCleared = (voiceCheck.issues?.length || 0) > 0 && (recheck.issues?.length || 0) < (voiceCheck.issues?.length || 0);
+    const improved = recheck.score > voiceCheck.score || (issuesCleared && recheck.score >= voiceCheck.score - 1);
     console.log(`[brand-voice] Auto-fix: ${voiceCheck.score} → ${recheck.score}/10 (${improved ? 'improved' : 'no change'})`);
     return { content: improved ? fixed : content, voiceCheck: improved ? recheck : voiceCheck, improved };
   } catch (e) {
@@ -467,4 +469,16 @@ Return ONLY the rewritten content — no explanation, no preamble.`;
   }
 }
 
-module.exports = { getBrandContext, setBrandContext, getBrandExamples, buildBrandPrompt, runBrandVoiceCheck, fixBrandVoice, PICKL_DEFAULT, BONBIRD_DEFAULT };
+// ── Deterministic pre-queue strip ────────────────────────────────────────────────
+// Hard-removes em/en dashes before content reaches the approval queue.
+// These are AI tells that Claude may not deduct enough points for — strip them
+// regardless of score so they never appear on a queued card.
+function hardStripBannedTokens(content) {
+  return content
+    .replace(/—/g, ' ')
+    .replace(/ – /g, ' ')
+    .replace(/–/g, ' ')
+    .replace(/ {2,}/g, ' ');
+}
+
+module.exports = { getBrandContext, setBrandContext, getBrandExamples, buildBrandPrompt, runBrandVoiceCheck, fixBrandVoice, hardStripBannedTokens, PICKL_DEFAULT, BONBIRD_DEFAULT };

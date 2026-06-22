@@ -13,7 +13,7 @@
 
 const { getStore } = require('@netlify/blobs');
 const { INTERNATIONAL_MARKETS, getMarketsForBrand, buildMarketPrompt, getWpCredentials, buildPostUrl } = require('./_lib/international-config');
-const { getBrandContext, getBrandExamples, buildBrandPrompt, runBrandVoiceCheck, fixBrandVoice } = require('./_lib/brand');
+const { getBrandContext, getBrandExamples, buildBrandPrompt, runBrandVoiceCheck, fixBrandVoice, hardStripBannedTokens } = require('./_lib/brand');
 const { fetchGscDirect, fetchGscWithPages, listApprovals, createApproval, extractJson } = require('./_lib/store');
 const { internalHeaders } = require('./_lib/auth');
 
@@ -220,8 +220,21 @@ Return ONLY a JSON array:
     try {
       // Brand voice check on generated title + description
       const metaContent = `${p.title}\n${p.description}`;
-      const voiceCheck  = await runBrandVoiceCheck(metaContent, brandCtx, voiceFn)
-        .catch(() => ({ score: null, issues: [], verdict: 'UNKNOWN' }));
+      let voiceCheck = await runBrandVoiceCheck(metaContent, brandCtx, voiceFn)
+        .catch(() => ({ score: 6, issues: [], verdict: 'UNKNOWN' }));
+      if (voiceCheck.score !== null && voiceCheck.score < 8) {
+        const fixed = await fixBrandVoice(metaContent, voiceCheck, brandCtx, voiceFn, brandExamples, feedbackNotes);
+        if (fixed.improved) {
+          const lines = fixed.content.trim().split('\n').filter(Boolean);
+          if (lines[0]) p.title       = lines[0].slice(0, 60);
+          if (lines[1]) p.description = lines[1].slice(0, 160);
+          voiceCheck = fixed.voiceCheck;
+        }
+      }
+      if (voiceCheck.score !== null && voiceCheck.score < 5) {
+        console.warn(`${tag} meta_update voice ${voiceCheck.score}/10 too low — skipped (${matched.page})`);
+        continue;
+      }
 
       await createApproval({
         type:        'meta_update',
@@ -462,11 +475,11 @@ Return ONLY JSON:
         // Brand voice gate — auto-fix 5-7, skip below 5 (mirrors UAE runPageCreation)
         let voiceCheck = await runBrandVoiceCheck(parsed.body, brandCtx, voiceFn)
           .catch(() => ({ score: 6, issues: [], verdict: 'PASS', topFix: null }));
-        if (voiceCheck.score >= 5 && voiceCheck.score < 8) {
-          const fixed = await fixBrandVoice(parsed.body, voiceCheck, brandCtx, voiceFn, brandExamples);
+        if (voiceCheck.score < 8) {
+          const fixed = await fixBrandVoice(parsed.body, voiceCheck, brandCtx, voiceFn, brandExamples, feedbackNotes);
           if (fixed.improved) { parsed.body = fixed.content; voiceCheck = fixed.voiceCheck; }
         }
-        if (voiceCheck.score < 5) { console.warn(`${tag} page_creation voice ${voiceCheck.score}/10 too low — skipped`); continue; }
+        if (voiceCheck.score < 8) { console.warn(`${tag} page_creation voice ${voiceCheck.score}/10 — gate reject`); continue; }
 
         await createApproval({
           type:    'page_creation',
@@ -541,12 +554,20 @@ ${r.keyword}
         const title    = parseSection(raw, 'TITLE').trim();
         const slug     = parseSection(raw, 'SLUG').trim().replace(/[^a-z0-9-]/g, '');
         const metaDesc = parseSection(raw, 'META_DESCRIPTION').trim();
-        const body     = parseSection(raw, 'BODY').trim();
+        let body       = parseSection(raw, 'BODY').trim();
         if (!title || !body) { console.warn(`${tag} blog_draft parse error`); continue; }
 
-        const metaContent = `${title}\n${metaDesc}`;
-        const voiceCheck  = await runBrandVoiceCheck(metaContent, brandCtx, voiceFn)
-          .catch(() => ({ score: null, issues: [], verdict: 'UNKNOWN' }));
+        body = hardStripBannedTokens(body);
+        let voiceCheck = await runBrandVoiceCheck(body, brandCtx, voiceFn)
+          .catch(() => ({ score: 6, issues: [], verdict: 'UNKNOWN' }));
+        if (voiceCheck.score < 8) {
+          const fixed = await fixBrandVoice(body, voiceCheck, brandCtx, voiceFn, brandExamples, feedbackNotes);
+          if (fixed.improved) { body = fixed.content; voiceCheck = fixed.voiceCheck; }
+        }
+        if (voiceCheck.score < 5) {
+          console.warn(`${tag} blog_draft voice ${voiceCheck.score}/10 too low — skipped (${r.keyword})`);
+          continue;
+        }
 
         await createApproval({
           type:    'blog_draft',
@@ -621,7 +642,7 @@ function parseSection(text, section) {
 }
 
 // ── Generate blog draft for a market+language ─────────────────────────────────
-async function generateBlogDraft(market, brandCtx, brandExamples, language, usedKeywords = new Set()) {
+async function generateBlogDraft(market, brandCtx, brandExamples, language, usedKeywords = new Set(), feedbackNotes = []) {
   const keywords = market.seedKeywords[language] || market.seedKeywords['en'];
   // Rotate through keywords — skip ones used in this run
   const available = keywords.filter(k => !usedKeywords.has(k));
@@ -678,18 +699,23 @@ Return EXACTLY this structure:
     focusKeyword:    parseSection(raw, 'FOCUS_KEYWORD'),
   };
 
-  // Brand voice quality check — auto-fix if in warning zone
+  // Brand voice gate — hard-strip, score, fix if <8, reject if still <8 after fix
   if (result.content) {
+    result.content = hardStripBannedTokens(result.content);
     const voiceFn = voiceClaudeAdapter(brandCtx?.name || (market.brand === 'pickl' ? 'Pickl' : 'Bonbird'));
     let voiceCheck = await runBrandVoiceCheck(result.content, brandCtx, voiceFn).catch(() => ({ score: 6, verdict: 'PASS', issues: [] }));
-    if (voiceCheck.score >= 5 && voiceCheck.score < 8) {
-      const fixed = await fixBrandVoice(result.content, voiceCheck, brandCtx, voiceFn, brandExamples);
+    if (voiceCheck.score < 8) {
+      const fixed = await fixBrandVoice(result.content, voiceCheck, brandCtx, voiceFn, brandExamples, feedbackNotes);
       if (fixed.improved) { result.content = fixed.content; voiceCheck = fixed.voiceCheck; }
+    }
+    console.log(`[intl-blog] ${market.label}/${language} — voice score: ${voiceCheck.score}/10 (${voiceCheck.verdict})`);
+    if (voiceCheck.score < 8) {
+      console.warn(`[intl-blog] ${market.label}/${language} — rejected by voice gate (${voiceCheck.score}/10)`);
+      return null;
     }
     result.voiceScore  = voiceCheck.score;
     result.voiceIssues = voiceCheck.issues;
     result.voiceTopFix = voiceCheck.topFix;
-    console.log(`[intl-blog] ${market.label}/${language} — voice score: ${voiceCheck.score}/10 (${voiceCheck.verdict})`);
   }
 
   return result;
@@ -870,6 +896,7 @@ async function processMarketLanguage(store, marketKey, market, language, force =
 
   const brandCtx      = await getBrandContext(market.brand);
   const brandExamples = await getBrandExamples(market.brand).catch(() => null);
+  const feedbackNotes = await getBrandFeedback(market.brand).catch(() => []);
   const queued        = [];
   const errors        = [];
 
@@ -953,7 +980,12 @@ async function processMarketLanguage(store, marketKey, market, language, force =
 
   while (blogsQueued < MAX_BLOGS_PER_MARKET) {
     try {
-      const blog = await generateBlogDraft(market, brandCtx, brandExamples, language, usedKeywords);
+      const blog = await generateBlogDraft(market, brandCtx, brandExamples, language, usedKeywords, feedbackNotes);
+      if (!blog) {
+        console.warn(`${tag} — blog ${blogsQueued + 1} rejected by voice gate`);
+        blogsQueued++;
+        continue;
+      }
       if (!blog.title || !blog.content) break;
 
       // Check for duplicate keyword already pending
@@ -1014,28 +1046,44 @@ async function processMarketLanguage(store, marketKey, market, language, force =
   try {
     const meta = await generateMetaUpdate(market, brandCtx, brandExamples, language);
     if (meta.metaTitle && meta.metaDescription) {
-      const wp = getWpCredentials(market);
-      const id = await queueApprovalItem({
-        type:        'meta_update',
-        brand:       market.brand,
-        market:      market.marketKey,
-        marketLabel: market.label,
-        language,
-        title:       `Meta update — ${market.label} ${language.toUpperCase()} landing page`,
-        meta: {
-          metaTitle:       meta.metaTitle,
-          metaDescription: meta.metaDescription,
-          focusKeyword:    meta.focusKeyword,
-        },
-        targetUrl:   buildPostUrl(market, 'page', market.marketSlug, language),
-        wpBase:      wp.base,
-        wpUser:      wp.user,
-        wpPass:      wp.pass,
-        wpParent:    market.wpMarketParent,
-        notes: `International SEO — optimised meta for ${market.label} page. Keyword: ${meta.focusKeyword}`,
-      });
-      queued.push({ type: 'meta_update', id });
-      console.log(`${tag} — meta update queued: ${id}`);
+      const metaVoiceFn = voiceClaudeAdapter(brandCtx?.name || (market.brand === 'pickl' ? 'Pickl' : 'Bonbird'));
+      const metaText    = `${meta.metaTitle}\n${meta.metaDescription}`;
+      let metaVoice     = await runBrandVoiceCheck(metaText, brandCtx, metaVoiceFn).catch(() => ({ score: 8, issues: [] }));
+      if (metaVoice.score < 8) {
+        const fixed = await fixBrandVoice(metaText, metaVoice, brandCtx, metaVoiceFn, brandExamples, feedbackNotes);
+        if (fixed.improved) {
+          const lines = fixed.content.trim().split('\n').filter(Boolean);
+          if (lines[0]) meta.metaTitle       = lines[0].slice(0, 60);
+          if (lines[1]) meta.metaDescription = lines[1].slice(0, 160);
+          metaVoice = fixed.voiceCheck;
+        }
+      }
+      if (metaVoice.score < 5) {
+        console.warn(`${tag} — meta update voice ${metaVoice.score}/10 too low — skipped`);
+      } else {
+        const wp = getWpCredentials(market);
+        const id = await queueApprovalItem({
+          type:        'meta_update',
+          brand:       market.brand,
+          market:      market.marketKey,
+          marketLabel: market.label,
+          language,
+          title:       `Meta update — ${market.label} ${language.toUpperCase()} landing page`,
+          meta: {
+            metaTitle:       meta.metaTitle,
+            metaDescription: meta.metaDescription,
+            focusKeyword:    meta.focusKeyword,
+          },
+          targetUrl:   buildPostUrl(market, 'page', market.marketSlug, language),
+          wpBase:      wp.base,
+          wpUser:      wp.user,
+          wpPass:      wp.pass,
+          wpParent:    market.wpMarketParent,
+          notes: `International SEO — optimised meta for ${market.label} page. Keyword: ${meta.focusKeyword}`,
+        });
+        queued.push({ type: 'meta_update', id });
+        console.log(`${tag} — meta update queued: ${id}`);
+      }
     }
   } catch (e) {
     console.error(`${tag} — meta update failed:`, e.message);

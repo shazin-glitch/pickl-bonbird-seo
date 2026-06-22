@@ -323,6 +323,12 @@ From Google's official AI Optimization Guide (June 2026):
 
 ---
 
+## Session: June 2026 — v7.4.9 — Voice gate hardening (intl content paths)
+
+All international content paths now require ≥8/10 brand voice score before queuing (was ≥5 warn-and-queue). Hard-strips em/en dashes before scoring (`hardStripBannedTokens`). `fixBrandVoice` improved logic fixed to accept rewrites that clear flagged issues even when score is flat. All `fixBrandVoice` calls now pass accumulated human rejection feedback. `generateBlogDraft` returns null on gate reject; caller handles it. Meta updates now have full fix+gate in both data-driven and seed-content paths.
+
+---
+
 ## Session: June 2026 — v7.3.9 — Authentication hardening (mutating endpoints)
 
 Closed the critical hole: `db-save`, `approvals`, `calendar`, `wordpress` were fully unauthenticated (anyone could overwrite data / publish live / burn credits). Now every **mutation** requires a valid session OR an internal service token. Reads (GETs) left open.
@@ -3636,9 +3642,12 @@ Update "Current URL" from `yolkseo.netlify.app` to `thenest.yolkbrands.com`
 
 ---
 
-## Current Version: v7.4.8
+## Current Version: v7.4.9
 
-Last session built: GBP — photo counts (v4 media API), click-to-filter review queue per listing, address shown per review (disambiguates identical Bonbird titles), newest-first reviews, documented health-flag rules.
+Last session built: Voice gate hardening across all intl content paths.
+- `_lib/brand.js` — `hardStripBannedTokens()` (deterministically removes em/en dashes before queuing); fixed `fixBrandVoice` improved logic to accept rewrites that clear flagged issues even when numeric score is flat (`issuesCleared` check).
+- `international-seo-background.js` — raised queue bar to ≥8/10 across all intl paths (was ≥5): `generateBlogDraft` returns null + logs rejection; `processMarketLanguage` blog loop handles null; meta_update in both `runMarketDataDrivenSEO` and `processMarketLanguage` now has fix+gate; `runMarketKeywordOpportunities` blog_draft now gates on body (not just meta title/description); all `fixBrandVoice` calls now pass `feedbackNotes`; `page_creation` threshold raised from <5 to <8.
+- UAE scheduler paths (`scheduler-background.js`) already had correct ≥5 reject + feedbackNotes — left untouched.
 
 ### Yolk Brands — Content Calendar Setup
 - Brand key: `yolk` | Colour: `#F5B800`
