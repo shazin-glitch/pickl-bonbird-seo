@@ -36,8 +36,17 @@ exports.handler = async (event) => {
 
   try {
     const session = await store.get(`userSession:${token}`, { type: 'json' });
-    if (!session || session.expiresAt < Date.now()) {
-      return { statusCode: 200, headers, body: JSON.stringify({ authenticated: false }) };
+    // Reject missing/expired AND legacy sessions that lack `expiresAt` (pre-v7.3.9
+    // format). Must match the stricter guard in _lib/auth.js — otherwise such a
+    // session reads as "authenticated" here (so the SPA never bounces to login)
+    // but every mutation is rejected by _lib/auth, stranding the user "logged in
+    // but unable to do anything." Clear the cookie so the next load re-logs in clean.
+    if (!session || !session.expiresAt || session.expiresAt < Date.now()) {
+      return {
+        statusCode: 200,
+        headers: { ...headers, 'Set-Cookie': 'yolk_session=; Path=/; HttpOnly; Secure; SameSite=Lax; Max-Age=0' },
+        body: JSON.stringify({ authenticated: false }),
+      };
     }
 
     // Get role — bootstrap admins always admin

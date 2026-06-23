@@ -501,6 +501,14 @@ async function fetchCompetitorRankedKeywords(competitors, locationCode, authHead
   // 2784, so a per-market matrix run still pulled UAE competitor keywords.
   const labsLoc = (!locationCode || locationCode === 21191) ? 2784 : locationCode;
 
+  // language_code is validated against the location's database. Some markets
+  // (e.g. Saudi Arabia 2682) reject 'en' with a 40501 "Invalid Field:
+  // 'language_code'" even though UAE (2784) accepts it. It's optional here
+  // (auto-derived from location), so if the probe below detects a rejection we
+  // drop it for every domain call. Only flips on an actual language error, so
+  // working markets are unaffected.
+  let useLanguage = true;
+
   // Test the Labs endpoint with the first competitor before running all
   // This surfaces auth/plan errors without burning through all competitors
   const firstDomain = competitors[0]?.domain.replace(/^www\./, "");
@@ -512,7 +520,8 @@ async function fetchCompetitorRankedKeywords(competitors, locationCode, authHead
         body: JSON.stringify([{ target: firstDomain, location_code: labsLoc, language_code: "en", limit: 1 }]),
       });
       const testData = await testRes.json();
-      console.log(`[competitor-matrix] Labs test — HTTP ${testRes.status}, status_code: ${testData.status_code}, msg: ${testData.status_message}`);
+      const testTask = testData.tasks?.[0] || {};
+      console.log(`[competitor-matrix] Labs test — HTTP ${testRes.status}, status_code: ${testData.status_code}, msg: ${testData.status_message}, task: ${testTask.status_code} ${testTask.status_message || ''}`);
       if (testRes.status === 403 || testData.status_code === 40300) {
         labsError = "DataForSEO Labs access denied (403) — your account may not have Labs enabled. Contact DataForSEO support.";
         console.warn("[competitor-matrix]", labsError);
@@ -522,6 +531,11 @@ async function fetchCompetitorRankedKeywords(competitors, locationCode, authHead
         labsError = `DataForSEO auth error (${testData.status_code}): ${testData.status_message}`;
         console.warn("[competitor-matrix]", labsError);
         return { resultsMap, labsError };
+      }
+      // Detect language_code rejection (top-level or task-level) → drop it for all calls
+      if (/language_code/i.test(testData.status_message || "") || /language_code/i.test(testTask.status_message || "")) {
+        useLanguage = false;
+        console.warn(`[competitor-matrix] Labs rejected language_code for loc ${labsLoc} — fetching ranked keywords without language`);
       }
     } catch (e) {
       labsError = `Network error reaching DataForSEO Labs: ${e.message}`;
@@ -537,17 +551,18 @@ async function fetchCompetitorRankedKeywords(competitors, locationCode, authHead
     console.log(`[competitor-matrix] Fetching ranked keywords for ${domain}`);
 
     try {
+      const rkPayload = {
+        target:        domain,
+        location_code: labsLoc, // remapped above: UAE city 21191 → 2784; intl markets pass through
+        filters: [["keyword_data.keyword_info.search_volume", ">", 0]],
+        order_by: ["keyword_data.keyword_info.search_volume,desc"],
+        limit: 200,
+      };
+      if (useLanguage) rkPayload.language_code = "en";
       const res = await fetch(LABS_RANKED_KEYWORDS_URL, {
         method:  "POST",
         headers: { Authorization: authHeader, "Content-Type": "application/json" },
-        body: JSON.stringify([{
-          target:        domain,
-          location_code: labsLoc, // remapped above: UAE city 21191 → 2784; intl markets pass through
-          language_code: "en",
-          filters: [["keyword_data.keyword_info.search_volume", ">", 0]],
-          order_by: ["keyword_data.keyword_info.search_volume,desc"],
-          limit: 200,
-        }]),
+        body: JSON.stringify([rkPayload]),
       });
 
       if (!res.ok) {

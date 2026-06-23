@@ -105,20 +105,33 @@ async function getPageSpeed(domain) {
 
 // ── DataForSEO ranked keywords ────────────────────────────────────────────────
 async function runKeywordAudit(domain, authHeader, locationCode = 2784) {
-  const res = await fetch(`${DATAFORSEO_BASE}/dataforseo_labs/google/ranked_keywords/live`, {
-    method:  'POST',
-    headers: { 'Content-Type': 'application/json', Authorization: authHeader },
-    body: JSON.stringify([{
+  // language_code is validated against the location's database. Some markets
+  // (e.g. Saudi Arabia 2682) reject 'en' with 40501 "Invalid Field:
+  // 'language_code'". It's optional (auto-derived from location), so retry
+  // without it on a language rejection.
+  async function postAudit(includeLanguage) {
+    const payload = {
       target:        domain,
       location_code: locationCode,
-      language_code: 'en',
       limit:         50,
       order_by:      ['keyword_data.keyword_info.search_volume,desc'],
       filters:       [['keyword_data.keyword_info.search_volume', '>', 0]],
-    }]),
-  });
+    };
+    if (includeLanguage) payload.language_code = 'en';
+    const res = await fetch(`${DATAFORSEO_BASE}/dataforseo_labs/google/ranked_keywords/live`, {
+      method:  'POST',
+      headers: { 'Content-Type': 'application/json', Authorization: authHeader },
+      body:    JSON.stringify([payload]),
+    });
+    return res.json();
+  }
 
-  const data = await res.json();
+  let data = await postAudit(true);
+  const langRejected = /language_code/i.test(data.status_message || '') || /language_code/i.test(data.tasks?.[0]?.status_message || '');
+  if (langRejected) {
+    console.warn(`[competitor-audit] Labs rejected language_code for loc ${locationCode} — retrying without language`);
+    data = await postAudit(false);
+  }
   if (data.status_code !== 20000) throw new Error(`DataForSEO error ${data.status_code}: ${data.status_message}`);
 
   const result   = data.tasks?.[0]?.result?.[0];

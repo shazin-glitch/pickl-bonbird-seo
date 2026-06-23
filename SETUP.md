@@ -3642,9 +3642,18 @@ Update "Current URL" from `yolkseo.netlify.app` to `thenest.yolkbrands.com`
 
 ---
 
-## Current Version: v7.4.12
+## Current Version: v7.4.13
 
-Last session built: International competitor matrix — Settings UI for per-market curation (step 5), completing the feature.
+Last fix (v7.4.13): DataForSEO Labs `language_code` rejection for non-UAE markets.
+- Symptom: Opportunities tab showed "DataForSEO task error 40501: Invalid Field: 'language_code'. (loc 2682)" for KSA (and any market whose Labs DB doesn't pair with English).
+- Root cause: DataForSEO Labs endpoints (`keyword_ideas`, `ranked_keywords`) validate the location+language pair. UAE (2784) accepts `en`; KSA (2682) and other Arabic-first markets reject it. `language_code` is OPTIONAL on these endpoints (auto-derived from location).
+- Fix: retry/omit `language_code` on a language rejection in 3 places — `keyword-discovery-background.js` (`getKeywordIdeas`, retry without lang), `competitor-matrix-background.js` (`fetchCompetitorRankedKeywords`, one-time probe sets `useLanguage=false` for all domains), `competitor-audit.js` (`runKeywordAudit`, retry without lang). Only triggers on an actual language error → UAE + working markets unaffected. SERP `task_post` calls (which accept `en` everywhere) untouched. See memory → dataforseo-labs-language-code-gotcha.
+
+Also v7.4.13: fixed bootstrap admin (Steve) "logged in but can't do anything" lockout.
+- Root cause: `auth-user.js` (SPA login check) used `if (!session || session.expiresAt < Date.now())` — MISSING the `!session.expiresAt` guard that `_lib/auth.js` (mutation gate) has. A legacy pre-v7.3.9 session blob without `expiresAt` read as "authenticated" in auth-user (so the SPA never bounced to re-login) but was rejected by `_lib/auth` on every mutation → 401 on everything. Steve had a pre-tightening session; the invited manager had a fresh one with `expiresAt`, so she worked.
+- Fix: `auth-user.js` now matches the stricter guard AND clears the stale cookie (`Set-Cookie ... Max-Age=0`) on an invalid session, forcing a clean Google re-login. Immediate unblock for Steve without waiting for deploy: hit `/api/auth/logout` or clear cookies / use incognito, then sign in.
+
+Prior session built: International competitor matrix — Settings UI for per-market curation (step 5), completing the feature.
 - `competitor-config.js`: GET/POST now market-aware. Intl reads/writes `competitorConfig:<brand>:<market>` — no UAE defaults/migration, empty list allowed (= pure auto-detect). UAE path unchanged.
 - `competitor-matrix.js`: fixed read endpoint to use market-qualified `autoDetectedCompetitors:` + `competitorRankedKeywords:` keys (was reading unsuffixed → would've shown empty for intl after the v7.4.11 writer change).
 - `competitor-matrix-ui.js`: `renderCompetitors` branches to `renderCompetitorsIntl` for non-UAE markets. Shows auto-detected domains (with top-10 appearance counts) as one-click "promote to pinned" chips, plus a manual pinned-competitor list with add/remove/save per market. `loadCompetitorConfig` market-aware. Script cache-bust bumped to v7.4.12.

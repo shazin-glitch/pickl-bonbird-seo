@@ -84,28 +84,48 @@ async function getKeywordIdeas(seeds, locationCode, authHeader) {
   // Labs requires country-level codes. UAE is passed as city (21191) so map it to country (2784).
   // International markets already use country-level codes so pass through unchanged.
   const kwLocationCode = locationCode === 21191 ? 2784 : locationCode;
-  try {
+
+  // keyword_ideas validates the location+language pair against its database.
+  // Some markets (e.g. Saudi Arabia 2682) reject language_code 'en' with task
+  // error 40501 "Invalid Field: 'language_code'" even though UAE (2784) accepts
+  // it. language_code is OPTIONAL for this endpoint (DataForSEO auto-derives it
+  // from the location), so on a language rejection we retry without it.
+  async function postIdeas(includeLanguage) {
+    const payload = {
+      keywords:          seeds,
+      location_code:     kwLocationCode,
+      limit:             200,
+      include_serp_info: false,
+      order_by:          ['keyword_info.search_volume,desc'],
+      filters:           [['keyword_info.search_volume', '>', 10]],
+    };
+    if (includeLanguage) payload.language_code = 'en';
     const res = await fetch(`${DATAFORSEO_BASE}/dataforseo_labs/google/keyword_ideas/live`, {
       method:  'POST',
       headers: { 'Content-Type': 'application/json', Authorization: authHeader },
-      body: JSON.stringify([{
-        keywords:       seeds,
-        location_code:  kwLocationCode,
-        language_code:  'en',
-        limit:          200,
-        include_serp_info: false,
-        order_by:       ['keyword_info.search_volume,desc'],
-        filters:        [
-          ['keyword_info.search_volume', '>', 10],
-        ],
-      }]),
+      body:    JSON.stringify([payload]),
     });
+    return res.json();
+  }
 
-    const data       = await res.json();
-    const task       = data.tasks?.[0] || {};
-    const taskStatus = task.status_code;
-    const taskMsg    = task.status_message;
-    console.log(`[kw-discovery] keyword_ideas top-level: ${data.status_code} | task id: ${task.id || 'no-task-id'} | task status: ${taskStatus} | task msg: ${taskMsg} | loc: ${kwLocationCode} | seeds: ${seeds.length}`);
+  try {
+    let data       = await postIdeas(true);
+    let task       = data.tasks?.[0] || {};
+    let taskStatus = task.status_code;
+    let taskMsg    = task.status_message;
+    let langDropped = false;
+
+    // Retry without language_code if it was rejected for this location.
+    if (data.status_code === 20000 && taskStatus && taskStatus !== 20000 && /language_code/i.test(taskMsg || '')) {
+      console.warn(`[kw-discovery] keyword_ideas rejected language_code for loc ${kwLocationCode} — retrying without language`);
+      data       = await postIdeas(false);
+      task       = data.tasks?.[0] || {};
+      taskStatus = task.status_code;
+      taskMsg    = task.status_message;
+      langDropped = true;
+    }
+
+    console.log(`[kw-discovery] keyword_ideas top-level: ${data.status_code} | task id: ${task.id || 'no-task-id'} | task status: ${taskStatus} | task msg: ${taskMsg} | loc: ${kwLocationCode}${langDropped ? ' (no lang)' : ''} | seeds: ${seeds.length}`);
 
     if (data.status_code !== 20000) {
       console.warn(`[kw-discovery] keyword_ideas failed ${data.status_code}: ${data.status_message}`);
@@ -128,8 +148,8 @@ async function getKeywordIdeas(seeds, locationCode, authHeader) {
     }).filter(k => k.keyword && k.volume > 0);
 
     const diag = items.length === 0
-      ? `DataForSEO OK but returned 0 ideas for location ${kwLocationCode} (en) from ${seeds.length} seeds — these English seeds likely have no tracked volume in this market; try Arabic/native seeds`
-      : `${items.length} ideas fetched, ${ideas.length} with volume>10`;
+      ? `DataForSEO OK but returned 0 ideas for location ${kwLocationCode} (${langDropped ? 'auto-lang' : 'en'}) from ${seeds.length} seeds — these seeds likely have no tracked volume in this market; try Arabic/native seeds`
+      : `${items.length} ideas fetched, ${ideas.length} with volume>10${langDropped ? ' (auto-lang)' : ''}`;
     return { ideas, diag };
 
   } catch (e) {
