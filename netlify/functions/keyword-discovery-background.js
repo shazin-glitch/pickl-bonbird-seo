@@ -282,10 +282,11 @@ async function discoverKeywords(brand, store, authHeader, force = false, marketK
   }
   console.log(`${tag} GSC positions loaded: ${Object.keys(gscMap).length} keywords`);
 
-  // Load competitor ranked keywords (UAE only — international competitor data TBD)
-  const compData = await store.get(`competitorRankedKeywords:${brand}`, { type: 'json' }).catch(() => null);
+  // Load competitor ranked keywords — market-qualified for intl, unsuffixed for UAE (back-compat)
+  const compKey  = isIntl ? `competitorRankedKeywords:${brand}:${marketKey}` : `competitorRankedKeywords:${brand}`;
+  const compData = await store.get(compKey, { type: 'json' }).catch(() => null);
   const compMap  = {}; // keyword → [positions from competitors]
-  if (!isIntl && compData?.competitors) {
+  if (compData?.competitors) {
     for (const [, kwList] of Object.entries(compData.competitors)) {
       for (const kw of kwList || []) {
         const key = kw.keyword?.toLowerCase();

@@ -3642,9 +3642,11 @@ Update "Current URL" from `yolkseo.netlify.app` to `thenest.yolkbrands.com`
 
 ---
 
-## Current Version: v7.4.10
+## Current Version: v7.4.11
 
-Last session built: Voice gate hardening + refinement loop across all intl content paths.
+Last session built: International competitor matrix — all 4 wiring gaps closed.
+- `competitor-matrix-background.js`: `processBrand` now takes `marketParam`; AUTO_DETECT_KEY + RANKED_KEYWORDS_KEY market-qualified (`:${market}` suffix, UAE stays unsuffixed for back-compat); effective competitor set = manual `competitorConfig:<brand>:<market>` ∪ top-10 auto-detected (hybrid); Labs call + SoV use effective set; results keyed `brand:market`; handler loops all intl markets monthly (first Monday, UTC date 1–7) or on `?force=true`.
+- `keyword-discovery-background.js`: removed `!isIntl` guard; reads `competitorRankedKeywords:<brand>:<market>` for intl runs — intl discovery now scores with full competitor-gap signal.
 - `_lib/brand.js` — `hardStripBannedTokens()` (deterministically removes em/en dashes before queuing); fixed `fixBrandVoice` improved logic to accept rewrites that clear flagged issues even when numeric score is flat (`issuesCleared` check).
 - `international-seo-background.js` — raised queue bar to ≥8/10 across all intl paths (was ≥5): `generateBlogDraft` returns null + logs rejection; `processMarketLanguage` blog loop handles null; meta_update in both `runMarketDataDrivenSEO` and `processMarketLanguage` now has fix+gate; `runMarketKeywordOpportunities` blog_draft now gates on body (not just meta title/description); all `fixBrandVoice` calls now pass `feedbackNotes`; `page_creation` threshold raised from <5 to <8.
 - UAE scheduler paths (`scheduler-background.js`) already had correct ≥5 reject + feedbackNotes — left untouched.

@@ -628,17 +628,18 @@ exports.handler = async (event) => {
     token:  process.env.NETLIFY_AUTH_TOKEN,
   });
 
-  // Support market-specific runs via query param: ?market=pickl_bahrain
-  const qs = event?.queryStringParameters || {};
+  const qs           = event?.queryStringParameters || {};
   const targetMarket = qs.market || null; // e.g. 'pickl_bahrain', null = UAE default
+  const force        = qs.force === 'true';
 
   const results = {};
   const errors  = {};
 
-  async function processBrand(brand) {
-    const marketKey  = targetMarket || 'uae';
-    const cacheKey   = targetMarket ? `${CACHE_KEY_PREFIX}${brand}:${targetMarket}` : `${CACHE_KEY_PREFIX}${brand}`;
-    const sovKey     = targetMarket ? `${SOV_HISTORY_KEY}${brand}:${targetMarket}` : `${SOV_HISTORY_KEY}${brand}`;
+  async function processBrand(brand, marketParam) {
+    const marketKey  = marketParam || 'uae';
+    const isIntlRun  = !!(marketParam && marketParam !== 'uae');
+    const cacheKey   = marketParam ? `${CACHE_KEY_PREFIX}${brand}:${marketParam}` : `${CACHE_KEY_PREFIX}${brand}`;
+    const sovKey     = marketParam ? `${SOV_HISTORY_KEY}${brand}:${marketParam}` : `${SOV_HISTORY_KEY}${brand}`;
 
     try {
       console.log(`[competitor-matrix] Processing ${brand} (market: ${marketKey})…`);
@@ -649,23 +650,43 @@ exports.handler = async (event) => {
         previousRows = prev?.rows || [];
       } catch { /* first run */ }
 
-      const config = await loadBrandConfig(store, brand, targetMarket);
+      const config = await loadBrandConfig(store, brand, marketParam);
       const { rows: rawRows, domainFrequency } = await fetchSerpRankings(brand, config);
       const rows            = detectMovement(rawRows, previousRows);
       const ourDomain       = new URL(config.siteUrl).hostname.replace(/^www\./, "");
 
       // ── Auto-detected competitors ─────────────────────────────────────────
-      const autoDetected = buildAutoDetected(domainFrequency, config.competitors, ourDomain);
-      await store.set(`${AUTO_DETECT_KEY}${brand}`, JSON.stringify({
+      const autoDetected  = buildAutoDetected(domainFrequency, config.competitors, ourDomain);
+      const autoDetectKey = isIntlRun ? `${AUTO_DETECT_KEY}${brand}:${marketParam}` : `${AUTO_DETECT_KEY}${brand}`;
+      await store.set(autoDetectKey, JSON.stringify({
         brand,
+        market:    marketKey,
         domains:   autoDetected,
         updatedAt: new Date().toISOString(),
       })).catch(() => {});
 
+      // ── Effective competitor set (intl: auto-detected ∪ manual; UAE: curated) ─
+      // For UAE, config.competitors is the curated DEFAULT_COMPETITORS list.
+      // For intl, no curated list exists — auto-detected domains fill the role,
+      // with any manual overrides (competitorConfig:<brand>:<market>) taking priority.
+      let effectiveCompetitors = config.competitors;
+      if (isIntlRun) {
+        const manualOverrides = await store.get(`${COMPETITOR_KEY_PREFIX}${brand}:${marketParam}`, { type: 'json' })
+          .then(d => d?.competitors || []).catch(() => []);
+        const autoCompetitors = autoDetected.slice(0, 10).map(d => ({
+          name:   d.domain.split('.')[0],
+          domain: d.domain,
+        }));
+        const manualDomains = new Set(manualOverrides.map(c => c.domain.replace(/^www\./, '')));
+        const autoFill = autoCompetitors.filter(c => !manualDomains.has(c.domain.replace(/^www\./, '')));
+        effectiveCompetitors = [...manualOverrides, ...autoFill];
+        console.log(`[competitor-matrix] ${brand}/${marketKey} — ${effectiveCompetitors.length} effective competitors (${manualOverrides.length} manual + ${autoFill.length} auto-detected)`);
+      }
+
       // ── Share of Voice calculation ────────────────────────────────────────
       const trackedDomains = new Set([
         ourDomain,
-        ...config.competitors.map(c => c.domain.replace(/^www\./, "")),
+        ...effectiveCompetitors.map(c => c.domain.replace(/^www\./, "")),
       ]);
       const sovCurrent = calculateSoV(rows, trackedDomains);
 
@@ -688,21 +709,24 @@ exports.handler = async (event) => {
       let labsError          = null;
       try {
         const authHeader = "Basic " + Buffer.from(`${process.env.DATAFORSEO_LOGIN}:${process.env.DATAFORSEO_PASSWORD}`).toString("base64");
-        const result     = await fetchCompetitorRankedKeywords(config.competitors, config.location_code, authHeader);
+        const rankedKey  = isIntlRun ? `${RANKED_KEYWORDS_KEY}${brand}:${marketParam}` : `${RANKED_KEYWORDS_KEY}${brand}`;
+        const result     = await fetchCompetitorRankedKeywords(effectiveCompetitors, config.location_code, authHeader);
         competitorKeywords = result.resultsMap || {};
         labsError          = result.labsError  || null;
-        await store.set(`${RANKED_KEYWORDS_KEY}${brand}`, JSON.stringify({
+        await store.set(rankedKey, JSON.stringify({
           brand,
+          market:      marketKey,
           competitors: competitorKeywords,
           labsError,
           fetchedAt: new Date().toISOString(),
         })).catch(() => {});
         const totalKws = Object.values(competitorKeywords).reduce((s, arr) => s + arr.length, 0);
-        console.log(`[competitor-matrix] ${brand} competitor keywords: ${totalKws} across ${Object.keys(competitorKeywords).length} competitors${labsError ? ` | error: ${labsError}` : ""}`);
+        console.log(`[competitor-matrix] ${brand}/${marketKey} competitor keywords: ${totalKws} across ${Object.keys(competitorKeywords).length} competitors${labsError ? ` | error: ${labsError}` : ""}`);
       } catch (e) {
         labsError = e.message;
-        console.warn(`[competitor-matrix] ${brand} ranked keywords failed: ${e.message}`);
-        await store.set(`${RANKED_KEYWORDS_KEY}${brand}`, JSON.stringify({ brand, competitors: {}, labsError, fetchedAt: new Date().toISOString() })).catch(() => {});
+        console.warn(`[competitor-matrix] ${brand}/${marketKey} ranked keywords failed: ${e.message}`);
+        const rankedKeyErr = isIntlRun ? `${RANKED_KEYWORDS_KEY}${brand}:${marketParam}` : `${RANKED_KEYWORDS_KEY}${brand}`;
+        await store.set(rankedKeyErr, JSON.stringify({ brand, market: marketKey, competitors: {}, labsError, fetchedAt: new Date().toISOString() })).catch(() => {});
       }
 
       // ── Store main matrix payload ─────────────────────────────────────────
@@ -712,13 +736,13 @@ exports.handler = async (event) => {
           ? 'No tracked keywords configured — add keywords in Manage Keywords tab'
           : 'DataForSEO returned 0 results — may be a temporary API issue';
         console.warn(`[competitor-matrix] ${brand} — 0 rows, NOT overwriting previous data. Reason: ${reason}`);
-        results[brand] = { success: false, keywordCount: 0, reason, preserved: true };
+        results[`${brand}:${marketKey}`] = { success: false, keywordCount: 0, reason, preserved: true };
       } else {
         const payload = {
           brand,
           market:       marketKey,
           rows,
-          competitors:  config.competitors.map(c => c.name),
+          competitors:  effectiveCompetitors.map(c => c.name),
           sovCurrent,
           ourDomain,
           fetchedAt:    new Date().toISOString(),
@@ -726,13 +750,13 @@ exports.handler = async (event) => {
           schedule:     "Monday 04:00 UTC / 08:00 Dubai",
         };
         await store.set(cacheKey, JSON.stringify(payload));
-        results[brand] = { success: true, keywordCount: rows.length, autoDetected: autoDetected.length, market: marketKey };
+        results[`${brand}:${marketKey}`] = { success: true, keywordCount: rows.length, autoDetected: autoDetected.length, market: marketKey };
         console.log(`[competitor-matrix] ${brand}/${marketKey} done — ${rows.length} keywords`);
       }
 
     } catch (err) {
-      console.error(`[competitor-matrix] ${brand} failed:`, err.message);
-      errors[brand] = err.message;
+      console.error(`[competitor-matrix] ${brand}/${marketKey} failed:`, err.message);
+      errors[`${brand}:${marketKey}`] = err.message;
       try {
         const prev = await store.get(cacheKey, { type: "json" }).catch(() => null);
         await store.set(cacheKey, JSON.stringify({
@@ -744,9 +768,29 @@ exports.handler = async (event) => {
     }
   }
 
-  await Promise.all(["pickl", "bonbird"].map(processBrand));
-  console.log("[competitor-matrix] Complete.", { results, errors });
+  if (targetMarket) {
+    // Specific market requested — run just that market for both brands
+    await Promise.all(["pickl", "bonbird"].map(b => processBrand(b, targetMarket)));
+  } else {
+    // UAE always runs weekly
+    await Promise.all(["pickl", "bonbird"].map(b => processBrand(b, null)));
 
+    // International markets run monthly (first Monday of month = UTC date 1–7) or when forced
+    const isFirstMonday = new Date().getUTCDate() <= 7;
+    if (isFirstMonday || force) {
+      console.log(`[competitor-matrix] ${force ? 'forced' : 'first Monday'} — running all intl markets`);
+      for (const [marketKey, market] of Object.entries(INTERNATIONAL_MARKETS)) {
+        try {
+          await processBrand(market.brand, marketKey);
+        } catch (e) {
+          console.error(`[competitor-matrix] intl ${marketKey} failed:`, e.message);
+          errors[marketKey] = e.message;
+        }
+      }
+    }
+  }
+
+  console.log("[competitor-matrix] Complete.", { results, errors });
   return {
     statusCode: 200,
     body: JSON.stringify({ results, errors, completedAt: new Date().toISOString() }),
