@@ -109,14 +109,17 @@ exports.handler = async (event) => {
   try {
     const result = {};
     for (const brand of brands) {
+      // All four keys are market-qualified for intl runs (UAE stays unsuffixed).
       const matrixKey = marketParam ? `competitorMatrix:${brand}:${marketParam}` : `competitorMatrix:${brand}`;
       const sovKey    = marketParam ? `sovHistory:${brand}:${marketParam}` : `sovHistory:${brand}`;
+      const autoKey   = marketParam ? `autoDetectedCompetitors:${brand}:${marketParam}` : `autoDetectedCompetitors:${brand}`;
+      const rankedKey = marketParam ? `competitorRankedKeywords:${brand}:${marketParam}` : `competitorRankedKeywords:${brand}`;
 
       const [matrix, sovHistory, autoDetected, rankedKeywords] = await Promise.all([
-        store.get(matrixKey,                              { type: "json" }).catch(() => null),
-        store.get(sovKey,                                 { type: "json" }).catch(() => []),
-        store.get(`autoDetectedCompetitors:${brand}`,     { type: "json" }).catch(() => null),
-        store.get(`competitorRankedKeywords:${brand}`,    { type: "json" }).catch(() => null),
+        store.get(matrixKey, { type: "json" }).catch(() => null),
+        store.get(sovKey,    { type: "json" }).catch(() => []),
+        store.get(autoKey,   { type: "json" }).catch(() => null),
+        store.get(rankedKey, { type: "json" }).catch(() => null),
       ]);
       result[brand] = {
         ...(matrix || {}),

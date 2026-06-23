@@ -3642,9 +3642,15 @@ Update "Current URL" from `yolkseo.netlify.app` to `thenest.yolkbrands.com`
 
 ---
 
-## Current Version: v7.4.11
+## Current Version: v7.4.12
 
-Last session built: International competitor matrix — all 4 wiring gaps closed.
+Last session built: International competitor matrix — Settings UI for per-market curation (step 5), completing the feature.
+- `competitor-config.js`: GET/POST now market-aware. Intl reads/writes `competitorConfig:<brand>:<market>` — no UAE defaults/migration, empty list allowed (= pure auto-detect). UAE path unchanged.
+- `competitor-matrix.js`: fixed read endpoint to use market-qualified `autoDetectedCompetitors:` + `competitorRankedKeywords:` keys (was reading unsuffixed → would've shown empty for intl after the v7.4.11 writer change).
+- `competitor-matrix-ui.js`: `renderCompetitors` branches to `renderCompetitorsIntl` for non-UAE markets. Shows auto-detected domains (with top-10 appearance counts) as one-click "promote to pinned" chips, plus a manual pinned-competitor list with add/remove/save per market. `loadCompetitorConfig` market-aware. Script cache-bust bumped to v7.4.12.
+- **Verify post-deploy:** pick an intl market in the matrix market dropdown → Refresh Now (forces a run incl. intl) → Manage Competitors tab → auto-detected domains should populate; pin a few, Save; next run uses manual ∪ auto.
+
+Prior session: International competitor matrix — all 4 wiring gaps closed (v7.4.11).
 - `competitor-matrix-background.js`: `processBrand` now takes `marketParam`; AUTO_DETECT_KEY + RANKED_KEYWORDS_KEY market-qualified (`:${market}` suffix, UAE stays unsuffixed for back-compat); effective competitor set = manual `competitorConfig:<brand>:<market>` ∪ top-10 auto-detected (hybrid); Labs call + SoV use effective set; results keyed `brand:market`; handler loops all intl markets monthly (first Monday, UTC date 1–7) or on `?force=true`.
 - `keyword-discovery-background.js`: removed `!isIntl` guard; reads `competitorRankedKeywords:<brand>:<market>` for intl runs — intl discovery now scores with full competitor-gap signal.
 - `_lib/brand.js` — `hardStripBannedTokens()` (deterministically removes em/en dashes before queuing); fixed `fixBrandVoice` improved logic to accept rewrites that clear flagged issues even when numeric score is flat (`issuesCleared` check).

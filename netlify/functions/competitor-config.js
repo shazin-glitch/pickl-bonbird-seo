@@ -6,6 +6,7 @@
 // POST { brand, competitors: [{name, domain}] } — overwrites competitor list
 
 const { getStore } = require("@netlify/blobs");
+const { INTERNATIONAL_MARKETS } = require("./_lib/international-config");
 
 const CONFIG_KEY_PREFIX = "competitorConfig:";
 
@@ -105,9 +106,28 @@ exports.handler = async (event) => {
   try {
     // ── GET ──────────────────────────────────────────────────────────────────
     if (event.httpMethod === "GET") {
-      const brandParam = event.queryStringParameters?.brand || "all";
-      const brands     = brandParam === "all" ? ["pickl", "bonbird"] : [brandParam];
-      const result     = {};
+      const brandParam  = event.queryStringParameters?.brand  || "all";
+      const marketParam = event.queryStringParameters?.market || null;
+      const isIntl      = marketParam && marketParam !== "uae";
+      const brands      = brandParam === "all" ? ["pickl", "bonbird"] : [brandParam];
+
+      // International markets: per-market manual overrides only. No curated
+      // defaults and no domain migration — auto-detection fills the rest at
+      // matrix-run time (hybrid). Empty list is valid (= pure auto-detect).
+      if (isIntl) {
+        const result = {};
+        for (const brand of brands) {
+          let competitors = [];
+          try {
+            const stored = await store.get(`${CONFIG_KEY_PREFIX}${brand}:${marketParam}`, { type: "json" });
+            if (stored?.competitors?.length) competitors = stored.competitors;
+          } catch { /* none yet */ }
+          result[brand] = { competitors, isDefault: false, market: marketParam };
+        }
+        return { statusCode: 200, headers, body: JSON.stringify(result) };
+      }
+
+      const result = {};
 
       for (const brand of brands) {
         let competitors = null;
@@ -142,10 +162,15 @@ exports.handler = async (event) => {
     if (event.httpMethod === "POST") {
       const body        = JSON.parse(event.body || "{}");
       const brand       = body.brand;
+      const market      = body.market || null;
       const competitors = body.competitors;
+      const isIntl      = market && market !== "uae";
 
       if (!brand || !DEFAULT_COMPETITORS[brand]) {
         return { statusCode: 400, headers, body: JSON.stringify({ error: "Invalid brand" }) };
+      }
+      if (isIntl && !INTERNATIONAL_MARKETS[market]) {
+        return { statusCode: 400, headers, body: JSON.stringify({ error: `Unknown market: ${market}` }) };
       }
       if (!Array.isArray(competitors)) {
         return { statusCode: 400, headers, body: JSON.stringify({ error: "competitors must be an array of {name, domain}" }) };
@@ -159,16 +184,20 @@ exports.handler = async (event) => {
         }))
         .filter(c => c.name && c.domain);
 
-      if (cleaned.length === 0) {
+      // UAE requires at least one competitor (it has no auto-detect fallback in
+      // the consumer). International allows an empty list = rely purely on
+      // auto-detected domains.
+      if (!isIntl && cleaned.length === 0) {
         return { statusCode: 400, headers, body: JSON.stringify({ error: "No valid competitors provided" }) };
       }
 
+      const key = isIntl ? `${CONFIG_KEY_PREFIX}${brand}:${market}` : `${CONFIG_KEY_PREFIX}${brand}`;
       await store.set(
-        `${CONFIG_KEY_PREFIX}${brand}`,
-        JSON.stringify({ brand, competitors: cleaned, updatedAt: new Date().toISOString() })
+        key,
+        JSON.stringify({ brand, market: market || "uae", competitors: cleaned, updatedAt: new Date().toISOString() })
       );
 
-      return { statusCode: 200, headers, body: JSON.stringify({ brand, competitors: cleaned, count: cleaned.length }) };
+      return { statusCode: 200, headers, body: JSON.stringify({ brand, market: market || "uae", competitors: cleaned, count: cleaned.length }) };
     }
 
     return { statusCode: 405, headers, body: JSON.stringify({ error: "Method not allowed" }) };

@@ -38,6 +38,7 @@
   let matrixData          = null;
   let keywordData        = null;
   let competitorData     = null;
+  let marketCompetitorData = null; // intl per-market manual overrides { [brand]: { competitors } }
   let isLoading          = false;
   let currentView        = "matrix";
   let pollTimer          = null;
@@ -938,6 +939,9 @@
 
   // ── Competitors management view ────────────────────────────────────────────
   function renderCompetitors(container) {
+    if (currentMarketFilter && currentMarketFilter !== "uae") {
+      return renderCompetitorsIntl(container);
+    }
     injectStyles();
     let html = renderHeader("competitors") + `
       <div style="padding:20px 0">
@@ -985,6 +989,176 @@
     html += `</div>`;
     container.innerHTML = html;
     bindCompetitorEvents(container);
+  }
+
+  // ── Competitors management — international per-market (hybrid) ───────────────
+  // For intl markets there is no curated default list. The effective competitor
+  // set used by the matrix run = manual overrides (saved here) ∪ top auto-detected
+  // domains. This view lets the user promote auto-detected domains into the manual
+  // list and curate it. Saves to competitorConfig:<brand>:<market>.
+  function renderCompetitorsIntl(container) {
+    injectStyles();
+    const marketKey   = currentMarketFilter;
+    const brand       = marketKey.split("_")[0];
+    const marketLabel = (document.querySelector("#cm-market-filter option:checked")?.textContent || marketKey).trim();
+    const manual      = marketCompetitorData?.[brand]?.competitors || [];
+    const auto        = matrixData?.[brand]?.autoDetected || [];
+    const hasMatrixRun = !!(matrixData?.[brand]?.fetchedAt);
+    const color       = BRAND_COLORS[brand]?.primary || "#f59e0b";
+
+    let html = renderHeader("competitors", { showBrandFilter: true });
+    html += `<div style="padding:20px 0">
+      <div style="background:rgba(99,102,241,0.06);border:1px solid rgba(99,102,241,0.2);border-radius:10px;padding:14px 18px;margin-bottom:20px">
+        <div style="font-weight:700;font-size:13px;margin-bottom:4px">🌍 ${esc(marketLabel)} — Hybrid Competitor Tracking</div>
+        <div style="font-size:12px;color:#64748b;line-height:1.5">
+          Unlike UAE, international markets have no preset competitor list. Each run <strong>auto-detects</strong> the domains
+          that keep showing up in this market's SERPs, and combines them with any you pin below. Promote the ones that matter,
+          ignore the rest. Changes apply on the next Refresh Now (or the monthly run).
+        </div>
+      </div>`;
+
+    // ── Auto-detected (promotable) ───────────────────────────────────────────
+    const manualDomains = new Set(manual.map(c => c.domain.replace(/^www\./, "")));
+    const autoNotManual = auto.filter(d => !manualDomains.has(d.domain.replace(/^www\./, "")));
+    html += `<div class="cm-kw-section" style="margin-bottom:24px">
+      <div class="cm-kw-section-title">🔍 Auto-Detected in ${esc(marketLabel)} <span class="cm-kw-count">${autoNotManual.length}</span></div>`;
+    if (!hasMatrixRun) {
+      html += `<div style="font-size:12px;color:#64748b;padding:6px 0">No data yet for this market. Click <strong>Refresh Now</strong> in the Rankings tab to run it once — auto-detected competitors will appear here.</div>`;
+    } else if (!autoNotManual.length) {
+      html += `<div style="font-size:12px;color:#64748b;padding:6px 0">Nothing new auto-detected (everything found is already pinned below, or the SERPs were dominated by aggregators).</div>`;
+    } else {
+      html += `<div class="cm-kw-grid" id="cm-intl-auto-grid"></div>`;
+    }
+    html += `</div>`;
+
+    // ── Manual pinned list ───────────────────────────────────────────────────
+    html += `<div class="cm-kw-section" data-brand="${brand}">
+      <div class="cm-kw-section-title">
+        <span style="width:10px;height:10px;border-radius:50%;background:${color};display:inline-block"></span>
+        Pinned Competitors <span class="cm-kw-count" id="cm-intl-count">${manual.length}</span>
+      </div>
+      <div class="cm-comp-grid" id="cm-intl-manual-grid"></div>
+      <div class="cm-kw-add-row" style="flex-wrap:wrap">
+        <input class="cm-kw-add-input" id="cm-intl-name" type="text" placeholder="Name e.g. Burger Boutique" style="flex:1;min-width:130px"/>
+        <input class="cm-kw-add-input" id="cm-intl-domain" type="text" placeholder="Domain e.g. burgerboutique.com" style="flex:1;min-width:170px"/>
+        <button class="cm-kw-add-btn" id="cm-intl-add">Add</button>
+      </div>
+      <div id="cm-intl-savebar" style="display:none" class="cm-kw-save-bar">
+        <span>⚠ Unsaved changes — click Save to update</span>
+        <button class="cm-kw-save-btn" id="cm-intl-save">Save Changes</button>
+      </div>
+    </div></div>`;
+
+    container.innerHTML = html;
+    bindCompetitorEventsIntl(container, brand, marketKey, autoNotManual);
+  }
+
+  function bindCompetitorEventsIntl(container, brand, marketKey, autoDomains) {
+    bindViewToggle(container);
+    container.querySelectorAll(".cm-filter-btn").forEach(btn => {
+      btn.addEventListener("click", () => { currentBrandFilter = btn.dataset.filter; renderCompetitorsIntl(container); });
+    });
+
+    const localComps = [...(marketCompetitorData?.[brand]?.competitors || [])];
+    let availableAuto = [...autoDomains];
+
+    const savebar = container.querySelector("#cm-intl-savebar");
+    function markUnsaved() { if (savebar) savebar.style.display = "flex"; }
+
+    function pinnedDomains() { return new Set(localComps.map(c => c.domain.replace(/^www\./, ""))); }
+
+    function renderManualGrid() {
+      const grid  = container.querySelector("#cm-intl-manual-grid");
+      const count = container.querySelector("#cm-intl-count");
+      if (!grid) return;
+      grid.innerHTML = localComps.length
+        ? localComps.map(c => `<span class="cm-kw-tag">
+            <span>${esc(c.name)}</span><span style="font-size:10px;color:#94a3b8">${esc(c.domain)}</span>
+            <button class="cm-kw-tag-delete cm-intl-del" data-domain="${esc(c.domain)}">×</button>
+          </span>`).join("")
+        : `<span style="font-size:12px;color:#94a3b8;font-style:italic">None pinned — the matrix will use auto-detected domains only.</span>`;
+      if (count) count.textContent = localComps.length;
+      grid.querySelectorAll(".cm-intl-del").forEach(btn => {
+        btn.addEventListener("click", () => {
+          const c = localComps.find(x => x.domain === btn.dataset.domain);
+          showDeleteModal(c ? c.name : btn.dataset.domain, () => {
+            const removed = localComps.find(x => x.domain === btn.dataset.domain);
+            localComps.splice(localComps.findIndex(x => x.domain === btn.dataset.domain), 1);
+            // If it was an auto-detected domain, return it to the promotable list
+            if (removed && autoDomains.some(d => d.domain.replace(/^www\./, "") === removed.domain.replace(/^www\./, ""))
+                && !availableAuto.some(d => d.domain === removed.domain)) {
+              availableAuto.push(autoDomains.find(d => d.domain.replace(/^www\./, "") === removed.domain.replace(/^www\./, "")));
+            }
+            renderManualGrid(); renderAutoGrid(); markUnsaved();
+          });
+        });
+      });
+    }
+
+    function renderAutoGrid() {
+      const grid = container.querySelector("#cm-intl-auto-grid");
+      if (!grid) return;
+      const pinned = pinnedDomains();
+      const show = availableAuto.filter(d => !pinned.has(d.domain.replace(/^www\./, "")));
+      grid.innerHTML = show.map(d => `<span class="cm-kw-tag" style="background:rgba(99,102,241,0.06);border-color:rgba(99,102,241,0.25)">
+          <span>${esc(d.domain)}</span><span style="font-size:10px;color:#94a3b8">${d.appearances || 0}× top-10</span>
+          <button class="cm-kw-tag-delete cm-intl-promote" data-domain="${esc(d.domain)}" style="color:#6366f1;font-weight:700" title="Pin as competitor">+</button>
+        </span>`).join("");
+      grid.querySelectorAll(".cm-intl-promote").forEach(btn => {
+        btn.addEventListener("click", () => {
+          const domain = btn.dataset.domain;
+          if (localComps.some(c => c.domain.replace(/^www\./, "") === domain.replace(/^www\./, ""))) return;
+          const name = domain.split(".")[0].replace(/-/g, " ").replace(/\b\w/g, ch => ch.toUpperCase());
+          localComps.push({ name, domain });
+          renderManualGrid(); renderAutoGrid(); markUnsaved();
+        });
+      });
+    }
+
+    renderManualGrid();
+    renderAutoGrid();
+
+    // Add row
+    const nameInput   = container.querySelector("#cm-intl-name");
+    const domainInput = container.querySelector("#cm-intl-domain");
+    const addBtn      = container.querySelector("#cm-intl-add");
+    if (addBtn) {
+      const doAdd = () => {
+        const name   = (nameInput?.value || "").trim();
+        const domain = (domainInput?.value || "").trim().toLowerCase().replace(/^https?:\/\//, "").replace(/^www\./, "").replace(/\/$/, "");
+        if (!name || !domain) return;
+        if (localComps.some(c => c.domain === domain)) { domainInput.style.borderColor = "#ef4444"; setTimeout(() => domainInput.style.borderColor = "", 1500); return; }
+        localComps.push({ name, domain });
+        if (nameInput)   nameInput.value   = "";
+        if (domainInput) domainInput.value = "";
+        renderManualGrid(); renderAutoGrid(); markUnsaved();
+      };
+      addBtn.addEventListener("click", doAdd);
+      domainInput?.addEventListener("keydown", e => { if (e.key === "Enter") doAdd(); });
+    }
+
+    // Save (per-market)
+    const saveBtn = container.querySelector("#cm-intl-save");
+    if (saveBtn) {
+      saveBtn.addEventListener("click", async () => {
+        saveBtn.disabled = true; saveBtn.textContent = "Saving…";
+        try {
+          const res = await fetch(COMPETITOR_CONFIG_URL, {
+            method: "POST", credentials: "include",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ brand, market: marketKey, competitors: localComps }),
+          });
+          if (!res.ok) throw new Error("Save failed");
+          if (!marketCompetitorData) marketCompetitorData = {};
+          marketCompetitorData[brand] = { competitors: [...localComps] };
+          if (savebar) { savebar.style.background = "#f0fdf4"; savebar.style.borderColor = "#86efac"; savebar.querySelector("span").style.color = "#166534"; savebar.querySelector("span").textContent = "✓ Saved! Applies on next Refresh Now."; saveBtn.style.background = "#22c55e"; saveBtn.textContent = "Saved ✓"; }
+          setTimeout(() => {
+            saveBtn.disabled = false; saveBtn.textContent = "Save Changes"; saveBtn.style.background = "";
+            if (savebar) { savebar.style.display = "none"; savebar.style.background = ""; savebar.style.borderColor = ""; }
+          }, 3000);
+        } catch { saveBtn.disabled = false; saveBtn.textContent = "Save Changes"; alert("Failed to save."); }
+      });
+    }
   }
 
   // ── Event binding ──────────────────────────────────────────────────────────
@@ -1235,7 +1409,17 @@
     try { const r = await fetch(`${KEYWORD_CONFIG_URL}?brand=all`); if (r.ok) keywordData = await r.json(); } catch {}
   }
   async function loadCompetitorConfig() {
-    try { const r = await fetch(`${COMPETITOR_CONFIG_URL}?brand=all`); if (r.ok) competitorData = await r.json(); } catch {}
+    try {
+      if (currentMarketFilter && currentMarketFilter !== "uae") {
+        // Per-market manual overrides for the market's owning brand
+        const brand = currentMarketFilter.split("_")[0];
+        const r = await fetch(`${COMPETITOR_CONFIG_URL}?brand=${brand}&market=${currentMarketFilter}`);
+        if (r.ok) marketCompetitorData = await r.json();
+      } else {
+        const r = await fetch(`${COMPETITOR_CONFIG_URL}?brand=all`);
+        if (r.ok) competitorData = await r.json();
+      }
+    } catch {}
   }
 
   async function loadData(container, forceRefresh = false) {
