@@ -50,8 +50,13 @@ exports.handler = async (event) => {
       if (it.country_iso_code)   map.byIso[it.country_iso_code.toLowerCase()] = rec;
       map.count++;
     }
+    // Diagnostic: did Gulf countries appear in the RAW response at all (before any filter)?
+    map._rawCount = items.length;
+    map._gulfRaw  = items
+      .filter(i => /qatar|oman|bahrain|kuwait|saudi|emirate|jordan/i.test(i.location_name || ''))
+      .map(i => ({ name: i.location_name, code: i.location_code, type: i.location_type }));
     if (!map.count) {
-      return { statusCode: 200, body: JSON.stringify({ ok: false, error: 'No country-level locations parsed from DataForSEO response' }) };
+      return { statusCode: 200, body: JSON.stringify({ ok: false, error: 'No country-level locations parsed from DataForSEO response', rawCount: items.length }) };
     }
     await s.set('dfsLocations', JSON.stringify(map));
   }
@@ -72,5 +77,13 @@ exports.handler = async (event) => {
   }
   markets['UAE'] = { authoritative: map.byName['united arab emirates']?.code || 'NOT FOUND' };
 
-  return { statusCode: 200, body: JSON.stringify({ ok: true, countriesCached: map.count, fetchedAt: map.fetchedAt, markets }, null, 2) };
+  return { statusCode: 200, body: JSON.stringify({
+    ok: true,
+    countriesCached: map.count,
+    rawCount: map._rawCount,                 // total items in raw API response (only on ?refresh=true)
+    gulfRaw: map._gulfRaw,                    // raw Gulf/Jordan matches (only on ?refresh=true)
+    allCountries: Object.keys(map.byName).sort(),
+    fetchedAt: map.fetchedAt,
+    markets,
+  }, null, 2) };
 };
