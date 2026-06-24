@@ -3642,9 +3642,16 @@ Update "Current URL" from `yolkseo.netlify.app` to `thenest.yolkbrands.com`
 
 ---
 
-## Current Version: v7.4.16
+## Current Version: v7.4.17
 
-Last built (v7.4.16): snapshot capture for monthly-report trend history (the "start banking now" step). New background function `snapshots-background.js` (cron Mon 6am UTC, after the 4am jobs) writes dated, once-per-day, never-overwritten keys:
+Last fix (v7.4.17): KSA refresh quality — competitor junk, missing volume, Arabic over-acceptance.
+- **Aggregator/social blocklist gaps** (caused reddit/x.com/timeout showing as "competitors"): added reddit, x.com, quora, medium, pinterest, threads, snapchat, booking, agoda, trustpilot, apple/app stores, indeed, glassdoor, bayt, mrsool, jahez, thechefz, ubereats to AGGREGATOR_DOMAINS (competitor-matrix-background) + EXCLUDE_DOMAINS (competitor-matrix) + SERP_OCCUPIER_TERMS (competitor-matrix-ui).
+- **REGRESSION FIX**: v7.4.15 made `isRestaurantKeyword` blanket-accept ANY Arabic-script keyword → let competitor brands (ستاربكس) + off-menu (مطعم هندي, قهوة) through. Replaced with proper Arabic food/location accept + Arabic off-menu/brand reject lists. Also removed "coffee" from FOOD_TERMS.
+- **Search volume now carried for competitor-sourced opportunities**: keyword-discovery discarded the real searchVolume from competitorRankedKeywords (set volume:0). Now carries volume + cpc via compMeta → opportunities show real volume.
+- **Search volume now shown in the matrix**: added a "Vol/mo" column to the Rankings table (data was fetched but never displayed).
+- **Strengthened off-menu reject** (OFF_MENU_DISHES): added coffee/cappuccino/latte + competitor brands (starbucks/mcdonald/kfc/herfy/albaik) + Arabic equivalents. cache-bust → v7.4.17.
+
+Prior built (v7.4.16): snapshot capture for monthly-report trend history (the "start banking now" step). New background function `snapshots-background.js` (cron Mon 6am UTC, after the 4am jobs) writes dated, once-per-day, never-overwritten keys:
 - `gbpSnapshot:<brand>:<YYYY-MM-DD>` — per-brand + per-location: avgRating, totalReviews, totalUnanswered, responseRateProxy, totalPhotos, health {green/amber/red}. (GBP only had a latest cache before — no trend.)
 - `speedSnapshot:<brand>:<YYYY-MM-DD>` — the technicalSeo audit summary/results/intlResults/technicalChecks (technicalSeo:<brand> was overwritten each run — no trend).
 - GSC / SoV / backlinks / AI-overview / LLM-mentions already keep their own history — not duplicated.

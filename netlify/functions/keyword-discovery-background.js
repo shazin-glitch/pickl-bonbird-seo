@@ -67,6 +67,10 @@ const OFF_MENU_DISHES = [
   'breakfast cereal',
   // Generic non-food-category queries
   'clothing', 'fashion', 'shoes',
+  // Coffee / competitor brands / Arabic off-menu (Pickl & Bonbird sell burgers + chicken,
+  // not coffee, and we never target competitor brand names)
+  'coffee', 'cappuccino', 'latte', 'starbucks', 'mcdonald', 'kfc', 'herfy', 'al baik', 'albaik',
+  'هندي', 'بيتزا', 'قهوة', 'كافيه', 'ستاربكس', 'كنتاكي', 'شاورما', 'برياني', 'البيك', 'هرفي', 'سوشي', 'حلويات',
 ];
 
 // Reject keywords that contain any off-menu term
@@ -307,6 +311,7 @@ async function discoverKeywords(brand, store, authHeader, force = false, marketK
   const compKey  = isIntl ? `competitorRankedKeywords:${brand}:${marketKey}` : `competitorRankedKeywords:${brand}`;
   const compData = await store.get(compKey, { type: 'json' }).catch(() => null);
   const compMap  = {}; // keyword → [positions from competitors]
+  const compMeta = {}; // keyword → { volume, cpc } — carry the real DataForSEO volume, don't discard it
   if (compData?.competitors) {
     for (const [, kwList] of Object.entries(compData.competitors)) {
       for (const kw of kwList || []) {
@@ -314,6 +319,7 @@ async function discoverKeywords(brand, store, authHeader, force = false, marketK
         if (key) {
           if (!compMap[key]) compMap[key] = [];
           compMap[key].push(kw.position || 100);
+          if (!compMeta[key]) compMeta[key] = { volume: kw.searchVolume || 0, cpc: kw.cpc || 0 };
         }
       }
     }
@@ -335,8 +341,8 @@ async function discoverKeywords(brand, store, authHeader, force = false, marketK
     .filter(([kw]) => !gscMap[kw]) // not ranking for it at all
     .map(([kw]) => ({
       keyword:     kw,
-      volume:      0, // volume unknown from competitor data
-      cpc:         0,
+      volume:      compMeta[kw]?.volume || 0, // real search volume from competitorRankedKeywords
+      cpc:         compMeta[kw]?.cpc    || 0,
       competition: 'medium',
       fromCompetitor: true,
     }));

@@ -23,11 +23,14 @@ const BRAND_DOMAINS = {
 // Domains to exclude from discovery — aggregators, social, delivery, directories
 const EXCLUDE_DOMAINS = new Set([
   "zomato.com","tripadvisor.com","talabat.com","timeout.com","timeoutdubai.com",
-  "whatson.ae","theentertainer.com","deliveroo.ae","noonfood.com","careem.com",
-  "google.com","facebook.com","instagram.com","twitter.com","youtube.com","tiktok.com",
+  "whatson.ae","theentertainer.com","deliveroo.ae","deliveroo.com","noonfood.com","careem.com",
+  "google.com","facebook.com","instagram.com","twitter.com","x.com","youtube.com","tiktok.com",
   "linkedin.com","yelp.com","foursquare.com","openrice.com","hungerstation.com",
   "noon.com","amazon.ae","wikipedia.org","dubizzle.com","yallarestaurants.com",
   "thenational.ae","gulfnews.com","khaleejtimes.com","visitdubai.com",
+  "reddit.com","quora.com","medium.com","pinterest.com","threads.net","snapchat.com",
+  "booking.com","agoda.com","trustpilot.com","apple.com","apps.apple.com","play.google.com",
+  "indeed.com","glassdoor.com","bayt.com","mrsool.co","jahez.net","thechefz.co","ubereats.com",
 ]);
 
 function isDomainExcluded(domain) {

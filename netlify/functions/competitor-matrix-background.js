@@ -28,10 +28,16 @@ const RANKED_KEYWORDS_KEY        = "competitorRankedKeywords:";
 // Domains to ignore for auto-detection — aggregators, social, directories
 const AGGREGATOR_DOMAINS = new Set([
   "zomato.com","tripadvisor.com","talabat.com","timeout.com","timeoutdubai.com",
-  "whatson.ae","theentertainer.com","deliveroo.ae","noonfood.com","careem.com",
-  "google.com","facebook.com","instagram.com","twitter.com","youtube.com",
+  "whatson.ae","theentertainer.com","deliveroo.ae","deliveroo.com","noonfood.com","careem.com",
+  "google.com","facebook.com","instagram.com","twitter.com","x.com","youtube.com",
   "tiktok.com","linkedin.com","yelp.com","foursquare.com","maps.google.com",
   "openrice.com","hungerstation.com","noon.com","amazon.ae","wikipedia.org",
+  // Social/forum/aggregator/app/store domains that surface in (esp. Arabic) SERPs
+  // but are never our competitors — strategy is get-listed, not outrank.
+  "reddit.com","quora.com","medium.com","pinterest.com","threads.net","snapchat.com",
+  "booking.com","agoda.com","trustpilot.com","apple.com","apps.apple.com","play.google.com",
+  "indeed.com","glassdoor.com","bayt.com","mrsool.co","jahez.net","thechefz.co",
+  "ubereats.com","yellowpages.ae","2gis.ae","wikiwand.com","fandango.ae",
 ]);
 
 // ── Brand name filter map ─────────────────────────────────────────────────────
@@ -75,8 +81,8 @@ const FOOD_TERMS = [
   "burger","chicken","fries","wrap","sandwich","steak","pizza","sushi","hot dog","wings",
   "tenders","strips","nuggets","rice","bowl","salad","cheese","sauce","spicy","crispy",
   "smash","fried","grilled","bbq","loaded","brunch","breakfast","snack","combo",
-  // Drinks
-  "shake","juice","coffee","drink","smoothie",
+  // Drinks (no "coffee" — neither brand is a coffee shop; it pulls in cafes)
+  "shake","juice","drink","smoothie",
   // Restaurant & dining category terms
   "restaurant","cafe","cafeteria","diner","bistro","dine","dining","fast food",
   "quick service","food court","food truck","street food","casual dining",
@@ -89,12 +95,27 @@ const LOCATION_TERMS = [
   "near me","nearby","in dubai","in uae","in abu dhabi","delivery dubai",
 ];
 
+// Arabic equivalents so Arabic keywords are filtered as strictly as English —
+// NOT blanket-accepted. Reject competitor brands + off-menu cuisines; accept only
+// genuine food/restaurant or local-intent terms.
+const ARABIC_OFFMENU = [
+  "هندي","صيني","ايطالي","إيطالي","ياباني","تايلندي","لبناني","مكسيكي","تركي",   // other cuisines
+  "بيتزا","سوشي","شاورما","برياني","باستا","مكرونة","كباب","ستيك","ساشيمي",      // off-menu dishes
+  "قهوة","كافيه","كوفي","حلويات","كيك","مخبز","ايس كريم","آيس كريم","دونات",     // coffee/bakery/sweets
+  "ستاربكس","كنتاكي","ماكدونالدز","ماك","هرفي","البيك","بربوس","دومينوز",        // competitor brands
+];
+const ARABIC_FOOD = [
+  "برغر","برجر","همبرغر","برقر","دجاج","تشيكن","بطاطس","فرايز","ساندويتش","ساندويش",
+  "وجبة","وجبات","مطعم","مطاعم","توصيل","اكل","أكل","طعام","غداء","عشاء","مقرمش","مقلي","سماش",
+];
+const ARABIC_LOC = ["الرياض","جدة","السعودية","الدمام","مكة","المدينة","الخبر","قريب","قريبة","بالقرب","توصيل"];
+
 function isRestaurantKeyword(keyword) {
   const lower = keyword.toLowerCase();
-  // Arabic-script keyword from an Arabic-first market: the FOOD_TERMS/LOCATION_TERMS
-  // lists are English-only, so they'd wrongly drop every Arabic keyword. Seeds are
-  // already food-focused, so accept Arabic-script keywords rather than filter them out.
-  if (/[؀-ۿ]/.test(keyword)) return true;
+  if (/[؀-ۿ]/.test(keyword)) {
+    if (ARABIC_OFFMENU.some(t => keyword.includes(t))) return false;
+    return ARABIC_FOOD.some(t => keyword.includes(t)) || ARABIC_LOC.some(t => keyword.includes(t));
+  }
   return FOOD_TERMS.some(t => lower.includes(t)) || LOCATION_TERMS.some(t => lower.includes(t));
 }
 

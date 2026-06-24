@@ -25,6 +25,9 @@
     "talabat","deliveroo","noon","careem","whats-on","whatson","thenational","gulfnews",
     "khaleejtimes","visitdubai","dubizzle","yelp","foursquare","openrice","entertainer",
     "time-out","hungerstation","noonfood","twitter","tiktok","linkedin","google",
+    "reddit","x.com","quora","medium.com","pinterest","threads","snapchat","booking",
+    "agoda","trustpilot","apple.com","apps.apple","play.google","indeed","glassdoor",
+    "bayt","mrsool","jahez","thechefz","ubereats","wikipedia",
   ];
 
   function isSerpOccupier(domain) {
@@ -427,7 +430,7 @@
     // Table
     html += `<div class="cm-table-wrap"><table class="cm-table">
       <thead><tr>
-        <th>Keyword</th><th>Brand</th><th>Our Rank</th>
+        <th>Keyword</th><th>Brand</th><th>Vol/mo</th><th>Our Rank</th>
         ${competitors.map(c => `<th>${esc(c)}</th>`).join("")}
         <th>SERP Features</th><th>Movement</th>
       </tr></thead><tbody>`;
@@ -439,9 +442,11 @@
         const ourRankHtml  = row.ourRank != null
           ? `<span class="${ourRankClass}">#${row.ourRank}</span>`
           : '<span class="cm-rank-none">—</span>';
+        const volTxt = row.searchVolume ? row.searchVolume.toLocaleString() : '—';
         html += `<tr>
           <td class="cm-keyword">${esc(row.keyword)}</td>
           <td><span class="cm-brand-dot" style="background:${brandColor}"></span>${BRAND_COLORS[row.brand]?.label || row.brand}</td>
+          <td style="color:var(--text-muted);font-size:0.78rem;white-space:nowrap">${volTxt}</td>
           <td>${ourRankHtml}</td>
           ${competitors.map(c => `<td>${rankBadge(row.competitorRanks?.[c])}</td>`).join("")}
           <td>${serpFeaturePills(row.serpFeatures)}</td>
