@@ -437,7 +437,7 @@
     // Table
     html += `<div class="cm-table-wrap"><table class="cm-table">
       <thead><tr>
-        <th>Keyword</th><th>Brand</th><th>Vol/mo</th><th>Our Rank</th>
+        <th>Keyword</th><th>Brand</th><th>Vol/mo</th><th>KD</th><th>Our Rank</th>
         ${competitors.map(c => `<th>${esc(c)}</th>`).join("")}
         <th>SERP Features</th><th>Movement</th>
       </tr></thead><tbody>`;
@@ -450,10 +450,14 @@
           ? `<span class="${ourRankClass}">#${row.ourRank}</span>`
           : '<span class="cm-rank-none">—</span>';
         const volTxt = row.searchVolume ? row.searchVolume.toLocaleString() : '—';
+        const kd     = row.keywordDifficulty;
+        const kdColor = kd == null ? 'var(--text-muted)' : kd >= 70 ? '#ef4444' : kd >= 40 ? '#d97706' : '#10b981';
+        const kdTxt  = kd == null ? '—' : kd;
         html += `<tr>
           <td class="cm-keyword">${esc(row.keyword)}</td>
           <td><span class="cm-brand-dot" style="background:${brandColor}"></span>${BRAND_COLORS[row.brand]?.label || row.brand}</td>
           <td style="color:var(--text-muted);font-size:0.78rem;white-space:nowrap">${volTxt}</td>
+          <td style="font-size:0.78rem;font-weight:600;color:${kdColor}">${kdTxt}</td>
           <td>${ourRankHtml}</td>
           ${competitors.map(c => `<td>${rankBadge(row.competitorRanks?.[c])}</td>`).join("")}
           <td>${serpFeaturePills(row.serpFeatures)}</td>

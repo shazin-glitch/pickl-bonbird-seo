@@ -3642,9 +3642,16 @@ Update "Current URL" from `yolkseo.netlify.app` to `thenest.yolkbrands.com`
 
 ---
 
-## Current Version: v7.4.19
+## Current Version: v7.4.20
 
-Last fix (v7.4.19): comprehensive SEO-data audit (3 parallel agents) fixed in one batch.
+Last built (v7.4.20): Keyword Difficulty + search-volume enrichment (research-parity #1; fixes the empty matrix Vol/mo).
+- New `_lib/keyword-metrics.js` `enrichKeywords`/`enrichKeywordsMixed`: volume+cpc via `keywords_data/google_ads/search_volume/live`, KD (0–100) via `dataforseo_labs/google/bulk_keyword_difficulty/live`. Language-aware (splits Arabic↔ar), drops language_code on rejection, safe ({} on failure).
+- competitor-matrix-background: enriches tracked-keyword rows with volume+cpc+KD after SERP (SERP doesn't return volume) → Vol/mo column now populates + new KD column. Skips markets not in Labs.
+- keyword-discovery: enriches the top-100 opportunities with KD (+ backfills competitor-sourced volume).
+- UI: matrix Rankings adds a colour-coded KD column; Keyword Opportunities table adds a KD column. cache-bust → v7.4.20.
+- Cost: ~2 extra DataForSEO calls per market run (cheap, language-scoped). STILL OPEN from the research-parity track: traffic-estimation surfacing + OnPage full-site audit.
+
+Prior fix (v7.4.19): comprehensive SEO-data audit (3 parallel agents) fixed in one batch.
 - **Language-aware discovery** (the "Bahrain only 4 keywords" root cause): keyword-discovery now reads supported languages from `dfsLocations` and runs a Labs pass per language with matching seeds (ar seeds for KSA/Bahrain/Jordan, en for Pakistan, both for Egypt) via `resolveLocation()` (returns {code, languages, supported, inCache}). Stopped double-dropping zero-volume intl keywords; softened Claude dedup so Arabic morphological variants aren't collapsed.
 - **Qatar/Oman graceful skip**: resolver signals `supported:false` for markets not in Labs → keyword-discovery + competitor-matrix skip the Labs calls with a clear diag instead of the cryptic 40501.
 - **Shared aggregator helper** `_lib/aggregator-domains.js` (bare-term + boundary matching): fixes timeoutbahrain.com / zomato.qa / regional variants leaking as competitors, and the duplicate-blocklist drift between competitor-matrix-background + competitor-matrix. Boundary-aware rank attribution (no phantom ranks). AI-overview detection no longer drops real organic rows. Intl auto-detect threshold lowered to 2. SoV history de-dups same-day re-runs.

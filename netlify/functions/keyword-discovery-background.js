@@ -18,6 +18,7 @@ const { getBrandContext } = require('./_lib/brand');
 const { callClaude, extractJson } = require('./_lib/store');
 const { INTERNATIONAL_MARKETS } = require('./_lib/international-config');
 const { resolveLocation } = require('./_lib/dfs-locations');
+const { enrichKeywordsMixed } = require('./_lib/keyword-metrics');
 
 const DATAFORSEO_BASE = 'https://api.dataforseo.com/v3';
 
@@ -420,6 +421,19 @@ async function discoverKeywords(brand, store, authHeader, force = false, marketK
     .filter(k => k.tier !== 'top3') // already winning, skip
     .sort((a, b) => b.score - a.score)
     .slice(0, 100); // top 100 opportunities
+
+  // Enrich with Keyword Difficulty (volume already present from keyword_ideas).
+  try {
+    const m = await enrichKeywordsMixed(opportunities.map(o => o.keyword), locationCode, authHeader);
+    for (const o of opportunities) {
+      const e = m[o.keyword.toLowerCase()];
+      if (e) {
+        if (e.kd != null) o.kd = e.kd;
+        if ((!o.volume || o.volume === 0) && e.volume != null) o.volume = e.volume; // backfill competitor-sourced volume
+      }
+    }
+    console.log(`${tag} KD-enriched ${Object.keys(m).length} opportunity keywords`);
+  } catch (e) { console.warn(`${tag} KD enrich failed: ${e.message}`); }
 
   const summary = {
     quick_win:    opportunities.filter(k => k.tier === 'quick_win').length,

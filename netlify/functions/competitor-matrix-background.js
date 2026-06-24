@@ -19,6 +19,7 @@ const { getStore } = require("@netlify/blobs");
 const { INTERNATIONAL_MARKETS, MARKET_LOCATION_CODES } = require('./_lib/international-config');
 const { resolveLocation } = require('./_lib/dfs-locations');
 const { isAggregatorDomain, domainMatches } = require('./_lib/aggregator-domains');
+const { enrichKeywordsMixed } = require('./_lib/keyword-metrics');
 
 const CACHE_KEY_PREFIX           = "competitorMatrix:";
 const COMPETITOR_KEY_PREFIX      = "competitorConfig:";
@@ -697,6 +698,25 @@ exports.handler = async (event) => {
       const { rows: rawRows, domainFrequency } = await fetchSerpRankings(brand, config);
       const rows            = detectMovement(rawRows, previousRows);
       const ourDomain       = new URL(config.siteUrl).hostname.replace(/^www\./, "");
+
+      // ── Enrich rows with volume + CPC + Keyword Difficulty ────────────────
+      // SERP results don't carry search volume; fetch it (+ KD) from the Keyword
+      // Data / Labs layer, language-aware. Skip markets not in Labs (no valid code).
+      if (!isIntlRun || config.labsSupported) {
+        try {
+          const authH   = "Basic " + Buffer.from(`${process.env.DATAFORSEO_LOGIN}:${process.env.DATAFORSEO_PASSWORD}`).toString("base64");
+          const metrics = await enrichKeywordsMixed(rows.map(r => r.keyword), config.location_code, authH);
+          for (const row of rows) {
+            const m = metrics[(row.keyword || "").toLowerCase()];
+            if (m) {
+              if (m.volume != null) row.searchVolume = m.volume;
+              if (m.cpc    != null) row.cpc_usd      = m.cpc;
+              row.keywordDifficulty = m.kd;
+            }
+          }
+          console.log(`[competitor-matrix] ${brand}/${marketKey} — enriched ${Object.keys(metrics).length} keywords (vol/cpc/KD)`);
+        } catch (e) { console.warn(`[competitor-matrix] enrich failed: ${e.message}`); }
+      }
 
       // ── Auto-detected competitors ─────────────────────────────────────────
       const autoDetected  = buildAutoDetected(domainFrequency, config.competitors, ourDomain, isIntlRun ? 2 : 3);
