@@ -8249,16 +8249,29 @@ async function executeAuditAction(route, title, action, finding, keyword, brand,
   const actualBrand = brand === 'both' ? 'pickl' : brand;
   try {
     if (route === 'queue') {
-      // Add keyword to seed list → picks up on next content run
-      const res = await apiGet('/api/seed-keywords');
-      const existing = res[actualBrand] || [];
       const kw = keyword || title;
-      if (!existing.includes(kw)) {
-        await apiPost('/api/seed-keywords', { brand: actualBrand, keywords: [...existing, kw] });
+      const auditMarket = document.getElementById('audit-market-select')?.value || 'uae_country';
+      const isIntl = auditMarket && auditMarket !== 'uae' && auditMarket !== 'uae_country';
+      if (isIntl) {
+        // Intl: the UAE seed list isn't consumed for intl markets — queue a market-tagged brief.
+        await apiPost('/api/approvals', {
+          action: 'create', type: 'blog_draft', brand: actualBrand,
+          title: `Content brief: ${kw}`, reason: `Competitor gap — ${auditMarket}`,
+          payload: { targetKeyword: kw, market: auditMarket, keywordTier: 'Opportunity', isSeedKeyword: true },
+        });
+        btn.textContent = '✓ Queued';
+        btn.style.background = '#059669';
+        showToast(`"${kw}" queued as a content brief for ${auditMarket}`, 'success');
+      } else {
+        const res = await apiGet('/api/seed-keywords');
+        const existing = res[actualBrand] || [];
+        if (!existing.includes(kw)) {
+          await apiPost('/api/seed-keywords', { brand: actualBrand, keywords: [...existing, kw] });
+        }
+        btn.textContent = '✓ Queued';
+        btn.style.background = '#059669';
+        showToast(`"${kw}" added to ${actualBrand} content pipeline — runs next Monday or trigger manually`, 'success');
       }
-      btn.textContent = '✓ Queued';
-      btn.style.background = '#059669';
-      showToast(`"${kw}" added to ${actualBrand} content pipeline — runs next Monday or trigger manually`, 'success');
 
     } else if (route === 'perch') {
       // Create Perch task
@@ -8343,6 +8356,14 @@ async function perchOppKeyword(keyword, brand, btn) {
 async function queueAuditKeyword(keyword) {
   try {
     const brand = state.activeAnalyticsBrand === 'bonbird' ? 'bonbird' : 'pickl';
+    const am = document.getElementById('audit-market-select')?.value || 'uae_country';
+    if (am && am !== 'uae' && am !== 'uae_country') {
+      await apiPost('/api/approvals', { action:'create', type:'blog_draft', brand,
+        title:`Content brief: ${keyword}`, reason:`Competitor gap — ${am}`,
+        payload:{ targetKeyword: keyword, market: am, keywordTier:'Opportunity', isSeedKeyword:true } });
+      showToast(`"${keyword}" queued as a content brief for ${am}`, 'success');
+      return;
+    }
     const res   = await fetch('/api/seed-keywords', { credentials: 'include' }).then(r => r.json());
     const existing = res[brand] || [];
     if (existing.includes(keyword)) { showToast('Already in seed list', ''); return; }
@@ -8505,15 +8526,25 @@ async function refreshKeywordOpportunities() {
 
 async function queueAllAuditOpportunities(domain, brand) {
   try {
-    const analysis = await apiGet(`/api/keyword-opportunities?brand=${brand}&audit=${encodeURIComponent(domain)}`);
+    const am = document.getElementById('audit-market-select')?.value || 'uae_country';
+    const isIntl = am && am !== 'uae' && am !== 'uae_country';
+    const analysis = await apiGet(`/api/keyword-opportunities?brand=${brand}&audit=${encodeURIComponent(domain)}${isIntl ? '&market=' + am : ''}`);
     const gaps = (analysis.opportunities || []).filter(k => ['content_gap','push','quick_win'].includes(k.tier));
     if (!gaps.length) { showToast('No actionable opportunities found', 'error'); return; }
-    let queued = 0;
+    if (isIntl) {
+      // Intl: create market-tagged briefs instead of silently writing the UAE seed list.
+      for (const k of gaps) {
+        await apiPost('/api/approvals', { action:'create', type:'blog_draft', brand,
+          title:`Content brief: ${k.keyword}`, reason:`Competitor gap — ${am}`,
+          payload:{ targetKeyword: k.keyword, market: am, keywordTier: k.tier, isSeedKeyword:true } });
+      }
+      showToast(`✅ ${gaps.length} content briefs queued for ${am}`, 'success');
+      return;
+    }
     const existing = (await apiGet('/api/seed-keywords'))[brand] || [];
     const updated  = [...new Set([...existing, ...gaps.map(k => k.keyword)])];
     await apiPost('/api/seed-keywords', { brand, keywords: updated });
-    queued = updated.length - existing.length;
-    showToast(`✅ ${queued} opportunities queued for ${brand}`, 'success');
+    showToast(`✅ ${updated.length - existing.length} opportunities queued for ${brand}`, 'success');
   } catch (e) { showToast('Failed: ' + e.message, 'error'); }
 }
 
@@ -11677,7 +11708,7 @@ function fmtRelativeDate(iso) {
   return new Date(iso).toLocaleDateString('en-GB', { day: 'numeric', month: 'short' });
 }
 </script>
-<script src="/js/competitor-matrix-ui.js?v=7.4.17"></script>
+<script src="/js/competitor-matrix-ui.js?v=7.4.19"></script>
 <!-- ═══ PERCH SIDE PANEL ═══ -->
 <div id="perch-side-panel">
   <div id="perch-panel-content" style="padding:0"></div>

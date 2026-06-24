@@ -3642,9 +3642,17 @@ Update "Current URL" from `yolkseo.netlify.app` to `thenest.yolkbrands.com`
 
 ---
 
-## Current Version: v7.4.18
+## Current Version: v7.4.19
 
-Last fix (v7.4.18): WRONG DataForSEO location codes (Qatar=179 etc. → "40501 Invalid Field: location_code") + authoritative resolver covering ALL countries.
+Last fix (v7.4.19): comprehensive SEO-data audit (3 parallel agents) fixed in one batch.
+- **Language-aware discovery** (the "Bahrain only 4 keywords" root cause): keyword-discovery now reads supported languages from `dfsLocations` and runs a Labs pass per language with matching seeds (ar seeds for KSA/Bahrain/Jordan, en for Pakistan, both for Egypt) via `resolveLocation()` (returns {code, languages, supported, inCache}). Stopped double-dropping zero-volume intl keywords; softened Claude dedup so Arabic morphological variants aren't collapsed.
+- **Qatar/Oman graceful skip**: resolver signals `supported:false` for markets not in Labs → keyword-discovery + competitor-matrix skip the Labs calls with a clear diag instead of the cryptic 40501.
+- **Shared aggregator helper** `_lib/aggregator-domains.js` (bare-term + boundary matching): fixes timeoutbahrain.com / zomato.qa / regional variants leaking as competitors, and the duplicate-blocklist drift between competitor-matrix-background + competitor-matrix. Boundary-aware rank attribution (no phantom ranks). AI-overview detection no longer drops real organic rows. Intl auto-detect threshold lowered to 2. SoV history de-dups same-day re-runs.
+- **5 silent-UAE-write bugs fixed** (writes now respect the selected market, route intl to market-tagged briefs/config): addCompetitorFromAlert, cmAddDiscoveredCompetitor, executeAuditAction(queue), queueAuditKeyword, queueAllAuditOpportunities.
+- **Misleading labels**: matrix no longer hardcodes "UAE (EN) · Desktop" — shows the active market via cmLocaleLabel(). cache-bust → v7.4.19.
+- STILL OPEN (separate build): matrix Vol/mo column needs a Keyword-Data enrichment call (SERP doesn't return volume) — bundled with the KD + traffic research-parity task.
+
+Prior fix (v7.4.18): WRONG DataForSEO location codes (Qatar=179 etc. → "40501 Invalid Field: location_code") + authoritative resolver covering ALL countries.
 - Root cause: several intl `location_code`s in `_lib/international-config.js` were wrong/invalid for DataForSEO (Qatar 179, Bahrain 17000, Oman 2114, Jordan 2144 looked off; KSA 2682 / Egypt 2818 / Pakistan 2586 / UAE 2784 correct). This is a DIFFERENT error than the v7.4.13 language_code fix.
 - Robust fix (not per-country patching): `dataforseo-locations.js` fetches DataForSEO Labs' authoritative `locations_and_languages`, caches a country→{code,iso,languages} map for ALL countries in Blobs `dfsLocations`, and returns a configured-vs-authoritative comparison. `_lib/dfs-locations.js resolveLocationCode(country, fallback)` reads it. Wired into keyword-discovery, competitor-matrix (loadBrandConfig), competitor-audit — each resolves its code by market.label, falling back to the config code if cache missing (so it can only improve, never break). Any future market resolves automatically by country.
 - **MUST DO after deploy:** trigger `GET /.netlify/functions/dataforseo-locations` once to populate the cache (then all markets resolve authoritative codes). `?refresh=true` to refetch.

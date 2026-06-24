@@ -35,6 +35,13 @@
     return SERP_OCCUPIER_TERMS.some(term => lower.includes(term));
   }
 
+  // Locale label for the active market (stops the matrix mislabelling intl data as "UAE (EN)").
+  function cmLocaleLabel() {
+    if (!currentMarketFilter || currentMarketFilter === "uae") return "UAE · English";
+    const txt = (document.querySelector("#cm-market-filter option:checked")?.textContent || currentMarketFilter).trim();
+    return txt.replace(/^[^A-Za-z]+/, "") || currentMarketFilter; // strip leading flag emoji
+  }
+
   // ── State ──────────────────────────────────────────────────────────────────
   let currentBrandFilter  = "all";
   let currentMarketFilter = "uae"; // 'uae' | market key e.g. 'pickl_bahrain'
@@ -366,7 +373,7 @@
       showBrandFilter: true, showRefresh: true, showExport: true,
     });
 
-    if (lastFetched) html += `<div class="cm-meta">Last updated: ${formatDate(lastFetched)} · DataForSEO · UAE (EN) · Desktop</div>`;
+    if (lastFetched) html += `<div class="cm-meta">Last updated: ${formatDate(lastFetched)} · DataForSEO · ${cmLocaleLabel()} · Desktop</div>`;
 
     html += renderAlertBanner(container);
 
@@ -461,7 +468,7 @@
       <span class="cm-legend-item"><span class="cm-legend-dot" style="background:#d97706"></span>#4–10</span>
       <span class="cm-legend-item"><span class="cm-legend-dot" style="background:#64748b"></span>#11–20</span>
       <span class="cm-legend-item"><span class="cm-legend-dot" style="background:#f87171"></span>#21+</span>
-      <span style="margin-left:auto">UAE · English · Desktop · Source: DataForSEO</span>
+      <span style="margin-left:auto">${cmLocaleLabel()} · Desktop · Source: DataForSEO</span>
     </div>`;
 
     container.innerHTML = html;
@@ -1232,18 +1239,23 @@
 
   async function addCompetitorFromAlert(brand, name, domain) {
     try {
-      const existing = competitorData?.[brand]?.competitors || [];
+      const isIntl = currentMarketFilter && currentMarketFilter !== "uae";
+      // Write to the selected market's list — NOT silently to UAE.
+      const dataset  = isIntl ? marketCompetitorData : competitorData;
+      const existing = dataset?.[brand]?.competitors || [];
       if (existing.some(c => c.domain === domain)) return;
       const updated = [...existing, { name, domain }];
+      const body = isIntl ? { brand, market: currentMarketFilter, competitors: updated } : { brand, competitors: updated };
       const res = await fetch(COMPETITOR_CONFIG_URL, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ brand, competitors: updated }),
+        body: JSON.stringify(body),
       });
       if (res.ok) {
-        if (!competitorData) competitorData = {};
-        competitorData[brand] = { competitors: updated };
-        alert(`✓ "${name}" added to ${BRAND_COLORS[brand]?.label || brand} competitors. They'll appear in the matrix on next Refresh Now.`);
+        if (isIntl) { if (!marketCompetitorData) marketCompetitorData = {}; marketCompetitorData[brand] = { competitors: updated }; }
+        else        { if (!competitorData) competitorData = {}; competitorData[brand] = { competitors: updated }; }
+        const where = isIntl ? (document.querySelector("#cm-market-filter option:checked")?.textContent || currentMarketFilter).trim() : (BRAND_COLORS[brand]?.label || brand);
+        alert(`✓ "${name}" added to ${where} competitors. They'll appear on next Refresh Now.`);
         render(document.getElementById("competitor-matrix-live"));
       }
     } catch (e) { alert("Failed to add: " + e.message); }
@@ -1599,12 +1611,13 @@ function cmShowAllGaps(compKey, btn) {
 async function cmAddDiscoveredCompetitor(brand, domain, btn) {
   // Derive a display name from the domain
   const name = domain.split(".")[0].replace(/-/g, " ").replace(/\b\w/g, l => l.toUpperCase());
+  // Respect the selected market — don't silently write to UAE.
+  const market = document.getElementById("cm-market-filter")?.value || "uae";
+  const isIntl = market && market !== "uae";
   btn.disabled = true; btn.textContent = "Adding…";
 
   try {
-    // Load current competitors, append new one, save
-    // Use competitor-config endpoint
-    const cRes = await fetch("/.netlify/functions/competitor-config?brand=all", { credentials: "include" });
+    const cRes = await fetch(`/.netlify/functions/competitor-config?brand=${isIntl ? brand : "all"}${isIntl ? "&market=" + market : ""}`, { credentials: "include" });
     const cData = await cRes.json();
     const existing = cData?.[brand]?.competitors || [];
     if (existing.some(c => c.domain === domain)) { btn.textContent = "✓ Added"; return; }
@@ -1612,7 +1625,7 @@ async function cmAddDiscoveredCompetitor(brand, domain, btn) {
     await fetch("/.netlify/functions/competitor-config", {
       method: "POST", credentials: "include",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ brand, competitors: updated }),
+      body: JSON.stringify(isIntl ? { brand, market, competitors: updated } : { brand, competitors: updated }),
     });
     btn.textContent = "✓ Added";
     btn.style.background = "#059669";

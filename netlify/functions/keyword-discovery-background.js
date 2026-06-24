@@ -17,7 +17,7 @@ const { getStore }        = require('@netlify/blobs');
 const { getBrandContext } = require('./_lib/brand');
 const { callClaude, extractJson } = require('./_lib/store');
 const { INTERNATIONAL_MARKETS } = require('./_lib/international-config');
-const { resolveLocationCode } = require('./_lib/dfs-locations');
+const { resolveLocation } = require('./_lib/dfs-locations');
 
 const DATAFORSEO_BASE = 'https://api.dataforseo.com/v3';
 
@@ -85,7 +85,7 @@ function applyStaticFilter(keywords) {
 // ── DataForSEO keyword ideas ──────────────────────────────────────────────────
 // Returns { ideas: [...], diag: "<human-readable reason>" } so the UI can show
 // the REAL DataForSEO outcome instead of guessing "balance/location code".
-async function getKeywordIdeas(seeds, locationCode, authHeader, minVolume = 10) {
+async function getKeywordIdeas(seeds, locationCode, authHeader, minVolume = 10, languageCode = 'en') {
   // Labs requires country-level codes. UAE is passed as city (21191) so map it to country (2784).
   // International markets already use country-level codes so pass through unchanged.
   const kwLocationCode = locationCode === 21191 ? 2784 : locationCode;
@@ -104,7 +104,7 @@ async function getKeywordIdeas(seeds, locationCode, authHeader, minVolume = 10) 
       order_by:          ['keyword_info.search_volume,desc'],
       filters:           [['keyword_info.search_volume', '>', minVolume]],
     };
-    if (includeLanguage) payload.language_code = 'en';
+    if (includeLanguage) payload.language_code = languageCode;
     const res = await fetch(`${DATAFORSEO_BASE}/dataforseo_labs/google/keyword_ideas/live`, {
       method:  'POST',
       headers: { 'Content-Type': 'application/json', Authorization: authHeader },
@@ -153,8 +153,8 @@ async function getKeywordIdeas(seeds, locationCode, authHeader, minVolume = 10) 
     }).filter(k => k.keyword && k.volume > 0);
 
     const diag = items.length === 0
-      ? `DataForSEO OK but returned 0 ideas for location ${kwLocationCode} (${langDropped ? 'auto-lang' : 'en'}) from ${seeds.length} seeds — these seeds likely have no tracked volume in this market; try Arabic/native seeds`
-      : `${items.length} ideas fetched, ${ideas.length} with volume>10${langDropped ? ' (auto-lang)' : ''}`;
+      ? `DataForSEO OK but returned 0 ideas for location ${kwLocationCode} (${langDropped ? 'auto-lang' : languageCode}) from ${seeds.length} seeds`
+      : `${items.length} ideas fetched, ${ideas.length} with volume>${minVolume}${langDropped ? ' (auto-lang)' : ` (${languageCode})`}`;
     return { ideas, diag };
 
   } catch (e) {
@@ -212,7 +212,7 @@ REJECT — wrong intent or too generic:
 - "order food dubai" ✗ (too generic)
 - Delivery platforms: talabat, deliveroo, zomato, noon food ✗
 
-REJECT — near-duplicates: if you see 3+ variants of the same thing (jj chicken, jjs chicken, jeje chicken), keep at most 1.
+REJECT — near-duplicates: if you see 3+ variants of the SAME BRAND NAME (jj chicken, jjs chicken, jeje chicken), keep at most 1. BUT do NOT treat Arabic morphological/phrasing variants of a real category as duplicates — "برغر", "أفضل برغر", "مطعم برغر", "مطاعم برغر" are DISTINCT valid keywords, KEEP them all.
 
 Return a JSON array of numbers only. Example: [1, 3, 7, 12]
 
@@ -286,14 +286,14 @@ async function discoverKeywords(brand, store, authHeader, force = false, marketK
   // NOTE: marketLabel/locationCode declared BEFORE brandGenericSeeds — they are
   // referenced inside the template literals below (TDZ crash if declared after).
   const marketLabel   = isIntl ? market.label : 'UAE';
-  // Resolve from DataForSEO's authoritative list by country (config code = fallback).
-  const locationCode  = isIntl ? await resolveLocationCode(market.label, market.location_code) : MARKET_LOCATIONS.UAE;
+  // Resolve location + supported languages from DataForSEO's authoritative list.
+  const loc = isIntl
+    ? await resolveLocation(market.label)
+    : { code: MARKET_LOCATIONS.UAE, languages: ['en'], supported: true, inCache: true };
+  const locationCode = loc.code || (isIntl ? market.location_code : MARKET_LOCATIONS.UAE);
   const brandGenericSeeds = brand === 'pickl'
     ? [`best burger in ${marketLabel}`, `burger restaurant ${marketLabel}`, `smash burger ${marketLabel}`]
     : [`best fried chicken in ${marketLabel}`, `fried chicken restaurant ${marketLabel}`, `crispy chicken ${marketLabel}`];
-  const seeds = isIntl
-    ? [...(market.seedKeywords?.en || []), ...(market.seedKeywords?.ar || []), ...brandGenericSeeds].filter(Boolean)
-    : (BRAND_SEEDS[brand] || []);
 
   // Load GSC cache — international pages live on same GSC property
   const GSC_URL   = brand === 'pickl' ? 'https://eatpickl.com/' : 'sc-domain:bonbirdchicken.com';
@@ -328,9 +328,38 @@ async function discoverKeywords(brand, store, authHeader, force = false, marketK
   }
   console.log(`${tag} competitor keywords loaded: ${Object.keys(compMap).length} unique`);
 
-  // Low-volume / non-UAE markets: relax the min-volume gate so thin-but-real
-  // demand isn't filtered to zero (English burger terms have near-0 volume in KSA).
-  const { ideas, diag: ideasDiag } = await getKeywordIdeas(seeds, locationCode, authHeader, isIntl ? 0 : 10);
+  // ── Fetch keyword ideas, LANGUAGE-AWARE ──────────────────────────────────
+  // DataForSEO Labs keyword databases are per-country-per-language. KSA/Bahrain/
+  // Jordan are Arabic-ONLY — sending English there returns ~nothing (or 40501).
+  // Qatar/Oman aren't in Labs at all. Use the authoritative languages + matching
+  // seeds, and skip gracefully when the market isn't in Labs.
+  let ideas = [];
+  let ideasDiag = '';
+  if (isIntl && loc.inCache && loc.supported === false) {
+    ideasDiag = `${marketLabel} is not in DataForSEO Labs — no keyword_ideas (relying on GSC + competitor data)`;
+    console.warn(`${tag} ${ideasDiag}`);
+  } else {
+    const minVol = isIntl ? 0 : 10;
+    const langs  = (isIntl && loc.languages.length) ? loc.languages : ['en'];
+    const seedsFor = (lang) => {
+      if (!isIntl) return BRAND_SEEDS[brand] || [];
+      if (lang === 'ar') return (market.seedKeywords?.ar || []);
+      return [...(market.seedKeywords?.en || []), ...brandGenericSeeds];
+    };
+    const seenIdea = new Set();
+    const perLang  = [];
+    for (const lang of langs.slice(0, 2)) { // cap at 2 language passes
+      const seedSet = seedsFor(lang).filter(Boolean);
+      if (!seedSet.length) continue;
+      const { ideas: li } = await getKeywordIdeas(seedSet, locationCode, authHeader, minVol, lang);
+      perLang.push(`${lang}:${li.length}`);
+      for (const k of li) {
+        const key = k.keyword.toLowerCase();
+        if (!seenIdea.has(key)) { seenIdea.add(key); ideas.push(k); }
+      }
+    }
+    ideasDiag = `langs[${langs.join(',')}] → ${ideas.length} ideas (${perLang.join(' ')})`;
+  }
   console.log(`${tag} DataForSEO returned ${ideas.length} keyword ideas (${marketLabel}) — ${ideasDiag}`);
 
   // Static off-menu filter first (cheap, no API call), then Claude for brand/intent relevance
@@ -368,7 +397,7 @@ async function discoverKeywords(brand, store, authHeader, force = false, marketK
 
   // Score and tier (no static filter — Claude already cleaned the list)
   const opportunities = unique
-    .filter(k => k.volume >= (isIntl ? 1 : 10) || k.fromCompetitor)
+    .filter(k => k.volume >= (isIntl ? 0 : 10) || k.fromCompetitor)
     .map(k => {
       const kw           = k.keyword.toLowerCase();
       const ourPosition  = gscMap[kw] || null;

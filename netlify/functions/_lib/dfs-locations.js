@@ -12,18 +12,32 @@ function store() {
   return getStore({ name: 'seo-tool', siteID: process.env.NETLIFY_SITE_ID, token: process.env.NETLIFY_AUTH_TOKEN });
 }
 
-// resolveLocationCode(countryName, fallbackCode, isoCode?) -> number
-async function resolveLocationCode(country, fallback = null, isoCode = null) {
+// resolveLocation(country, isoCode?) -> full record so callers know the supported
+// languages AND whether the market is in DataForSEO Labs at all.
+//   { code, languages, supported, inCache }
+//   - inCache=false  → the authoritative list hasn't been fetched yet (caller should
+//                      fall back to its config code; don't treat as "unsupported")
+//   - supported=false → list IS cached but this country is NOT in Labs (e.g. Qatar,
+//                       Oman) → caller should SKIP Labs calls gracefully, not POST
+//                       an invalid code.
+async function resolveLocation(country, isoCode = null) {
   try {
     const map = await store().get('dfsLocations', { type: 'json' });
-    if (map) {
-      const byName = country && map.byName && map.byName[String(country).toLowerCase()];
-      if (byName && byName.code) return byName.code;
-      const byIso = isoCode && map.byIso && map.byIso[String(isoCode).toLowerCase()];
-      if (byIso && byIso.code) return byIso.code;
-    }
-  } catch { /* fall through to fallback */ }
-  return fallback;
+    if (!map) return { code: null, languages: [], supported: null, inCache: false };
+    const rec = (country && map.byName && map.byName[String(country).toLowerCase()])
+             || (isoCode && map.byIso && map.byIso[String(isoCode).toLowerCase()])
+             || null;
+    if (rec && rec.code) return { code: rec.code, languages: rec.languages || [], supported: true, inCache: true };
+    return { code: null, languages: [], supported: false, inCache: true };
+  } catch {
+    return { code: null, languages: [], supported: null, inCache: false };
+  }
 }
 
-module.exports = { resolveLocationCode };
+// Back-compat: resolveLocationCode(countryName, fallbackCode, isoCode?) -> number
+async function resolveLocationCode(country, fallback = null, isoCode = null) {
+  const r = await resolveLocation(country, isoCode);
+  return (r.code != null) ? r.code : fallback;
+}
+
+module.exports = { resolveLocation, resolveLocationCode };

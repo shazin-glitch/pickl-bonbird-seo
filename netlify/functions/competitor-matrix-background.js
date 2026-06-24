@@ -17,7 +17,8 @@
 
 const { getStore } = require("@netlify/blobs");
 const { INTERNATIONAL_MARKETS, MARKET_LOCATION_CODES } = require('./_lib/international-config');
-const { resolveLocationCode } = require('./_lib/dfs-locations');
+const { resolveLocation } = require('./_lib/dfs-locations');
+const { isAggregatorDomain, domainMatches } = require('./_lib/aggregator-domains');
 
 const CACHE_KEY_PREFIX           = "competitorMatrix:";
 const COMPETITOR_KEY_PREFIX      = "competitorConfig:";
@@ -194,12 +195,16 @@ async function loadBrandConfig(store, brand, marketKey = null) {
   let competitors = DEFAULT_COMPETITORS[brand];
   let keywords    = DEFAULT_KEYWORDS[brand];
   let location_code = 21191; // Default: Dubai UAE
+  let labsSupported = true;  // is this market in DataForSEO Labs? (ranked_keywords)
 
   // If a specific market is requested, use market-specific config
   if (marketKey && marketKey !== 'uae') {
     const market = INTERNATIONAL_MARKETS[marketKey];
     if (market) {
-      location_code = await resolveLocationCode(market.label, market.location_code);
+      const loc = await resolveLocation(market.label);
+      location_code = loc.code || market.location_code;
+      // Definitively-not-in-Labs (e.g. Qatar/Oman) → skip the Labs ranked_keywords step.
+      labsSupported = !(loc.inCache && loc.supported === false);
       // Use market seed keywords as the keyword list
       const marketKws = [
         ...(market.seedKeywords?.en || []),
@@ -234,6 +239,7 @@ async function loadBrandConfig(store, brand, marketKey = null) {
     location_code,
     language_code:  "en",
     marketKey:      marketKey || 'uae',
+    labsSupported,
   };
 }
 
@@ -394,7 +400,7 @@ async function fetchSerpRankings(brand, config) {
         serpFeatures.video = true;
         continue;
       }
-      if (item.type === "answer_box" || (item.type === "organic" && item.title?.includes("AI Overview"))) {
+      if (item.type === "answer_box" || item.type === "ai_overview") {
         serpFeatures.aiOverview = true;
         continue;
       }
@@ -402,17 +408,14 @@ async function fetchSerpRankings(brand, config) {
       if (item.type !== "organic") continue;
 
       // ── Our rank ──────────────────────────────────────────────────────────
-      if (ourRank === null && (itemDomain === ourDomain || itemDomain.includes(ourDomain))) {
+      if (ourRank === null && domainMatches(itemDomain, ourDomain)) {
         ourRank = rank;
       }
 
       // ── Competitor ranks ──────────────────────────────────────────────────
       for (const comp of config.competitors) {
-        if (competitorRanks[comp.name] === null) {
-          const compDomain = comp.domain.replace(/^www\./, "");
-          if (itemDomain === compDomain || itemDomain.includes(compDomain)) {
-            competitorRanks[comp.name] = rank;
-          }
+        if (competitorRanks[comp.name] === null && domainMatches(itemDomain, comp.domain)) {
+          competitorRanks[comp.name] = rank;
         }
       }
 
@@ -454,7 +457,7 @@ async function fetchSerpRankings(brand, config) {
 }
 
 // ── Auto-detect unknown competitors ──────────────────────────────────────────
-function buildAutoDetected(domainFrequency, knownCompetitors, ourDomain) {
+function buildAutoDetected(domainFrequency, knownCompetitors, ourDomain, minAppearances = 3) {
   const knownDomains = new Set([
     ourDomain,
     ...knownCompetitors.map(c => c.domain.replace(/^www\./, "")),
@@ -463,12 +466,8 @@ function buildAutoDetected(domainFrequency, knownCompetitors, ourDomain) {
   return Object.entries(domainFrequency)
     .filter(([domain, data]) => {
       if (knownDomains.has(domain)) return false;
-      if (AGGREGATOR_DOMAINS.has(domain)) return false;
-      // Check any aggregator subdomain
-      for (const agg of AGGREGATOR_DOMAINS) {
-        if (domain.endsWith("." + agg) || domain.includes(agg)) return false;
-      }
-      return data.count >= 3; // appears in 3+ keyword SERPs
+      if (isAggregatorDomain(domain)) return false; // bare-term match → catches timeoutbahrain, zomato.qa, etc.
+      return data.count >= minAppearances;
     })
     .map(([domain, data]) => ({
       domain,
@@ -700,7 +699,7 @@ exports.handler = async (event) => {
       const ourDomain       = new URL(config.siteUrl).hostname.replace(/^www\./, "");
 
       // ── Auto-detected competitors ─────────────────────────────────────────
-      const autoDetected  = buildAutoDetected(domainFrequency, config.competitors, ourDomain);
+      const autoDetected  = buildAutoDetected(domainFrequency, config.competitors, ourDomain, isIntlRun ? 2 : 3);
       const autoDetectKey = isIntlRun ? `${AUTO_DETECT_KEY}${brand}:${marketParam}` : `${AUTO_DETECT_KEY}${brand}`;
       await store.set(autoDetectKey, JSON.stringify({
         brand,
@@ -742,6 +741,7 @@ exports.handler = async (event) => {
       } catch { /* empty */ }
 
       const todayStr = new Date().toISOString().split("T")[0];
+      sovHistory = sovHistory.filter(h => h.date !== todayStr); // no duplicate entry on same-day re-run
       sovHistory.push({ date: todayStr, sov: sovCurrent });
       if (sovHistory.length > 12) sovHistory = sovHistory.slice(-12); // keep last 12
       await store.set(sovKey, JSON.stringify(sovHistory)).catch(() => {});
@@ -754,9 +754,15 @@ exports.handler = async (event) => {
       try {
         const authHeader = "Basic " + Buffer.from(`${process.env.DATAFORSEO_LOGIN}:${process.env.DATAFORSEO_PASSWORD}`).toString("base64");
         const rankedKey  = isIntlRun ? `${RANKED_KEYWORDS_KEY}${brand}:${marketParam}` : `${RANKED_KEYWORDS_KEY}${brand}`;
-        const result     = await fetchCompetitorRankedKeywords(effectiveCompetitors, config.location_code, authHeader);
-        competitorKeywords = result.resultsMap || {};
-        labsError          = result.labsError  || null;
+        if (!config.labsSupported) {
+          // Market not in DataForSEO Labs (e.g. Qatar, Oman) — skip gracefully.
+          labsError = `${marketKey} is not in DataForSEO Labs — competitor ranked keywords unavailable`;
+          console.warn(`[competitor-matrix] ${labsError}`);
+        } else {
+          const result     = await fetchCompetitorRankedKeywords(effectiveCompetitors, config.location_code, authHeader);
+          competitorKeywords = result.resultsMap || {};
+          labsError          = result.labsError  || null;
+        }
         await store.set(rankedKey, JSON.stringify({
           brand,
           market:      marketKey,

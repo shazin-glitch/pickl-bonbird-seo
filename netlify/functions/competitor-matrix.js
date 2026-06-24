@@ -33,9 +33,11 @@ const EXCLUDE_DOMAINS = new Set([
   "indeed.com","glassdoor.com","bayt.com","mrsool.co","jahez.net","thechefz.co","ubereats.com",
 ]);
 
+const { isAggregatorDomain } = require('./_lib/aggregator-domains');
 function isDomainExcluded(domain) {
   const d = domain.replace(/^www\./, "").toLowerCase();
-  return EXCLUDE_DOMAINS.has(d) || Array.from(EXCLUDE_DOMAINS).some(ex => d.endsWith("." + ex));
+  // Shared bare-term matcher (catches timeoutbahrain, zomato.qa, etc.) + the legacy list.
+  return isAggregatorDomain(domain) || EXCLUDE_DOMAINS.has(d) || Array.from(EXCLUDE_DOMAINS).some(ex => d.endsWith("." + ex));
 }
 
 async function discoverCompetitors(brand) {
