@@ -3642,9 +3642,15 @@ Update "Current URL" from `yolkseo.netlify.app` to `thenest.yolkbrands.com`
 
 ---
 
-## Current Version: v7.4.14
+## Current Version: v7.4.15
 
-Last built (v7.4.14): Local SEO — location-page populator. New background function `local-seo-pages-background.js` turns empty/thin location pages into assets.
+Last built (v7.4.15): the four Nest-code P0 SEO fixes (structure/nesting P0 stays with the dev).
+1. **Intl pipeline Arabic-aware** (root cause of KSA "1 keyword"): `.ar` seeds now used in keyword-discovery + competitor-matrix; SERP task_post sets `language_code` per keyword (Arabic script → 'ar'); `isRestaurantKeyword` accepts Arabic-script keywords; Claude relevance filter is market-aware + keeps Arabic; intl volume threshold relaxed (keyword_ideas minVolume 0, opportunity gate ≥1 for intl).
+2. **Intl discovery → content wired**: `international-seo-background.js processMarketLanguage` now reads `keywordOpportunities:<brand>:<market>` and feeds the top opportunities (by tier+score, language-matched) into `generateBlogDraft` (was orphaned — discovery ran weekly but drove zero content).
+3. **Stuck "tracking starts Monday" fixed**: `scheduler-background.js trackPublishedItems` keyword match normalised + fuzzy (containment/word-overlap) so ranking pages actually record `positionLatest`; the hardcoded Reports banner (index.html) reworded to a truthful "updates every Monday" instead of permanent "saving from next Monday".
+4. **Silent UAE-write guards**: Manage Keywords (`competitor-matrix-ui.js renderKeywords`) shows a UAE-only notice on intl markets instead of overwriting the UAE list; matrix Gaps queue guarded the same; Opportunities "Queue" (`index.html queueOppKeyword`) now creates a market-tagged content-brief approval for intl instead of writing to the UAE seed list. competitor-matrix-ui cache-bust → v7.4.15.
+
+Prior built (v7.4.14): Local SEO — location-page populator. New background function `local-seo-pages-background.js` turns empty/thin location pages into assets.
 - Reads `gbpCache:<brand>:v9` (GBP locations: name/address/maps) → generates a UNIQUE, brand-voice location page per location (real area context, local keywords, internal links, image placeholders) + deterministic LocalBusiness/Restaurant JSON-LD schema → queues as a `page_creation` approval (NOT auto-published; human reviews then publishes via existing create_page, which resolves WP creds from `brand`).
 - Voice gate ≥8 (hard-strip dashes + fixBrandVoice 3× loop). Dedup by `payload.locationId` against pending/pushed/published items.
 - Manual trigger (no cron, to control cost): `GET /.netlify/functions/local-seo-pages-background?brand=pickl` (`&force=true`, `&limit=6`). Requires the GBP cache warm (open Local SEO tab once).

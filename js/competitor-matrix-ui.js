@@ -859,6 +859,15 @@
     const brand   = btn.dataset.brand || currentBrandFilter;
     if (!keyword || !brand || brand === "all") return;
 
+    // Guard: queuing to the seed list is UAE-only. On an intl market this would
+    // silently write to the UAE list (which intl doesn't even consume).
+    if (currentMarketFilter && currentMarketFilter !== "uae") {
+      btn.textContent = "UAE-only";
+      alert("Queuing gap keywords to the content pipeline is UAE-only.\n\nInternational markets are driven automatically by the per-market keyword-discovery pipeline — no manual queue needed.");
+      setTimeout(() => { btn.textContent = "📝 Queue"; }, 2000);
+      return;
+    }
+
     btn.disabled = true;
     btn.textContent = "Adding…";
 
@@ -909,7 +918,22 @@
   // ── Keywords management view ───────────────────────────────────────────────
   function renderKeywords(container) {
     injectStyles();
-    let html = renderHeader("keywords") + `<div style="padding:20px 0">`;
+    // Guard: the tracked-keyword list is UAE-only. Editing it while an intl market
+    // is selected would silently overwrite the UAE list (intl markets use preset
+    // per-market seed keywords + SERP auto-detection, not this list).
+    if (currentMarketFilter && currentMarketFilter !== "uae") {
+      container.innerHTML = renderHeader("keywords", { showBrandFilter: true }) +
+        `<div style="padding:24px;background:#fffbeb;border:1px solid #fcd34d;border-radius:10px;margin-top:12px;font-size:13px;color:#92400e;line-height:1.6">
+          <strong>Keyword tracking list is UAE-only.</strong><br>
+          International markets use preset seed keywords per market, and their competitor matrix auto-detects keywords from the market's SERPs — there's no manual list to edit here. Switch the market back to 🇦🇪 UAE (in the dropdown above) to edit the UAE keyword list.
+        </div>`;
+      bindViewToggle(container);
+      container.querySelectorAll(".cm-filter-btn").forEach(btn => {
+        btn.addEventListener("click", () => { currentBrandFilter = btn.dataset.filter; renderKeywords(container); });
+      });
+      return;
+    }
+    let html = renderHeader("keywords", { showBrandFilter: true }) + `<div style="padding:20px 0">`;
 
     for (const brand of ["pickl","bonbird"]) {
       const keywords = keywordData?.[brand]?.keywords || [];

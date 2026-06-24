@@ -306,9 +306,23 @@ async function trackPublishedItems(brand, gscRows) {
       if (!item.trackingKeyword) continue;
       if (item.publishedAt && item.publishedAt < cutoff) continue; // older than 8 weeks
 
-      const kw     = item.trackingKeyword.toLowerCase();
-      const posNow = kwPosMap[kw] ? Math.round(kwPosMap[kw] * 10) / 10 : null;
-      const clicks = kwClicksMap[kw] || null;
+      // Normalise + fuzzy-match: a published page's tracked keyword often differs
+      // slightly from the exact GSC query (rewordings, extra/missing words), so an
+      // exact-string lookup left ranking pages permanently stuck on "tracking
+      // starts Monday." Try exact first, then containment/word-overlap.
+      const kwNorm = item.trackingKeyword.toLowerCase().replace(/\s+/g, ' ').trim();
+      let posNow = kwPosMap[kwNorm] != null ? kwPosMap[kwNorm] : null;
+      let clicks = kwClicksMap[kwNorm] || null;
+      if (posNow == null) {
+        const words = kwNorm.split(' ').filter(w => w.length > 2);
+        let best = null;
+        for (const gkw of Object.keys(kwPosMap)) {
+          const score = (gkw.includes(kwNorm) || kwNorm.includes(gkw)) ? 99 : words.filter(w => gkw.includes(w)).length;
+          if (score >= 2 && (!best || kwPosMap[gkw] < best.pos)) best = { pos: kwPosMap[gkw], clicks: kwClicksMap[gkw] || null };
+        }
+        if (best) { posNow = best.pos; clicks = best.clicks; }
+      }
+      posNow = posNow != null ? Math.round(posNow * 10) / 10 : null;
 
       const patch = { ...item, lastTrackedAt: Date.now() };
 

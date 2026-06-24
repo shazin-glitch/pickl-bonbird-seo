@@ -51,7 +51,7 @@
 
 ---
 
-## Current Version: v7.4.14
+## Current Version: v7.4.15
 
 See SETUP.md → "Done (Full History)" for complete build log.
 

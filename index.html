@@ -5652,7 +5652,7 @@ function renderReports(brand, rows, techData, queue, matrixData, perfSummary) {
           <span style="font-size:22px;font-weight:800;color:${s.color}">${s.value}</span>
         </div>`).join('')}
       <div style="padding:10px 14px;background:var(--bg-base);border-radius:8px;font-size:12px;color:var(--text-muted)">
-        📅 Weekly snapshots saving from <strong>next Monday</strong> — ranking movement tracking enabled
+        📊 Ranking movement for published content updates every Monday.
       </div>
       <div style="font-size:11px;color:var(--text-muted);padding:4px 0">Source: The Nest Approvals Queue · last 30 days</div>
     </div>`;
@@ -8297,15 +8297,29 @@ async function executeAuditAction(route, title, action, finding, keyword, brand,
 
 // Queue a keyword from Keyword Opportunities into the content pipeline
 async function queueOppKeyword(keyword, brand, btn) {
+  const market = document.getElementById('opp-market-filter')?.value || 'uae';
   btn.disabled = true; btn.textContent = '…';
   try {
-    const res = await apiGet('/api/seed-keywords');
-    const existing = res[brand] || [];
-    if (!existing.includes(keyword)) {
-      await apiPost('/api/seed-keywords', { brand, keywords: [...existing, keyword] });
+    if (market && market !== 'uae') {
+      // International: the UAE seed list isn't consumed for intl markets, so queue
+      // a market-tagged content brief approval instead of silently writing to UAE.
+      await apiPost('/api/approvals', {
+        action: 'create', type: 'blog_draft', brand,
+        title:  `Content brief: ${keyword}`,
+        reason: `Keyword opportunity — ${market}`,
+        payload: { targetKeyword: keyword, market, keywordTier: 'Opportunity', isSeedKeyword: true },
+      });
+      btn.textContent = '✓'; btn.style.color = '#059669';
+      showToast(`"${keyword}" queued as a content brief for ${market}`, 'success');
+    } else {
+      const res = await apiGet('/api/seed-keywords');
+      const existing = res[brand] || [];
+      if (!existing.includes(keyword)) {
+        await apiPost('/api/seed-keywords', { brand, keywords: [...existing, keyword] });
+      }
+      btn.textContent = '✓'; btn.style.color = '#059669';
+      showToast(`"${keyword}" added to ${brand} content pipeline — runs Monday`, 'success');
     }
-    btn.textContent = '✓'; btn.style.color = '#059669';
-    showToast(`"${keyword}" added to ${brand} content pipeline — runs Monday`, 'success');
   } catch (e) { btn.disabled = false; btn.textContent = '📝 Queue'; showToast('Failed: ' + e.message, 'error'); }
 }
 
@@ -11663,7 +11677,7 @@ function fmtRelativeDate(iso) {
   return new Date(iso).toLocaleDateString('en-GB', { day: 'numeric', month: 'short' });
 }
 </script>
-<script src="/js/competitor-matrix-ui.js?v=7.4.12"></script>
+<script src="/js/competitor-matrix-ui.js?v=7.4.15"></script>
 <!-- ═══ PERCH SIDE PANEL ═══ -->
 <div id="perch-side-panel">
   <div id="perch-panel-content" style="padding:0"></div>

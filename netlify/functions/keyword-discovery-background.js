@@ -80,7 +80,7 @@ function applyStaticFilter(keywords) {
 // ── DataForSEO keyword ideas ──────────────────────────────────────────────────
 // Returns { ideas: [...], diag: "<human-readable reason>" } so the UI can show
 // the REAL DataForSEO outcome instead of guessing "balance/location code".
-async function getKeywordIdeas(seeds, locationCode, authHeader) {
+async function getKeywordIdeas(seeds, locationCode, authHeader, minVolume = 10) {
   // Labs requires country-level codes. UAE is passed as city (21191) so map it to country (2784).
   // International markets already use country-level codes so pass through unchanged.
   const kwLocationCode = locationCode === 21191 ? 2784 : locationCode;
@@ -97,7 +97,7 @@ async function getKeywordIdeas(seeds, locationCode, authHeader) {
       limit:             200,
       include_serp_info: false,
       order_by:          ['keyword_info.search_volume,desc'],
-      filters:           [['keyword_info.search_volume', '>', 10]],
+      filters:           [['keyword_info.search_volume', '>', minVolume]],
     };
     if (includeLanguage) payload.language_code = 'en';
     const res = await fetch(`${DATAFORSEO_BASE}/dataforseo_labs/google/keyword_ideas/live`, {
@@ -162,7 +162,7 @@ async function getKeywordIdeas(seeds, locationCode, authHeader) {
 // Sends all keywords to Claude in one batch — model understands brand context and
 // filters out irrelevant keywords (wrong cuisine, competitor brand names, unrelated
 // businesses) far more reliably than a static list ever could.
-async function filterKeywordsWithClaude(keywords, brandName, brandCtx) {
+async function filterKeywordsWithClaude(keywords, brandName, brandCtx, marketLabel = 'UAE') {
   if (!keywords.length) return keywords;
 
   const menuSummary = Object.entries(brandCtx?.menu || {})
@@ -176,17 +176,18 @@ async function filterKeywordsWithClaude(keywords, brandName, brandCtx) {
     ? 'butter chicken, biryani, shawarma, pizza, pasta, sushi, coffee, cheesecake, bakery items, Indian food, Middle Eastern food not on menu'
     : 'burgers (we sell chicken, not burgers), pizza, pasta, shawarma, sushi, coffee, biryani, butter chicken, kung pao, tikka masala, curry dishes, bakery items';
 
-  const prompt = `You are filtering keyword research results for ${brandName}, a UAE restaurant.
+  const prompt = `You are filtering keyword research results for ${brandName}, a restaurant operating in ${marketLabel}.
 
 What ${brandName} sells: ${menuSummary}
 
-Below are ${keywords.length} keywords. Return ONLY the numbers of keywords that are CATEGORY or INTENT searches — where someone is looking for a TYPE of food or restaurant that ${brandName} actually sells.
+Below are ${keywords.length} keywords. Return ONLY the numbers of keywords that are CATEGORY or INTENT searches — where someone is looking for a TYPE of food or restaurant that ${brandName} actually sells. This is a ${marketLabel} market, so local-language (e.g. Arabic) category searches are valid and should be KEPT.
 
 KEEP examples:
 - "best burger in dubai" ✓ (category search — Pickl sells burgers)
 - "smash burger dubai" ✓ (food type Pickl sells)
 - "fried chicken restaurant dubai" ✓ (category search — Bonbird sells fried chicken)
 - "crispy chicken delivery dubai" ✓ (Bonbird food type + intent)
+- "برغر" / "أفضل برغر" / "دجاج مقلي" / "مطعم برغر" ✓ (Arabic category searches for food the brand sells — KEEP these)
 
 REJECT — competitor brand names (most important rule):
 - "dime burger" ✗ (Dime Burger is a UAE restaurant chain)
@@ -285,7 +286,7 @@ async function discoverKeywords(brand, store, authHeader, force = false, marketK
     ? [`best burger in ${marketLabel}`, `burger restaurant ${marketLabel}`, `smash burger ${marketLabel}`]
     : [`best fried chicken in ${marketLabel}`, `fried chicken restaurant ${marketLabel}`, `crispy chicken ${marketLabel}`];
   const seeds = isIntl
-    ? [...(market.seedKeywords?.en || []), ...brandGenericSeeds].filter(Boolean)
+    ? [...(market.seedKeywords?.en || []), ...(market.seedKeywords?.ar || []), ...brandGenericSeeds].filter(Boolean)
     : (BRAND_SEEDS[brand] || []);
 
   // Load GSC cache — international pages live on same GSC property
@@ -319,13 +320,15 @@ async function discoverKeywords(brand, store, authHeader, force = false, marketK
   }
   console.log(`${tag} competitor keywords loaded: ${Object.keys(compMap).length} unique`);
 
-  const { ideas, diag: ideasDiag } = await getKeywordIdeas(seeds, locationCode, authHeader);
+  // Low-volume / non-UAE markets: relax the min-volume gate so thin-but-real
+  // demand isn't filtered to zero (English burger terms have near-0 volume in KSA).
+  const { ideas, diag: ideasDiag } = await getKeywordIdeas(seeds, locationCode, authHeader, isIntl ? 0 : 10);
   console.log(`${tag} DataForSEO returned ${ideas.length} keyword ideas (${marketLabel}) — ${ideasDiag}`);
 
   // Static off-menu filter first (cheap, no API call), then Claude for brand/intent relevance
   const staticFilteredIdeas = applyStaticFilter(ideas);
   console.log(`${tag} static filter: ${ideas.length} → ${staticFilteredIdeas.length} ideas`);
-  const filteredIdeas = await filterKeywordsWithClaude(staticFilteredIdeas, brandName, brandCtx);
+  const filteredIdeas = await filterKeywordsWithClaude(staticFilteredIdeas, brandName, brandCtx, marketLabel);
 
   // Also add competitor keywords we don't yet track
   const rawCompKeywords = Object.entries(compMap)
@@ -342,7 +345,7 @@ async function discoverKeywords(brand, store, authHeader, force = false, marketK
   const staticFilteredComp = applyStaticFilter(rawCompKeywords);
   console.log(`${tag} comp static filter: ${rawCompKeywords.length} → ${staticFilteredComp.length} keywords`);
   const filteredComp = staticFilteredComp.length > 0
-    ? await filterKeywordsWithClaude(staticFilteredComp.slice(0, 80), brandName, brandCtx)
+    ? await filterKeywordsWithClaude(staticFilteredComp.slice(0, 80), brandName, brandCtx, marketLabel)
     : [];
   console.log(`${tag} comp Claude filter: ${staticFilteredComp.length} → ${filteredComp.length} keywords`);
 
@@ -357,7 +360,7 @@ async function discoverKeywords(brand, store, authHeader, force = false, marketK
 
   // Score and tier (no static filter — Claude already cleaned the list)
   const opportunities = unique
-    .filter(k => k.volume >= 10 || k.fromCompetitor)
+    .filter(k => k.volume >= (isIntl ? 1 : 10) || k.fromCompetitor)
     .map(k => {
       const kw           = k.keyword.toLowerCase();
       const ourPosition  = gscMap[kw] || null;

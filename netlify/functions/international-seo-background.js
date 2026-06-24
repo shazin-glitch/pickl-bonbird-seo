@@ -642,8 +642,13 @@ function parseSection(text, section) {
 }
 
 // ── Generate blog draft for a market+language ─────────────────────────────────
-async function generateBlogDraft(market, brandCtx, brandExamples, language, usedKeywords = new Set(), feedbackNotes = []) {
-  const keywords = market.seedKeywords[language] || market.seedKeywords['en'];
+async function generateBlogDraft(market, brandCtx, brandExamples, language, usedKeywords = new Set(), feedbackNotes = [], opportunityKeywords = []) {
+  // Discovered keyword opportunities (from keyword-discovery) take priority over
+  // static seeds — this is the wiring that makes intl discovery actually drive
+  // content. Match opportunity keywords to the pass language (Arabic vs Latin).
+  const isAr    = language === 'ar';
+  const oppKw   = (opportunityKeywords || []).filter(k => isAr ? /[؀-ۿ]/.test(k) : !/[؀-ۿ]/.test(k));
+  const keywords = [...oppKw, ...(market.seedKeywords[language] || market.seedKeywords['en'])];
   // Rotate through keywords — skip ones used in this run
   const available = keywords.filter(k => !usedKeywords.has(k));
   const primaryKw = available[0] || keywords[0];
@@ -897,6 +902,17 @@ async function processMarketLanguage(store, marketKey, market, language, force =
   const brandCtx      = await getBrandContext(market.brand);
   const brandExamples = await getBrandExamples(market.brand).catch(() => null);
   const feedbackNotes = await getBrandFeedback(market.brand).catch(() => []);
+  // Wire keyword-discovery output into content: read this market's opportunity
+  // list and prioritise its top keywords in blog generation. Without this, intl
+  // discovery runs every week but never drives a single piece of content.
+  const oppData = await store.get(`keywordOpportunities:${market.brand}:${marketKey}`, { type: 'json' }).catch(() => null);
+  const opportunityKeywords = (oppData?.opportunities || [])
+    .filter(o => ['quick_win', 'content_gap', 'push', 'top10'].includes(o.tier))
+    .sort((a, b) => (b.score || 0) - (a.score || 0))
+    .slice(0, 8)
+    .map(o => o.keyword)
+    .filter(Boolean);
+  if (opportunityKeywords.length) console.log(`${tag} — ${opportunityKeywords.length} discovery opportunities feeding content`);
   const queued        = [];
   const errors        = [];
 
@@ -980,7 +996,7 @@ async function processMarketLanguage(store, marketKey, market, language, force =
 
   while (blogsQueued < MAX_BLOGS_PER_MARKET) {
     try {
-      const blog = await generateBlogDraft(market, brandCtx, brandExamples, language, usedKeywords, feedbackNotes);
+      const blog = await generateBlogDraft(market, brandCtx, brandExamples, language, usedKeywords, feedbackNotes, opportunityKeywords);
       if (!blog) {
         console.warn(`${tag} — blog ${blogsQueued + 1} rejected by voice gate`);
         blogsQueued++;

@@ -91,6 +91,10 @@ const LOCATION_TERMS = [
 
 function isRestaurantKeyword(keyword) {
   const lower = keyword.toLowerCase();
+  // Arabic-script keyword from an Arabic-first market: the FOOD_TERMS/LOCATION_TERMS
+  // lists are English-only, so they'd wrongly drop every Arabic keyword. Seeds are
+  // already food-focused, so accept Arabic-script keywords rather than filter them out.
+  if (/[؀-ۿ]/.test(keyword)) return true;
   return FOOD_TERMS.some(t => lower.includes(t)) || LOCATION_TERMS.some(t => lower.includes(t));
 }
 
@@ -177,6 +181,7 @@ async function loadBrandConfig(store, brand, marketKey = null) {
       // Use market seed keywords as the keyword list
       const marketKws = [
         ...(market.seedKeywords?.en || []),
+        ...(market.seedKeywords?.ar || []), // Arabic-first markets: track native-language terms too
         // Add any generic competitive terms for this market
         `best burger in ${market.label}`,
         `best fried chicken in ${market.label}`,
@@ -243,7 +248,9 @@ async function fetchSerpRankings(brand, config) {
     const tasks = batch.map(kw => ({
       keyword:       kw,
       location_code: config.location_code,
-      language_code: config.language_code,
+      // Arabic-script keywords must be queried in Arabic or the SERP comes back
+      // empty (Arabic-first markets like KSA). Detect per keyword.
+      language_code: /[؀-ۿ]/.test(kw) ? "ar" : config.language_code,
       device:        "desktop",
       os:            "windows",
       depth:         100,
