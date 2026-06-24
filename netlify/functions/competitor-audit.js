@@ -8,7 +8,8 @@
 
 const { getStore } = require('@netlify/blobs');
 const { callClaude, extractJson } = require('./_lib/store');
-const { MARKET_LOCATION_CODES } = require('./_lib/international-config');
+const { MARKET_LOCATION_CODES, getMarket } = require('./_lib/international-config');
+const { resolveLocationCode } = require('./_lib/dfs-locations');
 
 const DATAFORSEO_BASE  = 'https://api.dataforseo.com/v3';
 const PAGESPEED_BASE   = 'https://www.googleapis.com/pagespeedonline/v5/runPagespeed';
@@ -307,7 +308,7 @@ exports.handler = async (event) => {
       const domain       = cleanDomain(body.domain || '');
       const brand        = ['pickl','bonbird','both'].includes(body.brand) ? body.brand : 'pickl';
       const marketKey    = body.market || 'uae_country'; // e.g. 'pickl_bahrain', 'uae_country'
-      const locationCode = MARKET_LOCATION_CODES[marketKey] || 2784;
+      const locationCode = await resolveLocationCode(getMarket(marketKey)?.label, MARKET_LOCATION_CODES[marketKey] || 2784);
 
       if (!domain) return { statusCode: 400, headers, body: JSON.stringify({ error: 'domain required' }) };
 

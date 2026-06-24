@@ -17,6 +17,7 @@ const { getStore }        = require('@netlify/blobs');
 const { getBrandContext } = require('./_lib/brand');
 const { callClaude, extractJson } = require('./_lib/store');
 const { INTERNATIONAL_MARKETS } = require('./_lib/international-config');
+const { resolveLocationCode } = require('./_lib/dfs-locations');
 
 const DATAFORSEO_BASE = 'https://api.dataforseo.com/v3';
 
@@ -285,7 +286,8 @@ async function discoverKeywords(brand, store, authHeader, force = false, marketK
   // NOTE: marketLabel/locationCode declared BEFORE brandGenericSeeds — they are
   // referenced inside the template literals below (TDZ crash if declared after).
   const marketLabel   = isIntl ? market.label : 'UAE';
-  const locationCode  = isIntl ? market.location_code : MARKET_LOCATIONS.UAE;
+  // Resolve from DataForSEO's authoritative list by country (config code = fallback).
+  const locationCode  = isIntl ? await resolveLocationCode(market.label, market.location_code) : MARKET_LOCATIONS.UAE;
   const brandGenericSeeds = brand === 'pickl'
     ? [`best burger in ${marketLabel}`, `burger restaurant ${marketLabel}`, `smash burger ${marketLabel}`]
     : [`best fried chicken in ${marketLabel}`, `fried chicken restaurant ${marketLabel}`, `crispy chicken ${marketLabel}`];

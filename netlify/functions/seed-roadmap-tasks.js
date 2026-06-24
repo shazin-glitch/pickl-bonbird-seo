@@ -12,7 +12,7 @@ const { newId, getSetting, setSetting, logAudit, ok, bad, preflight } = require(
 const TASKS = [
   // ── Strategic / P1 ──────────────────────────────────────────────────────
   { p: 'high',   t: '[Dev] Fix international URL structure (nesting + journal CPT + hreflang)',
-    d: 'Inner market pages nest under their hub (/oman/menu not /oman-menu); journals become a REST-exposed custom post type at /{market}/journal/{slug}; location CPT exposed in REST; 301s via RankMath (Pickl) / Redirection plugin (Bonbird, free Yoast). Full developer brief prepared. PREREQUISITE for the Nest to publish/populate international pages cleanly.' },
+    d: 'DECISION (June): keep the current FLAT URL structure and add hreflang on it (dev is implementing) — nesting was DESCOPED because moving already-ranking pages risks rankings for modest benefit. hreflang must be bidirectional + x-default + self-canonical, language-region codes (en-SA/ar-SA…). Still needed from dev IF The Nest is to publish/populate these: expose the journal + location custom post types in REST (show_in_rest:true). Full developer brief prepared.' },
   { p: 'high',   t: '[Urgent] Migrate to custom domain thenest.yolkbrands.com',
     d: 'yolkseo.netlify.app (and all *.netlify.app) is ISP-blocked in Egypt — Steve currently needs a VPN to access. Custom domain bypasses it. Update GCS CORS, Google OAuth URIs, Slack callbacks, Netlify config (checklist in SETUP.md).' },
   { p: 'high',   t: 'hreflang implementation (EN/AR across 9 markets)',
@@ -46,6 +46,14 @@ const TASKS = [
   { p: 'medium', t: 'Location-page populator: finish in-place update + Local SEO button',
     d: 'Generator engine built (v7.4.14): GBP data → unique location page + schema → approval queue. BLOCKED on the dev exposing the location CPT in REST so the Nest can update existing empty pages in place (not create duplicates). Then add a "Generate location pages" button.' },
 
+  // ── SEO research parity (Shazin has neither Ahrefs nor SEMrush) ───────────
+  { p: 'high',   t: 'Add Keyword Difficulty (KD) to keyword data',
+    d: 'SEO research parity. DataForSEO bulk_keyword_difficulty gives KD 0–100 — we already pay for the API, just never wired it. Quick win: show KD next to every keyword in opportunities + the competitor matrix.' },
+  { p: 'high',   t: 'Add traffic estimation (per keyword + competitor domain)',
+    d: 'SEO research parity. DataForSEO bulk_traffic_estimation for domains + the `etv` we already receive in ranked_keywords but do not surface. Show estimated traffic per keyword and per competitor domain.' },
+  { p: 'medium', t: 'Full-site audit via DataForSEO OnPage API (real crawler)',
+    d: 'SEO research parity — the big one. Today the audit is only PageSpeed on a few core pages (nowhere near Ahrefs/SEMrush). OnPage API = full crawl: broken links, redirects, duplicate content, meta/H1 issues, crawl depth. Larger build; cost scales with pages crawled, so scope it (core+templates, cap depth, on-demand/monthly).' },
+
   // ── P2 / later ──────────────────────────────────────────────────────────
   { p: 'low',    t: 'International CPC / currency traffic-value',
     d: 'CPC enrichment is UAE-only; intl markets carry currency configs that are never used for valuation.' },
@@ -67,23 +75,36 @@ exports.handler = async (event) => {
   }
 
   const index = (await getSetting('perchIndex').catch(() => [])) || [];
-  // Existing titles (for idempotency) — load current tasks.
-  const existingTitles = new Set();
+  // Map existing roadmap tasks by title → {id, task} for upsert.
+  const byTitle = {};
   for (const id of index) {
     const t = await getSetting('perchTask:' + id).catch(() => null);
-    if (t?.title) existingTitles.add(t.title.trim());
+    if (t?.title) byTitle[t.title.trim()] = { id, task: t };
   }
 
   const now = Date.now();
-  const created = [];
+  const created = [], updated = [];
   let newIndex = [...index];
 
   for (const task of TASKS) {
-    if (existingTitles.has(task.t.trim())) continue;
+    const title = task.t.trim();
+    const existing = byTitle[title];
+    if (existing) {
+      // Update description/priority (don't clobber status, assignee, comments, etc.)
+      const t = existing.task;
+      if (t.description !== task.d || t.priority !== task.p) {
+        t.description = task.d;
+        t.priority    = task.p;
+        t.updatedAt   = now;
+        await setSetting('perchTask:' + existing.id, t);
+        updated.push(title);
+      }
+      continue;
+    }
     const id = newId('task');
-    const obj = {
+    await setSetting('perchTask:' + id, {
       id,
-      title:         task.t.trim(),
+      title,
       description:   task.d,
       brand:         'all',
       department:    'seo',
@@ -99,17 +120,16 @@ exports.handler = async (event) => {
       sourceId:      null,
       comments:      [],
       auditLog:      [{ action: 'created', actor: 'claude (roadmap)', actorName: 'The Nest Roadmap', timestamp: now }],
-    };
-    await setSetting('perchTask:' + id, obj);
+    });
     newIndex.push(id);
-    created.push(task.t);
+    created.push(title);
   }
 
-  if (created.length) {
-    await setSetting('perchIndex', newIndex);
-    await logAudit({ action: 'perch_roadmap_seeded', actor: 'claude (roadmap)', details: { count: created.length } });
+  if (created.length) await setSetting('perchIndex', newIndex);
+  if (created.length || updated.length) {
+    await logAudit({ action: 'perch_roadmap_seeded', actor: 'claude (roadmap)', details: { created: created.length, updated: updated.length } });
   }
   await setSetting('perchRoadmapSeeded', new Date().toISOString());
 
-  return ok({ ok: true, created: created.length, skipped: TASKS.length - created.length, titles: created });
+  return ok({ ok: true, created: created.length, updated: updated.length, createdTitles: created, updatedTitles: updated });
 };

@@ -3642,9 +3642,14 @@ Update "Current URL" from `yolkseo.netlify.app` to `thenest.yolkbrands.com`
 
 ---
 
-## Current Version: v7.4.17
+## Current Version: v7.4.18
 
-Last fix (v7.4.17): KSA refresh quality — competitor junk, missing volume, Arabic over-acceptance.
+Last fix (v7.4.18): WRONG DataForSEO location codes (Qatar=179 etc. → "40501 Invalid Field: location_code") + authoritative resolver covering ALL countries.
+- Root cause: several intl `location_code`s in `_lib/international-config.js` were wrong/invalid for DataForSEO (Qatar 179, Bahrain 17000, Oman 2114, Jordan 2144 looked off; KSA 2682 / Egypt 2818 / Pakistan 2586 / UAE 2784 correct). This is a DIFFERENT error than the v7.4.13 language_code fix.
+- Robust fix (not per-country patching): `dataforseo-locations.js` fetches DataForSEO Labs' authoritative `locations_and_languages`, caches a country→{code,iso,languages} map for ALL countries in Blobs `dfsLocations`, and returns a configured-vs-authoritative comparison. `_lib/dfs-locations.js resolveLocationCode(country, fallback)` reads it. Wired into keyword-discovery, competitor-matrix (loadBrandConfig), competitor-audit — each resolves its code by market.label, falling back to the config code if cache missing (so it can only improve, never break). Any future market resolves automatically by country.
+- **MUST DO after deploy:** trigger `GET /.netlify/functions/dataforseo-locations` once to populate the cache (then all markets resolve authoritative codes). `?refresh=true` to refetch.
+
+Prior fix (v7.4.17): KSA refresh quality — competitor junk, missing volume, Arabic over-acceptance.
 - **Aggregator/social blocklist gaps** (caused reddit/x.com/timeout showing as "competitors"): added reddit, x.com, quora, medium, pinterest, threads, snapchat, booking, agoda, trustpilot, apple/app stores, indeed, glassdoor, bayt, mrsool, jahez, thechefz, ubereats to AGGREGATOR_DOMAINS (competitor-matrix-background) + EXCLUDE_DOMAINS (competitor-matrix) + SERP_OCCUPIER_TERMS (competitor-matrix-ui).
 - **REGRESSION FIX**: v7.4.15 made `isRestaurantKeyword` blanket-accept ANY Arabic-script keyword → let competitor brands (ستاربكس) + off-menu (مطعم هندي, قهوة) through. Replaced with proper Arabic food/location accept + Arabic off-menu/brand reject lists. Also removed "coffee" from FOOD_TERMS.
 - **Search volume now carried for competitor-sourced opportunities**: keyword-discovery discarded the real searchVolume from competitorRankedKeywords (set volume:0). Now carries volume + cpc via compMeta → opportunities show real volume.

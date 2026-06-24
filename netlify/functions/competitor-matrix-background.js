@@ -17,6 +17,7 @@
 
 const { getStore } = require("@netlify/blobs");
 const { INTERNATIONAL_MARKETS, MARKET_LOCATION_CODES } = require('./_lib/international-config');
+const { resolveLocationCode } = require('./_lib/dfs-locations');
 
 const CACHE_KEY_PREFIX           = "competitorMatrix:";
 const COMPETITOR_KEY_PREFIX      = "competitorConfig:";
@@ -198,7 +199,7 @@ async function loadBrandConfig(store, brand, marketKey = null) {
   if (marketKey && marketKey !== 'uae') {
     const market = INTERNATIONAL_MARKETS[marketKey];
     if (market) {
-      location_code = market.location_code;
+      location_code = await resolveLocationCode(market.label, market.location_code);
       // Use market seed keywords as the keyword list
       const marketKws = [
         ...(market.seedKeywords?.en || []),
