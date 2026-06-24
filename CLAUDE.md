@@ -51,7 +51,7 @@
 
 ---
 
-## Current Version: v7.4.15
+## Current Version: v7.4.16
 
 See SETUP.md → "Done (Full History)" for complete build log.
 
@@ -86,6 +86,11 @@ llm-mentions-background      — LLM brand mention tracking
 backlinks-background         — Referring domains + competitor comparison
 citations-background         — NAP citation check across 5 UAE food platforms
 ai-overview-background       — AI Overview visibility check (top 20 keywords per brand)
+```
+
+Monday 6am UTC (after the 4am jobs):
+```
+snapshots-background         — GBP + speed dated snapshots for monthly-report trend history
 ```
 
 Daily 5am UTC = 9am Dubai:

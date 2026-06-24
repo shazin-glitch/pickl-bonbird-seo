@@ -212,6 +212,10 @@
 [functions."keyword-discovery-background"]
   schedule = "0 4 * * 1"
 
+# Weekly GBP + speed snapshots for monthly-report trend history — Mon 6am UTC (after the 4am jobs)
+[functions."snapshots-background"]
+  schedule = "0 6 * * 1"
+
 # Daily Perch due date digest — 5am UTC = 9am Dubai
 [functions."perch-notify-background"]
   schedule = "0 5 * * *"

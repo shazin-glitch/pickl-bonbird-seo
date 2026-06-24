@@ -3642,9 +3642,15 @@ Update "Current URL" from `yolkseo.netlify.app` to `thenest.yolkbrands.com`
 
 ---
 
-## Current Version: v7.4.15
+## Current Version: v7.4.16
 
-Last built (v7.4.15): the four Nest-code P0 SEO fixes (structure/nesting P0 stays with the dev).
+Last built (v7.4.16): snapshot capture for monthly-report trend history (the "start banking now" step). New background function `snapshots-background.js` (cron Mon 6am UTC, after the 4am jobs) writes dated, once-per-day, never-overwritten keys:
+- `gbpSnapshot:<brand>:<YYYY-MM-DD>` — per-brand + per-location: avgRating, totalReviews, totalUnanswered, responseRateProxy, totalPhotos, health {green/amber/red}. (GBP only had a latest cache before — no trend.)
+- `speedSnapshot:<brand>:<YYYY-MM-DD>` — the technicalSeo audit summary/results/intlResults/technicalChecks (technicalSeo:<brand> was overwritten each run — no trend).
+- GSC / SoV / backlinks / AI-overview / LLM-mentions already keep their own history — not duplicated.
+- Manual: `GET /.netlify/functions/snapshots-background?brand=pickl`. Feeds the future monthly SEO report (#1) + GBP monthly PDF (#5) + speed report (#6). Retention/pruning of dated keys = future nicety.
+
+Prior built (v7.4.15): the four Nest-code P0 SEO fixes (structure/nesting P0 stays with the dev).
 1. **Intl pipeline Arabic-aware** (root cause of KSA "1 keyword"): `.ar` seeds now used in keyword-discovery + competitor-matrix; SERP task_post sets `language_code` per keyword (Arabic script → 'ar'); `isRestaurantKeyword` accepts Arabic-script keywords; Claude relevance filter is market-aware + keeps Arabic; intl volume threshold relaxed (keyword_ideas minVolume 0, opportunity gate ≥1 for intl).
 2. **Intl discovery → content wired**: `international-seo-background.js processMarketLanguage` now reads `keywordOpportunities:<brand>:<market>` and feeds the top opportunities (by tier+score, language-matched) into `generateBlogDraft` (was orphaned — discovery ran weekly but drove zero content).
 3. **Stuck "tracking starts Monday" fixed**: `scheduler-background.js trackPublishedItems` keyword match normalised + fuzzy (containment/word-overlap) so ranking pages actually record `positionLatest`; the hardcoded Reports banner (index.html) reworded to a truthful "updates every Monday" instead of permanent "saving from next Monday".
