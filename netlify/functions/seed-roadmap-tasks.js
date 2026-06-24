@@ -51,10 +51,10 @@ const TASKS = [
     d: 'Generator engine built (v7.4.14): GBP data → unique location page + schema → approval queue. BLOCKED on the dev exposing the location CPT in REST so the Nest can update existing empty pages in place (not create duplicates). Then add a "Generate location pages" button.' },
 
   // ── SEO research parity (Shazin has neither Ahrefs nor SEMrush) ───────────
-  { p: 'high',   t: 'Add Keyword Difficulty (KD) to keyword data',
-    d: 'SEO research parity. DataForSEO bulk_keyword_difficulty gives KD 0–100 — we already pay for the API, just never wired it. Quick win: show KD next to every keyword in opportunities + the competitor matrix.' },
+  { p: 'high', done: true, t: 'Add Keyword Difficulty (KD) to keyword data',
+    d: 'DONE v7.4.20. KD 0–100 via DataForSEO bulk_keyword_difficulty, language-aware, shown as a colour-coded column in both the competitor matrix and Keyword Opportunities. Also fixed the empty matrix Vol/mo (volume+CPC now enriched via keywords_data/google_ads/search_volume).' },
   { p: 'high',   t: 'Add traffic estimation (per keyword + competitor domain)',
-    d: 'SEO research parity. DataForSEO bulk_traffic_estimation for domains + the `etv` we already receive in ranked_keywords but do not surface. Show estimated traffic per keyword and per competitor domain.' },
+    d: 'SEO research parity. Per-keyword search volume is now surfaced (v7.4.20). STILL TODO: domain-level traffic estimation — DataForSEO bulk_traffic_estimation + the `etv` we already receive in ranked_keywords but do not surface. Show estimated organic traffic per competitor domain.' },
   { p: 'medium', t: 'Full-site audit via DataForSEO OnPage API (real crawler)',
     d: 'SEO research parity — the big one. Today the audit is only PageSpeed on a few core pages (nowhere near Ahrefs/SEMrush). OnPage API = full crawl: broken links, redirects, duplicate content, meta/H1 issues, crawl depth. Larger build; cost scales with pages crawled, so scope it (core+templates, cap depth, on-demand/monthly).' },
 
