@@ -10,6 +10,10 @@ const { newId, getSetting, setSetting, logAudit, ok, bad, preflight } = require(
 
 // Roadmap backlog. status tags in the title so the CEO sees state at a glance.
 const TASKS = [
+  // ── Shipped (done) ────────────────────────────────────────────────────────
+  { p: 'high', done: true, t: '✅ DONE — International SEO data pipeline overhaul (Arabic markets)',
+    d: 'Shipped v7.4.15–7.4.19. Arabic-aware keyword discovery + competitor matrix (per-market language passes — ar for KSA/Bahrain/Jordan); authoritative DataForSEO location resolver (fixed wrong Qatar/Bahrain/Jordan/Oman codes); Qatar/Oman graceful skip (not in DataForSEO Labs); regional-aggregator filtering (timeoutbahrain etc.); 5 silent-UAE-write bugs fixed; market-aware labels; voice-gate hardening; weekly GBP+speed snapshots for monthly reports. Remaining on the data layer: matrix search-volume/KD enrichment (= the Keyword Difficulty + traffic tasks below).' },
+
   // ── Strategic / P1 ──────────────────────────────────────────────────────
   { p: 'high',   t: '[Dev] Fix international URL structure (nesting + journal CPT + hreflang)',
     d: 'DECISION (June): keep the current FLAT URL structure and add hreflang on it (dev is implementing) — nesting was DESCOPED because moving already-ranking pages risks rankings for modest benefit. hreflang must be bidirectional + x-default + self-canonical, language-region codes (en-SA/ar-SA…). Still needed from dev IF The Nest is to publish/populate these: expose the journal + location custom post types in REST (show_in_rest:true). Full developer brief prepared.' },
@@ -92,9 +96,11 @@ exports.handler = async (event) => {
     if (existing) {
       // Update description/priority (don't clobber status, assignee, comments, etc.)
       const t = existing.task;
-      if (t.description !== task.d || t.priority !== task.p) {
+      const wantStatus = task.done ? 'done' : t.status;
+      if (t.description !== task.d || t.priority !== task.p || t.status !== wantStatus) {
         t.description = task.d;
         t.priority    = task.p;
+        t.status      = wantStatus;
         t.updatedAt   = now;
         await setSetting('perchTask:' + existing.id, t);
         updated.push(title);
@@ -112,7 +118,7 @@ exports.handler = async (event) => {
       collaborators: [],
       dueDate:       null,
       priority:      task.p,
-      status:        'todo',
+      status:        task.done ? 'done' : 'todo',
       createdBy:     'claude (roadmap)',
       createdAt:     now,
       updatedAt:     now,
