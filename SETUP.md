@@ -3642,9 +3642,15 @@ Update "Current URL" from `yolkseo.netlify.app` to `thenest.yolkbrands.com`
 
 ---
 
-## Current Version: v7.4.13
+## Current Version: v7.4.14
 
-Last fix (v7.4.13): DataForSEO Labs `language_code` rejection for non-UAE markets.
+Last built (v7.4.14): Local SEO — location-page populator. New background function `local-seo-pages-background.js` turns empty/thin location pages into assets.
+- Reads `gbpCache:<brand>:v9` (GBP locations: name/address/maps) → generates a UNIQUE, brand-voice location page per location (real area context, local keywords, internal links, image placeholders) + deterministic LocalBusiness/Restaurant JSON-LD schema → queues as a `page_creation` approval (NOT auto-published; human reviews then publishes via existing create_page, which resolves WP creds from `brand`).
+- Voice gate ≥8 (hard-strip dashes + fixBrandVoice 3× loop). Dedup by `payload.locationId` against pending/pushed/published items.
+- Manual trigger (no cron, to control cost): `GET /.netlify/functions/local-seo-pages-background?brand=pickl` (`&force=true`, `&limit=6`). Requires the GBP cache warm (open Local SEO tab once).
+- NEXT: a "Generate location pages" button in the Local SEO tab; net-new locations (no page yet) wait for the intl nesting/CPT structure decision.
+
+Prior fix (v7.4.13): DataForSEO Labs `language_code` rejection for non-UAE markets.
 - Symptom: Opportunities tab showed "DataForSEO task error 40501: Invalid Field: 'language_code'. (loc 2682)" for KSA (and any market whose Labs DB doesn't pair with English).
 - Root cause: DataForSEO Labs endpoints (`keyword_ideas`, `ranked_keywords`) validate the location+language pair. UAE (2784) accepts `en`; KSA (2682) and other Arabic-first markets reject it. `language_code` is OPTIONAL on these endpoints (auto-derived from location).
 - Fix: retry/omit `language_code` on a language rejection in 3 places — `keyword-discovery-background.js` (`getKeywordIdeas`, retry without lang), `competitor-matrix-background.js` (`fetchCompetitorRankedKeywords`, one-time probe sets `useLanguage=false` for all domains), `competitor-audit.js` (`runKeywordAudit`, retry without lang). Only triggers on an actual language error → UAE + working markets unaffected. SERP `task_post` calls (which accept `en` everywhere) untouched. See memory → dataforseo-labs-language-code-gotcha.
