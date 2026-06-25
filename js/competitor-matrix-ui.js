@@ -983,9 +983,9 @@
       return renderCompetitorsIntl(container);
     }
     injectStyles();
-    let html = renderHeader("competitors") + `
+    let html = renderHeader("competitors", { showBrandFilter: true }) + `
       <div style="padding:20px 0">
-        <p style="font-size:13px;color:#64748b;margin-bottom:16px">Add or remove tracked competitors. Changes apply on next Refresh Now.</p>
+        <p style="font-size:13px;color:#64748b;margin-bottom:16px">Add or remove tracked competitors. Use the market dropdown above to curate per-market lists. Changes apply on next Refresh Now.</p>
 
         <!-- Auto-discovery section -->
         <div style="background:linear-gradient(135deg,rgba(99,102,241,0.06),rgba(245,158,11,0.06));border:1px solid rgba(99,102,241,0.2);border-radius:10px;padding:16px 20px;margin-bottom:24px">

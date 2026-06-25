@@ -952,6 +952,7 @@ Replaced all hardcoded colour islands in the task panel (built from `buildTaskCa
 
 ## Done (Full History)
 
+- v7.4.23 — **Per-market competitor curation made reachable.** The hybrid per-market competitor UI (`renderCompetitorsIntl` in `js/competitor-matrix-ui.js`: auto-detected promotable chips + pinned list + add/remove + per-market save to `competitorConfig:<brand>:<market>`) was fully built, but the **UAE** branch of `renderCompetitors` called `renderHeader("competitors")` with **no opts** → no market dropdown → no way to switch to an intl market from the Manage Competitors tab (chicken-and-egg: the intl panel renders the dropdown, but you couldn't reach it). Fix: pass `{ showBrandFilter: true }` so the market dropdown shows in the UAE competitors view too; selecting a market re-routes to the per-market panel. Backend (`competitor-config.js` GET/POST with market param) + matrix consumer (manual overrides merged ahead of auto-detect) were already done in the v7.4.21 batch.
 - Full SEO content pipeline (quick wins, meta rewrites, content gaps, page creation)
 - Brand voice system (1-10 scoring, banned words, auto-reject below 5)
 - Brand voice examples — paste real brand writing in Settings, injected into every prompt
@@ -3642,7 +3643,7 @@ Update "Current URL" from `yolkseo.netlify.app` to `thenest.yolkbrands.com`
 
 ---
 
-## Current Version: v7.4.22
+## Current Version: v7.4.23
 
 Last built (v7.4.22): **Arabic GSC-driven optimization** (Perch backlog item — intl GSC jobs were EN-gated). The international content pipeline's two GSC-driven jobs (`runMarketDataDrivenSEO` = meta rewrites, `runMarketKeywordOpportunities` = quick-wins/content-gaps/page-creation/blog-drafts) only ran on the **English** pass (`if (language === 'en')`), so every Arabic-script search query (e.g. "pickl مطعم" pos 2.3 on /ksa/, "مطعم بيكل" on /bh-arabic/) was either processed as English or dropped. Live GSC has **111 Arabic-script queries for Pickl (64 on intl pages)** — real, unworked demand.
 - Both functions now take a `language` param and **partition GSC queries by script** (`scriptMatch`: en → Latin, ar → Arabic `[؀-ۿ]`). Each language pass works only its own queries.
