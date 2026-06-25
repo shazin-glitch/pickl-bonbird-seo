@@ -14,7 +14,7 @@ const AGGREGATOR_TERMS = [
   'youtube', 'tiktok', 'twitter', 'linkedin',
   // Travel / booking / stores / jobs / general
   'booking', 'agoda', 'trustpilot', 'wikipedia', 'wikiwand', 'fandango', 'indeed',
-  'glassdoor', 'bayt', 'dubizzle', '2gis', 'yellowpages', 'amazon',
+  'glassdoor', 'bayt', 'dubizzle', '2gis', 'yellowpages', 'amazon', 'wanderlog', 'wingie',
   // News / tourism portals
   'thenational', 'gulfnews', 'khaleejtimes', 'visitdubai', 'visitqatar', 'arabnews',
 ];
@@ -29,10 +29,12 @@ function isAggregatorDomain(domain) {
   if (!d) return false;
   if (AGGREGATOR_EXACT.has(d)) return true;
   const labels = d.split('.');
-  const stem   = labels[0]; // first label, e.g. "timeoutbahrain"
-  // label match for google/apple-style; stem prefix catches timeout*/zomato*/etc.
+  // label match for google/apple-style.
   if (labels.includes('google') || labels.includes('apple') || labels.includes('noon')) return true;
-  return AGGREGATOR_TERMS.some(t => stem === t || stem.startsWith(t));
+  // Prefix-match EVERY non-TLD label (not just the first) so country/language-
+  // prefixed aggregators are caught too: ar.timeoutriyadh.com, ar.tripadvisor.com,
+  // sa.wingie.com — the old first-label-only check saw "ar"/"sa" and missed them.
+  return labels.slice(0, -1).some(lab => AGGREGATOR_TERMS.some(t => lab === t || lab.startsWith(t)));
 }
 
 // Boundary-aware domain equality — avoids substring false positives (e.g. a domain

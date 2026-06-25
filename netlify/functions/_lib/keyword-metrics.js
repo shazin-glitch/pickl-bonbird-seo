@@ -20,26 +20,49 @@ async function postOne(url, payload, authHeader) {
   return res.json();
 }
 
+function taskOk(data)     { return data?.tasks?.[0]?.status_code === 20000; }
 function langRejected(data) {
+  // The language error can surface at the task level (most common) OR top level,
+  // and DataForSEO Labs rejects BOTH a bad `language_code` AND an omitted one
+  // (it then demands `language_name`). Catch either.
   const t = data?.tasks?.[0];
-  return data?.status_code === 20000 && t && t.status_code !== 20000 && /language/i.test(t.status_message || '');
+  const msg = `${data?.status_message || ''} ${t?.status_message || ''}`;
+  return !taskOk(data) && /language_code|language_name/i.test(msg);
 }
 
-// enrichKeywords(keywords, locationCode, languageCode, authHeader)
+// POST once per candidate language until the task succeeds. Labs endpoints are
+// strict: KSA (2682) accepts ONLY 'ar', Jordan ONLY 'en', etc. — sending the
+// wrong code (or none) returns 40501 and an empty result. We try the keyword's
+// natural-script language first, then the location's authoritative languages,
+// and only drop language as a last resort.
+async function postWithLang(url, basePayload, langs, authHeader) {
+  const cands = [...new Set((langs || []).filter(Boolean))];
+  let last = null;
+  for (const lang of cands) {
+    const data = await postOne(url, { ...basePayload, language_code: lang }, authHeader);
+    if (taskOk(data)) return data;        // success
+    last = data;
+    if (!langRejected(data)) return data; // failed for a NON-language reason — other langs won't help
+  }
+  // Last resort: no language at all (some location/endpoint combos accept this).
+  const dropped = await postOne(url, basePayload, authHeader);
+  return taskOk(dropped) ? dropped : (last || dropped);
+}
+
+// enrichKeywords(keywords, locationCode, languageCode, authHeader, fallbackLangs)
 //   -> { [keywordLower]: { volume, cpc, kd } }
-async function enrichKeywords(keywords, locationCode, languageCode, authHeader) {
+// languageCode = preferred (keyword's natural script); fallbackLangs = the
+// location's authoritative Labs languages, tried in order if the preferred fails.
+async function enrichKeywords(keywords, locationCode, languageCode, authHeader, fallbackLangs = []) {
   const out = {};
   const kws = [...new Set((keywords || []).map(k => String(k).trim()).filter(Boolean))].slice(0, 700);
   if (!kws.length || !locationCode) return out;
+  const langs = [languageCode, ...fallbackLangs];
 
   // ── Volume + CPC (Google Ads keyword data) ──────────────────────────────
   try {
-    let data = await postOne(`${DFS}/keywords_data/google_ads/search_volume/live`,
-      { keywords: kws, location_code: locationCode, language_code: languageCode }, authHeader);
-    if (langRejected(data)) {
-      data = await postOne(`${DFS}/keywords_data/google_ads/search_volume/live`,
-        { keywords: kws, location_code: locationCode }, authHeader);
-    }
+    const data = await postWithLang(`${DFS}/keywords_data/google_ads/search_volume/live`,
+      { keywords: kws, location_code: locationCode }, langs, authHeader);
     for (const it of (data?.tasks?.[0]?.result || [])) {
       const k = (it.keyword || '').toLowerCase();
       if (k) out[k] = { volume: it.search_volume ?? null, cpc: it.cpc ?? null, kd: null };
@@ -48,12 +71,8 @@ async function enrichKeywords(keywords, locationCode, languageCode, authHeader) 
 
   // ── Keyword Difficulty (Labs) ───────────────────────────────────────────
   try {
-    let data = await postOne(`${DFS}/dataforseo_labs/google/bulk_keyword_difficulty/live`,
-      { keywords: kws, location_code: locationCode, language_code: languageCode }, authHeader);
-    if (langRejected(data)) {
-      data = await postOne(`${DFS}/dataforseo_labs/google/bulk_keyword_difficulty/live`,
-        { keywords: kws, location_code: locationCode }, authHeader);
-    }
+    const data = await postWithLang(`${DFS}/dataforseo_labs/google/bulk_keyword_difficulty/live`,
+      { keywords: kws, location_code: locationCode }, langs, authHeader);
     const t = data?.tasks?.[0];
     const items = t?.result?.[0]?.items || t?.result || [];
     for (const it of items) {
@@ -67,13 +86,16 @@ async function enrichKeywords(keywords, locationCode, languageCode, authHeader) 
   return out;
 }
 
-// Split a mixed list and enrich each script with its language (Arabic ↔ ar).
-async function enrichKeywordsMixed(keywords, locationCode, authHeader, enLang = 'en') {
+// Split a mixed list and enrich each script with its natural language, falling
+// back to the location's authoritative Labs languages on rejection. Pass
+// supportedLangs from resolveLocation().languages — e.g. KSA = ['ar'], so the
+// English-text keywords (which 'en' would reject for KD) still resolve via 'ar'.
+async function enrichKeywordsMixed(keywords, locationCode, authHeader, supportedLangs = []) {
   const ar = (keywords || []).filter(k => /[؀-ۿ]/.test(k));
   const en = (keywords || []).filter(k => !/[؀-ۿ]/.test(k));
   const out = {};
-  if (en.length) Object.assign(out, await enrichKeywords(en, locationCode, enLang, authHeader));
-  if (ar.length) Object.assign(out, await enrichKeywords(ar, locationCode, 'ar', authHeader));
+  if (en.length) Object.assign(out, await enrichKeywords(en, locationCode, 'en', authHeader, supportedLangs));
+  if (ar.length) Object.assign(out, await enrichKeywords(ar, locationCode, 'ar', authHeader, supportedLangs));
   return out;
 }
 

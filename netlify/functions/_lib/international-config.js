@@ -38,8 +38,10 @@ const INTERNATIONAL_MARKETS = {
     wpBrand:         'pickl',                 // use WP_PICKL_* env vars
     wpMarketParent:  'bh',                    // WP page slug to look up parent ID
     languages:       ['en', 'ar'],
-    // DataForSEO
-    location_code:   17000,
+    // DataForSEO — authoritative Labs code (resolveLocation by name normally wins;
+    // this is the cache-miss fallback, so it must be the REAL code, not a guess).
+    // Bahrain = 2048 (was 17000, which is not Bahrain). Labs lang = ar only.
+    location_code:   2048,
     currency:        'BHD',
     // Confirmed locations
     locations:       ['Al Aali Mall', 'Juffair Square'],
@@ -199,7 +201,9 @@ const INTERNATIONAL_MARKETS = {
     wpBrand:         'pickl',
     wpMarketParent:  'pickl-jordan',
     languages:       ['en', 'ar'],
-    location_code:   2144,
+    // Jordan = 2400 (was 2144, which is SRI LANKA — a cache miss would have sent
+    // Jordan SEO calls to Sri Lanka). Labs lang = ar only. Fallback must be real.
+    location_code:   2400,
     currency:        'JOD',
     locations:       ['Vista 4, Amman'],
     seedKeywords: {

@@ -197,6 +197,7 @@ async function loadBrandConfig(store, brand, marketKey = null) {
   let keywords    = DEFAULT_KEYWORDS[brand];
   let location_code = 21191; // Default: Dubai UAE
   let labsSupported = true;  // is this market in DataForSEO Labs? (ranked_keywords)
+  let locationLanguages = ['en', 'ar']; // valid Labs languages (UAE accepts both)
 
   // If a specific market is requested, use market-specific config
   if (marketKey && marketKey !== 'uae') {
@@ -206,6 +207,9 @@ async function loadBrandConfig(store, brand, marketKey = null) {
       location_code = loc.code || market.location_code;
       // Definitively-not-in-Labs (e.g. Qatar/Oman) → skip the Labs ranked_keywords step.
       labsSupported = !(loc.inCache && loc.supported === false);
+      // Authoritative Labs languages (KSA=['ar'], Jordan=['en'], …). Drives the
+      // enrichment language so KD/volume resolve instead of 40501-ing on 'en'.
+      locationLanguages = (loc.languages && loc.languages.length) ? loc.languages : (market.languages || ['en']);
       // Use market seed keywords as the keyword list
       const marketKws = [
         ...(market.seedKeywords?.en || []),
@@ -241,6 +245,7 @@ async function loadBrandConfig(store, brand, marketKey = null) {
     language_code:  "en",
     marketKey:      marketKey || 'uae',
     labsSupported,
+    locationLanguages,
   };
 }
 
@@ -705,7 +710,7 @@ exports.handler = async (event) => {
       if (!isIntlRun || config.labsSupported) {
         try {
           const authH   = "Basic " + Buffer.from(`${process.env.DATAFORSEO_LOGIN}:${process.env.DATAFORSEO_PASSWORD}`).toString("base64");
-          const metrics = await enrichKeywordsMixed(rows.map(r => r.keyword), config.location_code, authH);
+          const metrics = await enrichKeywordsMixed(rows.map(r => r.keyword), config.location_code, authH, config.locationLanguages);
           for (const row of rows) {
             const m = metrics[(row.keyword || "").toLowerCase()];
             if (m) {
@@ -737,13 +742,29 @@ exports.handler = async (event) => {
         const manualOverrides = await store.get(`${COMPETITOR_KEY_PREFIX}${brand}:${marketParam}`, { type: 'json' })
           .then(d => d?.competitors || []).catch(() => []);
         const autoCompetitors = autoDetected.slice(0, 10).map(d => ({
-          name:   d.domain.split('.')[0],
+          name:   d.domain,   // full domain — unambiguous column label (split('.')[0] gave dup "ar")
           domain: d.domain,
         }));
         const manualDomains = new Set(manualOverrides.map(c => c.domain.replace(/^www\./, '')));
         const autoFill = autoCompetitors.filter(c => !manualDomains.has(c.domain.replace(/^www\./, '')));
         effectiveCompetitors = [...manualOverrides, ...autoFill];
         console.log(`[competitor-matrix] ${brand}/${marketKey} — ${effectiveCompetitors.length} effective competitors (${manualOverrides.length} manual + ${autoFill.length} auto-detected)`);
+
+        // Re-key each row's competitorRanks to the EFFECTIVE competitor set.
+        // fetchSerpRankings keyed them by config.competitors (the curated UAE list),
+        // but intl columns render the auto-detected/manual set — so without this the
+        // names never match and every competitor cell shows "—". topDomains already
+        // holds every top-20 organic domain+rank per keyword; match against that.
+        for (const row of rows) {
+          const cr = {};
+          for (const comp of effectiveCompetitors) cr[comp.name] = null;
+          for (const { domain, rank } of (row.topDomains || [])) {
+            for (const comp of effectiveCompetitors) {
+              if (cr[comp.name] == null && domainMatches(domain, comp.domain)) cr[comp.name] = rank;
+            }
+          }
+          row.competitorRanks = cr;
+        }
       }
 
       // ── Share of Voice calculation ────────────────────────────────────────

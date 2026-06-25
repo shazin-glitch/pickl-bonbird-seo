@@ -424,7 +424,8 @@ async function discoverKeywords(brand, store, authHeader, force = false, marketK
 
   // Enrich with Keyword Difficulty (volume already present from keyword_ideas).
   try {
-    const m = await enrichKeywordsMixed(opportunities.map(o => o.keyword), locationCode, authHeader);
+    const enrichLangs = (isIntl && loc.languages && loc.languages.length) ? loc.languages : ['en', 'ar'];
+    const m = await enrichKeywordsMixed(opportunities.map(o => o.keyword), locationCode, authHeader, enrichLangs);
     for (const o of opportunities) {
       const e = m[o.keyword.toLowerCase()];
       if (e) {
