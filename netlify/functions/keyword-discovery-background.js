@@ -168,8 +168,23 @@ async function getKeywordIdeas(seeds, locationCode, authHeader, minVolume = 10, 
 // Sends all keywords to Claude in one batch — model understands brand context and
 // filters out irrelevant keywords (wrong cuisine, competitor brand names, unrelated
 // businesses) far more reliably than a static list ever could.
-async function filterKeywordsWithClaude(keywords, brandName, brandCtx, marketLabel = 'UAE') {
-  if (!keywords.length) return keywords;
+async function filterKeywordsWithClaude(allKeywords, brandName, brandCtx, marketLabel = 'UAE') {
+  if (!allKeywords.length) return allKeywords;
+
+  // Batch so large sets (esp. full Arabic batches) aren't dropped wholesale in a
+  // single Claude call. Recurse with ≤BATCH chunks; the single-batch path below
+  // runs the actual filter and fails OPEN if a chunk comes back empty.
+  const BATCH = 50;
+  if (allKeywords.length > BATCH) {
+    const out = [];
+    for (let i = 0; i < allKeywords.length; i += BATCH) {
+      const part = await filterKeywordsWithClaude(allKeywords.slice(i, i + BATCH), brandName, brandCtx, marketLabel);
+      out.push(...part);
+    }
+    console.log(`[kw-discovery] Claude filter (batched): ${allKeywords.length} → ${out.length} keywords`);
+    return out;
+  }
+  const keywords = allKeywords;
 
   const menuSummary = Object.entries(brandCtx?.menu || {})
     .map(([cat, items]) => `${cat}: ${Array.isArray(items) ? items.join(', ') : items}`)
@@ -221,7 +236,7 @@ Keywords:
 ${kwList}`;
 
   try {
-    const { text } = await callClaude(prompt, { max_tokens: 800 });
+    const { text } = await callClaude(prompt, { max_tokens: 1500 });
     const indices = extractJson(text);
     if (!Array.isArray(indices)) {
       console.warn('[kw-discovery] Claude filter returned non-array, using all keywords');
@@ -230,6 +245,13 @@ ${kwList}`;
     const filtered = indices
       .filter(n => typeof n === 'number' && n >= 1 && n <= keywords.length)
       .map(n => keywords[n - 1]);
+    // Fail OPEN: a non-trivial batch returning zero is almost always a filter
+    // failure (e.g. a full Arabic batch Claude couldn't map), not a genuine
+    // "all irrelevant" verdict — keep the batch rather than silently dropping it.
+    if (filtered.length === 0 && keywords.length > 10) {
+      console.warn(`[kw-discovery] Claude filter returned 0 of ${keywords.length} — keeping batch (fail-open)`);
+      return keywords;
+    }
     console.log(`[kw-discovery] Claude filter: ${keywords.length} → ${filtered.length} keywords`);
     return filtered;
   } catch (e) {
