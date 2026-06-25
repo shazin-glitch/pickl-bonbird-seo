@@ -119,9 +119,11 @@ async function getQueuedKeywordsForMarket(brand) {
 // ── Core data-driven analysis per market ──────────────────────────────────────
 // Mirrors runMetaRewrites from scheduler-background.js but scoped to a market's pages.
 // Returns { queued, skipped, candidates }
-async function runMarketDataDrivenSEO(market, brandCtx, brandExamples, force = false) {
+async function runMarketDataDrivenSEO(market, brandCtx, brandExamples, force = false, language = 'en') {
   const BRAND_GSC = { pickl: 'https://eatpickl.com/', bonbird: 'https://bonbirdchicken.com/' };
-  const tag = `[intl-seo/${market.marketKey}]`;
+  const isAr = language !== 'en';                          // ar/ur both surface as Arabic script in GSC
+  const scriptMatch = kw => isAr ? /[؀-ۿ]/.test(kw) : !/[؀-ۿ]/.test(kw);
+  const tag = `[intl-seo/${market.marketKey}/${language}]`;
 
   // Fetch GSC data with page URLs
   let rowsWithPages;
@@ -162,6 +164,7 @@ async function runMarketDataDrivenSEO(market, brandCtx, brandExamples, force = f
     .filter(r => force || !alreadyQueuedPages.has(r.page.toLowerCase().replace(/\/$/, '')))
     .filter(r => keywordMatchesMenu(r.keyword, brandCtx))
     .filter(r => keywordMatchesMarket(r.keyword, market.marketKey))
+    .filter(r => scriptMatch(r.keyword)) // this pass's language only (Arabic queries → ar pass)
     .sort((a, b) => b.ctrGap - a.ctrGap)
     .slice(0, 3); // max 3 meta rewrites per market per run
 
@@ -172,7 +175,7 @@ async function runMarketDataDrivenSEO(market, brandCtx, brandExamples, force = f
 
   // Build prompt for international meta rewrites
   const brandPrompt    = buildBrandPrompt(brandCtx, brandExamples);
-  const marketCtx      = buildMarketPrompt(market, brandPrompt, 'en');
+  const marketCtx      = buildMarketPrompt(market, brandPrompt, language);
   const brandName      = brandCtx?.name || market.brand;
   const voiceFn        = voiceClaudeAdapter(brandName);
   const menuItems      = brandCtx?.menu ? [
@@ -188,8 +191,9 @@ MARKET CONTEXT: ${market.label}
 CULTURAL NOTES: ${(market.culturalNotes || []).join(' | ')}
 
 RULES:
-- Title: 52-58 characters exactly
-- Description: 150-158 characters exactly
+${isAr ? `- Write the title and description in ARABIC (local ${market.label} dialect, NOT Modern Standard Arabic)
+- Title: 50-60 characters · Description: 120-155 characters` : `- Title: 52-58 characters exactly
+- Description: 150-158 characters exactly`}
 - Only reference REAL menu items: ${menuItems || 'use items from brand context'}
 - No generic phrases ("great food", "best in ${market.label}", "quality ingredients")
 - CRITICAL: Write for the PAGE's topic based on its URL — not just the keyword
@@ -242,6 +246,7 @@ Return ONLY a JSON array:
         market:      market.marketKey,
         actor:       'claude (intl-scheduler)',
         locationTag: `${market.flag} ${market.label}`,
+        languageTag: language.toUpperCase(),
         reason:      p.rationale || `Low CTR vs expected for position ${matched.position?.toFixed(1)} — ${market.label}`,
         payload: {
           url:           matched.page,
@@ -253,7 +258,8 @@ Return ONLY a JSON array:
           ctrGap:        matched.ctrGap != null ? (matched.ctrGap * 100).toFixed(1) : null,
           wpAction:      'update_meta',
           wpBase:        wp.base, wpUser: wp.user, wpPass: wp.pass,
-          language:      'en',
+          language:      language,
+          nativeReview:  isAr ? 'pending' : undefined,
           voiceScore:    voiceCheck.score,
           voiceIssues:   voiceCheck.issues,
         },
@@ -267,9 +273,14 @@ Return ONLY a JSON array:
 }
 
 // ── International keyword opportunities (pos 11-20 → page_update, pos 21-35 → blog_draft) ─────
-async function runMarketKeywordOpportunities(market, brandCtx, brandExamples, force = false) {
+async function runMarketKeywordOpportunities(market, brandCtx, brandExamples, force = false, language = 'en') {
   const BRAND_GSC = { pickl: 'https://eatpickl.com/', bonbird: 'https://bonbirdchicken.com/' };
-  const tag = `[intl-opps/${market.marketKey}]`;
+  const isAr = language !== 'en';                          // ar/ur both surface as Arabic script in GSC
+  const scriptMatch = kw => isAr ? /[؀-ۿ]/.test(kw) : !/[؀-ۿ]/.test(kw);
+  const langDirective = isAr
+    ? `\nLANGUAGE: Write ALL output (titles, descriptions, suggestions, copy, body) in ARABIC — local ${market.label} dialect, NOT Modern Standard Arabic. URLs/slugs stay in English.`
+    : '';
+  const tag = `[intl-opps/${market.marketKey}/${language}]`;
 
   let rowsWithPages;
   try {
@@ -299,7 +310,7 @@ async function runMarketKeywordOpportunities(market, brandCtx, brandExamples, fo
   const alreadyQueuedKws   = await getQueuedKeywordsForMarket(market.brand);
   const feedbackNotes      = await getBrandFeedback(market.brand);
   const brandPrompt        = buildBrandPrompt(brandCtx, brandExamples);
-  const marketCtx          = buildMarketPrompt(market, brandPrompt, 'en');
+  const marketCtx          = buildMarketPrompt(market, brandPrompt, language);
   const wp                 = getWpCredentials(market);
   const brandName          = brandCtx?.name || (market.brand === 'pickl' ? 'Pickl' : 'Bonbird');
   const voiceFn            = voiceClaudeAdapter(brandName);
@@ -313,12 +324,13 @@ async function runMarketKeywordOpportunities(market, brandCtx, brandExamples, fo
     .filter(r => force || !alreadyQueuedPages.has(r.page.toLowerCase().replace(/\/$/, '')))
     .filter(r => keywordMatchesMenu(r.keyword, brandCtx))
     .filter(r => keywordMatchesMarket(r.keyword, market.marketKey))
+    .filter(r => scriptMatch(r.keyword)) // this pass's language only
     .sort((a, b) => b.impressions - a.impressions)
     .slice(0, 2);
 
   for (const r of quickWins) {
     try {
-      const userPrompt = `This ${market.brand === 'pickl' ? 'Pickl' : 'Bonbird'} page ranks position ${r.position.toFixed(1)} for "${r.keyword}" in ${market.label} with ${r.impressions} impressions but isn't on page 1.
+      const userPrompt = `This ${market.brand === 'pickl' ? 'Pickl' : 'Bonbird'} page ranks position ${r.position.toFixed(1)} for "${r.keyword}" in ${market.label} with ${r.impressions} impressions but isn't on page 1.${langDirective}
 
 PAGE: ${r.page}
 KEYWORD: "${r.keyword}"
@@ -344,6 +356,7 @@ Return ONLY JSON:
         market:  market.marketKey,
         actor:   'claude (intl-opps)',
         locationTag: `${market.flag} ${market.label}`,
+        languageTag: language.toUpperCase(),
         reason:  parsed.rationale || `Position ${r.position.toFixed(1)} quick win — ${r.impressions} impressions for "${r.keyword}"`,
         payload: {
           url:              r.page,
@@ -354,7 +367,8 @@ Return ONLY JSON:
           suggestionTitle:  parsed.title,
           suggestionDetail: parsed.suggestions.join(' | '),
           wpBase:  wp.base, wpUser: wp.user, wpPass: wp.pass,
-          language: 'en',
+          language: language,
+          nativeReview: isAr ? 'pending' : undefined,
         },
       });
       queued++;
@@ -393,6 +407,7 @@ Return ONLY JSON:
     .filter(r => force || !alreadyQueuedKws.has(r.keyword.toLowerCase().trim()))
     .filter(r => keywordMatchesMenu(r.keyword, brandCtx))
     .filter(r => keywordMatchesMarket(r.keyword, market.marketKey))
+    .filter(r => scriptMatch(r.keyword)) // this pass's language only
     .sort((a, b) => b.impressions - a.impressions)
     .slice(0, 1);
 
@@ -402,7 +417,7 @@ Return ONLY JSON:
 
       if (existingPage) {
         // Dedicated page already exists but ranking poorly — update it, don't create a competing one
-        const userPrompt = `This ${market.brand === 'pickl' ? 'Pickl' : 'Bonbird'} page already exists but ranks at position ${r.position.toFixed(1)} for "${r.keyword}" in ${market.label} — it needs on-page improvements to break into page 1.
+        const userPrompt = `This ${market.brand === 'pickl' ? 'Pickl' : 'Bonbird'} page already exists but ranks at position ${r.position.toFixed(1)} for "${r.keyword}" in ${market.label} — it needs on-page improvements to break into page 1.${langDirective}
 
 PAGE: ${r.page}
 KEYWORD: "${r.keyword}"
@@ -429,6 +444,7 @@ Return ONLY JSON:
           market:  market.marketKey,
           actor:   'claude (intl-opps)',
           locationTag: `${market.flag} ${market.label}`,
+          languageTag: language.toUpperCase(),
           reason:  parsed.rationale || `Existing page at pos ${r.position.toFixed(1)} for "${r.keyword}" — improve rather than duplicate`,
           payload: {
             url:              r.page,
@@ -439,7 +455,8 @@ Return ONLY JSON:
             suggestionTitle:  parsed.title,
             suggestionDetail: parsed.suggestions.join(' | '),
             wpBase:  wp.base, wpUser: wp.user, wpPass: wp.pass,
-            language: 'en',
+            language: language,
+            nativeReview: isAr ? 'pending' : undefined,
           },
         });
         queued++;
@@ -449,7 +466,7 @@ Return ONLY JSON:
         // Location/service intent + no dedicated page → full landing PAGE.
         // International port of the UAE scheduler's runPageCreation — previously
         // these gaps only ever produced a blog post, never a proper landing page.
-        const userPrompt = `Create a complete, conversion-focused landing page for ${brandName} in ${market.label} targeting "${r.keyword}".
+        const userPrompt = `Create a complete, conversion-focused landing page for ${brandName} in ${market.label} targeting "${r.keyword}".${langDirective}
 
 Google shows ${r.impressions} impressions at position ${r.position.toFixed(1)} but only the market root (${r.page}) is ranking — there is no dedicated page for this yet. Building one captures this traffic.
 
@@ -487,6 +504,7 @@ Return ONLY JSON:
           market:  market.marketKey,
           actor:   'claude (intl-opps)',
           locationTag: `${market.flag} ${market.label}`,
+          languageTag: language.toUpperCase(),
           title:   `New ${market.label} page: ${parsed.title}`,
           reason:  parsed.rationale || `No dedicated page — market root ranks pos ${r.position.toFixed(1)} for "${r.keyword}" (${r.impressions} impressions). Nest under /${market.marketSlug}/ at publish.`,
           payload: {
@@ -505,7 +523,8 @@ Return ONLY JSON:
             currentPos:    r.position,
             impressions:   r.impressions,
             wpBase:  wp.base, wpUser: wp.user, wpPass: wp.pass,
-            language: 'en',
+            language: language,
+            nativeReview: isAr ? 'pending' : undefined,
           },
         });
         queued++; pageCreations++;
@@ -522,7 +541,7 @@ Return ONLY JSON:
 
 This keyword shows ${r.impressions} impressions at position ${r.position.toFixed(1)} but only the market root page (${r.page}) is ranking — there is no dedicated page for this topic yet. A dedicated post will capture this traffic properly.
 
-LANGUAGE: English
+LANGUAGE: ${isAr ? `Arabic — local ${market.label} dialect, NOT Modern Standard Arabic` : 'English'}
 WORD COUNT: 400-550 words
 TARGET KEYWORD: "${r.keyword}"
 MARKET: ${market.label}
@@ -575,6 +594,7 @@ ${r.keyword}
           market:  market.marketKey,
           actor:   'claude (intl-opps)',
           locationTag: `${market.flag} ${market.label}`,
+          languageTag: language.toUpperCase(),
           reason:  `No dedicated page — market root ranks at pos ${r.position.toFixed(1)} for "${r.keyword}" (${r.impressions} impressions)`,
           payload: {
             title, slug, body,
@@ -588,7 +608,8 @@ ${r.keyword}
             voiceIssues:     voiceCheck.issues,
             voiceTopFix:     voiceCheck.issues?.[0] || null,
             wpBase:  wp.base, wpUser: wp.user, wpPass: wp.pass,
-            language: 'en',
+            language: language,
+            nativeReview: isAr ? 'pending' : undefined,
           },
         });
         queued++;
@@ -917,11 +938,13 @@ async function processMarketLanguage(store, marketKey, market, language, force =
   const errors        = [];
 
   // ── DATA-DRIVEN ANALYSIS (always runs, no cache TTL) ───────────────────────
-  // Run GSC-based meta rewrites for this market's actual pages.
-  // Only runs once per market (not per language) — skip for non-English passes.
-  if (language === 'en') {
+  // Run GSC-based meta rewrites + keyword opportunities for this market's actual
+  // pages, ONCE PER LANGUAGE PASS. Each pass filters GSC queries to its own script
+  // (en → Latin, ar → Arabic), so Arabic searches drive Arabic content instead of
+  // being processed as English. 'ur' (Pakistan) only gets seed content for now.
+  if (language === 'en' || language === 'ar') {
     try {
-      const gscResult = await runMarketDataDrivenSEO(market, brandCtx, brandExamples, force);
+      const gscResult = await runMarketDataDrivenSEO(market, brandCtx, brandExamples, force, language);
       console.log(`${tag} — data-driven result:`, JSON.stringify(gscResult));
       if (gscResult.queued > 0) {
         queued.push({ type: 'data_driven_meta', count: gscResult.queued });
@@ -932,7 +955,7 @@ async function processMarketLanguage(store, marketKey, market, language, force =
     }
 
     try {
-      const oppsResult = await runMarketKeywordOpportunities(market, brandCtx, brandExamples, force);
+      const oppsResult = await runMarketKeywordOpportunities(market, brandCtx, brandExamples, force, language);
       console.log(`${tag} — keyword opps result:`, JSON.stringify(oppsResult));
       if (oppsResult.queued > 0) {
         queued.push({ type: 'keyword_opportunities', count: oppsResult.queued });
