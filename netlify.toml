@@ -191,8 +191,14 @@
 [functions."competitor-matrix-background"]
   schedule = "0 4 * * 1"
 
+# international-seo-background — Monday cron DISABLED (Shazin, 2026-06-26).
+# The full pipeline (3 blogs/market + meta sweep + on-page across 9 markets)
+# spends on the Anthropic API every Monday. Run it MANUALLY instead:
+#   /.netlify/functions/international-seo-background?market=<key>&only=meta
+#   (drop &only=meta for the full blog+meta+onpage run)
+# Re-enable by uncommenting the schedule line below.
 [functions."international-seo-background"]
-  schedule = "0 4 * * 1"
+  # schedule = "0 4 * * 1"
 
 [functions."technical-seo-background"]
   schedule = "0 4 * * 1"

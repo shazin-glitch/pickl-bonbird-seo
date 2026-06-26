@@ -3648,7 +3648,13 @@ Update "Current URL" from `yolkseo.netlify.app` to `thenest.yolkbrands.com`
 
 ---
 
-## Current Version: v7.4.34
+## Current Version: v7.4.35
+
+Last built (v7.4.35): **International Monday cron DISABLED — manual-trigger only.**
+- The weekly cron ran the full intl pipeline (≈3 blogs/market + meta sweep + on-page across 9 markets) every Monday 4am UTC, spending on the Anthropic API unattended. Shazin's call (2026-06-26): don't auto-run, trigger manually instead.
+- Commented out `schedule` under `[functions."international-seo-background"]` in netlify.toml (function stays deployed + callable by URL; only the auto-fire stops). Re-enable = uncomment one line.
+- **Manual trigger:** `/.netlify/functions/international-seo-background?market=<key>&only=meta` (drop `&only=meta` for the full blog+meta+onpage run).
+- All other Monday crons (UAE scheduler, competitor-matrix, technical, llm-mentions, backlinks, citations, ai-overview, keyword-discovery) still run as before.
 
 Last built (v7.4.34): **Meta sweep exclude list — skip legal/campaign pages.**
 - First live Bahrain sweep discovered 12/143 pages correctly, but the token match also caught pages that aren't local-SEO targets: a "national day giveaway" T&C page and two `pickl-world-tour-*` campaign microsite pages.

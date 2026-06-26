@@ -80,7 +80,7 @@ See SETUP.md → "Done (Full History)" for complete build log.
 ```
 scheduler-background         — Content pipeline + GSC snapshots + CPC enrichment
 competitor-matrix-background — Competitor keyword tracking
-international-seo-background — 9-market content pipeline
+international-seo-background — 9-market content pipeline  ⛔ CRON DISABLED v7.4.35 — manual only: ?market=<key>&only=meta
 technical-seo-background     — PageSpeed + health checks
 llm-mentions-background      — LLM brand mention tracking
 backlinks-background         — Referring domains + competitor comparison
