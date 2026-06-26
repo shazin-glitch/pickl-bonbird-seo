@@ -3198,9 +3198,10 @@ function buildPreview(item) {
     ${p.focusKeyword ? `<div style="margin-top:6px"><strong>Focus Keyword:</strong> ${esc(p.focusKeyword)}</div>` : ''}`;
   }
   if (item.type === 'onpage_suggestion') return `
-    <div><strong>Page:</strong> ${esc(p.url || '—')}</div>
-    ${p.keyword ? `<div style="margin-top:6px"><strong>Keyword:</strong> "${esc(p.keyword)}" (ranking pos ${p.currentPosition || '?'})</div>` : ''}
-    <div style="margin-top:6px"><strong>Claude's Suggestion:</strong> ${esc(p.suggestion || '—')}</div>`;
+    <div><strong>Page:</strong> ${esc(p.url || p.targetUrl || '—')}</div>
+    ${p.suggestionTitle || item.title ? `<div style="margin-top:6px"><strong>Suggestion:</strong> ${esc(p.suggestionTitle || item.title)}</div>` : ''}
+    ${p.suggestionDetail ? `<div style="margin-top:6px;color:var(--text-muted);font-size:13px">${esc(p.suggestionDetail)}</div>` : ''}
+    ${(p.suggestedCopy || p.suggestion) ? `<div style="margin-top:8px"><strong>Suggested copy:</strong><br><span style="font-size:13px">${esc(p.suggestedCopy || p.suggestion)}</span></div>` : '<div style="margin-top:6px;color:var(--text-muted)">No copy generated.</div>'}`;
   if (item.type === 'review_response') return `
     <div><strong>Review:</strong> "${esc(p.reviewText || '—')}"</div>
     <div style="margin-top:6px"><strong>Draft Reply:</strong> ${esc(p.responseText || '—')}</div>`;

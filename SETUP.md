@@ -3648,7 +3648,12 @@ Update "Current URL" from `yolkseo.netlify.app` to `thenest.yolkbrands.com`
 
 ---
 
-## Current Version: v7.4.31
+## Current Version: v7.4.32
+
+Last built (v7.4.32): **Three on-page card bugs fixed.**
+- **"Claude's Suggestion: —" always blank:** Frontend rendered `p.suggestion` but backend stored `p.suggestedCopy` — field name mismatch. On-page card now renders `suggestionTitle` (bold), `suggestionDetail` (muted 13px), and `suggestedCopy` as three distinct rows. `p.url || p.targetUrl` fallback added so the page link always shows.
+- **focusKeyword polluted with character-count reasoning:** Claude was dumping verification notes into the last section (`### FOCUS_KEYWORD`) since nothing terminated its output. Fix: added `### END` marker after `### FOCUS_KEYWORD` in the prompt so `parseSection` stops cleanly. Also take first non-empty line only as belt-and-suspenders.
+- **`?only=meta` param added:** `?only=meta,onpage` always ran on-page suggestions too. `?only=meta` now skips on-page generation entirely — use for pure meta-only focused runs. `?only=meta,onpage` still runs both. Full cron (no param) unchanged.
 
 Last built (v7.4.31): **meta_update smart dedup — no more double-cards for the same page.**
 - Two generators could both queue a `meta_update` for the same page+language: `runMarketDataDrivenSEO` (GSC-driven: has real position/impressions) and the `processMarketLanguage` seed block (blind: no GSC data). Now mutually aware.

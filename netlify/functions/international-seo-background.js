@@ -1023,14 +1023,17 @@ Return EXACTLY this structure:
 [120-155 characters. Include a call to action. Include primary keyword. On-brand tone.]
 
 ### FOCUS_KEYWORD
-[Single primary keyword — the most important one from the list above]`;
+[Single primary keyword only — no explanations, no character counts, no notes]
+
+### END`;
+
 
   const raw = await callClaude(marketCtx, userPrompt);
 
   return {
     metaTitle:       parseSection(raw, 'META_TITLE'),
     metaDescription: parseSection(raw, 'META_DESCRIPTION'),
-    focusKeyword:    parseSection(raw, 'FOCUS_KEYWORD') || keywords[0] || '',
+    focusKeyword:    (parseSection(raw, 'FOCUS_KEYWORD').split('\n').find(l => l.trim()) || keywords[0] || '').trim(),
   };
 }
 
@@ -1214,7 +1217,7 @@ async function markProcessed(store, marketKey, language) {
 }
 
 // ── Process a single market+language ─────────────────────────────────────────
-async function processMarketLanguage(store, marketKey, market, language, force = false, onlyMetaOnPage = false) {
+async function processMarketLanguage(store, marketKey, market, language, force = false, onlyMetaOnPage = false, skipOnPage = false) {
   const tag = `[intl-seo] ${marketKey}/${language}`;
   console.log(`${tag} — starting`);
 
@@ -1443,8 +1446,10 @@ async function processMarketLanguage(store, marketKey, market, language, force =
     errors.push({ type: 'meta_update', error: e.message });
   }
 
-  // 3. On-page suggestion
-  try {
+  // 3. On-page suggestion (skipped when ?only=meta)
+  if (skipOnPage) {
+    console.log(`${tag} — on-page suggestion skipped (?only=meta)`);
+  } else try {
     const onpage = await generateOnPageSuggestion(market, brandCtx, brandExamples, language);
     if (onpage && onpage.suggestionTitle && onpage.suggestedCopy) {
       const id = await queueApprovalItem({
@@ -1488,7 +1493,8 @@ exports.handler = async (event) => {
   const langParam      = event.queryStringParameters?.language || 'all';
   const force          = event.queryStringParameters?.force === 'true';
   const onlyParam      = event.queryStringParameters?.only || '';
-  const onlyMetaOnPage = onlyParam === 'meta,onpage' || onlyParam === 'onpage,meta';
+  const onlyMetaOnPage = onlyParam === 'meta,onpage' || onlyParam === 'onpage,meta' || onlyParam === 'meta';
+  const skipOnPage     = onlyParam === 'meta'; // meta-only: skip on-page suggestions
 
   // Determine which markets to run
   let marketsToRun = {};
@@ -1521,7 +1527,7 @@ exports.handler = async (event) => {
     for (const language of languagesToRun) {
       summary.total++;
       try {
-        const result = await processMarketLanguage(store, marketKey, market, language, force, onlyMetaOnPage);
+        const result = await processMarketLanguage(store, marketKey, market, language, force, onlyMetaOnPage, skipOnPage);
         results[marketKey][language] = result;
         if (result.skipped) {
           summary.skipped++;
