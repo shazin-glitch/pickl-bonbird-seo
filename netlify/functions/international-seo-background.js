@@ -12,7 +12,7 @@
 //   3. onpage_suggestion — content improvement for the market page
 
 const { getStore } = require('@netlify/blobs');
-const { INTERNATIONAL_MARKETS, getMarketsForBrand, buildMarketPrompt, getWpCredentials, buildPostUrl } = require('./_lib/international-config');
+const { INTERNATIONAL_MARKETS, getMarketsForBrand, buildMarketPrompt, getWpCredentials, buildPostUrl, getMarketPageTokens } = require('./_lib/international-config');
 const { getBrandContext, getBrandExamples, buildBrandPrompt, runBrandVoiceCheck, fixBrandVoice, hardStripBannedTokens } = require('./_lib/brand');
 const { fetchGscDirect, fetchGscWithPages, listApprovals, createApproval, updateApproval, extractJson } = require('./_lib/store');
 const { internalHeaders } = require('./_lib/auth');
@@ -938,105 +938,6 @@ Return EXACTLY this structure:
   return result;
 }
 
-// ── Generate meta update for the market landing page ─────────────────────────
-async function generateMetaUpdate(market, brandCtx, brandExamples, language) {
-  // Safety: never generate Arabic meta when market has no Arabic slug
-  if (language === 'ar' && !market.arabicSlug) {
-    console.log(`[generateMetaUpdate] ${market.marketKey} — skipping AR (no arabicSlug)`);
-    return null;
-  }
-
-  const keywords = market.seedKeywords[language] || market.seedKeywords['en'];
-  const isArabic  = language === 'ar';
-  const marketCtx = buildMarketPrompt(market, buildBrandPrompt(brandCtx, brandExamples), language);
-  const pageUrl   = buildPostUrl(market, 'page', market.marketSlug, language);
-
-  // Fetch current WP meta so Claude can evaluate whether a replacement is needed
-  let currentMeta = null;
-  let pageExists  = false;
-  try {
-    const siteUrl = process.env.URL || 'https://yolkseo.netlify.app';
-    const cmRes   = await fetch(`${siteUrl}/.netlify/functions/wordpress`, {
-      method:  'POST',
-      headers: internalHeaders({ 'Content-Type': 'application/json' }),
-      body:    JSON.stringify({ action: 'get_current_meta', brand: market.brand, payload: { url: pageUrl } }),
-    });
-    const cmData = await cmRes.json().catch(() => null);
-    if (cmData?.found) {
-      pageExists  = true;
-      currentMeta = { title: cmData.currentTitle || null, description: cmData.currentDesc || null };
-    }
-  } catch (_) {}
-
-  const pageContext = currentMeta
-    ? `CURRENT META ON PAGE (only replace if vague, generic, or missing the target keyword):
-  Title:       "${currentMeta.title || 'NOT SET'}"
-  Description: "${currentMeta.description || 'NOT SET'}"`
-    : pageExists
-      ? 'Note: Page exists in WordPress but current meta could not be fetched.'
-      : 'Note: This page does not exist in WordPress yet — write meta for when it launches.';
-
-  const arabicRules = isArabic ? `
-ARABIC RULES — non-negotiable:
-- Write in Gulf Arabic (UAE/Bahrain/KSA style) — casual, punchy, not formal MSA
-- NEVER translate brand names: "Pickl" stays "Pickl", "Bonbird" stays "Bonbird"
-- NEVER translate menu item names literally — use the transliterated form:
-  "smash burger" → "سماش برغر" (NOT "لحم بقري مسحوق" or "برغر مسحوق")
-  "chicken sando" → "ساندويتش دجاج" or keep English
-  "tenders" → "تيندرز" or "قطع دجاج مقرمشة"
-  "loaded fries" → "فرايز مع إضافات"
-- Keep the energy — Arabic marketing copy should feel as bold as the English
-- Do NOT use "مسحوق" (powder) to describe burgers — it sounds unappetizing` : '';
-
-  // Pull real menu items from brand context so Claude can't invent dishes or spice levels
-  const menuItems = brandCtx?.menu ? [
-    ...(brandCtx.menu.cheeseburgers    || []).slice(0, 3),
-    ...(brandCtx.menu.chickenSandos    || brandCtx.menu.sandwiches || []).slice(0, 3),
-    ...(brandCtx.menu.friesAndSides    || brandCtx.menu.sides      || []).slice(0, 2),
-  ].filter(Boolean).join(' | ') : '';
-  const spiceSystem = brandCtx?.menu?.spiceSystem || '';
-
-  const userPrompt = `Write an optimised meta title and meta description for the ${market.brand === 'pickl' ? 'Pickl' : 'Bonbird'} ${market.label} landing page.
-
-URL: ${pageUrl}
-Language: ${isArabic ? 'Arabic (Gulf dialect)' : 'English'}
-Top keywords to target: ${keywords.slice(0, 5).join(', ')}
-
-${pageContext}
-
-RULES — non-negotiable:
-- Title: 50-60 characters exactly
-- Description: 120-155 characters exactly
-- ONLY reference real menu items from this list: ${menuItems || 'use items from brand context'}
-${spiceSystem ? `- ONLY use the brand's actual spice/heat system: ${spiceSystem} — NEVER invent heat levels` : ''}
-- No generic phrases: "great food", "delicious", "best in town", "quality ingredients"
-- Lead with the primary keyword, end with a reason to click
-- Write specifically for ${market.label} — mention the market, not UAE or Dubai
-${arabicRules}
-
-Return EXACTLY this structure:
-
-### META_TITLE
-[50-60 characters. Include brand name and primary location keyword.]
-
-### META_DESCRIPTION
-[120-155 characters. Include a call to action. Include primary keyword. On-brand tone.]
-
-### FOCUS_KEYWORD
-[Single primary keyword only — no explanations, no character counts, no notes]
-
-### END`;
-
-
-  const raw = await callClaude(marketCtx, userPrompt);
-
-  return {
-    metaTitle:       parseSection(raw, 'META_TITLE'),
-    metaDescription: parseSection(raw, 'META_DESCRIPTION'),
-    focusKeyword:    (parseSection(raw, 'FOCUS_KEYWORD').split('\n').find(l => l.trim()) || keywords[0] || '').trim(),
-  };
-}
-
 // ── Fetch live page HTML from WP REST (strips tags, returns plain text) ───────
 async function fetchPageText(market, language) {
   try {
@@ -1128,6 +1029,171 @@ Return EXACTLY this structure:
   };
 }
 
+// ── Full market page meta sweep ───────────────────────────────────────────────
+// Discovers ALL of a market's WordPress pages (root + country sub-pages like
+// /bahrain-events/, /franchise-bahrain/, /ksa-locations/) via slug-token matching,
+// then runs a UAE-quality meta audit: fetch current meta → batch-evaluate with
+// skip-if-good → voice-gate → dedup → queue improvements. Supersedes the old
+// single-page generateMetaUpdate seed block.
+async function runMarketPageMetaSweep(market, brandCtx, brandExamples, language, feedbackNotes = [], force = false) {
+  const isAr = language === 'ar';
+  const tag  = `[intl-sweep/${market.marketKey}/${language}]`;
+  if (isAr && !market.arabicSlug) { console.log(`${tag} — skip AR (no arabicSlug)`); return { queued: 0, skipped: 'no_arabic_slug' }; }
+
+  const siteUrl = process.env.URL || 'https://yolkseo.netlify.app';
+  const tokens  = getMarketPageTokens(market);
+
+  // 1. Discover pages from WordPress
+  let allPages = [];
+  try {
+    const res = await fetch(`${siteUrl}/.netlify/functions/wordpress`, {
+      method:  'POST',
+      headers: internalHeaders({ 'Content-Type': 'application/json' }),
+      body:    JSON.stringify({ action: 'list_market_pages', brand: market.brand, payload: { tokens } }),
+    });
+    const data = await res.json().catch(() => null);
+    allPages = data?.matched || [];
+    console.log(`${tag} — discovered ${allPages.length}/${data?.total ?? '?'} pages [tokens: ${tokens.join(', ')}]: ${allPages.map(p => p.slug).join(', ') || '(none)'}`);
+  } catch (e) {
+    console.warn(`${tag} — page discovery failed: ${e.message}`);
+    return { queued: 0, skipped: 'discovery_failed' };
+  }
+  if (!allPages.length) return { queued: 0, skipped: 'no_pages_found', tokens };
+
+  // 2. Partition by language — Arabic pages → ar pass; everything else → en pass
+  const arSlug = (market.arabicSlug || '').toLowerCase();
+  const pages = allPages.filter(p => {
+    const slug = (p.slug || '').toLowerCase();
+    const isArabicPage = slug.includes('arabic') || (arSlug && slug.includes(arSlug));
+    return isAr ? isArabicPage : !isArabicPage;
+  });
+  if (!pages.length) { console.log(`${tag} — no pages for this language pass`); return { queued: 0, skipped: 'no_pages_this_language' }; }
+
+  // Cap batch size to keep the single Claude call sane
+  const MAX = force ? 25 : 15;
+  const batch = pages.slice(0, MAX);
+  if (pages.length > MAX) console.log(`${tag} — capping ${pages.length} → ${MAX} pages this run`);
+
+  // 3. Fetch current meta for each page (by postId — no URL lookup needed)
+  const currentMetaMap = {};
+  for (const p of batch) {
+    try {
+      const cmRes = await fetch(`${siteUrl}/.netlify/functions/wordpress`, {
+        method:  'POST',
+        headers: internalHeaders({ 'Content-Type': 'application/json' }),
+        body:    JSON.stringify({ action: 'get_current_meta', brand: market.brand, payload: { postId: p.id, postType: 'pages' } }),
+      });
+      const cm = await cmRes.json().catch(() => null);
+      if (cm?.found) currentMetaMap[p.id] = { title: cm.currentTitle || null, description: cm.currentDesc || null };
+    } catch (_) { /* non-critical — evaluate without current meta */ }
+  }
+
+  // 4. UAE-quality batch prompt
+  const marketCtx   = buildMarketPrompt(market, buildBrandPrompt(brandCtx, brandExamples), language);
+  const menuItems   = brandCtx?.menu ? [
+    ...(brandCtx.menu.cheeseburgers || []).slice(0, 3),
+    ...(brandCtx.menu.chickenSandos || brandCtx.menu.sandwiches || []).slice(0, 2),
+    ...(brandCtx.menu.friesAndSides || brandCtx.menu.sides || []).slice(0, 2),
+  ].filter(Boolean).join(' | ') : '';
+  const spiceSystem = brandCtx?.menu?.spiceSystem || '';
+  const charRule    = isAr
+    ? '- Title: 50-60 characters · Description: 120-155 characters'
+    : '- Title: 52-58 characters exactly — count them\n- Description: 150-158 characters exactly — count them';
+
+  const userPrompt = `You are auditing ${market.brand === 'pickl' ? 'Pickl' : 'Bonbird'} ${market.label} pages. For EACH page, decide if the current meta is already good OR genuinely needs improvement.
+
+Only propose a replacement if the current meta is vague, generic, missing, or doesn't reflect what the page is about. If it's already specific and on-brand — set "skip": true.
+${isAr ? '\nWrite all titles/descriptions in Gulf Arabic dialect (NOT Modern Standard Arabic). Never translate brand or menu item names.\n' : ''}
+RULES for any replacement — non-negotiable:
+${charRule}
+- Only reference REAL menu items: ${menuItems || 'use items from brand context'}
+${spiceSystem ? `- ONLY use the brand's actual spice/heat system: ${spiceSystem} — NEVER invent heat levels\n` : ''}- No generic phrases ("great food", "delicious", "best in ${market.label}", "quality ingredients")
+- Write specifically about what THIS page is about — the slug tells you (e.g. "franchise-${market.marketKey}" = franchising page; "${market.marketKey}-locations" = locations page; "${market.marketKey}-contact" = contact page). Do NOT write generic landing-page meta for a franchise or contact page.
+- Lead with the page's primary keyword, end with a reason to click${feedbackNotes.length ? `
+
+HUMAN FEEDBACK — NEVER do any of the following (explicitly rejected by the team):
+${feedbackNotes.map(n => `- ${n}`).join('\n')}` : ''}
+
+PAGES TO EVALUATE:
+${batch.map((p, i) => {
+  const cur = currentMetaMap[p.id];
+  const curBlock = cur
+    ? `   Current title: "${cur.title || 'NOT SET'}"\n   Current desc:  "${cur.description || 'NOT SET'}"`
+    : '   Current meta: unknown (not fetched)';
+  return `${i + 1}. id: ${p.id} | slug: "${p.slug}" | "${p.title}"\n   URL: ${p.link}\n${curBlock}`;
+}).join('\n\n')}
+
+Return ONLY a JSON array — one object per page:
+[{"id": <page id>, "url": "exact URL from input", "skip": false, "skipReason": "only if skip=true", "title": "${isAr ? 'optimised title' : '52-58 chars'}", "description": "${isAr ? 'optimised description' : '150-158 chars'}", "focusKeyword": "single primary keyword only", "rationale": "one sentence — why current underperforms and why yours is better"}]`;
+
+  const raw    = await callClaude(marketCtx, userPrompt);
+  const parsed = extractJson(raw);
+  if (!Array.isArray(parsed)) { console.warn(`${tag} — Claude did not return JSON array`); return { queued: 0, skipped: 'parse_error', discovered: batch.length }; }
+
+  // 5. Per-page: skip / voice-gate / dedup / queue
+  const voiceFn       = voiceClaudeAdapter(brandCtx?.name || (market.brand === 'pickl' ? 'Pickl' : 'Bonbird'));
+  const queuedMetaMap = await getQueuedMetaMap(market.brand);
+  let queued = 0, skipped = 0;
+
+  for (const r of parsed) {
+    if (r.skip) { console.log(`${tag} — skip ${r.url} (${r.skipReason || 'already good'})`); skipped++; continue; }
+    const page = batch.find(p =>
+      String(p.id) === String(r.id) ||
+      p.link === r.url ||
+      p.link.replace(/\/$/, '') === String(r.url || '').replace(/\/$/, ''));
+    if (!page) { console.warn(`${tag} — unknown page from Claude: ${r.url}`); continue; }
+    if (!r.title || !r.description) { console.warn(`${tag} — missing title/desc for ${page.slug}`); continue; }
+
+    // Brand voice gate — one fix attempt, reject if still <8
+    let title = r.title, description = r.description;
+    let voice = await runBrandVoiceCheck(`${title}\n${description}`, brandCtx, voiceFn).catch(() => ({ score: 8, issues: [] }));
+    if (voice.score !== null && voice.score < 8) {
+      const fixed = await fixBrandVoice(`${title}\n${description}`, voice, brandCtx, voiceFn, brandExamples, feedbackNotes);
+      if (fixed.improved) {
+        const lines = fixed.content.trim().split('\n').filter(Boolean);
+        if (lines[0]) title       = lines[0].slice(0, 60);
+        if (lines[1]) description = lines[1].slice(0, 160);
+        voice = fixed.voiceCheck;
+      }
+    }
+    if (voice.score !== null && voice.score < 8) { console.warn(`${tag} — voice ${voice.score}/10 reject (${page.slug})`); continue; }
+
+    // Dedup — GSC-driven (real impressions) wins; never double-queue a page
+    const key      = `${page.link.toLowerCase().replace(/\/$/, '')}::${language}`;
+    const existing = queuedMetaMap.get(key);
+    if (existing && existing.status === 'pending') {
+      console.log(`${tag} — skip ${page.slug} — meta already pending (${existing.isGscDriven ? 'GSC-driven' : 'sweep/seed'} ${existing.id})`);
+      skipped++; continue;
+    }
+
+    const id = await queueApprovalItem({
+      type:        'meta_update',
+      brand:       market.brand,
+      market:      market.marketKey,
+      marketLabel: market.label,
+      language,
+      title:       `Meta update — ${market.label}: ${page.title || page.slug}`,
+      meta: {
+        metaTitle:       title,
+        metaDescription: description,
+        focusKeyword:    String(r.focusKeyword || '').split('\n')[0].trim(),
+        voiceScore:      voice.score,
+        voiceIssues:     voice.issues || [],
+        currentMeta:     currentMetaMap[page.id] || null,
+      },
+      targetUrl:   page.link,
+      wpParent:    market.wpMarketParent,
+      notes:       r.rationale || `Meta improvement for ${market.label} page: ${page.slug}`,
+    });
+    // Keep local map in sync so two Claude rows for the same page can't double-queue
+    queuedMetaMap.set(key, { id, status: 'pending', isGscDriven: false });
+    queued++;
+    console.log(`${tag} — queued meta_update for ${page.slug}: ${id}`);
+  }
+
+  return { queued, skipped, discovered: batch.length, found: pages.length };
+}
+
 // ── Save to approvals queue via the approvals API ─────────────────────────────
 async function queueApprovalItem(item) {
   const siteUrl = process.env.URL || 'https://yolkseo.netlify.app';
@@ -1167,6 +1233,8 @@ async function queueApprovalItem(item) {
         voiceScore:      item.meta?.voiceScore   || null,
         voiceIssues:     item.meta?.voiceIssues  || [],
         voiceTopFix:     item.meta?.voiceTopFix  || null,
+        // Current WP meta (enables the side-by-side "Current vs Proposed" card view)
+        currentMeta:     item.meta?.currentMeta  || null,
         // Arabic content requires native reviewer sign-off before approval
         nativeReview:    item.language === 'ar' ? 'pending' : undefined,
         // GSC position data — populated when keyword already has impressions in the market
@@ -1389,61 +1457,19 @@ async function processMarketLanguage(store, marketKey, market, language, force =
     await markProcessed(store, marketKey, language);
   } // end if (!onlyMetaOnPage)
 
-  // 2. Meta update for market landing page
-  try {
-    const meta = await generateMetaUpdate(market, brandCtx, brandExamples, language);
-    if (meta && meta.metaTitle && meta.metaDescription) {
-      const metaVoiceFn = voiceClaudeAdapter(brandCtx?.name || (market.brand === 'pickl' ? 'Pickl' : 'Bonbird'));
-      const metaText    = `${meta.metaTitle}\n${meta.metaDescription}`;
-      let metaVoice     = await runBrandVoiceCheck(metaText, brandCtx, metaVoiceFn).catch(() => ({ score: 8, issues: [] }));
-      if (metaVoice.score < 8) {
-        const fixed = await fixBrandVoice(metaText, metaVoice, brandCtx, metaVoiceFn, brandExamples, feedbackNotes);
-        if (fixed.improved) {
-          const lines = fixed.content.trim().split('\n').filter(Boolean);
-          if (lines[0]) meta.metaTitle       = lines[0].slice(0, 60);
-          if (lines[1]) meta.metaDescription = lines[1].slice(0, 160);
-          metaVoice = fixed.voiceCheck;
-        }
-      }
-      if (metaVoice.score < 8) {
-        console.warn(`${tag} — meta update voice ${metaVoice.score}/10 — gate reject`);
-      } else {
-        // Dedup: skip if any meta_update is already pending for this page+language
-        // (GSC-driven queues first in runMarketDataDrivenSEO; seed block must not double-queue)
-        const seedTargetUrl = buildPostUrl(market, 'page', market.marketSlug, language);
-        const seedMetaKey   = `${seedTargetUrl.toLowerCase().replace(/\/$/, '')}::${language}`;
-        const pendingMetaMap = await getQueuedMetaMap(market.brand);
-        const existingMeta   = pendingMetaMap.get(seedMetaKey);
-        if (existingMeta && existingMeta.status === 'pending') {
-          console.log(`${tag} — meta update skipped — already pending (${existingMeta.isGscDriven ? 'GSC-driven' : 'seed-block'} item ${existingMeta.id})`);
-        } else {
-          const id = await queueApprovalItem({
-            type:        'meta_update',
-            brand:       market.brand,
-            market:      market.marketKey,
-            marketLabel: market.label,
-            language,
-            title:       `Meta update — ${market.label} ${language.toUpperCase()} landing page`,
-            meta: {
-              metaTitle:       meta.metaTitle,
-              metaDescription: meta.metaDescription,
-              focusKeyword:    meta.focusKeyword,
-              voiceScore:      metaVoice.score,
-              voiceIssues:     metaVoice.issues  || [],
-              voiceTopFix:     metaVoice.topFix  || null,
-            },
-            targetUrl:   seedTargetUrl,
-            wpParent:    market.wpMarketParent,
-            notes: `International SEO — optimised meta for ${market.label} page. Keyword: ${meta.focusKeyword}`,
-          });
-          queued.push({ type: 'meta_update', id });
-          console.log(`${tag} — meta update queued: ${id}`);
-        }
-      }
+  // 2. Full page meta sweep — discovers ALL market pages (root + country sub-pages
+  //    like /bahrain-events/, /franchise-bahrain/) and queues UAE-quality meta
+  //    improvements (skip-if-good). Supersedes the old single-page seed block.
+  //    Only en/ar passes — 'ur' pages are covered by the English pass.
+  if (language === 'en' || language === 'ar') {
+    try {
+      const sweep = await runMarketPageMetaSweep(market, brandCtx, brandExamples, language, feedbackNotes, force);
+      console.log(`${tag} — page meta sweep:`, JSON.stringify(sweep));
+      if (sweep.queued > 0) queued.push({ type: 'meta_update', count: sweep.queued });
+    } catch (e) {
+      console.error(`${tag} — page meta sweep failed:`, e.message);
+      errors.push({ type: 'meta_sweep', error: e.message });
     }
-  } catch (e) {
-    console.error(`${tag} — meta update failed:`, e.message);
-    errors.push({ type: 'meta_update', error: e.message });
   }
 
   // 3. On-page suggestion (skipped when ?only=meta)

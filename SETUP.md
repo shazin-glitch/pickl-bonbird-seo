@@ -3648,7 +3648,15 @@ Update "Current URL" from `yolkseo.netlify.app` to `thenest.yolkbrands.com`
 
 ---
 
-## Current Version: v7.4.32
+## Current Version: v7.4.33
+
+Last built (v7.4.33): **Full market page meta sweep — covers ALL country pages, not just the root.**
+- **Problem:** intl meta only ever covered `/bh/` + `/bh-arabic/` (the seed block hardcoded the market root) and missed every country sub-page (`/bahrain-events/`, `/franchise-bahrain/`, `/bahrain-contact-us/`, `/ksa-locations/`, `/franchise-ksa/`, etc.). The GSC-driven path couldn't see them either — `marketPageMatcher` keyed off the root slug (`bh`) but the pages use the full country name (`bahrain`) in prefix OR suffix position, so they never matched. And most have too little GSC traffic to clear the impressions filter regardless.
+- **Fix — page discovery by slug token.** New WP action `list_market_pages` (wordpress.js) enumerates all published pages and filters by the market's slug tokens, matched as whole hyphen/slash segments (so `bh` won't match `bhx`; `franchise-bahrain` matches token `bahrain`). Tokens defined in `MARKET_PAGE_TOKENS` + `getMarketPageTokens()` in international-config.js (abbr + full name, merged with marketSlug/arabicSlug). Verified: Bahrain matches bh/bh-arabic/bahrain-events/franchise-bahrain/bahrain-contact-us; correctly excludes /menu/, /sharjah/.
+- **Fix — quality matched to UAE.** New `runMarketPageMetaSweep` mirrors UAE's `runMetaRewrites`: fetches current WP meta for every discovered page, batches them into ONE Claude call with skip-if-good logic ("only replace if vague/generic/missing"), tight char counts (EN 52-58 / 150-158 exactly — count them; AR 50-60 / 120-155), slug-aware page-type guidance (franchise page ≠ generic landing meta), real menu items + spice system injected. Per-page voice gate (≥8, one fix attempt). Card now shows side-by-side Current vs Proposed (added `currentMeta` passthrough in `queueApprovalItem`).
+- **Dedup preserved.** Sweep reuses `getQueuedMetaMap`; GSC-driven items (real impressions) still win, sweep skips pages already pending. Replaces the old single-page seed block entirely (`generateMetaUpdate` deleted). Gated to en/ar passes only ('ur' pages covered by the English pass).
+- **First run logs every discovered page** (slug list + token list) before queuing, so token-matching can be verified against the live site before anything is pushed.
+- `node --check` passes on all three changed functions. WP password still must be rotated before approving/pushing any items.
 
 Last built (v7.4.32): **Three on-page card bugs fixed.**
 - **"Claude's Suggestion: —" always blank:** Frontend rendered `p.suggestion` but backend stored `p.suggestedCopy` — field name mismatch. On-page card now renders `suggestionTitle` (bold), `suggestionDetail` (muted 13px), and `suggestedCopy` as three distinct rows. `p.url || p.targetUrl` fallback added so the page link always shows.

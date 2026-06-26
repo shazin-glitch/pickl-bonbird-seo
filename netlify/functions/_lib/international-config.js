@@ -458,6 +458,40 @@ ${isArabic ? `ARABIC WRITING RULES:
 ${brandCtx}`.trim();
 }
 
+// ── Market page discovery tokens ──────────────────────────────────────────────
+// A page belongs to a market if any of these tokens matches a whole hyphen/slash
+// segment of its slug (e.g. token "bahrain" matches /bahrain-events/ and
+// /franchise-bahrain/; token "bh" matches /bh/). Tokens = root abbreviation +
+// full country name. Hyphenated tokens (e.g. "pickl-jordan") match as substrings.
+// The market's marketSlug + arabicSlug are merged in automatically by
+// getMarketPageTokens, so this table only needs the human-readable names.
+const MARKET_PAGE_TOKENS = {
+  pickl_bahrain:    ['bh', 'bahrain'],
+  pickl_ksa:        ['ksa', 'saudi'],
+  pickl_qatar:      ['qatar'],
+  pickl_egypt:      ['egypt'],
+  pickl_jordan:     ['jordan'],          // also matches /pickl-jordan/ (segment "jordan")
+  pickl_oman:       ['oman'],
+  bonbird_oman:     ['oman'],
+  bonbird_pakistan: ['pakistan'],
+  bonbird_qatar:    ['qatar'],
+};
+
+// Returns the de-duped token list for a market (object or "brand_marketKey" string).
+// Always includes marketSlug + arabicSlug so the root pages are covered.
+function getMarketPageTokens(marketOrKey) {
+  const key = typeof marketOrKey === 'string'
+    ? marketOrKey
+    : `${marketOrKey.brand}_${marketOrKey.marketKey}`;
+  const m = typeof marketOrKey === 'object' ? marketOrKey : INTERNATIONAL_MARKETS[key];
+  const tokens = [...(MARKET_PAGE_TOKENS[key] || [])];
+  if (m) {
+    if (m.marketSlug) tokens.push(String(m.marketSlug).toLowerCase());
+    if (m.arabicSlug) tokens.push(String(m.arabicSlug).toLowerCase());
+  }
+  return [...new Set(tokens.map(t => String(t).toLowerCase().trim()).filter(Boolean))];
+}
+
 // Flat map of marketKey → location_code for quick lookup by any function
 const MARKET_LOCATION_CODES = Object.fromEntries(
   Object.entries(INTERNATIONAL_MARKETS).map(([key, m]) => [key, m.location_code])
@@ -475,4 +509,6 @@ module.exports = {
   getWpCredentials,
   buildPostUrl,
   buildMarketPrompt,
+  getMarketPageTokens,
+  MARKET_PAGE_TOKENS,
 };

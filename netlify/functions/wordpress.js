@@ -87,6 +87,7 @@ exports.handler = async (event) => {
       case 'get_current_meta': return await handleGetCurrentMeta(creds, body.payload || {});
       case 'publish':          return await handlePublish(creds, body.payload || {});
       case 'list_posts':       return await handleListPosts(creds, body);
+      case 'list_market_pages': return await handleListMarketPages(creds, body.payload || {});
       case 'get_post':         return await handleGetPost(creds, body);
       default:               return fail(400, `unknown action: ${action}`);
     }
@@ -293,6 +294,35 @@ async function handleListPosts(creds, body) {
     ...normalize(pagesRes.ok ? pagesRes.data : [], 'pages'),
   ].sort((a, b) => new Date(b.date) - new Date(a.date));
   return win({ items });
+}
+
+// ── list pages belonging to an international market (by slug tokens) ─────────
+// Used by the intl meta sweep to discover ALL of a market's pages (root +
+// sub-pages like /bahrain-events/, /franchise-bahrain/). Matches a token against
+// whole hyphen/slash slug segments; hyphenated tokens match as substrings.
+async function handleListMarketPages(creds, payload) {
+  const tokens = (payload.tokens || []).map(t => String(t || '').toLowerCase().trim()).filter(Boolean);
+  if (!tokens.length) return fail(400, 'tokens required');
+
+  const collected = [];
+  for (let page = 1; page <= 3; page++) {
+    const params = new URLSearchParams({ per_page: '100', page: String(page), status: 'publish', _fields: 'id,slug,link,title' });
+    const res = await wpFetch(creds, `/wp/v2/pages?${params}`);
+    if (!res.ok) break;
+    const items = Array.isArray(res.data) ? res.data : [];
+    for (const p of items) {
+      collected.push({ id: p.id, slug: p.slug || '', link: p.link || '', title: p.title?.rendered || '' });
+    }
+    if (items.length < 100) break; // last page reached
+  }
+
+  const matchesToken = (slug) => {
+    const s = String(slug || '').toLowerCase();
+    const segs = s.split(/[-/]/).filter(Boolean);
+    return tokens.some(tok => (tok.includes('-') ? s.includes(tok) : segs.includes(tok)));
+  };
+  const matched = collected.filter(p => matchesToken(p.slug));
+  return win({ total: collected.length, matched, tokens });
 }
 
 // ── get single post/page ─────────────────────────────────────────
