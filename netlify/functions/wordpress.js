@@ -125,17 +125,28 @@ async function handleCreateDraft(creds, payload) {
   });
 }
 
+// ── Resolve a WP page slug to its numeric page ID ───────────────────────────
+async function resolveParentId(creds, parentSlug) {
+  if (!parentSlug) return 0;
+  if (typeof parentSlug === 'number') return parentSlug;
+  const res = await wpFetch(creds, `/wp/v2/pages?slug=${encodeURIComponent(parentSlug)}&_fields=id,slug,link`);
+  if (res.ok && Array.isArray(res.data) && res.data.length) return res.data[0].id;
+  console.warn(`[resolveParentId] slug "${parentSlug}" not found — page will be created at root`);
+  return 0;
+}
+
 // ── create WP PAGE draft ─────────────────────────────────────────
 // Creates under /wp/v2/pages — appears in Pages menu, not Posts.
 // Used for landing pages, location pages, new content pages.
 // Images left as [IMAGE_PLACEHOLDER] comments for you to swap in WP.
 async function handleCreatePage(creds, payload) {
   if (!payload.title || !payload.body) return fail(400, 'title and body are required');
-  const meta = buildSeoMeta(payload);
+  const meta     = buildSeoMeta(payload);
+  const parentId = payload.parentId || await resolveParentId(creds, payload.wpParent) || 0;
   const page = {
     title: payload.title, content: payload.body, excerpt: payload.excerpt || '',
     slug: sanitizeSlug(payload.slug), status: 'draft', meta,
-    parent: payload.parentId || 0,
+    parent: parentId,
     template: payload.template || '',
   };
   const res = await wpFetch(creds, '/wp/v2/pages', { method: 'POST', body: page });
@@ -146,7 +157,7 @@ async function handleCreatePage(creds, payload) {
   return win({
     ok: true, id: res.data.id, postType: 'page', ref: res.data.link,
     editUrl: `${creds.base}/wp-admin/post.php?post=${res.data.id}&action=edit`,
-    message: `Page draft #${res.data.id} created — add images then publish when ready`,
+    message: `Page draft #${res.data.id} created under parent "${payload.wpParent || 'root'}" — add images then publish when ready`,
   });
 }
 
@@ -320,20 +331,43 @@ function sanitizeSlug(slug) {
 }
 
 async function findPostByUrl(creds, url) {
-  let slug;
+  let slug, expectedPath;
   try {
     const u = new URL(url);
     const parts = u.pathname.replace(/\/+$/, '').split('/').filter(Boolean);
     slug = parts[parts.length - 1];
+    expectedPath = u.pathname.toLowerCase().replace(/\/+$/, '');
   } catch (_) {
     slug = url.replace(/\/+$/, '').split('/').filter(Boolean).pop();
   }
   if (!slug) return null;
+
   const fields = '_fields=id,link,slug,type';
-  const postsRes = await wpFetch(creds, `/wp/v2/posts?slug=${encodeURIComponent(slug)}&${fields}`);
-  if (postsRes.ok && Array.isArray(postsRes.data) && postsRes.data.length) return { ...postsRes.data[0], type: 'posts' };
-  const pagesRes = await wpFetch(creds, `/wp/v2/pages?slug=${encodeURIComponent(slug)}&${fields}`);
-  if (pagesRes.ok && Array.isArray(pagesRes.data) && pagesRes.data.length) return { ...pagesRes.data[0], type: 'pages' };
+  for (const [type, endpoint] of [['posts', 'posts'], ['pages', 'pages']]) {
+    const res = await wpFetch(creds, `/wp/v2/${endpoint}?slug=${encodeURIComponent(slug)}&${fields}`);
+    if (!res.ok || !Array.isArray(res.data) || !res.data.length) continue;
+    // If we have an expected path, prefer the result whose canonical link matches it.
+    // This prevents cross-market slug collisions (e.g. /ksa/best-burger vs /bh/best-burger).
+    let match;
+    if (expectedPath && res.data.length > 1) {
+      match = res.data.find(p => {
+        try { return new URL(p.link).pathname.toLowerCase().replace(/\/+$/, '') === expectedPath; }
+        catch { return false; }
+      });
+    }
+    // Single result: verify it's actually the right page before returning
+    if (!match && res.data.length === 1 && expectedPath) {
+      try {
+        const linkPath = new URL(res.data[0].link).pathname.toLowerCase().replace(/\/+$/, '');
+        if (linkPath !== expectedPath) {
+          console.warn(`[findPostByUrl] slug match "${slug}" → wrong page (${linkPath} ≠ ${expectedPath}) — skipping`);
+          continue;
+        }
+      } catch (_) {}
+    }
+    const best = match || res.data[0];
+    return { ...best, type: endpoint };
+  }
   return null;
 }
 

@@ -890,9 +890,41 @@ Return EXACTLY this structure:
 
 // ── Generate meta update for the market landing page ─────────────────────────
 async function generateMetaUpdate(market, brandCtx, brandExamples, language) {
+  // Safety: never generate Arabic meta when market has no Arabic slug
+  if (language === 'ar' && !market.arabicSlug) {
+    console.log(`[generateMetaUpdate] ${market.marketKey} — skipping AR (no arabicSlug)`);
+    return null;
+  }
+
   const keywords = market.seedKeywords[language] || market.seedKeywords['en'];
   const isArabic  = language === 'ar';
   const marketCtx = buildMarketPrompt(market, buildBrandPrompt(brandCtx, brandExamples), language);
+  const pageUrl   = buildPostUrl(market, 'page', market.marketSlug, language);
+
+  // Fetch current WP meta so Claude can evaluate whether a replacement is needed
+  let currentMeta = null;
+  let pageExists  = false;
+  try {
+    const siteUrl = process.env.URL || 'https://yolkseo.netlify.app';
+    const cmRes   = await fetch(`${siteUrl}/.netlify/functions/wordpress`, {
+      method:  'POST',
+      headers: internalHeaders({ 'Content-Type': 'application/json' }),
+      body:    JSON.stringify({ action: 'get_current_meta', brand: market.brand, payload: { url: pageUrl } }),
+    });
+    const cmData = await cmRes.json().catch(() => null);
+    if (cmData?.found) {
+      pageExists  = true;
+      currentMeta = { title: cmData.currentTitle || null, description: cmData.currentDesc || null };
+    }
+  } catch (_) {}
+
+  const pageContext = currentMeta
+    ? `CURRENT META ON PAGE (only replace if vague, generic, or missing the target keyword):
+  Title:       "${currentMeta.title || 'NOT SET'}"
+  Description: "${currentMeta.description || 'NOT SET'}"`
+    : pageExists
+      ? 'Note: Page exists in WordPress but current meta could not be fetched.'
+      : 'Note: This page does not exist in WordPress yet — write meta for when it launches.';
 
   const arabicRules = isArabic ? `
 ARABIC RULES — non-negotiable:
@@ -908,9 +940,11 @@ ARABIC RULES — non-negotiable:
 
   const userPrompt = `Write an optimised meta title and meta description for the ${market.brand === 'pickl' ? 'Pickl' : 'Bonbird'} ${market.label} landing page.
 
-URL: ${buildPostUrl(market, 'meta_update', '', language)}
+URL: ${pageUrl}
 Language: ${isArabic ? 'Arabic (Gulf dialect)' : 'English'}
 Top keywords to target: ${keywords.slice(0, 5).join(', ')}
+
+${pageContext}
 ${arabicRules}
 
 Return EXACTLY this structure:
@@ -933,28 +967,83 @@ Return EXACTLY this structure:
   };
 }
 
+// ── Fetch live page HTML from WP REST (strips tags, returns plain text) ───────
+async function fetchPageText(market, language) {
+  try {
+    const slug   = language === 'ar' && market.arabicSlug ? market.arabicSlug : market.marketSlug;
+    const prefix = market.wpBrand === 'pickl' ? 'WP_PICKL' : 'WP_BONBIRD';
+    const wpBase = process.env[`${prefix}_BASE`];
+    const wpUser = process.env[`${prefix}_USER`];
+    const wpPass = process.env[`${prefix}_APP_PASS`];
+    if (!wpBase || !wpUser || !wpPass) return null;
+    const auth = Buffer.from(`${wpUser}:${wpPass.replace(/\s/g, '')}`).toString('base64');
+    const headers = { Authorization: `Basic ${auth}` };
+    for (const type of ['pages', 'posts']) {
+      const res  = await fetch(`${wpBase}/wp-json/wp/v2/${type}?slug=${encodeURIComponent(slug)}&_fields=id,link,content,status`, { headers });
+      const data = await res.json().catch(() => null);
+      if (Array.isArray(data) && data.length) {
+        const html  = data[0].content?.rendered || '';
+        const text  = html.replace(/<[^>]+>/g, ' ').replace(/\s+/g, ' ').trim();
+        const words = text.split(/\s+/).filter(Boolean).length;
+        return { found: true, postId: data[0].id, postType: type, text: text.slice(0, 3000), wordCount: words, link: data[0].link };
+      }
+    }
+    return { found: false };
+  } catch (e) {
+    console.warn('[fetchPageText] error:', e.message);
+    return null;
+  }
+}
+
 // ── Generate on-page suggestion for market landing page ───────────────────────
 async function generateOnPageSuggestion(market, brandCtx, brandExamples, language) {
-  const keywords = market.seedKeywords[language] || market.seedKeywords['en'];
+  // Safety: never generate Arabic suggestions when market has no Arabic slug
+  if (language === 'ar' && !market.arabicSlug) {
+    console.log(`[generateOnPageSuggestion] ${market.marketKey} — skipping AR (no arabicSlug)`);
+    return null;
+  }
+
+  const keywords  = market.seedKeywords[language] || market.seedKeywords['en'];
   const isArabic  = language === 'ar';
   const marketCtx = buildMarketPrompt(market, buildBrandPrompt(brandCtx, brandExamples), language);
+  const pageUrl   = buildPostUrl(market, 'page', market.marketSlug, language);
 
-  const userPrompt = `Analyse the ${market.brand === 'pickl' ? 'Pickl' : 'Bonbird'} ${market.label} landing page at ${buildPostUrl(market, 'meta_update', '', language)} and provide one specific on-page SEO improvement.
+  // Fetch actual page content so Claude analyses real copy — not a blind URL
+  const page = await fetchPageText(market, language);
 
+  let pageContentBlock;
+  if (page?.found && page.wordCount >= 50) {
+    pageContentBlock = `PAGE CONTENT (${page.wordCount} words — analyse this):
+---
+${page.text}
+---`;
+  } else if (page?.found) {
+    pageContentBlock = `Note: Page exists in WordPress but has very little content (${page.wordCount || 0} words). Focus suggestions on content gaps and what should be added.`;
+  } else {
+    pageContentBlock = `Note: This page does not exist in WordPress yet (URL: ${pageUrl}). Provide guidance on what the page SHOULD contain when built — target keywords, H1 structure, and content outline.`;
+  }
+
+  const userPrompt = `Analyse the ${market.brand === 'pickl' ? 'Pickl' : 'Bonbird'} ${market.label} landing page and provide one specific, actionable on-page SEO improvement.
+
+URL: ${pageUrl}
 Language: ${isArabic ? 'Arabic (local dialect)' : 'English'}
 Target keywords: ${keywords.slice(0, 5).join(', ')}
-${market.isNew ? 'Note: This is a brand new market page — focus on establishing keyword relevance for the market.' : ''}
+${market.isNew ? '⚡ NEW MARKET — just opened. Prioritise establishing keyword relevance.' : ''}
+
+${pageContentBlock}
+
+Pick the SINGLE most impactful improvement from: H1 optimisation, missing keyword in first 100 words, weak/missing meta, thin content, no CTA, poor internal linking anchor text.
 
 Return EXACTLY this structure:
 
 ### SUGGESTION_TITLE
-[Short title for this suggestion, e.g. "Add H1 with location keyword"]
+[Short imperative title, e.g. "Add keyword-rich H1" or "Insert CTA above the fold"]
 
 ### SUGGESTION_DETAIL
-[2-3 sentences explaining what to change, why it matters for SEO, and the expected impact. Be specific.]
+[2-3 sentences: what to change, why it matters for SEO, expected impact. Reference SPECIFIC content from the page above — not generic advice.]
 
 ### SUGGESTED_COPY
-[The actual copy/text they should add or update — ready to use, on-brand tone, in the correct language]`;
+[Ready-to-use copy in the correct language — the exact text to add or replace. Make it on-brand and specific to ${market.label}.]`;
 
   const raw = await callClaude(marketCtx, userPrompt);
 
@@ -1018,9 +1107,6 @@ async function queueApprovalItem(item) {
         languageTag,
         targetUrl:       item.targetUrl,
         url:             item.targetUrl,
-        wpBase:          item.wpBase,
-        wpUser:          item.wpUser,
-        wpPass:          item.wpPass,
         wpParent:        item.wpParent,
         // Suggestion fields
         suggestionTitle:  item.suggestionTitle,
@@ -1057,7 +1143,7 @@ async function markProcessed(store, marketKey, language) {
 }
 
 // ── Process a single market+language ─────────────────────────────────────────
-async function processMarketLanguage(store, marketKey, market, language, force = false) {
+async function processMarketLanguage(store, marketKey, market, language, force = false, onlyMetaOnPage = false) {
   const tag = `[intl-seo] ${marketKey}/${language}`;
   console.log(`${tag} — starting`);
 
@@ -1108,24 +1194,28 @@ async function processMarketLanguage(store, marketKey, market, language, force =
   }
 
   // ── SEED KEYWORD CONTENT (7-day cache — generates new blog content) ────────
-  if (!force && await wasRecentlyProcessed(store, marketKey, language)) {
-    console.log(`${tag} — seed content skipped (processed within 7 days)`);
-    return { queued, errors, seedSkipped: true };
-  }
-
-  // Fetch GSC data for this brand to look up existing positions/impressions per keyword
-  // International market pages share the same GSC property as the main site
-  const BRAND_GSC = { pickl: 'https://eatpickl.com/', bonbird: 'https://bonbirdchicken.com/' };
-  let gscMap = {}; // keyword.toLowerCase() → { position, impressions }
-  try {
-    const gscRows = await fetchGscDirect(BRAND_GSC[market.brand] || BRAND_GSC.pickl);
-    for (const row of gscRows) {
-      if (row.keyword) gscMap[row.keyword.toLowerCase()] = { position: row.position, impressions: row.impressions };
+  // ?only=meta,onpage skips blog generation (cheap focused re-run for meta/onpage only).
+  // It also bypasses the 7-day cache so meta/onpage always run, and skips markProcessed
+  // so the cache isn't reset (next full run still allowed to generate blogs).
+  if (!onlyMetaOnPage) {
+    if (!force && await wasRecentlyProcessed(store, marketKey, language)) {
+      console.log(`${tag} — seed content skipped (processed within 7 days)`);
+      return { queued, errors, seedSkipped: true };
     }
-    console.log(`${tag} — GSC data fetched: ${Object.keys(gscMap).length} keywords`);
-  } catch (e) {
-    console.warn(`${tag} — GSC fetch failed (positions unavailable): ${e.message}`);
-  }
+
+    // Fetch GSC data for this brand to look up existing positions/impressions per keyword
+    // International market pages share the same GSC property as the main site
+    const BRAND_GSC = { pickl: 'https://eatpickl.com/', bonbird: 'https://bonbirdchicken.com/' };
+    let gscMap = {}; // keyword.toLowerCase() → { position, impressions }
+    try {
+      const gscRows = await fetchGscDirect(BRAND_GSC[market.brand] || BRAND_GSC.pickl);
+      for (const row of gscRows) {
+        if (row.keyword) gscMap[row.keyword.toLowerCase()] = { position: row.position, impressions: row.impressions };
+      }
+      console.log(`${tag} — GSC data fetched: ${Object.keys(gscMap).length} keywords`);
+    } catch (e) {
+      console.warn(`${tag} — GSC fetch failed (positions unavailable): ${e.message}`);
+    }
 
   // Fuzzy GSC keyword lookup — exact match first, then market-term match, then word-overlap
   function findGscData(gscMap, focusKeyword, marketKey) {
@@ -1154,9 +1244,11 @@ async function processMarketLanguage(store, marketKey, market, language, force =
   }
 
   // ── Generate multiple blog drafts per market (up to 3, keyword-rotated) ──────
-  const MAX_BLOGS_PER_MARKET = 3;
+  // Safety: skip Arabic blogs when market has no Arabic slug (would land on English journal path)
+  const MAX_BLOGS_PER_MARKET = language === 'ar' && !market.arabicSlug ? 0 : 3;
   const usedKeywords = new Set();
   let blogsQueued = 0;
+  if (MAX_BLOGS_PER_MARKET === 0) console.log(`${tag} — skipping Arabic blogs (no arabicSlug)`);
 
   while (blogsQueued < MAX_BLOGS_PER_MARKET) {
     try {
@@ -1183,7 +1275,6 @@ async function processMarketLanguage(store, marketKey, market, language, force =
         continue;
       }
 
-      const wp      = getWpCredentials(market);
       const gscData = findGscData(gscMap, blog.focusKeyword, market.marketKey);
       const id = await queueApprovalItem({
         type:        'blog_draft',
@@ -1206,9 +1297,6 @@ async function processMarketLanguage(store, marketKey, market, language, force =
           gscKeyword:      gscData ? (Object.keys(gscMap).find(k => gscMap[k] === gscData) || null) : null,
         },
         targetUrl:   buildPostUrl(market, 'blog_draft', blog.slug || 'post', language),
-        wpBase:      wp.base,
-        wpUser:      wp.user,
-        wpPass:      wp.pass,
         wpParent:    market.wpMarketParent,
         notes: `International SEO — ${market.label} ${language.toUpperCase()} blog post ${blogsQueued + 1}/${MAX_BLOGS_PER_MARKET}. Target keyword: ${blog.focusKeyword}`,
       });
@@ -1222,10 +1310,15 @@ async function processMarketLanguage(store, marketKey, market, language, force =
     }
   }
 
+    // Mark as processed after blogs — prevents regeneration within the 7-day TTL.
+    // Not called on onlyMetaOnPage re-runs so the cache isn't reset.
+    await markProcessed(store, marketKey, language);
+  } // end if (!onlyMetaOnPage)
+
   // 2. Meta update for market landing page
   try {
     const meta = await generateMetaUpdate(market, brandCtx, brandExamples, language);
-    if (meta.metaTitle && meta.metaDescription) {
+    if (meta && meta.metaTitle && meta.metaDescription) {
       const metaVoiceFn = voiceClaudeAdapter(brandCtx?.name || (market.brand === 'pickl' ? 'Pickl' : 'Bonbird'));
       const metaText    = `${meta.metaTitle}\n${meta.metaDescription}`;
       let metaVoice     = await runBrandVoiceCheck(metaText, brandCtx, metaVoiceFn).catch(() => ({ score: 8, issues: [] }));
@@ -1241,7 +1334,6 @@ async function processMarketLanguage(store, marketKey, market, language, force =
       if (metaVoice.score < 8) {
         console.warn(`${tag} — meta update voice ${metaVoice.score}/10 — gate reject`);
       } else {
-        const wp = getWpCredentials(market);
         const id = await queueApprovalItem({
           type:        'meta_update',
           brand:       market.brand,
@@ -1255,9 +1347,6 @@ async function processMarketLanguage(store, marketKey, market, language, force =
             focusKeyword:    meta.focusKeyword,
           },
           targetUrl:   buildPostUrl(market, 'page', market.marketSlug, language),
-          wpBase:      wp.base,
-          wpUser:      wp.user,
-          wpPass:      wp.pass,
           wpParent:    market.wpMarketParent,
           notes: `International SEO — optimised meta for ${market.label} page. Keyword: ${meta.focusKeyword}`,
         });
@@ -1273,22 +1362,21 @@ async function processMarketLanguage(store, marketKey, market, language, force =
   // 3. On-page suggestion
   try {
     const onpage = await generateOnPageSuggestion(market, brandCtx, brandExamples, language);
-    if (onpage.suggestionTitle && onpage.suggestedCopy) {
-      const wp = getWpCredentials(market);
+    if (onpage && onpage.suggestionTitle && onpage.suggestedCopy) {
       const id = await queueApprovalItem({
-        type:        'onpage_suggestion',
-        brand:       market.brand,
-        market:      market.marketKey,
-        marketLabel: market.label,
+        type:             'onpage_suggestion',
+        brand:            market.brand,
+        market:           market.marketKey,
+        marketLabel:      market.label,
         language,
-        title:       `${market.label} — ${onpage.suggestionTitle}`,
-        content:     `${onpage.suggestionDetail}\n\n---\n\n**Suggested copy:**\n\n${onpage.suggestedCopy}`,
-        targetUrl:   buildPostUrl(market, 'page', market.marketSlug, language),
-        wpBase:      wp.base,
-        wpUser:      wp.user,
-        wpPass:      wp.pass,
-        wpParent:    market.wpMarketParent,
-        notes: `International SEO on-page suggestion for ${market.label} ${language.toUpperCase()}`,
+        title:            `${market.label} — ${onpage.suggestionTitle}`,
+        content:          `${onpage.suggestionDetail}\n\n---\n\n**Suggested copy:**\n\n${onpage.suggestedCopy}`,
+        suggestionTitle:  onpage.suggestionTitle,
+        suggestionDetail: onpage.suggestionDetail,
+        suggestedCopy:    onpage.suggestedCopy,
+        targetUrl:        buildPostUrl(market, 'page', market.marketSlug, language),
+        wpParent:         market.wpMarketParent,
+        notes:            `International SEO on-page suggestion for ${market.label} ${language.toUpperCase()}`,
       });
       queued.push({ type: 'onpage_suggestion', id });
       console.log(`${tag} — on-page suggestion queued: ${id}`);
@@ -1297,9 +1385,6 @@ async function processMarketLanguage(store, marketKey, market, language, force =
     console.error(`${tag} — on-page suggestion failed:`, e.message);
     errors.push({ type: 'onpage_suggestion', error: e.message });
   }
-
-  // Mark as processed
-  await markProcessed(store, marketKey, language);
 
   return { queued, errors };
 }
@@ -1315,9 +1400,11 @@ exports.handler = async (event) => {
   });
 
   // Query params
-  const marketParam = event.queryStringParameters?.market || 'all';
-  const langParam   = event.queryStringParameters?.language || 'all';
-  const force       = event.queryStringParameters?.force === 'true';
+  const marketParam    = event.queryStringParameters?.market || 'all';
+  const langParam      = event.queryStringParameters?.language || 'all';
+  const force          = event.queryStringParameters?.force === 'true';
+  const onlyParam      = event.queryStringParameters?.only || '';
+  const onlyMetaOnPage = onlyParam === 'meta,onpage' || onlyParam === 'onpage,meta';
 
   // Determine which markets to run
   let marketsToRun = {};
@@ -1350,7 +1437,7 @@ exports.handler = async (event) => {
     for (const language of languagesToRun) {
       summary.total++;
       try {
-        const result = await processMarketLanguage(store, marketKey, market, language, force);
+        const result = await processMarketLanguage(store, marketKey, market, language, force, onlyMetaOnPage);
         results[marketKey][language] = result;
         if (result.skipped) {
           summary.skipped++;

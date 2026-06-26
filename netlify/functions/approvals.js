@@ -299,8 +299,10 @@ async function handleApprove(body, actor, edited) {
   if (!item) return bad(404, 'not found');
   if (item.status !== 'pending') return bad(400, `cannot approve item with status: ${item.status}`);
 
-  const payload = edited ? (body.payload || item.payload) : item.payload;
   if (edited && !body.payload) return bad(400, 'payload required for edit_approve');
+  // Merge edited payload onto the original — never replace wholesale.
+  // Replacing drops market/language/url/wpParent which causes wrong-place publish.
+  const payload = edited ? Object.assign({}, item.payload, body.payload) : item.payload;
 
   await patchItem(id, { status: 'approved', payload }, {
     at: Date.now(), actor,
