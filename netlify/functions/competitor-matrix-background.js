@@ -427,7 +427,7 @@ async function fetchSerpRankings(brand, config) {
 
       // ── Top domains (top 20 organic only, for SoV + auto-detection) ───────
       if (rank <= 20) {
-        topDomains.push({ domain: itemDomain, rank });
+        topDomains.push({ domain: itemDomain, rank, url: item.url || null }); // url → page-level competitor context for content-gen
 
         // Track domain frequency for auto-detection
         if (rank <= 10 && itemDomain && itemDomain !== ourDomain) {

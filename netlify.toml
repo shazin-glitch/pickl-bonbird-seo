@@ -216,6 +216,11 @@
 [functions."snapshots-background"]
   schedule = "0 6 * * 1"
 
+# Closed-loop ranking attribution — measures whether shipped content moved rankings.
+# 6am UTC Monday (after GSC cache refresh in the 4am jobs).
+[functions."content-outcomes-background"]
+  schedule = "0 6 * * 1"
+
 # Daily Perch due date digest — 5am UTC = 9am Dubai
 [functions."perch-notify-background"]
   schedule = "0 5 * * *"

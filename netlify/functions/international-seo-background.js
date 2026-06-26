@@ -312,6 +312,74 @@ function serpFeatureBrief(features) {
   return { tag, directive, isLocal: !!features.localPack };
 }
 
+// ── Page-level competitor context ─────────────────────────────────────────────
+// The matrix knows WHICH competitor pages outrank us for each keyword (topDomains:
+// domain + url + rank). Content-gen used to see only a bare keyword. Now we feed
+// the actual competing pages in, so the prompt writes to BEAT specific URLs rather
+// than into a vacuum. Reads the same matrix blob as the SERP map.
+async function loadCompetitorContext(market) {
+  try {
+    const s    = getStore({ name: 'seo-tool', consistency: 'strong', siteID: process.env.NETLIFY_SITE_ID, token: process.env.NETLIFY_AUTH_TOKEN });
+    const key  = `competitorMatrix:${market.brand}:${market.brand}_${market.marketKey}`;
+    const data = await s.get(key, { type: 'json' });
+    const ourRoot = (market.brand === 'pickl' ? 'eatpickl' : 'bonbirdchicken');
+    const map = {};
+    for (const row of (data?.rows || [])) {
+      if (!row?.keyword) continue;
+      const comps = (row.topDomains || [])
+        .filter(d => d.domain && !d.domain.includes(ourRoot) && d.rank <= 10)
+        .sort((a, b) => a.rank - b.rank)
+        .slice(0, 3)
+        .map(d => ({ domain: d.domain, url: d.url || null, rank: d.rank }));
+      if (comps.length) map[row.keyword.toLowerCase().trim()] = comps;
+    }
+    return map;
+  } catch { return {}; }
+}
+
+function competitorBrief(comps) {
+  if (!comps || !comps.length) return { directive: '', list: null };
+  const lines = comps.map(c => `  - #${c.rank} ${c.domain}${c.url ? ` (${c.url})` : ''}`).join('\n');
+  return {
+    list: comps,
+    directive: `\n\nCOMPETITORS TO BEAT — these pages currently rank top-10 for this keyword. Your content must be more useful, specific and complete than theirs (don't copy them — out-cover them):\n${lines}`,
+  };
+}
+
+// ── Cannibalization guard ─────────────────────────────────────────────────────
+// Before creating a NEW page/blog for a keyword, confirm we don't already have a
+// DEDICATED page ranking for it on the property. GSC is the source of truth for
+// what exists + ranks; a second page for the same intent splits authority and the
+// two pages cannibalize each other. Build keyword → ranking pages from the full
+// (whole-property) GSC set, then check for an existing dedicated page.
+function normPage(p) { return p.split('?')[0].split('#')[0].toLowerCase().replace(/\/$/, ''); }
+
+function buildOwnedKeywordMap(rowsWithPages) {
+  const map = {}; // normalized keyword → Set(normalized pageUrl)
+  for (const r of rowsWithPages) {
+    if (!r.keyword || !r.page) continue;
+    const kw = r.keyword.toLowerCase().trim();
+    (map[kw] = map[kw] || new Set()).add(normPage(r.page));
+  }
+  return map;
+}
+
+// Returns an existing dedicated page already ranking for this keyword (other than
+// the page currently surfaced), or null. "Dedicated" = under the market slug with
+// a child segment (mirrors isDedicatedPage), i.e. not the market root/category.
+function existingDedicatedPageFor(keyword, currentPage, ownedMap, market) {
+  const pages = ownedMap[keyword.toLowerCase().trim()];
+  if (!pages) return null;
+  const cur  = normPage(currentPage);
+  const slug = market.marketSlug.toLowerCase();
+  for (const p of pages) {
+    if (p === cur) continue;
+    const path = p.replace(/^https?:\/\/[^\/]+/, '');
+    if (path.startsWith(`/${slug}/`) && path.split('/').filter(Boolean).length > 1) return p;
+  }
+  return null;
+}
+
 // ── International keyword opportunities (pos 11-20 → page_update, pos 21-35 → blog_draft) ─────
 async function runMarketKeywordOpportunities(market, brandCtx, brandExamples, force = false, language = 'en') {
   const BRAND_GSC = { pickl: 'https://eatpickl.com/', bonbird: 'https://bonbirdchicken.com/' };
@@ -357,6 +425,8 @@ async function runMarketKeywordOpportunities(market, brandCtx, brandExamples, fo
   let queued               = 0;
   let pageCreations        = 0;
   const serpMap            = await loadSerpFeatureMap(market); // keyword → serpFeatures (from competitor matrix)
+  const ownedMap           = buildOwnedKeywordMap(rowsWithPages); // keyword → pages we already rank for (cannibalization guard)
+  const compCtx            = await loadCompetitorContext(market); // keyword → top competing pages (page-level competitor context)
 
   // ── QUICK WINS: pos 11-20 → page_update ──────────────────────────────────
   const quickWins = Object.values(pageMap)
@@ -372,6 +442,7 @@ async function runMarketKeywordOpportunities(market, brandCtx, brandExamples, fo
   for (const r of quickWins) {
     try {
       const sb = serpFeatureBrief(serpMap[r.keyword.toLowerCase().trim()]);
+      const cb = competitorBrief(compCtx[r.keyword.toLowerCase().trim()]);
       const userPrompt = `This ${market.brand === 'pickl' ? 'Pickl' : 'Bonbird'} page ranks position ${r.position.toFixed(1)} for "${r.keyword}" in ${market.label} with ${r.impressions} impressions but isn't on page 1.${langDirective}
 
 PAGE: ${r.page}
@@ -383,7 +454,7 @@ MARKET: ${market.label}${feedbackNotes.length ? `
 HUMAN FEEDBACK — NEVER do any of the following:
 ${feedbackNotes.map(n => `- ${n}`).join('\n')}` : ''}
 
-Provide 3-5 specific on-page changes to push this to top 10. Be tactical and specific — reference the URL, what the page is likely about, and what changes will move rankings.${sb.directive}
+Provide 3-5 specific on-page changes to push this to top 10. Be tactical and specific — reference the URL, what the page is likely about, and what changes will move rankings.${sb.directive}${cb.directive}
 
 Return ONLY JSON:
 {"title":"Page update: [keyword]","suggestions":["specific change 1","specific change 2","specific change 3"],"rationale":"one sentence on the ranking opportunity","targetKeyword":"${r.keyword}"}`;
@@ -410,6 +481,7 @@ Return ONLY JSON:
           suggestionDetail: parsed.suggestions.join(' | '),
           serpFeatures:     serpMap[r.keyword.toLowerCase().trim()] || null,
           serpFeatureTag:   sb.tag,
+          competitors:      cb.list,
           wpBase:  wp.base, wpUser: wp.user, wpPass: wp.pass,
           language: language,
           nativeReview: isAr ? 'pending' : undefined,
@@ -459,6 +531,19 @@ Return ONLY JSON:
     try {
       const existingPage = isDedicatedPage(r.page);
       const sb = serpFeatureBrief(serpMap[r.keyword.toLowerCase().trim()]);
+      const cb = competitorBrief(compCtx[r.keyword.toLowerCase().trim()]);
+
+      // Cannibalization guard: we're only about to CREATE new content when the
+      // ranking page is the market root (not a dedicated page). If a dedicated
+      // page for this keyword already exists elsewhere, creating another splits
+      // authority — skip it (the existing page gets picked up on its own merits).
+      if (!existingPage && !force) {
+        const owned = existingDedicatedPageFor(r.keyword, r.page, ownedMap, market);
+        if (owned) {
+          console.log(`${tag} cannibalization avoided — "${r.keyword}" already targeted by dedicated page ${owned}; not creating new content`);
+          continue;
+        }
+      }
 
       if (existingPage) {
         // Dedicated page already exists but ranking poorly — update it, don't create a competing one
@@ -474,7 +559,7 @@ NOTE: This is an existing page. Do NOT suggest creating a new page — suggest h
 HUMAN FEEDBACK — NEVER do any of the following:
 ${feedbackNotes.map(n => `- ${n}`).join('\n')}` : ''}
 
-Provide 4-6 specific on-page improvements (content depth, heading structure, internal links, keyword coverage, E-E-A-T signals) to push it from position ${r.position.toFixed(1)} into top 10.${sb.directive}
+Provide 4-6 specific on-page improvements (content depth, heading structure, internal links, keyword coverage, E-E-A-T signals) to push it from position ${r.position.toFixed(1)} into top 10.${sb.directive}${cb.directive}
 
 Return ONLY JSON:
 {"title":"Page update: [keyword]","suggestions":["specific change 1","specific change 2","specific change 3"],"rationale":"one sentence on why improving this page beats creating a new one","targetKeyword":"${r.keyword}"}`;
@@ -501,6 +586,7 @@ Return ONLY JSON:
             suggestionDetail: parsed.suggestions.join(' | '),
             serpFeatures:     serpMap[r.keyword.toLowerCase().trim()] || null,
             serpFeatureTag:   sb.tag,
+            competitors:      cb.list,
             wpBase:  wp.base, wpUser: wp.user, wpPass: wp.pass,
             language: language,
             nativeReview: isAr ? 'pending' : undefined,
@@ -529,7 +615,7 @@ This is a STANDALONE PAGE (not a blog post):
 HUMAN FEEDBACK — NEVER do any of the following:
 ${feedbackNotes.map(n => `- ${n}`).join('\n')}` : ''}
 
-${sb.directive}
+${sb.directive}${cb.directive}
 
 Return ONLY JSON:
 {"title":"SEO title 55-60 chars","description":"meta description 150-158 chars","targetKeyword":"${r.keyword}","slug":"market-aware-url-slug e.g best-burger-${market.marketSlug}","pageHeading":"H1 text","excerpt":"short description for page lists","body":"<full page HTML — h2, p, ul, strong, image placeholder comments — no outer html/body tags>","pageType":"location|service","rationale":"why a dedicated page will outrank the market root"}`;
@@ -567,6 +653,7 @@ Return ONLY JSON:
             pageType:      parsed.pageType || 'location',
             serpFeatures:  serpMap[r.keyword.toLowerCase().trim()] || null,
             serpFeatureTag: sb.tag,
+            competitors:   cb.list,
             wpAction:      'create_page',
             voiceScore:    voiceCheck.score,
             voiceIssues:   voiceCheck.issues,
@@ -602,7 +689,7 @@ MARKET LOCATIONS: ${market.locations?.join(', ') || market.label}${feedbackNotes
 HUMAN FEEDBACK — NEVER do any of the following:
 ${feedbackNotes.map(n => `- ${n}`).join('\n')}` : ''}
 
-Every sentence must sound like the brand — specific, direct, no filler. Open with energy. Reference real menu items by name.${sb.directive}
+Every sentence must sound like the brand — specific, direct, no filler. Open with energy. Reference real menu items by name.${sb.directive}${cb.directive}
 
 Return EXACTLY:
 ### TITLE
@@ -657,6 +744,7 @@ ${r.keyword}
             impressions:     r.impressions,
             serpFeatures:    serpMap[r.keyword.toLowerCase().trim()] || null,
             serpFeatureTag:  sb.tag,
+            competitors:     cb.list,
             voiceScore:      voiceCheck.score,
             voiceIssues:     voiceCheck.issues,
             voiceTopFix:     voiceCheck.issues?.[0] || null,

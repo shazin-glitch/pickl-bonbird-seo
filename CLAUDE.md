@@ -51,7 +51,7 @@
 
 ---
 
-## Current Version: v7.4.25
+## Current Version: v7.4.28
 
 See SETUP.md → "Done (Full History)" for complete build log.
 
@@ -91,6 +91,7 @@ ai-overview-background       — AI Overview visibility check (top 20 keywords p
 Monday 6am UTC (after the 4am jobs):
 ```
 snapshots-background         — GBP + speed dated snapshots for monthly-report trend history
+content-outcomes-background  — Closed-loop: did shipped content move rankings (delta vs positionAtPublish)
 ```
 
 Daily 5am UTC = 9am Dubai:
