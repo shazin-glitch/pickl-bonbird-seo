@@ -14,7 +14,7 @@
 const { getStore } = require('@netlify/blobs');
 const { INTERNATIONAL_MARKETS, getMarketsForBrand, buildMarketPrompt, getWpCredentials, buildPostUrl } = require('./_lib/international-config');
 const { getBrandContext, getBrandExamples, buildBrandPrompt, runBrandVoiceCheck, fixBrandVoice, hardStripBannedTokens } = require('./_lib/brand');
-const { fetchGscDirect, fetchGscWithPages, listApprovals, createApproval, extractJson } = require('./_lib/store');
+const { fetchGscDirect, fetchGscWithPages, listApprovals, createApproval, updateApproval, extractJson } = require('./_lib/store');
 const { internalHeaders } = require('./_lib/auth');
 
 // ── Brand feedback helper ─────────────────────────────────────────
@@ -116,6 +116,40 @@ async function getQueuedKeywordsForMarket(brand) {
   } catch { return new Set(); }
 }
 
+// Returns Map of "normalizedUrl::language" → {id, status, isGscDriven}
+// Used for smart meta_update dedup: GSC-driven replaces seed-block, same-quality = first wins.
+async function getQueuedMetaMap(brand) {
+  try {
+    const items = await listApprovals({ brand, limit: 300 });
+    const map = new Map();
+    for (const item of items) {
+      if (item.type !== 'meta_update') continue;
+      const url = item.payload?.url || item.payload?.targetUrl;
+      if (!url) continue;
+      const lang = item.payload?.language || 'en';
+      const key = `${url.toLowerCase().replace(/\/$/, '')}::${lang}`;
+      map.set(key, {
+        id: item.id,
+        status: item.status || 'pending',
+        isGscDriven: !!(item.payload?.impressions > 0),
+      });
+    }
+    return map;
+  } catch { return new Map(); }
+}
+
+async function dismissPendingMeta(id, reason) {
+  try {
+    await updateApproval(id, { status: 'dismissed' }, {
+      at: Date.now(), actor: 'claude (intl-seo)', action: 'dismissed',
+      note: reason || 'replaced by higher-quality GSC-driven meta_update',
+    });
+    console.log(`[intl-seo] dismissed seed-block meta_update ${id}: ${reason}`);
+  } catch (e) {
+    console.warn(`[intl-seo] could not dismiss meta ${id}: ${e.message}`);
+  }
+}
+
 // ── Core data-driven analysis per market ──────────────────────────────────────
 // Mirrors runMetaRewrites from scheduler-background.js but scoped to a market's pages.
 // Returns { queued, skipped, candidates }
@@ -153,15 +187,23 @@ async function runMarketDataDrivenSEO(market, brandCtx, brandExamples, force = f
   }
 
   const expected = pos => Math.max(0.005, 0.30 / pos);
-  const alreadyQueuedPages = await getQueuedPagesForMarket(market.brand, 'meta_update');
-  const alreadyQueuedKws   = await getQueuedKeywordsForMarket(market.brand);
+  const alreadyQueuedMetaMap = await getQueuedMetaMap(market.brand);
+  const alreadyQueuedKws     = await getQueuedKeywordsForMarket(market.brand);
 
   const candidates = Object.values(pageMap)
     .filter(r => r.position <= 20 && r.impressions >= 50) // lower threshold than UAE (50 not 100)
     .map(r => ({ ...r, ctrGap: expected(r.position) - r.ctr }))
     .filter(r => r.ctrGap > 0.010) // 1.0pp threshold (slightly lower than UAE's 1.5pp)
     .filter(r => force || !alreadyQueuedKws.has(r.keyword.toLowerCase().trim()))
-    .filter(r => force || !alreadyQueuedPages.has(r.page.toLowerCase().replace(/\/$/, '')))
+    .filter(r => {
+      if (force) return true;
+      const key = `${r.page.toLowerCase().replace(/\/$/, '')}::${isAr ? 'ar' : 'en'}`;
+      const ex = alreadyQueuedMetaMap.get(key);
+      if (!ex) return true;                          // nothing queued — proceed
+      if (ex.status !== 'pending') return false;     // pushed/approved — don't re-queue
+      if (ex.isGscDriven) return false;              // already GSC-driven pending — first wins
+      return true;                                   // seed-block pending — will dismiss + replace
+    })
     .filter(r => keywordMatchesMenu(r.keyword, brandCtx))
     .filter(r => keywordMatchesMarket(r.keyword, market.marketKey))
     .filter(r => scriptMatch(r.keyword)) // this pass's language only (Arabic queries → ar pass)
@@ -195,7 +237,7 @@ ${isAr ? `- Write the title and description in ARABIC (local ${market.label} dia
 - Title: 50-60 characters · Description: 120-155 characters` : `- Title: 52-58 characters exactly
 - Description: 150-158 characters exactly`}
 - Only reference REAL menu items: ${menuItems || 'use items from brand context'}
-- No generic phrases ("great food", "best in ${market.label}", "quality ingredients")
+${brandCtx?.menu?.spiceSystem ? `- ONLY use the brand's actual spice/heat system: ${brandCtx.menu.spiceSystem} — NEVER invent heat levels` : ''}- No generic phrases ("great food", "best in ${market.label}", "quality ingredients")
 - CRITICAL: Write for the PAGE's topic based on its URL — not just the keyword
 - The URL tells you what the page is about. Match the meta to the page content.
 - Lead with the keyword naturally, end with a reason to click${feedbackNotes.length ? `
@@ -238,6 +280,13 @@ Return ONLY a JSON array:
       if (voiceCheck.score !== null && voiceCheck.score < 8) {
         console.warn(`${tag} meta_update voice ${voiceCheck.score}/10 — gate reject (${matched.page})`);
         continue;
+      }
+
+      // Dismiss any pending seed-block meta for this page before queuing the GSC-driven one
+      const metaKey = `${matched.page.toLowerCase().replace(/\/$/, '')}::${isAr ? 'ar' : 'en'}`;
+      const existingMeta = alreadyQueuedMetaMap.get(metaKey);
+      if (existingMeta && existingMeta.status === 'pending' && !existingMeta.isGscDriven) {
+        await dismissPendingMeta(existingMeta.id, `replaced by GSC-driven meta_update for ${matched.page} (pos ${matched.position?.toFixed(1)}, ${matched.impressions} impressions)`);
       }
 
       await createApproval({
@@ -684,7 +733,7 @@ WORD COUNT: 400-550 words
 TARGET KEYWORD: "${r.keyword}"
 MARKET: ${market.label}
 REAL MENU ITEMS TO REFERENCE: ${menuItems || 'use items from brand context'}
-MARKET LOCATIONS: ${market.locations?.join(', ') || market.label}${feedbackNotes.length ? `
+${brandCtx?.menu?.spiceSystem ? `SPICE/HEAT SYSTEM (use ONLY these names, never invent levels): ${brandCtx.menu.spiceSystem}` : ''}MARKET LOCATIONS: ${market.locations?.join(', ') || market.label}${feedbackNotes.length ? `
 
 HUMAN FEEDBACK — NEVER do any of the following:
 ${feedbackNotes.map(n => `- ${n}`).join('\n')}` : ''}
@@ -830,6 +879,7 @@ CONTENT REQUIREMENTS:
 - 450-600 words — tight and specific, zero filler
 - Opening line: make someone stop scrolling — not "Are you looking for..."
 - 3 sections (use H2 or flowing paragraphs): each must reference a real menu item by name, a real location in ${market.label}, or a specific brand truth
+${brandCtx?.menu?.spiceSystem ? `- ONLY use the brand's actual spice/heat system: ${brandCtx.menu.spiceSystem} — NEVER invent heat levels` : ''}
 - 3 questions locals actually search — answer them the way the brand talks, not a textbook
 - End: a CTA that sounds like the brand — not "visit us today for a great experience"
 - Reference: ${market.locations.length > 0 ? market.locations.join(', ') : `our ${market.label} location`}
@@ -938,6 +988,14 @@ ARABIC RULES — non-negotiable:
 - Keep the energy — Arabic marketing copy should feel as bold as the English
 - Do NOT use "مسحوق" (powder) to describe burgers — it sounds unappetizing` : '';
 
+  // Pull real menu items from brand context so Claude can't invent dishes or spice levels
+  const menuItems = brandCtx?.menu ? [
+    ...(brandCtx.menu.cheeseburgers    || []).slice(0, 3),
+    ...(brandCtx.menu.chickenSandos    || brandCtx.menu.sandwiches || []).slice(0, 3),
+    ...(brandCtx.menu.friesAndSides    || brandCtx.menu.sides      || []).slice(0, 2),
+  ].filter(Boolean).join(' | ') : '';
+  const spiceSystem = brandCtx?.menu?.spiceSystem || '';
+
   const userPrompt = `Write an optimised meta title and meta description for the ${market.brand === 'pickl' ? 'Pickl' : 'Bonbird'} ${market.label} landing page.
 
 URL: ${pageUrl}
@@ -945,6 +1003,15 @@ Language: ${isArabic ? 'Arabic (Gulf dialect)' : 'English'}
 Top keywords to target: ${keywords.slice(0, 5).join(', ')}
 
 ${pageContext}
+
+RULES — non-negotiable:
+- Title: 50-60 characters exactly
+- Description: 120-155 characters exactly
+- ONLY reference real menu items from this list: ${menuItems || 'use items from brand context'}
+${spiceSystem ? `- ONLY use the brand's actual spice/heat system: ${spiceSystem} — NEVER invent heat levels` : ''}
+- No generic phrases: "great food", "delicious", "best in town", "quality ingredients"
+- Lead with the primary keyword, end with a reason to click
+- Write specifically for ${market.label} — mention the market, not UAE or Dubai
 ${arabicRules}
 
 Return EXACTLY this structure:
@@ -1031,6 +1098,10 @@ Target keywords: ${keywords.slice(0, 5).join(', ')}
 ${market.isNew ? '⚡ NEW MARKET — just opened. Prioritise establishing keyword relevance.' : ''}
 
 ${pageContentBlock}
+
+BRAND CONSTRAINTS — non-negotiable in any suggested copy:
+- Only reference real menu items from brand context
+${brandCtx?.menu?.spiceSystem ? `- Spice/heat system: ${brandCtx.menu.spiceSystem} — use these exact names, never invent levels` : ''}- No generic phrases ("great food", "delicious", "quality ingredients")
 
 Pick the SINGLE most impactful improvement from: H1 optimisation, missing keyword in first 100 words, weak/missing meta, thin content, no CTA, poor internal linking anchor text.
 
@@ -1334,24 +1405,37 @@ async function processMarketLanguage(store, marketKey, market, language, force =
       if (metaVoice.score < 8) {
         console.warn(`${tag} — meta update voice ${metaVoice.score}/10 — gate reject`);
       } else {
-        const id = await queueApprovalItem({
-          type:        'meta_update',
-          brand:       market.brand,
-          market:      market.marketKey,
-          marketLabel: market.label,
-          language,
-          title:       `Meta update — ${market.label} ${language.toUpperCase()} landing page`,
-          meta: {
-            metaTitle:       meta.metaTitle,
-            metaDescription: meta.metaDescription,
-            focusKeyword:    meta.focusKeyword,
-          },
-          targetUrl:   buildPostUrl(market, 'page', market.marketSlug, language),
-          wpParent:    market.wpMarketParent,
-          notes: `International SEO — optimised meta for ${market.label} page. Keyword: ${meta.focusKeyword}`,
-        });
-        queued.push({ type: 'meta_update', id });
-        console.log(`${tag} — meta update queued: ${id}`);
+        // Dedup: skip if any meta_update is already pending for this page+language
+        // (GSC-driven queues first in runMarketDataDrivenSEO; seed block must not double-queue)
+        const seedTargetUrl = buildPostUrl(market, 'page', market.marketSlug, language);
+        const seedMetaKey   = `${seedTargetUrl.toLowerCase().replace(/\/$/, '')}::${language}`;
+        const pendingMetaMap = await getQueuedMetaMap(market.brand);
+        const existingMeta   = pendingMetaMap.get(seedMetaKey);
+        if (existingMeta && existingMeta.status === 'pending') {
+          console.log(`${tag} — meta update skipped — already pending (${existingMeta.isGscDriven ? 'GSC-driven' : 'seed-block'} item ${existingMeta.id})`);
+        } else {
+          const id = await queueApprovalItem({
+            type:        'meta_update',
+            brand:       market.brand,
+            market:      market.marketKey,
+            marketLabel: market.label,
+            language,
+            title:       `Meta update — ${market.label} ${language.toUpperCase()} landing page`,
+            meta: {
+              metaTitle:       meta.metaTitle,
+              metaDescription: meta.metaDescription,
+              focusKeyword:    meta.focusKeyword,
+              voiceScore:      metaVoice.score,
+              voiceIssues:     metaVoice.issues  || [],
+              voiceTopFix:     metaVoice.topFix  || null,
+            },
+            targetUrl:   seedTargetUrl,
+            wpParent:    market.wpMarketParent,
+            notes: `International SEO — optimised meta for ${market.label} page. Keyword: ${meta.focusKeyword}`,
+          });
+          queued.push({ type: 'meta_update', id });
+          console.log(`${tag} — meta update queued: ${id}`);
+        }
       }
     }
   } catch (e) {

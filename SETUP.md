@@ -3648,7 +3648,21 @@ Update "Current URL" from `yolkseo.netlify.app` to `thenest.yolkbrands.com`
 
 ---
 
-## Current Version: v7.4.29
+## Current Version: v7.4.31
+
+Last built (v7.4.31): **meta_update smart dedup — no more double-cards for the same page.**
+- Two generators could both queue a `meta_update` for the same page+language: `runMarketDataDrivenSEO` (GSC-driven: has real position/impressions) and the `processMarketLanguage` seed block (blind: no GSC data). Now mutually aware.
+- New helpers: `getQueuedMetaMap(brand)` → Map of `"normalizedUrl::language" → {id, status, isGscDriven}`. `dismissPendingMeta(id, reason)` → sets item to dismissed with audit note.
+- **GSC-driven** now uses `alreadyQueuedMetaMap` instead of the old `alreadyQueuedPages` Set. Filter distinguishes: pushed/approved = skip (don't redo); GSC-driven pending = skip (first wins); seed-block pending = proceed AND dismiss the old one before queuing the better version. Quality reasoning: GSC-driven item has real impressions/position → always beats blind seed-block.
+- **Seed block** now calls `getQueuedMetaMap` before queuing. If any meta_update is already pending for that page+language (whether GSC-driven or seed-block from a prior run) → skips with a console log.
+- Net effect: one meta_update card per page per queue, always the highest-quality available version.
+- `updateApproval` added to store.js import (needed for dismiss).
+- Syntax-checked: `node --check` passes.
+
+Last built (v7.4.30): **Intl content quality + all market locations audited and corrected.**
+- `generateMetaUpdate`, `generateOnPageSuggestion`, `generateBlogDraft`, `runMarketKeywordOpportunities`, `runMarketDataDrivenSEO` all now inject the brand's actual menu item list and spice/heat system explicitly into prompts. Claude can no longer invent heat levels ("nuclear", "mild") or off-menu dishes — it's pinned to the real list from `brandCtx.menu.spiceSystem`. Works brand-aware: Pickl gets `Plain → The Reaper`, Bonbird gets `Plain Jane / Medium / Hot / XXX + flavours`.
+- Voice score badge now shows on intl `meta_update` cards (was checked but never stored in payload).
+- All market locations audited against live eatpickl.com/location + bonbirdchicken.com/locations: Bahrain (Juffair Square removed — closed, Riffa added); Qatar Pickl (Lusail→West Walk + District 1); Egypt (Hyde Park removed, Park St East→Park Street East); Oman Pickl (Al Hail removed — not open); Bonbird Oman (Souq Al Madina + Al Khoudh Seeb); Bonbird Pakistan (3 Lahore locations added, Karachi refs removed); Bonbird Qatar (West Walk + District 1). Pakistan seed keywords and cultural notes corrected to Lahore-only.
 
 Last built (v7.4.29): **Group A — meta/on-page pipeline fixes (A1–A4).** Full forensic pre-fix before any re-run.
 

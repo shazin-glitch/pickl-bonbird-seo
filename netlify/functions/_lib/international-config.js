@@ -44,7 +44,7 @@ const INTERNATIONAL_MARKETS = {
     location_code:   2048,
     currency:        'BHD',
     // Confirmed locations
-    locations:       ['Al Aali Mall', 'Juffair Square'],
+    locations:       ['Al Aali Mall', 'Riffa'],
     seedKeywords: {
       en: [
         'smash burger bahrain', 'best burger in bahrain', 'best burger manama',
@@ -121,7 +121,7 @@ const INTERNATIONAL_MARKETS = {
     languages:       ['en', 'ar'],
     location_code:   179,
     currency:        'QAR',
-    locations:       ['Lusail Boulevard, Doha'],
+    locations:       ['West Walk, Doha', 'District 1, Doha'],
     seedKeywords: {
       en: [
         'smash burger doha', 'best burger in doha', 'chicken sandwich doha',
@@ -160,10 +160,7 @@ const INTERNATIONAL_MARKETS = {
     languages:       ['en', 'ar'],
     location_code:   2818,
     currency:        'EGP',
-    locations:       [
-      'Urban Lanes', 'Madinaty', 'Park St East',
-      'Park Street West', 'Hyde Park',
-    ],
+    locations:       ['Urban Lanes', 'Madinaty', 'Park Street East', 'Park Street West'],
     seedKeywords: {
       en: [
         'smash burger cairo', 'best burger in cairo', 'chicken sandwich cairo',
@@ -245,7 +242,7 @@ const INTERNATIONAL_MARKETS = {
     location_code:   2114,
     currency:        'OMR',
     isNew:           true,               // Opened May 2026
-    locations:       ['Souq Al Madina', 'Al Hail'],
+    locations:       ['Souq Al Madina, Muscat'],
     seedKeywords: {
       en: [
         'smash burger muscat', 'best burger in muscat', 'chicken sandwich oman',
@@ -281,7 +278,7 @@ const INTERNATIONAL_MARKETS = {
     languages:       ['en'],
     location_code:   2114,
     currency:        'OMR',
-    locations:       [],                  // confirm with Shazin
+    locations:       ['Souq Al Madina, Muscat', 'Al Khoudh, Seeb'],
     seedKeywords: {
       en: [
         'fried chicken muscat', 'best fried chicken oman', 'crispy chicken muscat',
@@ -295,7 +292,7 @@ const INTERNATIONAL_MARKETS = {
       'Family dining is central — chicken by the bucket/box resonates',
       'Bonbird is Dubai-born — UAE origin is a quality signal in Oman',
       'Always fresh, hormone free, antibiotic free — lead with this',
-      'NOTE: Confirm Oman Bonbird locations before publishing location content',
+      'Two locations: Souq Al Madina (Muscat) and Al Khoudh (Seeb) — mention both',
     ],
   },
 
@@ -313,25 +310,25 @@ const INTERNATIONAL_MARKETS = {
     languages:       ['en'],             // English only — confirmed
     location_code:   2586,
     currency:        'PKR',
-    locations:       [],                  // confirm with Shazin
+    locations:       ['Cue Cinemas, Gulberg Lahore', 'Dolmen Mall, DHA Lahore', 'Johar Town, Lahore'],
     seedKeywords: {
       en: [
-        'fried chicken karachi', 'best fried chicken pakistan', 'crispy chicken lahore',
-        'chicken restaurant karachi', 'fried chicken delivery pakistan',
-        'fresh fried chicken karachi', 'chicken tenders pakistan', 'best chicken pakistan',
-        'crispy chicken burger pakistan', 'bonbird pakistan', 'best burger karachi',
-        'chicken wrap pakistan', 'fried chicken lahore', 'crispy chicken islamabad',
+        'fried chicken lahore', 'best fried chicken lahore', 'crispy chicken lahore',
+        'chicken restaurant lahore', 'fried chicken delivery lahore',
+        'fresh fried chicken pakistan', 'chicken tenders lahore', 'best chicken lahore',
+        'crispy chicken burger lahore', 'bonbird pakistan', 'fried chicken gulberg',
+        'chicken wrap lahore', 'best chicken dha lahore', 'crispy chicken johar town',
       ],
     },
     culturalNotes: [
       'Pakistan is a massive fried chicken market — KFC, Hardees, local brands all strong',
       'Price-conscious audience — value positioning matters alongside quality',
-      'Karachi and Lahore are primary cities — reference specifically if locations confirmed',
+      'All locations are in Lahore — Gulberg, DHA, Johar Town — reference Lahore specifically',
       'Halal is assumed — lead with freshness and flavour variety (spice system)',
       'Bonbird spice system (Plain Jane to XXX) is a strong hook for Pakistani audience',
       'Family bucket meals extremely popular — emphasise Bone-In bucket deals',
       'Food delivery dominant — Foodpanda, Careem Food — mention delivery',
-      'NOTE: Confirm Pakistan city/locations with Shazin before publishing',
+      'Three locations all in Lahore: Cue Cinemas Gulberg, Dolmen Mall DHA, Johar Town',
     ],
   },
 
@@ -349,7 +346,7 @@ const INTERNATIONAL_MARKETS = {
     languages:       ['en', 'ar'],
     location_code:   179,
     currency:        'QAR',
-    locations:       [],                  // confirm with Shazin
+    locations:       ['West Walk, Doha', 'District 1, Doha'],
     seedKeywords: {
       en: [
         'fried chicken doha', 'best fried chicken qatar', 'crispy chicken doha',
