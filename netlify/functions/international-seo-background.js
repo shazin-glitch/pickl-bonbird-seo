@@ -272,6 +272,46 @@ Return ONLY a JSON array:
   return { queued, candidates: candidates.length };
 }
 
+// ── SERP-feature-aware routing ────────────────────────────────────────────────
+// The competitor matrix captures which SERP features each keyword's results show
+// (local pack, PAA, AI Overview, featured snippet, video). Content-gen used to
+// ignore them and write a blog regardless. We now load them per market and (a)
+// route local-pack keywords to a landing PAGE not a blog, and (b) inject
+// feature-specific tactics into every prompt so content is built to win them.
+async function loadSerpFeatureMap(market) {
+  try {
+    const s   = getStore({ name: 'seo-tool', consistency: 'strong', siteID: process.env.NETLIFY_SITE_ID, token: process.env.NETLIFY_AUTH_TOKEN });
+    const key = `competitorMatrix:${market.brand}:${market.brand}_${market.marketKey}`;
+    const data = await s.get(key, { type: 'json' });
+    const map = {};
+    for (const row of (data?.rows || [])) {
+      if (row?.keyword && row.serpFeatures) map[row.keyword.toLowerCase().trim()] = row.serpFeatures;
+    }
+    return map;
+  } catch { return {}; }
+}
+
+function serpFeatureBrief(features) {
+  if (!features) return { tag: null, directive: '', isLocal: false };
+  const parts = [];
+  if (features.localPack)     parts.push('LOCAL PACK present — this is a local-intent SERP. A blog post will not rank here; the win is a dedicated location landing page plus Google Business Profile signals. Lead with address / area-served / hours / ordering intent, not an article.');
+  if (features.peopleAlsoAsk) parts.push('PEOPLE ALSO ASK present — add a concise FAQ section answering the top related questions directly, structured so it can carry FAQ schema.');
+  if (features.aiOverview)    parts.push('AI OVERVIEW present — open with a direct, factual 1-2 sentence answer and use clear structured sub-points so the page is easy for AI answers to cite.');
+  if (features.featuredSnippet) parts.push('FEATURED SNIPPET present — include a tight, snippet-style direct answer (40-55 words) or a short ordered/unordered list near the top to win the snippet.');
+  if (features.video)         parts.push('VIDEO results present — consider an embedded or described video element for this topic.');
+  const tag = [
+    features.localPack       && 'Local Pack',
+    features.peopleAlsoAsk   && 'PAA',
+    features.aiOverview      && 'AI Overview',
+    features.featuredSnippet && 'Featured Snippet',
+    features.video           && 'Video',
+  ].filter(Boolean).join(' · ') || null;
+  const directive = parts.length
+    ? `\n\nSERP FEATURE STRATEGY — the live SERP for this keyword shows the features below; tailor the content to win them:\n${parts.map(p => '- ' + p).join('\n')}`
+    : '';
+  return { tag, directive, isLocal: !!features.localPack };
+}
+
 // ── International keyword opportunities (pos 11-20 → page_update, pos 21-35 → blog_draft) ─────
 async function runMarketKeywordOpportunities(market, brandCtx, brandExamples, force = false, language = 'en') {
   const BRAND_GSC = { pickl: 'https://eatpickl.com/', bonbird: 'https://bonbirdchicken.com/' };
@@ -316,6 +356,7 @@ async function runMarketKeywordOpportunities(market, brandCtx, brandExamples, fo
   const voiceFn            = voiceClaudeAdapter(brandName);
   let queued               = 0;
   let pageCreations        = 0;
+  const serpMap            = await loadSerpFeatureMap(market); // keyword → serpFeatures (from competitor matrix)
 
   // ── QUICK WINS: pos 11-20 → page_update ──────────────────────────────────
   const quickWins = Object.values(pageMap)
@@ -330,6 +371,7 @@ async function runMarketKeywordOpportunities(market, brandCtx, brandExamples, fo
 
   for (const r of quickWins) {
     try {
+      const sb = serpFeatureBrief(serpMap[r.keyword.toLowerCase().trim()]);
       const userPrompt = `This ${market.brand === 'pickl' ? 'Pickl' : 'Bonbird'} page ranks position ${r.position.toFixed(1)} for "${r.keyword}" in ${market.label} with ${r.impressions} impressions but isn't on page 1.${langDirective}
 
 PAGE: ${r.page}
@@ -341,7 +383,7 @@ MARKET: ${market.label}${feedbackNotes.length ? `
 HUMAN FEEDBACK — NEVER do any of the following:
 ${feedbackNotes.map(n => `- ${n}`).join('\n')}` : ''}
 
-Provide 3-5 specific on-page changes to push this to top 10. Be tactical and specific — reference the URL, what the page is likely about, and what changes will move rankings.
+Provide 3-5 specific on-page changes to push this to top 10. Be tactical and specific — reference the URL, what the page is likely about, and what changes will move rankings.${sb.directive}
 
 Return ONLY JSON:
 {"title":"Page update: [keyword]","suggestions":["specific change 1","specific change 2","specific change 3"],"rationale":"one sentence on the ranking opportunity","targetKeyword":"${r.keyword}"}`;
@@ -366,6 +408,8 @@ Return ONLY JSON:
           suggestions:      parsed.suggestions,
           suggestionTitle:  parsed.title,
           suggestionDetail: parsed.suggestions.join(' | '),
+          serpFeatures:     serpMap[r.keyword.toLowerCase().trim()] || null,
+          serpFeatureTag:   sb.tag,
           wpBase:  wp.base, wpUser: wp.user, wpPass: wp.pass,
           language: language,
           nativeReview: isAr ? 'pending' : undefined,
@@ -414,6 +458,7 @@ Return ONLY JSON:
   for (const r of contentGaps) {
     try {
       const existingPage = isDedicatedPage(r.page);
+      const sb = serpFeatureBrief(serpMap[r.keyword.toLowerCase().trim()]);
 
       if (existingPage) {
         // Dedicated page already exists but ranking poorly — update it, don't create a competing one
@@ -429,7 +474,7 @@ NOTE: This is an existing page. Do NOT suggest creating a new page — suggest h
 HUMAN FEEDBACK — NEVER do any of the following:
 ${feedbackNotes.map(n => `- ${n}`).join('\n')}` : ''}
 
-Provide 4-6 specific on-page improvements (content depth, heading structure, internal links, keyword coverage, E-E-A-T signals) to push it from position ${r.position.toFixed(1)} into top 10.
+Provide 4-6 specific on-page improvements (content depth, heading structure, internal links, keyword coverage, E-E-A-T signals) to push it from position ${r.position.toFixed(1)} into top 10.${sb.directive}
 
 Return ONLY JSON:
 {"title":"Page update: [keyword]","suggestions":["specific change 1","specific change 2","specific change 3"],"rationale":"one sentence on why improving this page beats creating a new one","targetKeyword":"${r.keyword}"}`;
@@ -454,6 +499,8 @@ Return ONLY JSON:
             suggestions:      parsed.suggestions,
             suggestionTitle:  parsed.title,
             suggestionDetail: parsed.suggestions.join(' | '),
+            serpFeatures:     serpMap[r.keyword.toLowerCase().trim()] || null,
+            serpFeatureTag:   sb.tag,
             wpBase:  wp.base, wpUser: wp.user, wpPass: wp.pass,
             language: language,
             nativeReview: isAr ? 'pending' : undefined,
@@ -462,7 +509,7 @@ Return ONLY JSON:
         queued++;
         console.log(`${tag} queued page_update (existing, pos ${r.position.toFixed(1)}): ${r.page}`);
 
-      } else if (hasLocationIntent(r.keyword)) {
+      } else if (hasLocationIntent(r.keyword) || sb.isLocal) {
         // Location/service intent + no dedicated page → full landing PAGE.
         // International port of the UAE scheduler's runPageCreation — previously
         // these gaps only ever produced a blog post, never a proper landing page.
@@ -481,6 +528,8 @@ This is a STANDALONE PAGE (not a blog post):
 
 HUMAN FEEDBACK — NEVER do any of the following:
 ${feedbackNotes.map(n => `- ${n}`).join('\n')}` : ''}
+
+${sb.directive}
 
 Return ONLY JSON:
 {"title":"SEO title 55-60 chars","description":"meta description 150-158 chars","targetKeyword":"${r.keyword}","slug":"market-aware-url-slug e.g best-burger-${market.marketSlug}","pageHeading":"H1 text","excerpt":"short description for page lists","body":"<full page HTML — h2, p, ul, strong, image placeholder comments — no outer html/body tags>","pageType":"location|service","rationale":"why a dedicated page will outrank the market root"}`;
@@ -516,6 +565,8 @@ Return ONLY JSON:
             excerpt:       parsed.excerpt,
             body:          parsed.body,
             pageType:      parsed.pageType || 'location',
+            serpFeatures:  serpMap[r.keyword.toLowerCase().trim()] || null,
+            serpFeatureTag: sb.tag,
             wpAction:      'create_page',
             voiceScore:    voiceCheck.score,
             voiceIssues:   voiceCheck.issues,
@@ -551,7 +602,7 @@ MARKET LOCATIONS: ${market.locations?.join(', ') || market.label}${feedbackNotes
 HUMAN FEEDBACK — NEVER do any of the following:
 ${feedbackNotes.map(n => `- ${n}`).join('\n')}` : ''}
 
-Every sentence must sound like the brand — specific, direct, no filler. Open with energy. Reference real menu items by name.
+Every sentence must sound like the brand — specific, direct, no filler. Open with energy. Reference real menu items by name.${sb.directive}
 
 Return EXACTLY:
 ### TITLE
@@ -604,6 +655,8 @@ ${r.keyword}
             focusKeyword:    r.keyword,
             currentPos:      r.position,
             impressions:     r.impressions,
+            serpFeatures:    serpMap[r.keyword.toLowerCase().trim()] || null,
+            serpFeatureTag:  sb.tag,
             voiceScore:      voiceCheck.score,
             voiceIssues:     voiceCheck.issues,
             voiceTopFix:     voiceCheck.issues?.[0] || null,
