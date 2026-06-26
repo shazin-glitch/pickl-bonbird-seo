@@ -12,7 +12,7 @@
 //   3. onpage_suggestion — content improvement for the market page
 
 const { getStore } = require('@netlify/blobs');
-const { INTERNATIONAL_MARKETS, getMarketsForBrand, buildMarketPrompt, getWpCredentials, buildPostUrl, getMarketPageTokens } = require('./_lib/international-config');
+const { INTERNATIONAL_MARKETS, getMarketsForBrand, buildMarketPrompt, getWpCredentials, buildPostUrl, getMarketPageTokens, isExcludedPageSlug } = require('./_lib/international-config');
 const { getBrandContext, getBrandExamples, buildBrandPrompt, runBrandVoiceCheck, fixBrandVoice, hardStripBannedTokens } = require('./_lib/brand');
 const { fetchGscDirect, fetchGscWithPages, listApprovals, createApproval, updateApproval, extractJson } = require('./_lib/store');
 const { internalHeaders } = require('./_lib/auth');
@@ -812,7 +812,7 @@ ${r.keyword}
 }
 
 // ── Claude content generation ─────────────────────────────────────────────────
-async function callClaude(systemPrompt, userPrompt) {
+async function callClaude(systemPrompt, userPrompt, opts = {}) {
   const res = await fetch(ANTHROPIC_API, {
     method:  'POST',
     headers: {
@@ -822,7 +822,7 @@ async function callClaude(systemPrompt, userPrompt) {
     },
     body: JSON.stringify({
       model:      MODEL,
-      max_tokens: 1500,
+      max_tokens: opts.max_tokens || 1500,
       system:     systemPrompt,
       messages:   [{ role: 'user', content: userPrompt }],
     }),
@@ -1060,6 +1060,12 @@ async function runMarketPageMetaSweep(market, brandCtx, brandExamples, language,
   }
   if (!allPages.length) return { queued: 0, skipped: 'no_pages_found', tokens };
 
+  // Drop legal/utility/campaign pages (T&C, privacy, giveaway, world-tour) — never local-SEO targets
+  const excluded = allPages.filter(p => isExcludedPageSlug(p.slug));
+  if (excluded.length) console.log(`${tag} — excluded ${excluded.length} non-SEO pages: ${excluded.map(p => p.slug).join(', ')}`);
+  allPages = allPages.filter(p => !isExcludedPageSlug(p.slug));
+  if (!allPages.length) return { queued: 0, skipped: 'all_pages_excluded', tokens };
+
   // 2. Partition by language — Arabic pages → ar pass; everything else → en pass
   const arSlug = (market.arabicSlug || '').toLowerCase();
   const pages = allPages.filter(p => {
@@ -1126,9 +1132,21 @@ ${batch.map((p, i) => {
 Return ONLY a JSON array — one object per page:
 [{"id": <page id>, "url": "exact URL from input", "skip": false, "skipReason": "only if skip=true", "title": "${isAr ? 'optimised title' : '52-58 chars'}", "description": "${isAr ? 'optimised description' : '150-158 chars'}", "focusKeyword": "single primary keyword only", "rationale": "one sentence — why current underperforms and why yours is better"}]`;
 
-  const raw    = await callClaude(marketCtx, userPrompt);
-  const parsed = extractJson(raw);
-  if (!Array.isArray(parsed)) { console.warn(`${tag} — Claude did not return JSON array`); return { queued: 0, skipped: 'parse_error', discovered: batch.length }; }
+  // Size the token budget to the batch so the JSON array can't truncate
+  // (~350 tokens/page for title+desc+keyword+rationale, +headroom).
+  const maxTokens = Math.min(8000, 1200 + batch.length * 380);
+  const raw    = await callClaude(marketCtx, userPrompt, { max_tokens: maxTokens });
+  let parsed   = extractJson(raw);
+  // Salvage a truncated array: parse up to the last complete object, then close it.
+  if (!Array.isArray(parsed)) {
+    const start   = raw.indexOf('[');
+    const lastObj = raw.lastIndexOf('}');
+    if (start !== -1 && lastObj > start) {
+      try { parsed = JSON.parse(raw.slice(start, lastObj + 1) + ']'); } catch (_) {}
+    }
+    if (Array.isArray(parsed)) console.warn(`${tag} — recovered ${parsed.length} items from a truncated response (raise batch headroom?)`);
+  }
+  if (!Array.isArray(parsed)) { console.warn(`${tag} — Claude did not return JSON array (raw ${raw.length} chars, tail: ${JSON.stringify(raw.slice(-120))})`); return { queued: 0, skipped: 'parse_error', discovered: batch.length }; }
 
   // 5. Per-page: skip / voice-gate / dedup / queue
   const voiceFn       = voiceClaudeAdapter(brandCtx?.name || (market.brand === 'pickl' ? 'Pickl' : 'Bonbird'));

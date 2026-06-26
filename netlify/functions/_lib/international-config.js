@@ -477,6 +477,23 @@ const MARKET_PAGE_TOKENS = {
   bonbird_qatar:    ['qatar'],
 };
 
+// Slug substrings that disqualify a page from the meta sweep, even if it matches
+// a market token. Legal/utility/campaign pages are never local-SEO landing pages.
+// Matched as case-insensitive substrings of the slug.
+const PAGE_SLUG_EXCLUDE = [
+  // Legal / T&C / privacy / giveaway (note: live site has the typo "giveway")
+  'terms-and-condition', 'terms-of', 'privacy', 'policy', 'cookie',
+  'giveaway', 'giveway', 'disclaimer',
+  // Campaign microsites — transient marketing, not evergreen local SEO
+  'world-tour',
+];
+
+// True if a slug should be skipped by the meta sweep (legal/utility/campaign).
+function isExcludedPageSlug(slug) {
+  const s = String(slug || '').toLowerCase();
+  return PAGE_SLUG_EXCLUDE.some(pat => s.includes(pat));
+}
+
 // Returns the de-duped token list for a market (object or "brand_marketKey" string).
 // Always includes marketSlug + arabicSlug so the root pages are covered.
 function getMarketPageTokens(marketOrKey) {
@@ -511,4 +528,6 @@ module.exports = {
   buildMarketPrompt,
   getMarketPageTokens,
   MARKET_PAGE_TOKENS,
+  isExcludedPageSlug,
+  PAGE_SLUG_EXCLUDE,
 };

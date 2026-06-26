@@ -3648,7 +3648,15 @@ Update "Current URL" from `yolkseo.netlify.app` to `thenest.yolkbrands.com`
 
 ---
 
-## Current Version: v7.4.33
+## Current Version: v7.4.34
+
+Last built (v7.4.34): **Meta sweep exclude list — skip legal/campaign pages.**
+- First live Bahrain sweep discovered 12/143 pages correctly, but the token match also caught pages that aren't local-SEO targets: a "national day giveaway" T&C page and two `pickl-world-tour-*` campaign microsite pages.
+- Added `PAGE_SLUG_EXCLUDE` + `isExcludedPageSlug()` in international-config.js — case-insensitive slug-substring blocklist for legal/utility/campaign pages: `terms-and-condition, terms-of, privacy, policy, cookie, giveaway, giveway` (live site has the typo "giveway"), `disclaimer, world-tour`. Applied in `runMarketPageMetaSweep` right after discovery; logs what it drops.
+- Journal index pages (`journal-<market>`) are intentionally KEPT (legit meta target, Shazin's call).
+- Verified against the real Bahrain slug list: 9 kept (bh, bh-arabic, bahrain-locations, franchise-bahrain, bahrain-events, bahrain-contact-us, bahrain-contact-us-arabic, bahrain-menu-arabic, journal-bahrain), 3 excluded (2× world-tour, 1× T&C giveaway).
+- Applies to every market automatically.
+- **Truncation bug fixed (found in first live Bahrain run):** intl `callClaude` had `max_tokens: 1500` hardcoded. The 6-page EN batch exceeded it → JSON array truncated → `extractJson` returned null → "Claude did not return JSON array" → 0 queued (the 3-page AR batch fit, so it worked). Fix: `callClaude` now takes an `opts.max_tokens` override (backwards compatible, default 1500); the sweep sizes it to the batch (`min(8000, 1200 + pages×380)`). Plus a salvage path — if the array is still truncated, parse up to the last complete `}` and close it, so partial batches still yield their complete items. Verified: recovers all complete objects from a mid-object truncation.
 
 Last built (v7.4.33): **Full market page meta sweep — covers ALL country pages, not just the root.**
 - **Problem:** intl meta only ever covered `/bh/` + `/bh-arabic/` (the seed block hardcoded the market root) and missed every country sub-page (`/bahrain-events/`, `/franchise-bahrain/`, `/bahrain-contact-us/`, `/ksa-locations/`, `/franchise-ksa/`, etc.). The GSC-driven path couldn't see them either — `marketPageMatcher` keyed off the root slug (`bh`) but the pages use the full country name (`bahrain`) in prefix OR suffix position, so they never matched. And most have too little GSC traffic to clear the impressions filter regardless.
