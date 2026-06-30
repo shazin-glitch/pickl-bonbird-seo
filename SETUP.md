@@ -3648,7 +3648,16 @@ Update "Current URL" from `yolkseo.netlify.app` to `thenest.yolkbrands.com`
 
 ---
 
-## Current Version: v7.4.35
+## Current Version: v7.4.36
+
+Last built (v7.4.36): **Meta sweep quality hardening (Workstream 1 of the platform roadmap).**
+- First live Bahrain sweep produced 3/5 broken cards. Root causes fixed in `runMarketPageMetaSweep`:
+  - **Markdown leaked into meta** (`**Your event called…**` rendered literally). New `cleanMeta()` helper strips bold/italic/code/heading/bullet markdown.
+  - **Descriptions truncated mid-word** (`…ready for Bahr`). `cleanMeta()` trims at the last sentence end, else last word boundary — never mid-character. Replaces the old raw `.slice(0,160)`.
+  - **Stub descriptions queued** (a 47-char Events desc). New min-length guard rejects title <25c or desc <110c (EN) / <90c (AR) before queuing.
+  - **Prompt hardened:** plain-text-only (no markdown), complete-sentence required, and the page-type keyword must appear in the title (contact/franchise/locations pages keep their keyword + brand + market).
+- `cleanMeta` unit-tested against the actual broken outputs. `node --check` passes.
+- This is Workstream 1 of the refined roadmap (full roadmap in memory [[seo-platform-roadmap]] + [[seo-pipeline-full-audit]]). Remaining WS1: draft-vs-live tracking bug, decimal rounding, verification of untested v7.4.13–28 work.
 
 Last built (v7.4.35): **International Monday cron DISABLED — manual-trigger only.**
 - The weekly cron ran the full intl pipeline (≈3 blogs/market + meta sweep + on-page across 9 markets) every Monday 4am UTC, spending on the Anthropic API unattended. Shazin's call (2026-06-26): don't auto-run, trigger manually instead.

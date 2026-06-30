@@ -1029,6 +1029,27 @@ Return EXACTLY this structure:
   };
 }
 
+// Strip markdown/formatting and trim to a clean length at a sentence/word boundary
+// (never mid-word). Fixes "**bold** leaks into title" and "desc cut off mid-word".
+function cleanMeta(text, maxLen) {
+  if (!text) return '';
+  let s = String(text)
+    .replace(/\*\*|__/g, '')                 // bold markers
+    .replace(/\*([^*]+)\*/g, '$1')           // *italics*
+    .replace(/`+/g, '')                      // code ticks
+    .replace(/^#+\s*/gm, '')                 // heading hashes
+    .replace(/^[-•]\s*/gm, '')               // stray bullets
+    .replace(/\s+/g, ' ')                    // collapse whitespace
+    .trim();
+  if (s.length <= maxLen) return s;
+  const slice = s.slice(0, maxLen);
+  // prefer the last sentence end inside the limit; else the last word boundary
+  const sentenceEnd = Math.max(slice.lastIndexOf('. '), slice.lastIndexOf('! '), slice.lastIndexOf('? '), slice.lastIndexOf('؟ '));
+  if (sentenceEnd > maxLen * 0.6) return slice.slice(0, sentenceEnd + 1).trim();
+  const wordEnd = slice.lastIndexOf(' ');
+  return (wordEnd > 0 ? slice.slice(0, wordEnd) : slice).trim();
+}
+
 // ── Full market page meta sweep ───────────────────────────────────────────────
 // Discovers ALL of a market's WordPress pages (root + country sub-pages like
 // /bahrain-events/, /franchise-bahrain/, /ksa-locations/) via slug-token matching,
@@ -1115,6 +1136,9 @@ ${charRule}
 - Only reference REAL menu items: ${menuItems || 'use items from brand context'}
 ${spiceSystem ? `- ONLY use the brand's actual spice/heat system: ${spiceSystem} — NEVER invent heat levels\n` : ''}- No generic phrases ("great food", "delicious", "best in ${market.label}", "quality ingredients")
 - Write specifically about what THIS page is about — the slug tells you (e.g. "franchise-${market.marketKey}" = franchising page; "${market.marketKey}-locations" = locations page; "${market.marketKey}-contact" = contact page). Do NOT write generic landing-page meta for a franchise or contact page.
+- The TITLE must contain the page-type keyword + the brand + market — e.g. a contact page → "Contact ${market.brand === 'pickl' ? 'Pickl' : 'Bonbird'} ${market.label}" (${isAr ? 'تواصل مع' : 'Contact'}); a franchise page → "${isAr ? 'امتياز' : 'Franchise'}"; a locations page → "${isAr ? 'فروع' : 'Locations'}". A clever hook is fine, but the keyword must be present.
+- PLAIN TEXT ONLY — no markdown, asterisks, bold (**), underscores, backticks, or any formatting characters in the title or description.
+- The description MUST be a complete sentence within the character range — never cut it off mid-thought.
 - Lead with the page's primary keyword, end with a reason to click${feedbackNotes.length ? `
 
 HUMAN FEEDBACK — NEVER do any of the following (explicitly rejected by the team):
@@ -1162,15 +1186,26 @@ Return ONLY a JSON array — one object per page:
     if (!page) { console.warn(`${tag} — unknown page from Claude: ${r.url}`); continue; }
     if (!r.title || !r.description) { console.warn(`${tag} — missing title/desc for ${page.slug}`); continue; }
 
+    // Sanitize: strip markdown, trim at clean sentence/word boundaries (no ** leaks, no mid-word cuts)
+    const titleMax = 60, descMax = isAr ? 155 : 158;
+    let title       = cleanMeta(r.title, titleMax);
+    let description = cleanMeta(r.description, descMax);
+
+    // Min-length guard — reject stubs (e.g. the 47-char Events description) before they queue
+    const minTitle = 25, minDesc = isAr ? 90 : 110;
+    if (title.length < minTitle || description.length < minDesc) {
+      console.warn(`${tag} — meta too short for ${page.slug} (title ${title.length}c, desc ${description.length}c) — skipping`);
+      skipped++; continue;
+    }
+
     // Brand voice gate — one fix attempt, reject if still <8
-    let title = r.title, description = r.description;
     let voice = await runBrandVoiceCheck(`${title}\n${description}`, brandCtx, voiceFn).catch(() => ({ score: 8, issues: [] }));
     if (voice.score !== null && voice.score < 8) {
       const fixed = await fixBrandVoice(`${title}\n${description}`, voice, brandCtx, voiceFn, brandExamples, feedbackNotes);
       if (fixed.improved) {
         const lines = fixed.content.trim().split('\n').filter(Boolean);
-        if (lines[0]) title       = lines[0].slice(0, 60);
-        if (lines[1]) description = lines[1].slice(0, 160);
+        if (lines[0]) title       = cleanMeta(lines[0], titleMax);
+        if (lines[1]) description = cleanMeta(lines[1], descMax);
         voice = fixed.voiceCheck;
       }
     }
