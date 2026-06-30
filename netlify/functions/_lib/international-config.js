@@ -103,7 +103,7 @@ const INTERNATIONAL_MARKETS = {
       'Arabic: Gulf Arabic dialect — NOT Modern Standard Arabic',
       'Halal is assumed — emphasise quality, freshness and no preservatives/hormones/antibiotics',
       'Food delivery is massive in KSA — mention delivery options naturally',
-      'Pickl has award-winning credentials (Time Out Dubai Best Burger) — use this',
+      'Pickl is genuinely award-winning — but ONLY cite the exact awards/counts in VERIFIED FACTS; never invent counts, years, or combine awards',
     ],
   },
 
@@ -431,7 +431,7 @@ URL STRUCTURE (critical — use these exact patterns):
 - Journal posts:   ${buildPostUrl(market, 'blog_draft', '<post-slug>', language)}
 - Market slug:     /${market.marketSlug}/ — this identifies ALL pages for ${market.label}
 - Any URL containing /${market.marketSlug}/ is a ${market.label} page, NOT a UAE page
-- Write ONLY for the ${market.label} market — do not reference UAE, Dubai, or other markets
+- Write ONLY for the ${market.label} market — do not target or reference UAE, Dubai, or other markets as the location/destination. EXCEPTION: you MAY cite the brand's Dubai/UAE awards (see VERIFIED FACTS) as pedigree (e.g. "the team behind Dubai's award-winning Pickl"), but NEVER claim an award was won in ${market.label}, and never tell ${market.label} visitors to go to Dubai.
 
 WHAT THIS MARKET NEEDS FROM CONTENT:
 - Keywords must reference ${market.label} specifically (e.g. "best burger in ${market.label === 'Saudi Arabia' ? 'Riyadh' : market.label}")
@@ -439,8 +439,9 @@ WHAT THIS MARKET NEEDS FROM CONTENT:
 - CTA should drive visitors to the ${market.label} location(s), not UAE
 - Tone and cultural references must match ${market.label} audience (see Cultural Notes)
 
-CONFIRMED LOCATIONS IN ${market.label.toUpperCase()}:
-${market.locations.length > 0 ? market.locations.join(', ') : 'Locations TBC — do NOT invent or guess any location names'}
+CONFIRMED LOCATIONS IN ${market.label.toUpperCase()} (${market.locations.length} SEPARATE outlet${market.locations.length === 1 ? '' : 's'} — distinct places; NEVER merge two into one address like "X, Y"):
+${market.locations.length > 0 ? market.locations.map((l, i) => `  ${i + 1}. ${l}`).join('\n') : 'Locations TBC — do NOT invent or guess any location names'}
+${market.locations.length > 1 ? `- ${market.brand === 'pickl' ? 'Pickl' : 'Bonbird'} ${market.label} is a MULTI-LOCATION brand (${market.locations.length} outlets) — represent it as a brand across ${market.label}, never as a single outlet. Say "and" between outlets, not a comma.` : ''}
 
 TARGET KEYWORDS FOR THIS MARKET (${language.toUpperCase()}):
 ${(market.seedKeywords[language] || market.seedKeywords['en'] || []).join(', ')}

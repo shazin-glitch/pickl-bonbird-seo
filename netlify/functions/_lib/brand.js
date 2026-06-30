@@ -33,6 +33,15 @@ const PICKL_DEFAULT = {
     'Plant-based menu using Impossible™ patties',
     'Grain-fed beef, hand-breaded fresh chicken — premium fast food without the pretension',
   ],
+  // VERIFIED awards — the ONLY award facts Claude may state. Years/counts are EXACT.
+  // Do not add details not listed. Do not combine two awards into one claim.
+  awards: [
+    'Time Out Dubai Best Burger — won 2022 and 2023 (2 times only; never "four-time", never more)',
+    'Deliveroo Restaurant of the Year — won 4 years running, 2022 to 2025',
+    'Deliveroo Best Fried Chicken — won once, year UNCONFIRMED (2022 or 2023) → do NOT state any year for this one',
+    'Deliveroo Best Homegrown Dubai — won 2025',
+    'SCOPE: every award above is a DUBAI/UAE award. In international-market content, reference them ONLY as the brand\'s Dubai/UAE pedigree — NEVER claim an award was won in the local market (e.g. never "Bahrain\'s Best Burger winner"). No confirmed international awards exist.',
+  ],
   menu: {
     cheeseburgers: [
       'The Original Cheeseburger — double chuck patty, cheese, dill pickles, white onion, mustard, ketchup & potato bun',
@@ -195,6 +204,8 @@ async function getBrandContext(brand) {
   // Backfill any field the Settings save left empty/missing from the default.
   const merged = { ...base, ...stored };
   if (!stored.menu || Object.keys(stored.menu).length === 0) merged.menu = base.menu;
+  // Awards are verified facts the Settings form never edits — always keep the vetted default.
+  if (!stored.awards || !stored.awards.length) merged.awards = base.awards;
   return merged;
 }
 
@@ -319,6 +330,12 @@ ${ctx.brandStatement ? `Master brand statement: "${ctx.brandStatement}"` : ''}
 
 === WHAT MAKES YOU DIFFERENT ===
 ${(ctx.differentiators || []).map(d => `• ${d}`).join('\n')}
+
+=== VERIFIED FACTS & AWARDS — STATE ONLY THESE, EXACTLY AS WRITTEN ===
+${(ctx.awards && ctx.awards.length)
+  ? `${ctx.awards.map(a => `• ${a}`).join('\n')}
+HARD RULE: These are the ONLY awards/accolades you may mention. NEVER invent, inflate, or change an award name, count, or year. NEVER combine two awards into one claim (e.g. do not merge "Best Burger" and "Restaurant of the Year"). If you are unsure of an exact fact, leave it out entirely — an omitted award is fine, a wrong one is not.`
+  : 'No awards are on file for this brand. Do NOT claim any award, "winner", "best in", or "X-time" status of any kind.'}
 
 === YOUR VOICE — THESE ARE LAWS, NOT SUGGESTIONS ===
 ${(ctx.tone || []).map(t => `• ${t}`).join('\n')}

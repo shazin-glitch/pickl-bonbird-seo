@@ -3032,12 +3032,14 @@ function buildContextBar(item) {
   const isSeed      = p.isSeedKeyword || (item.payload?.keywordTier === 'Priority Gap' && !pos);
   const isMeta      = item.type === 'meta_update';
 
-  // Detect international items for new markets (no GSC history yet)
+  // International item with no GSC ranking data for THIS page/keyword yet.
+  // NOTE: this means "no ranking history for this item" — NOT that the market is new.
+  // Established markets (Bahrain etc.) legitimately have pages with no GSC data.
   const locationTag = item.locationTag || p.locationTag || null;
   const isIntl      = locationTag && locationTag !== '🇦🇪 UAE';
-  const isNewMarket = isIntl && !pos && !impressions;
+  const noRankingData = isIntl && !pos && !impressions;
 
-  if (!keyword && !pos && !impressions && !isSeed && !isNewMarket) return '';
+  if (!keyword && !pos && !impressions && !isSeed && !noRankingData) return '';
 
   const posColor = pos <= 10 ? '#059669' : pos <= 20 ? '#d97706' : '#6366f1';
 
@@ -3069,10 +3071,10 @@ function buildContextBar(item) {
         <div style="font-size:12px;font-weight:600;color:#8b5cf6">New keyword</div>
         <div style="font-size:10px;color:var(--text-muted)">Not yet in GSC</div>
       </div>` : ''}
-      ${isNewMarket ? `<div style="padding:8px 12px;border-right:1px solid var(--border)">
-        <div style="font-size:10px;font-weight:700;color:var(--text-muted);text-transform:uppercase;letter-spacing:0.4px;margin-bottom:2px">Market Status</div>
-        <div style="font-size:12px;font-weight:600;color:#0ea5e9">New market</div>
-        <div style="font-size:10px;color:var(--text-muted)">No ranking history yet</div>
+      ${noRankingData ? `<div style="padding:8px 12px;border-right:1px solid var(--border)">
+        <div style="font-size:10px;font-weight:700;color:var(--text-muted);text-transform:uppercase;letter-spacing:0.4px;margin-bottom:2px">Ranking</div>
+        <div style="font-size:12px;font-weight:600;color:#0ea5e9">Not yet ranking</div>
+        <div style="font-size:10px;color:var(--text-muted)">No GSC data for this page yet</div>
       </div>` : ''}
       ${pos ? `<div style="padding:8px 12px;border-right:1px solid var(--border)">
         <div style="font-size:10px;font-weight:700;color:var(--text-muted);text-transform:uppercase;letter-spacing:0.4px;margin-bottom:2px">${isMeta ? 'Ranking' : 'Position Now'}</div>

@@ -1047,7 +1047,11 @@ function cleanMeta(text, maxLen) {
   const sentenceEnd = Math.max(slice.lastIndexOf('. '), slice.lastIndexOf('! '), slice.lastIndexOf('? '), slice.lastIndexOf('؟ '));
   if (sentenceEnd > maxLen * 0.6) return slice.slice(0, sentenceEnd + 1).trim();
   const wordEnd = slice.lastIndexOf(' ');
-  return (wordEnd > 0 ? slice.slice(0, wordEnd) : slice).trim();
+  let out = (wordEnd > 0 ? slice.slice(0, wordEnd) : slice).trim();
+  // Drop a dangling connector/preposition so it never ends on "...and" / "...across" / "...to"
+  const dangling = /[\s,]+(and|or|the|a|an|to|of|in|on|at|by|for|with|from|into|across|over|as|but|so|your|our)$/i;
+  while (dangling.test(out)) out = out.replace(dangling, '');
+  return out.replace(/[\s,]+$/, '').trim();
 }
 
 // ── Full market page meta sweep ───────────────────────────────────────────────
@@ -1139,6 +1143,7 @@ ${spiceSystem ? `- ONLY use the brand's actual spice/heat system: ${spiceSystem}
 - The TITLE must contain the page-type keyword + the brand + market — e.g. a contact page → "Contact ${market.brand === 'pickl' ? 'Pickl' : 'Bonbird'} ${market.label}" (${isAr ? 'تواصل مع' : 'Contact'}); a franchise page → "${isAr ? 'امتياز' : 'Franchise'}"; a locations page → "${isAr ? 'فروع' : 'Locations'}". A clever hook is fine, but the keyword must be present.
 - PLAIN TEXT ONLY — no markdown, asterisks, bold (**), underscores, backticks, or any formatting characters in the title or description.
 - The description MUST be a complete sentence within the character range — never cut it off mid-thought.
+- LOCATIONS BY PAGE TYPE: journal/blog, about, franchise, events and other brand pages must speak to the WHOLE ${market.label} brand — do NOT anchor them to one outlet (a journal is ${market.brand === 'pickl' ? 'Pickl' : 'Bonbird'}'s ${market.label} stories, NOT "Al Aali Mall's spot"). Only locations/contact pages should foreground specific outlet names, and they must list outlets as SEPARATE places ("X and Y", never "X, Y" which reads as one address).
 - Lead with the page's primary keyword, end with a reason to click${feedbackNotes.length ? `
 
 HUMAN FEEDBACK — NEVER do any of the following (explicitly rejected by the team):
