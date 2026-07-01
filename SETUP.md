@@ -3648,7 +3648,33 @@ Update "Current URL" from `yolkseo.netlify.app` to `thenest.yolkbrands.com`
 
 ---
 
-## Current Version: v7.4.43
+## Platform Migration: Netlify → Google VM (BIG lift — read before attempting)
+
+A custom domain on Netlify (above) is cosmetic. **Moving OFF Netlify to a Google VM is a full re-platform** — the app depends on several Netlify-specific primitives. Plan for each:
+
+1. **Netlify Functions → re-host.** All 51 `netlify/functions/*.js` are CommonJS handlers with the Netlify `(event) => { statusCode, body }` signature. On a VM you need an adapter (Express/Fastify route → build the `event` shape, map the return to `res`), or migrate to Google Cloud Run/Functions. Budget real effort — this is the bulk of the work.
+2. **Netlify Blobs (`seo-tool` store) → new storage. THE critical one.** ALL app state lives in Blobs (approvals, GSC cache, competitor matrix, brand context, sessions, keyword data, sweep reports, etc.). No Blobs off Netlify. Export everything first, then migrate to GCS or Firestore and swap `getStore()` for the new client behind a thin wrapper. Nothing works until this is done.
+3. **Crons (Netlify scheduled functions) → GCP Cloud Scheduler or system cron.** The `schedule=` lines in netlify.toml die on migration. Replace with Cloud Scheduler jobs (or crontab) that **HTTP POST the endpoints WITH the `x-nest-internal` header.** ⭐ This is exactly what `authorizeJob()` (v7.4.44) was designed for: on the VM, the cron sends the internal token → the job gate is fully token-secured, and the Netlify-only "scheduled invoke" branch simply goes unused. No code change to the gate needed.
+4. **Env vars / secrets → VM env or GCP Secret Manager.** Move `ANTHROPIC_API_KEY`, `DATAFORSEO_*`, GSC OAuth tokens, `NETLIFY_AUTH_TOKEN` (the internal-token secret — the gates depend on it), `NETLIFY_SITE_ID`, etc. Rotate anything that was ever exposed while doing so.
+5. **`netlify.toml` redirects (`/api/*` → `/.netlify/functions/*`) → nginx/Express routing.** Re-create the path mapping. NOTE CLAUDE.md rule 7: background functions were called at `/.netlify/functions/<name>` directly — on the VM they're just routes, so that quirk disappears.
+6. **`process.env.URL`** (Netlify auto-sets it) → set manually to the VM's public URL; internal self-calls (Slack, function-to-function) read it.
+7. **Deploy pipeline:** `git push → Netlify auto-deploy` becomes a VM deploy (git pull + process restart, or Cloud Build). Update SETUP/CLAUDE.md deploy instructions.
+8. **Same as the domain checklist:** OAuth redirect URIs, Slack callback URL, GCS CORS → point at the new host.
+
+**Auth note:** the internal-token model (`_lib/auth.js`) is domain- and host-independent — it survives the move untouched, provided `NETLIFY_AUTH_TOKEN` (the shared secret) is carried over and the crons/schedulers send the `x-nest-internal` header.
+
+---
+
+## Current Version: v7.4.44
+
+Last built (v7.4.44): **SECURITY batch #2 — gate the expensive background jobs (cost/DoS fix, IT #3) + migration-proof design.**
+- IT flagged (correct): `scheduler-background`, `international-seo-background`, `competitor-matrix-background`, `keyword-discovery-background` were reachable at `/.netlify/functions/<name>` with NO auth — anyone could loop them to run up Anthropic + DataForSEO bills. (Ironic given the intl cron was disabled for cost, but the manual trigger was wide open.)
+- New `authorizeJob(event)` in `_lib/auth.js`: allows a **Netlify scheduled invoke** (no `httpMethod` — not an HTTP request, so an attacker hitting the URL can't forge it; `next_run` body as backup) **OR** the internal `x-nest-internal` header **OR** a valid session. Anonymous HTTP → 401. Applied to all 4 jobs.
+- Fixed the internal trigger wrappers so they still work: `scheduler.js` and `keyword-opportunities.js` are now themselves gated (they were ungated doors that fire the jobs) AND send `internalHeaders()` when calling the background functions.
+- **Migration-proof:** on the future Google VM, point Cloud Scheduler/cron at these endpoints with the `x-nest-internal` header → fully token-secured, scheduled-branch unused (see Platform Migration §3).
+- ⚠️ **Interim limitation (Netlify only):** the `next_run` body marker is technically spoofable; the non-HTTP `!httpMethod` signal is not. Bare anonymous curls (the actual "loop the URL" attack) get 401. Fully closed at VM migration. **Verify the next scheduled (Monday) run still fires** — the one path that can't be simulated locally.
+
+Last built (v7.4.43): 
 
 Last built (v7.4.43): **SECURITY batch #1 — gate the ungated write endpoints + fix session-expiry bug.**
 - Gated with `authorize(event)` (session or internal header, else 401): `brand-examples`, `keyword-config`, `competitor-config`, `seed-keywords`, `tech-tasks`. All are browser-called same-origin (session cookie), so signed-in users unaffected.

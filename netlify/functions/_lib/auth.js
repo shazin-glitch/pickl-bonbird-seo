@@ -74,6 +74,28 @@ async function authorize(event) {
   return { ok: false, via: null, user: null };
 }
 
+// A Netlify SCHEDULED (cron) invocation is not an HTTP request — it has no
+// httpMethod (an attacker hitting the public URL always has one, so this can't be
+// forged). Netlify also includes a `next_run` marker in the body as a backup signal.
+function isScheduledInvoke(event) {
+  if (!event || !event.httpMethod) return true;
+  const body = typeof event.body === 'string' ? event.body : '';
+  return /"next_run"/.test(body);
+}
+
+// Gate for background/cron JOBS (expensive: Anthropic + DataForSEO spend).
+// Allowed: platform cron, internal service calls (x-nest-internal), or a valid
+// session. MIGRATION NOTE: on Google VM, point the cron/scheduler at these
+// endpoints WITH the x-nest-internal header — then the (Netlify-only) scheduled
+// branch is unused and this gate is fully token-secured. Do not remove the header.
+async function authorizeJob(event) {
+  if (isScheduledInvoke(event)) return { ok: true, via: 'scheduled', user: null };
+  if (isInternalCall(event))    return { ok: true, via: 'internal',  user: null };
+  const user = await getSessionUser(event);
+  if (user) return { ok: true, via: 'session', user };
+  return { ok: false, via: null, user: null };
+}
+
 function denied(message) {
   return {
     statusCode: 401,
@@ -82,4 +104,4 @@ function denied(message) {
   };
 }
 
-module.exports = { authorize, getSessionUser, isInternalCall, internalToken, internalHeaders, denied, BOOTSTRAP_ADMINS };
+module.exports = { authorize, authorizeJob, isScheduledInvoke, getSessionUser, isInternalCall, internalToken, internalHeaders, denied, BOOTSTRAP_ADMINS };

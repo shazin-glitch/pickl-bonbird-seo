@@ -7,6 +7,7 @@
 //                                  and returns 202 immediately (no timeout risk)
 
 const { getStore } = require('@netlify/blobs');
+const { authorize, denied, internalHeaders } = require('./_lib/auth');
 
 const SITE_URL = process.env.URL || 'https://yolkseo.netlify.app';
 
@@ -94,11 +95,13 @@ exports.handler = async (event) => {
   // Fire the background function as a true background job (15-min timeout)
   // and return 202 immediately — the inline call was timing out at 10s.
   if (event.httpMethod === 'POST') {
+    const _a = await authorize(event);
+    if (!_a.ok) return denied();
     const body  = JSON.parse(event.body || '{}');
     const brand  = body.brand  || 'pickl';
     const market = body.market || null;
     const mq     = market && market !== 'uae' ? `&market=${market}` : '';
-    fetch(`${SITE_URL}/.netlify/functions/keyword-discovery-background?brand=${brand}&force=true${mq}`)
+    fetch(`${SITE_URL}/.netlify/functions/keyword-discovery-background?brand=${brand}&force=true${mq}`, { headers: internalHeaders() })
       .catch(() => {});
     return { statusCode: 202, headers: { ...CORS, 'Content-Type': 'application/json' },
       body: JSON.stringify({ ok: true, message: 'Discovery started', brand, market: market || 'uae' }) };

@@ -668,7 +668,11 @@ function detectMovement(currentRows, previousRows) {
 }
 
 // ── Main handler ──────────────────────────────────────────────────────────────
+const { authorizeJob } = require("./_lib/auth");
+
 exports.handler = async (event) => {
+  const _job = await authorizeJob(event);
+  if (!_job.ok) return { statusCode: 401, headers: { "Content-Type": "application/json" }, body: JSON.stringify({ error: "Not authenticated" }) };
   console.log(`[competitor-matrix] Starting — ${new Date().toISOString()}`);
 
   const store = getStore({

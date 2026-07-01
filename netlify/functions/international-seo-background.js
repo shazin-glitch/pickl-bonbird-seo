@@ -15,7 +15,7 @@ const { getStore } = require('@netlify/blobs');
 const { INTERNATIONAL_MARKETS, getMarketsForBrand, buildMarketPrompt, getWpCredentials, buildPostUrl, getMarketPageTokens, isExcludedPageSlug } = require('./_lib/international-config');
 const { getBrandContext, getBrandExamples, buildBrandPrompt, runBrandVoiceCheck, fixBrandVoice, hardStripBannedTokens } = require('./_lib/brand');
 const { fetchGscDirect, fetchGscWithPages, listApprovals, createApproval, updateApproval, extractJson } = require('./_lib/store');
-const { internalHeaders } = require('./_lib/auth');
+const { internalHeaders, authorizeJob } = require('./_lib/auth');
 
 // ── Brand feedback helper ─────────────────────────────────────────
 async function getBrandFeedback(brand) {
@@ -1648,6 +1648,8 @@ async function processMarketLanguage(store, marketKey, market, language, force =
 
 // ── Main handler ──────────────────────────────────────────────────────────────
 exports.handler = async (event) => {
+  const _job = await authorizeJob(event);
+  if (!_job.ok) return { statusCode: 401, headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ error: 'Not authenticated' }) };
   console.log(`[intl-seo] Starting — ${new Date().toISOString()}`);
 
   const store = getStore({

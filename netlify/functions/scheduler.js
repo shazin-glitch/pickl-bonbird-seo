@@ -9,6 +9,7 @@ const {
   fetchGscDirect, listApprovals,
   getSetting, ok, bad, preflight, parseBody,
 } = require('./_lib/store');
+const { authorize, denied, internalHeaders } = require('./_lib/auth');
 
 const SITE_URL = process.env.URL || 'https://yolkseo.netlify.app';
 
@@ -19,6 +20,8 @@ const BRANDS = {
 
 exports.handler = async (event) => {
   if (event.httpMethod === 'OPTIONS') return preflight();
+  const _a = await authorize(event);
+  if (!_a.ok) return denied();
 
   // GET = status check, returns last run summary
   if (event.httpMethod === 'GET') {
@@ -91,7 +94,7 @@ exports.handler = async (event) => {
   const bgUrl = `${SITE_URL.replace(/\/$/, '')}/.netlify/functions/scheduler-background`;
   fetch(bgUrl, {
     method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
+    headers: internalHeaders({ 'Content-Type': 'application/json' }),
     body: JSON.stringify(body),
   }).catch(e => console.error('Failed to trigger background scheduler:', e.message));
 

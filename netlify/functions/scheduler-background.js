@@ -16,7 +16,7 @@ const {
   ok, bad, preflight, parseBody,
 } = require('./_lib/store');
 const { getBrandContext, buildBrandPrompt, runBrandVoiceCheck, fixBrandVoice, getBrandExamples } = require('./_lib/brand');
-const { internalHeaders } = require('./_lib/auth');
+const { internalHeaders, authorizeJob } = require('./_lib/auth');
 const { getStore } = require('@netlify/blobs');
 
 // ── Brand feedback helper ─────────────────────────────────────────
@@ -145,6 +145,8 @@ const BRANDS = {
 };
 
 exports.handler = async (event) => {
+  const _job = await authorizeJob(event);
+  if (!_job.ok) return { statusCode: 401, headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ error: 'Not authenticated' }) };
   // Background function: client gets immediate 202, we run up to 15 minutes
   const body = event.httpMethod === 'POST' ? (parseBody(event) || {}) : {};
   const dryRun      = !!body.dryRun;
