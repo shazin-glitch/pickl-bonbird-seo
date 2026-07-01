@@ -3648,7 +3648,14 @@ Update "Current URL" from `yolkseo.netlify.app` to `thenest.yolkbrands.com`
 
 ---
 
-## Current Version: v7.4.38
+## Current Version: v7.4.39
+
+Last built (v7.4.39): **Fact-claim guard + real truncation fix + report-key fix (Workstream 1).**
+- **Fact-claim guard (the big one):** verified-facts *grounding alone did NOT stop* Claude fabricating awards — a fresh Bahrain run still produced "four-time TimeOut Dubai Best Burger and Restaurant of the Year" (EN) and the same fabrication in Arabic. Added a mechanical backstop: `mentionsAward()` (EN+AR triggers) + `verifyAwardClaims()` — when award language appears, a strict fact-checker Claude call verifies every claim against `brandCtx.awards` and REJECTS the card if any is wrong-count / misattributed / combined / invented. Fails CLOSED. Runs only when award words present (cheap). This is the guarantee prompt rules couldn't give.
+- **Truncation fix (real):** 5/6 cards were cut mid-phrase ("...in five heat", "...we bring", "...hand-breaded"). `cleanMeta` now trims to the LAST real sentence boundary (regex, threshold 40c); if that's under the min-length, the guard rejects it → regenerated, never shipped as a fragment. Prompt tightened: description 135-152 (EN) / 120-150 (AR), "ONE or TWO COMPLETE sentences ending in a full stop, never trail off."
+- **Report-key fix:** `sweepReport` was written under the handler's loop key `pickl_bahrain` but read as `bahrain` → endpoint always looked empty. Now writes with `market.marketKey` (= `bahrain`), matching `/sweep-report?market=bahrain`.
+
+Last built (v7.4.38): 
 
 Last built (v7.4.38): **Sweep run-report + guard-ordering fix (Workstream 1 QA visibility).**
 - **Guard-ordering bug (found in QA):** the meta min-length guard ran BEFORE the brand-voice fix, so a voice-fix that shortened the description below the minimum slipped through (journal card queued at 103c vs 110 min). Now re-checks length AFTER the voice fix too.

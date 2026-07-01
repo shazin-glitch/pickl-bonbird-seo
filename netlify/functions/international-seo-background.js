@@ -1043,15 +1043,50 @@ function cleanMeta(text, maxLen) {
     .trim();
   if (s.length <= maxLen) return s;
   const slice = s.slice(0, maxLen);
-  // prefer the last sentence end inside the limit; else the last word boundary
-  const sentenceEnd = Math.max(slice.lastIndexOf('. '), slice.lastIndexOf('! '), slice.lastIndexOf('? '), slice.lastIndexOf('؟ '));
-  if (sentenceEnd > maxLen * 0.6) return slice.slice(0, sentenceEnd + 1).trim();
+  // Prefer ending at the LAST real sentence boundary inside the limit — a short
+  // complete sentence beats a long fragment. If that leaves it under the min length,
+  // the caller's min-length guard rejects it (better regenerated than truncated).
+  let sentenceEnd = -1;
+  const re = /[.!?؟](?=\s|$|["'”’)])/g; let mm;
+  while ((mm = re.exec(slice)) !== null) sentenceEnd = mm.index;
+  if (sentenceEnd >= 40) return slice.slice(0, sentenceEnd + 1).trim();
+  // No usable sentence boundary — trim to a word boundary and drop any dangling connector.
   const wordEnd = slice.lastIndexOf(' ');
   let out = (wordEnd > 0 ? slice.slice(0, wordEnd) : slice).trim();
-  // Drop a dangling connector/preposition so it never ends on "...and" / "...across" / "...to"
   const dangling = /[\s,]+(and|or|the|a|an|to|of|in|on|at|by|for|with|from|into|across|over|as|but|so|your|our)$/i;
   while (dangling.test(out)) out = out.replace(dangling, '');
   return out.replace(/[\s,]+$/, '').trim();
+}
+
+// True if the text makes any award/accolade claim (EN or AR) worth fact-checking.
+function mentionsAward(text) {
+  return /\baward|\bwinner|\bwinning|best burger|best fried chicken|restaurant of the year|time ?out|deliveroo|homegrown|\b\d+[- ]?(time|year)|years? (running|in a row)|جائز|جوائز|أفضل مطعم|أفضل برغر|فاز|الأفضل/i.test(String(text || ''));
+}
+
+// Fact-claim guard: a prompt rule alone did NOT stop Claude fabricating awards
+// (e.g. "four-time TimeOut Best Burger" — it's 2× Best Burger + 4× Deliveroo RotY,
+// separate awards). This is a mechanical backstop — when award language is present,
+// a strict verifier checks it against the ONLY verified facts and rejects if wrong.
+// Bilingual (handles the Arabic fabrications too). Fails CLOSED (reject) on doubt.
+async function verifyAwardClaims(text, brandCtx) {
+  const awards = (brandCtx?.awards || []).filter(Boolean).join('\n');
+  if (!awards) return { ok: false, reason: 'brand has no verified awards, but the copy claims one' };
+  const prompt = `VERIFIED AWARDS — the ONLY true awards/accolades for this brand:
+${awards}
+
+COPY TO CHECK (may be English or Arabic):
+"${text}"
+
+Check every award/accolade claim in the copy. Reply ONLY JSON: {"ok": boolean, "reason": "short"}.
+Set ok=false if ANY claim is: a wrong count (e.g. "four-time Best Burger" when it's 2×), misattributed to the wrong body (e.g. Restaurant of the Year credited to Time Out instead of Deliveroo), exaggerated, invented, or COMBINES two separate awards into one. Set ok=true only if every award mention matches the verified facts exactly, or there are no award claims.`;
+  try {
+    const raw = await callClaude('You are a strict fact-checker. Return only JSON.', prompt, { max_tokens: 200 });
+    const parsed = extractJson(raw);
+    if (!parsed || typeof parsed.ok !== 'boolean') return { ok: false, reason: 'award-verifier-unparseable (fail-closed)' };
+    return parsed;
+  } catch (e) {
+    return { ok: false, reason: `award-verifier-error: ${e.message} (fail-closed)` };
+  }
 }
 
 // ── Full market page meta sweep ───────────────────────────────────────────────
@@ -1128,8 +1163,8 @@ async function runMarketPageMetaSweep(market, brandCtx, brandExamples, language,
   ].filter(Boolean).join(' | ') : '';
   const spiceSystem = brandCtx?.menu?.spiceSystem || '';
   const charRule    = isAr
-    ? '- Title: 50-60 characters · Description: 120-155 characters'
-    : '- Title: 52-58 characters exactly — count them\n- Description: 150-158 characters exactly — count them';
+    ? '- Title: 45-58 characters\n- Description: 120-150 characters — write ONE or TWO COMPLETE sentences that END with a full stop. Do NOT exceed 150. Never trail off mid-thought.'
+    : '- Title: 45-58 characters\n- Description: 135-152 characters — write ONE or TWO COMPLETE sentences that END with a full stop. Count characters; do NOT exceed 152. Never trail off mid-thought (no ending like "...in five heat").';
 
   const userPrompt = `You are auditing ${market.brand === 'pickl' ? 'Pickl' : 'Bonbird'} ${market.label} pages. For EACH page, decide if the current meta is already good OR genuinely needs improvement.
 
@@ -1230,6 +1265,16 @@ Return ONLY a JSON array — one object per page:
       console.warn(`${tag} — meta too short after voice fix for ${page.slug} (title ${title.length}c, desc ${description.length}c) — skipping`);
       rec(page.slug, 'skipped', `too-short-after-voicefix (t${title.length}/d${description.length})`);
       skipped++; continue;
+    }
+
+    // Fact-claim guard — reject fabricated/wrong awards (prompt grounding alone didn't hold)
+    if (mentionsAward(`${title} ${description}`)) {
+      const fc = await verifyAwardClaims(`${title}\n${description}`, brandCtx);
+      if (!fc.ok) {
+        console.warn(`${tag} — award-claim reject (${page.slug}): ${fc.reason}`);
+        rec(page.slug, 'skipped', `award-claim-unverified: ${fc.reason}`);
+        skipped++; continue;
+      }
     }
 
     // Dedup — GSC-driven (real impressions) wins; never double-queue a page
@@ -1551,9 +1596,9 @@ async function processMarketLanguage(store, marketKey, market, language, force =
       if (sweep.queued > 0) queued.push({ type: 'meta_update', count: sweep.queued });
       // Persist an auditable run report (read via /sweep-report?brand=&market=) — no log-hunting
       try {
-        await store.setJSON(`sweepReport:${market.brand}:${marketKey}:${language}`, {
+        await store.setJSON(`sweepReport:${market.brand}:${market.marketKey}:${language}`, {
           at:        new Date().toISOString(),
-          market:    marketKey,
+          market:    market.marketKey,
           language,
           queued:    sweep.queued || 0,
           skipped:   typeof sweep.skipped === 'number' ? sweep.skipped : 0,
