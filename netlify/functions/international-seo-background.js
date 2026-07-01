@@ -1177,29 +1177,38 @@ Return ONLY a JSON array — one object per page:
   }
   if (!Array.isArray(parsed)) { console.warn(`${tag} — Claude did not return JSON array (raw ${raw.length} chars, tail: ${JSON.stringify(raw.slice(-120))})`); return { queued: 0, skipped: 'parse_error', discovered: batch.length }; }
 
-  // 5. Per-page: skip / voice-gate / dedup / queue
+  // 5. Per-page: skip / voice-gate / dedup / queue. Record EVERY decision + reason
+  //    so the run is auditable (read via the sweep-report endpoint) — no log-hunting.
   const voiceFn       = voiceClaudeAdapter(brandCtx?.name || (market.brand === 'pickl' ? 'Pickl' : 'Bonbird'));
   const queuedMetaMap = await getQueuedMetaMap(market.brand);
   let queued = 0, skipped = 0;
+  const decisions = [];
+  const rec = (slug, action, reason) => decisions.push({ slug, action, reason });
+
+  const titleMax = 60, descMax = isAr ? 155 : 158;
+  const minTitle = 25, minDesc = isAr ? 90 : 110;
 
   for (const r of parsed) {
-    if (r.skip) { console.log(`${tag} — skip ${r.url} (${r.skipReason || 'already good'})`); skipped++; continue; }
+    if (r.skip) {
+      console.log(`${tag} — skip ${r.url} (${r.skipReason || 'already good'})`);
+      rec(r.url || '?', 'skipped', `already-good: ${r.skipReason || 'current meta fine'}`);
+      skipped++; continue;
+    }
     const page = batch.find(p =>
       String(p.id) === String(r.id) ||
       p.link === r.url ||
       p.link.replace(/\/$/, '') === String(r.url || '').replace(/\/$/, ''));
-    if (!page) { console.warn(`${tag} — unknown page from Claude: ${r.url}`); continue; }
-    if (!r.title || !r.description) { console.warn(`${tag} — missing title/desc for ${page.slug}`); continue; }
+    if (!page) { console.warn(`${tag} — unknown page from Claude: ${r.url}`); rec(r.url || '?', 'skipped', 'unknown-page-from-claude'); continue; }
+    if (!r.title || !r.description) { console.warn(`${tag} — missing title/desc for ${page.slug}`); rec(page.slug, 'skipped', 'missing-title-or-desc'); continue; }
 
     // Sanitize: strip markdown, trim at clean sentence/word boundaries (no ** leaks, no mid-word cuts)
-    const titleMax = 60, descMax = isAr ? 155 : 158;
     let title       = cleanMeta(r.title, titleMax);
     let description = cleanMeta(r.description, descMax);
 
-    // Min-length guard — reject stubs (e.g. the 47-char Events description) before they queue
-    const minTitle = 25, minDesc = isAr ? 90 : 110;
+    // Min-length guard (pre-voice, cheap early reject) — stops stubs like the 47-char Events desc
     if (title.length < minTitle || description.length < minDesc) {
       console.warn(`${tag} — meta too short for ${page.slug} (title ${title.length}c, desc ${description.length}c) — skipping`);
+      rec(page.slug, 'skipped', `too-short (t${title.length}/d${description.length})`);
       skipped++; continue;
     }
 
@@ -1214,13 +1223,21 @@ Return ONLY a JSON array — one object per page:
         voice = fixed.voiceCheck;
       }
     }
-    if (voice.score !== null && voice.score < 8) { console.warn(`${tag} — voice ${voice.score}/10 reject (${page.slug})`); continue; }
+    if (voice.score !== null && voice.score < 8) { console.warn(`${tag} — voice ${voice.score}/10 reject (${page.slug})`); rec(page.slug, 'skipped', `voice-reject (${voice.score}/10)`); continue; }
+
+    // Re-check length AFTER the voice fix — the fix can shorten copy below the minimum (bug v7.4.37)
+    if (title.length < minTitle || description.length < minDesc) {
+      console.warn(`${tag} — meta too short after voice fix for ${page.slug} (title ${title.length}c, desc ${description.length}c) — skipping`);
+      rec(page.slug, 'skipped', `too-short-after-voicefix (t${title.length}/d${description.length})`);
+      skipped++; continue;
+    }
 
     // Dedup — GSC-driven (real impressions) wins; never double-queue a page
     const key      = `${page.link.toLowerCase().replace(/\/$/, '')}::${language}`;
     const existing = queuedMetaMap.get(key);
     if (existing && existing.status === 'pending') {
       console.log(`${tag} — skip ${page.slug} — meta already pending (${existing.isGscDriven ? 'GSC-driven' : 'sweep/seed'} ${existing.id})`);
+      rec(page.slug, 'skipped', `already-pending (${existing.isGscDriven ? 'gsc-driven' : 'sweep'})`);
       skipped++; continue;
     }
 
@@ -1246,10 +1263,18 @@ Return ONLY a JSON array — one object per page:
     // Keep local map in sync so two Claude rows for the same page can't double-queue
     queuedMetaMap.set(key, { id, status: 'pending', isGscDriven: false });
     queued++;
+    rec(page.slug, 'queued', `voice ${voice.score}/10, t${title.length}/d${description.length}`);
     console.log(`${tag} — queued meta_update for ${page.slug}: ${id}`);
   }
 
-  return { queued, skipped, discovered: batch.length, found: pages.length };
+  return {
+    queued, skipped,
+    discovered: batch.length,
+    found: pages.length,
+    decisions,
+    discoveredSlugs: batch.map(p => p.slug),
+    excludedSlugs: excluded.map(p => p.slug),
+  };
 }
 
 // ── Save to approvals queue via the approvals API ─────────────────────────────
@@ -1524,6 +1549,20 @@ async function processMarketLanguage(store, marketKey, market, language, force =
       const sweep = await runMarketPageMetaSweep(market, brandCtx, brandExamples, language, feedbackNotes, force);
       console.log(`${tag} — page meta sweep:`, JSON.stringify(sweep));
       if (sweep.queued > 0) queued.push({ type: 'meta_update', count: sweep.queued });
+      // Persist an auditable run report (read via /sweep-report?brand=&market=) — no log-hunting
+      try {
+        await store.setJSON(`sweepReport:${market.brand}:${marketKey}:${language}`, {
+          at:        new Date().toISOString(),
+          market:    marketKey,
+          language,
+          queued:    sweep.queued || 0,
+          skipped:   typeof sweep.skipped === 'number' ? sweep.skipped : 0,
+          skipReason: typeof sweep.skipped === 'string' ? sweep.skipped : null,
+          discovered: sweep.discoveredSlugs || [],
+          excluded:   sweep.excludedSlugs || [],
+          decisions:  sweep.decisions || [],
+        });
+      } catch (e) { console.warn(`${tag} — could not write sweep report: ${e.message}`); }
     } catch (e) {
       console.error(`${tag} — page meta sweep failed:`, e.message);
       errors.push({ type: 'meta_sweep', error: e.message });

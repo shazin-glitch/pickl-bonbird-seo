@@ -3648,7 +3648,14 @@ Update "Current URL" from `yolkseo.netlify.app` to `thenest.yolkbrands.com`
 
 ---
 
-## Current Version: v7.4.37
+## Current Version: v7.4.38
+
+Last built (v7.4.38): **Sweep run-report + guard-ordering fix (Workstream 1 QA visibility).**
+- **Guard-ordering bug (found in QA):** the meta min-length guard ran BEFORE the brand-voice fix, so a voice-fix that shortened the description below the minimum slipped through (journal card queued at 103c vs 110 min). Now re-checks length AFTER the voice fix too.
+- **Run report:** `runMarketPageMetaSweep` now records every page decision `{slug, action: queued|skipped, reason}` (reasons: already-good / unknown-page / missing-fields / too-short / voice-reject / too-short-after-voicefix / already-pending) plus discovered + excluded slug lists. `processMarketLanguage` persists it to Blob `sweepReport:<brand>:<market>:<lang>`.
+- **New read endpoint `sweep-report.js`:** `GET /.netlify/functions/sweep-report?brand=pickl&market=bahrain` → per-language report. Answers "why didn't this page generate?" without hunting Netlify logs — essential QA visibility for the verification-debt phase.
+
+Last built (v7.4.37): 
 
 Last built (v7.4.37): **Location-context intelligence fix (Workstream 1).**
 - Two content-quality failures on the Bahrain run: (1) "Al Aali Mall, Riffa" read as ONE address instead of two separate outlets; (2) the journal page meta called the brand "Al Aali Mall's most talked-about burger spot" — shrinking a multi-location brand to one mall kiosk.
