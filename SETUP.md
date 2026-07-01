@@ -3648,7 +3648,14 @@ Update "Current URL" from `yolkseo.netlify.app` to `thenest.yolkbrands.com`
 
 ---
 
-## Current Version: v7.4.39
+## Current Version: v7.4.40
+
+Last built (v7.4.40): **International REBUILD started — keyword-first (Phase 1, step 1: relevance allowlist).**
+- STRATEGIC RESET (see `/NEST-ROADMAP.md` → "INTERNATIONAL REBUILD"). Evidenced findings: (1) the intl meta sweep was META-FIRST (no target keyword/position/KD feeding it) — architecturally wrong, now being discarded; (2) the keyword research is GARBAGE — pulled live data: KSA ~50% junk, Bahrain ~80% (ministries, museums, Zain telecom, prayer times, competitor restaurant brand-names scored TOP). Cause: broad idea-expansion + a negative-only English filter that fails open on Arabic; KD null everywhere. (3) UAE ~75% relevant only because the English filter works + rich home GSC — UAE is the right EXECUTION pattern (GSC-driven `runMarketDataDrivenSEO`), NOT a clean keyword foundation. SEMrush is good because it sources from your domain + competitors (relevant by construction); the Nest has those ingredients (GSC + competitor-ranked-keywords) but under-uses them.
+- **Phase 1 step 1 shipped:** positive multilingual relevance allowlist (`RELEVANT_ROOTS` + `isRelevantKeyword`) in `applyStaticFilter` (keyword-discovery-background.js). A keyword now must carry a product/food root (EN+AR+UR); generic "restaurant"/"مطعم" alone is insufficient (kills competitor names). Applies to idea + competitor sources, NOT GSC (GSC = real by definition). Offline-validated vs live data: KSA 100→28, Bahrain 100→12, UAE 100→59 — all junk removed, real burger/chicken keywords kept.
+- REMAINING Phase 1: competitor-keyword sourcing as primary, KD enrichment fix, scoring redesign (relevance not volume). Then Phase 2 crawler, Phase 3 mapping/prioritization, Phase 4 keyword-first execution (discard blind sweep), Phase 5 measurement.
+
+Last built (v7.4.39): 
 
 Last built (v7.4.39): **Fact-claim guard + real truncation fix + report-key fix (Workstream 1).**
 - **Fact-claim guard (the big one):** verified-facts *grounding alone did NOT stop* Claude fabricating awards — a fresh Bahrain run still produced "four-time TimeOut Dubai Best Burger and Restaurant of the Year" (EN) and the same fabrication in Arabic. Added a mechanical backstop: `mentionsAward()` (EN+AR triggers) + `verifyAwardClaims()` — when award language appears, a strict fact-checker Claude call verifies every claim against `brandCtx.awards` and REJECTS the card if any is wrong-count / misattributed / combined / invented. Fails CLOSED. Runs only when award words present (cheap). This is the guarantee prompt rules couldn't give.

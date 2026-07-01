@@ -41,3 +41,27 @@ We will **not** out-index Ahrefs/SEMrush — their keyword/backlink databases ar
 - ✅ v7.4.36 — meta sweep quality hardening (markdown strip, smart truncation, min-length guard, page-type keyword in title). Workstream 1 started.
 - ✅ v7.4.29–35 — international meta/on-page pipeline: live-content generators, publishing safety, dedup, full-page sweep + slug-token discovery, exclude list, truncation fix, cron disabled (manual trigger).
 - ✅ Loop + meta verified live (RankMath 25→78).
+
+---
+
+## ⭐ INTERNATIONAL REBUILD — keyword-first (supersedes the blind meta sweep)
+
+**Root cause (evidenced, not assumed):** the intl meta sweep was **meta-first** — it wrote titles/descriptions with NO target keyword, position, KD, or impressions feeding it. And the keyword research underneath is **garbage**: pulled real data — KSA ~50% junk, Bahrain ~80% junk (Saudi Ministry of Foreign Affairs, National Museum, Zain telecom, prayer times, competitor *restaurant brand names*, generic "مطعم") all scored as *top* opportunities. Cause: discovery leans on broad idea-expansion + a **negative-only, English-substring filter** that fails open on Arabic. KD is null almost everywhere.
+
+**Why UAE looked better:** ~75% relevant — but ONLY because the English filter works on an English-primary market + rich home GSC. UAE still has competitor-brand noise, null KD, and no crawler. **UAE is the right EXECUTION pattern, not a clean foundation.**
+
+**Why SEMrush is genuinely good (the model):** it sources keywords from YOUR domain's rankings + YOUR COMPETITORS' rankings — relevant *by construction*, not by a filter bolted on after. The Nest has the same ingredients (GSC + competitor-ranked-keywords) but under-uses them, leaning on contaminated idea-expansion instead.
+
+**Principle:** keyword-first · relevance-by-source · validate top-20-per-market before building anything on top.
+
+### Phases
+1. **Trustworthy keyword targets** — PRIMARY sources = GSC (what we rank for) + competitor-ranked-keywords (relevant by construction). Idea-expansion demoted to a supplement behind a **positive multilingual allowlist** (`RELEVANT_ROOTS` — must carry a product/food root; generic "restaurant"/"مطعم" alone is NOT enough → kills competitor names). Fix null KD. Score by relevance×volume×winnability×intent (not volume-only). Allowlist gates ideas+competitor, NOT GSC. Acceptance gate: eyeball top-20/market. **STATUS: positive allowlist BUILT + offline-validated (KSA 100→28, BH 100→12, UAE 100→59 — garbage removed). REMAINING: competitor-source enrichment, KD fix, scoring redesign.**
+2. **Crawler / page + GSC inventory** — net-new for UAE too. Where the crawler earns its place (Phase 2, NOT first).
+3. **Keyword→page mapping + prioritization** — the opportunity list (keyword, position, KD, volume, target page) that must exist *before* any meta.
+4. **Execution, keyword-first** — KEEP UAE's `runMarketDataDrivenSEO` (GSC-driven) pattern; DISCARD the blind `runMarketPageMetaSweep`.
+5. **Measurement** — closed-loop attribution.
+
+**Keep:** GSC-driven path, competitor matrix, guards (fact/length/voice). **Discard:** blind meta sweep, idea-expansion-as-primary, volume-only scoring, English-only filter. Effort ~5–6 wks. This upgrades UAE too, not just international.
+
+### Progress
+- ✅ v7.4.40 (Phase 1, step 1): positive multilingual relevance allowlist (`RELEVANT_ROOTS` + `isRelevantKeyword`) added to `applyStaticFilter` in keyword-discovery-background.js. Offline-validated against live garbage. Kills ministries/museums/telecoms/prayer-times/competitor-brand-names.

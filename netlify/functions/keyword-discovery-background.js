@@ -75,11 +75,36 @@ const OFF_MENU_DISHES = [
   'هندي', 'بيتزا', 'قهوة', 'كافيه', 'ستاربكس', 'كنتاكي', 'شاورما', 'برياني', 'البيك', 'هرفي', 'سوشي', 'حلويات',
 ];
 
-// Reject keywords that contain any off-menu term
+// POSITIVE relevance gate (the fix for garbage like ministries/museums/telecoms/
+// prayer-times/competitor-restaurant-names). A keyword is only kept if it contains
+// at least one on-category product/food root (EN + AR + UR). Generic "restaurant"/
+// "مطعم" is deliberately NOT a root on its own — it lets competitor restaurant
+// names through — so a term must carry a real product/food signal to qualify.
+const RELEVANT_ROOTS = [
+  // EN — products & category
+  'burger', 'cheeseburger', 'hamburger', 'smash', 'patty', 'beef',
+  'chicken', 'fried chicken', 'crispy chicken', 'broaster', 'nugget', 'tender', 'wing',
+  'sando', 'sandwich', 'wrap', 'fries', 'shake', 'milkshake', 'hot dog', 'hotdog',
+  'fast food', 'fast-food', 'halal food', 'plant based', 'plant-based', 'impossible burger',
+  // AR — products & category
+  'برجر', 'برغر', 'همبرغر', 'تشيز', 'دجاج', 'مقرمش', 'مقلي', 'ساندويتش', 'ساندويش', 'سندوتش',
+  'سندويش', 'فرايز', 'بطاطس', 'بطاطا', 'ميلك شيك', 'ميلك شيك', 'ناجت', 'تندر', 'أجنحة',
+  'هوت دوق', 'وجبات سريعة', 'برجر حلال', 'دجاج مقلي', 'دجاج مقرمش',
+  // UR (Pakistan) — mostly English used, plus a couple of native roots
+  'برگر', 'چکن', 'فرائز',
+];
+function isRelevantKeyword(kw) {
+  const s = String(kw || '').toLowerCase();
+  return RELEVANT_ROOTS.some(root => s.includes(root));
+}
+
+// Keep a keyword only if it (a) carries an on-category product/food root AND
+// (b) contains no off-menu/off-brand term. Positive gate + negative blocklist.
 function applyStaticFilter(keywords) {
   return keywords.filter(k => {
     const kw = k.keyword.toLowerCase();
-    return !OFF_MENU_DISHES.some(term => kw.includes(term));
+    if (!isRelevantKeyword(kw)) return false;                 // must be on-category
+    return !OFF_MENU_DISHES.some(term => kw.includes(term));  // and not off-menu/off-brand
   });
 }
 
@@ -447,7 +472,10 @@ async function discoverKeywords(brand, store, authHeader, force = false, marketK
   // Enrich with Keyword Difficulty (volume already present from keyword_ideas).
   try {
     const enrichLangs = (isIntl && loc.languages && loc.languages.length) ? loc.languages : ['en', 'ar'];
-    const m = await enrichKeywordsMixed(opportunities.map(o => o.keyword), locationCode, authHeader, enrichLangs);
+    // Labs (KD) needs a COUNTRY-level code. UAE is passed as city 21191 → map to 2784,
+    // same as getKeywordIdeas does. Without this, every UAE keyword's KD came back null.
+    const labsLocationCode = locationCode === 21191 ? 2784 : locationCode;
+    const m = await enrichKeywordsMixed(opportunities.map(o => o.keyword), labsLocationCode, authHeader, enrichLangs);
     for (const o of opportunities) {
       const e = m[o.keyword.toLowerCase()];
       if (e) {
