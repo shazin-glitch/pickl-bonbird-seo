@@ -3648,7 +3648,16 @@ Update "Current URL" from `yolkseo.netlify.app` to `thenest.yolkbrands.com`
 
 ---
 
-## Current Version: v7.4.42
+## Current Version: v7.4.43
+
+Last built (v7.4.43): **SECURITY batch #1 — gate the ungated write endpoints + fix session-expiry bug.**
+- Gated with `authorize(event)` (session or internal header, else 401): `brand-examples`, `keyword-config`, `competitor-config`, `seed-keywords`, `tech-tasks`. All are browser-called same-origin (session cookie), so signed-in users unaffected.
+- `user-management.js`: fixed the inline session check — `expiresAt < Date.now()` passed when `expiresAt` was `undefined` (NaN comparison), so expiry-less sessions were valid forever. Now fails closed on missing expiry.
+- Confirmed already-gated (grep false-positives): `perch.js` (getCurrentUser → 401) and `user-management.js` (admin-role check).
+- **STILL TODO (batch #2, needs cron-safe design):** `-background` money-spenders publicly triggerable (scheduler/international-seo/competitor-matrix/keyword-discovery + others) — gate must allow the Netlify scheduled invocation (`next_run` marker) + internal header + session, block anonymous, and internal callers (keyword-opportunities→discovery, slack-notify's callers) must send `internalHeaders`. `slack-notify` gates with this batch. LOW: read endpoints (keyword-opportunities/sweep-report/content-outcomes/ai-overview/llm-mentions).
+- **ACTION (Shazin/IT): rotate Anthropic key + GSC OAuth tokens + Slack webhook** — were publicly retrievable via the now-closed claude.js/db-get.js.
+
+Last built (v7.4.42): 
 
 Last built (v7.4.42): **SECURITY sweep — closed `db-get.js` credential leak + full function audit.**
 - **CRITICAL fixed:** `db-get.js` was unauthenticated and returned `gscTokens` (Google Search Console OAuth tokens) + `slackWebhookUrl` + brand context to anyone hitting `/.netlify/functions/db-get`. Now gated via `authorize(event)`. **ACTION REQUIRED: rotate GSC OAuth tokens + Slack webhook** (they were publicly retrievable) — same as the Anthropic key.

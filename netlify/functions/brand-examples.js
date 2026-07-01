@@ -7,9 +7,12 @@
 // POST /api/brand-examples               — save examples { brand, examples }
 
 const { ok, bad, preflight, parseBody, getSetting, setSetting, CORS } = require('./_lib/store');
+const { authorize, denied } = require('./_lib/auth');
 
 exports.handler = async (event) => {
   if (event.httpMethod === 'OPTIONS') return preflight();
+  const _auth = await authorize(event);
+  if (!_auth.ok) return denied();
 
   const brand = event.queryStringParameters?.brand || JSON.parse(event.body || '{}').brand;
 

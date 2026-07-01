@@ -23,7 +23,9 @@ async function getCallerRole(event, store) {
   if (!token) return null;
   try {
     const session = await store.get(`userSession:${token}`, { type: 'json' });
-    if (!session || session.expiresAt < Date.now()) return null;
+    // A missing expiresAt must FAIL closed — `undefined < Date.now()` is NaN<n = false,
+    // which previously let expiry-less sessions pass as valid forever.
+    if (!session || !session.expiresAt || session.expiresAt < Date.now()) return null;
     if (BOOTSTRAP_ADMINS.includes(session.email)) return 'admin';
     const rec = await store.get(`userRole:${session.email}`, { type: 'json' });
     return rec?.role || 'viewer';

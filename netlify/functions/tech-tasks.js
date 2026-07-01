@@ -7,11 +7,14 @@
 // DELETE /api/tech-tasks?id=<id>           — delete task (admin only)
 
 const { getSetting, setSetting, ok, bad, preflight, parseBody, newId } = require('./_lib/store');
+const { authorize, denied } = require('./_lib/auth');
 
 const VALID_STATUSES = ['todo', 'inprogress', 'done'];
 
 exports.handler = async (event) => {
   if (event.httpMethod === 'OPTIONS') return preflight();
+  const _auth = await authorize(event);
+  if (!_auth.ok) return denied();
 
   if (event.httpMethod === 'GET') {
     const brand = event.queryStringParameters?.brand;

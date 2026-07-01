@@ -8,6 +8,7 @@
 // DELETE { brand, keyword }      — remove one keyword
 
 const { getStore } = require('@netlify/blobs');
+const { authorize, denied } = require('./_lib/auth');
 
 const SEED_KEY_PREFIX = 'seedKeywords:';
 
@@ -46,6 +47,9 @@ exports.handler = async (event) => {
   if (event.httpMethod === 'OPTIONS') {
     return { statusCode: 204, headers, body: '' };
   }
+
+  const _auth = await authorize(event);
+  if (!_auth.ok) return { statusCode: 401, headers, body: JSON.stringify({ error: 'Not authenticated' }) };
 
   const store = getStore({
     name:   'seo-tool',

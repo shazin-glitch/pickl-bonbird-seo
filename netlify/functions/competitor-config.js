@@ -7,6 +7,7 @@
 
 const { getStore } = require("@netlify/blobs");
 const { INTERNATIONAL_MARKETS } = require("./_lib/international-config");
+const { authorize, denied } = require("./_lib/auth");
 
 const CONFIG_KEY_PREFIX = "competitorConfig:";
 
@@ -96,6 +97,9 @@ exports.handler = async (event) => {
   if (event.httpMethod === "OPTIONS") {
     return { statusCode: 204, headers, body: "" };
   }
+
+  const _auth = await authorize(event);
+  if (!_auth.ok) return { statusCode: 401, headers, body: JSON.stringify({ error: "Not authenticated" }) };
 
   const store = getStore({
     name:   "seo-tool",
