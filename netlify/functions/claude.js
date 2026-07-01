@@ -1,10 +1,12 @@
+const { authorize, denied } = require('./_lib/auth');
+
 exports.handler = async (event) => {
   if (event.httpMethod === 'OPTIONS') {
     return {
       statusCode: 200,
       headers: {
         'Access-Control-Allow-Origin': '*',
-        'Access-Control-Allow-Headers': 'Content-Type',
+        'Access-Control-Allow-Headers': 'Content-Type, X-Nest-Internal',
         'Access-Control-Allow-Methods': 'POST, OPTIONS'
       },
       body: ''
@@ -14,6 +16,12 @@ exports.handler = async (event) => {
   if (event.httpMethod !== 'POST') {
     return { statusCode: 405, body: 'Method Not Allowed' };
   }
+
+  // SECURITY: this endpoint forwards to Anthropic on our API key. It MUST require
+  // a valid session (browser) or the internal service header — otherwise it is an
+  // open, unauthenticated LLM gateway billed to Yolk Brands. Do NOT remove.
+  const auth = await authorize(event);
+  if (!auth.ok) return denied('Not authenticated — sign in to The Nest.');
 
   const ANTHROPIC_API_KEY = process.env.ANTHROPIC_API_KEY;
   if (!ANTHROPIC_API_KEY) {

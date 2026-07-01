@@ -3648,7 +3648,14 @@ Update "Current URL" from `yolkseo.netlify.app` to `thenest.yolkbrands.com`
 
 ---
 
-## Current Version: v7.4.40
+## Current Version: v7.4.41
+
+Last built (v7.4.41): **SECURITY — closed the open Anthropic proxy (`claude.js`).**
+- IT flagged (correctly, high severity): `/api/claude` → `functions/claude.js` was **unauthenticated** — anyone on the internet could POST arbitrary messages (choosing model + max_tokens) and it forwarded to Anthropic on our API key. A free LLM gateway billed to Yolk Brands + a jailbreak surface.
+- Fix: `claude.js` now calls `authorize(event)` (from `_lib/auth.js`) and returns 401 unless the request carries a valid `yolk_session` (browser) or the `x-nest-internal` service header. The 3 legit callers are all in index.html via `apiPost` (same-origin → session cookie sent automatically), so signed-in users are unaffected; internal functions use `callClaude` directly (not this endpoint), so crons/pipelines are unaffected.
+- Verified post-deploy: anonymous POST to `/api/claude` returns 401 (was 200 + forwarding).
+
+Last built (v7.4.40): 
 
 Last built (v7.4.40): **International REBUILD started — keyword-first (Phase 1, step 1: relevance allowlist).**
 - STRATEGIC RESET (see `/NEST-ROADMAP.md` → "INTERNATIONAL REBUILD"). Evidenced findings: (1) the intl meta sweep was META-FIRST (no target keyword/position/KD feeding it) — architecturally wrong, now being discarded; (2) the keyword research is GARBAGE — pulled live data: KSA ~50% junk, Bahrain ~80% (ministries, museums, Zain telecom, prayer times, competitor restaurant brand-names scored TOP). Cause: broad idea-expansion + a negative-only English filter that fails open on Arabic; KD null everywhere. (3) UAE ~75% relevant only because the English filter works + rich home GSC — UAE is the right EXECUTION pattern (GSC-driven `runMarketDataDrivenSEO`), NOT a clean keyword foundation. SEMrush is good because it sources from your domain + competitors (relevant by construction); the Nest has those ingredients (GSC + competitor-ranked-keywords) but under-uses them.
