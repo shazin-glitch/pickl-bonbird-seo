@@ -3648,7 +3648,14 @@ Update "Current URL" from `yolkseo.netlify.app` to `thenest.yolkbrands.com`
 
 ---
 
-## Current Version: v7.4.41
+## Current Version: v7.4.42
+
+Last built (v7.4.42): **SECURITY sweep — closed `db-get.js` credential leak + full function audit.**
+- **CRITICAL fixed:** `db-get.js` was unauthenticated and returned `gscTokens` (Google Search Console OAuth tokens) + `slackWebhookUrl` + brand context to anyone hitting `/.netlify/functions/db-get`. Now gated via `authorize(event)`. **ACTION REQUIRED: rotate GSC OAuth tokens + Slack webhook** (they were publicly retrievable) — same as the Anthropic key.
+- Ran a full auth sweep of all 51 functions. Findings tiered in memory + below. `user-management.js` confirmed SAFE (has an in-handler admin-role check; grep false-positive). Already-gated: approvals, calendar, db-save, wordpress, scheduler-background, international-seo-background, slack-callback, claude (v7.4.41).
+- **Still ungated (prioritized, pending decision):** HIGH — reviews/gbp-reviews (Claude spend + publish to Google), on-demand DataForSEO spenders (backlinks, citations, competitor-audit, competitor-matrix, dataforseo-locations), slack-notify, email-digest. MEDIUM — config writers (keyword-config, seed-keywords, competitor-config, hreflang, technical-seo, tech-tasks, perch, calendar-media, scheduler) — some may already roll their own session check (verify per-file like user-management). MEDIUM — `-background` money-spenders triggerable by URL (cron tradeoff: gating naively can break scheduled invocation). LOW — read endpoints leaking SEO data (keyword-opportunities, sweep-report, content-outcomes, ai-overview, llm-mentions, brand-examples).
+
+Last built (v7.4.41): 
 
 Last built (v7.4.41): **SECURITY — closed the open Anthropic proxy (`claude.js`).**
 - IT flagged (correctly, high severity): `/api/claude` → `functions/claude.js` was **unauthenticated** — anyone on the internet could POST arbitrary messages (choosing model + max_tokens) and it forwarded to Anthropic on our API key. A free LLM gateway billed to Yolk Brands + a jailbreak surface.
