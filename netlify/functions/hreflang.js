@@ -43,8 +43,10 @@ const HREFLANG_CONFIG = {
   },
 };
 
+const { authorize, denied } = require('./_lib/auth');
 exports.handler = async (event) => {
   if (event.httpMethod === 'OPTIONS') return preflight();
+  { const _a = await authorize(event); if (!_a.ok) return denied(); }
 
   const brand  = event.queryStringParameters?.brand;
   const brands = brand ? [brand].filter(b => HREFLANG_CONFIG[b]) : Object.keys(HREFLANG_CONFIG);

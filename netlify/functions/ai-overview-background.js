@@ -11,6 +11,7 @@
 // Also accepts ?brand=pickl|bonbird for single-brand manual refresh.
 
 const { getStore } = require('@netlify/blobs');
+const { authorizeJob } = require('./_lib/auth');
 
 const DATAFORSEO_POST_URL = 'https://api.dataforseo.com/v3/serp/google/organic/task_post';
 const DATAFORSEO_GET_URL  = 'https://api.dataforseo.com/v3/serp/google/organic/task_get/advanced';
@@ -282,6 +283,8 @@ async function processBrand(brand, store, authHeader) {
 
 // ── Handler ───────────────────────────────────────────────────────────────────
 exports.handler = async (event) => {
+  const _job = await authorizeJob(event);
+  if (!_job.ok) return { statusCode: 401, headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ error: 'Not authenticated' }) };
   console.log('[ai-overview-bg] Starting');
 
   const store = getStore({

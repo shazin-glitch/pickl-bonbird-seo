@@ -3665,7 +3665,18 @@ A custom domain on Netlify (above) is cosmetic. **Moving OFF Netlify to a Google
 
 ---
 
-## Current Version: v7.4.44
+## Current Version: v7.4.46
+
+Last built (v7.4.46): **SECURITY sweep COMPLETE — every function gated.**
+- Gated the entire remaining tail in one batch. `-background` money/cron jobs (`authorizeJob`): ai-overview, backlinks, citations, llm-mentions, local-seo-pages, content-outcomes, snapshots, technical-seo, email-digest. On-demand HTTP (`authorize`, OPTIONS bypassed so CORS preflight still works): ai-overview, backlinks, citations, competitor-audit, competitor-matrix, content-outcomes, dataforseo-locations, ga4-data, gbp-data, gbp-reviews, gsc-data, hreflang, llm-mentions, reviews, technical-seo, calendar-media, sweep-report, seed-roadmap-tasks.
+- Downstream wiring so gates don't break internal calls: `technical-seo`→`technical-seo-background` and `snapshots-background`→`gbp-data` now send `internalHeaders()`.
+- **Coverage confirmed:** the ONLY ungated functions remaining are `auth-login` / `auth-callback` / `auth-logout` (OAuth flow — must be public) and `user-management` (gated by its own inline admin check). Nothing that spends money, mutates state, or returns non-public data is exposed.
+- `node --check` passes on all. CLAUDE.md rule 11 (security is a build requirement) added so this stays true for new features.
+- **STILL ON SHAZIN/IT: rotate Anthropic key + GSC OAuth tokens + Slack webhook** (were publicly retrievable pre-fix). Confirm Monday's crons fire (scheduled-invoke path can't be simulated locally).
+
+Last built (v7.4.45): **SECURITY — gate slack-notify + perch-notify + fix seed-keywords regression.**
+- `slack-notify` gated (`authorize`); its 6 internal callers (calendar, perch, perch-notify-background ×2, scheduler-background, international-seo-background) now send `internalHeaders()`. `perch-notify-background` gated (`authorizeJob`).
+- REGRESSION FIX: `scheduler-background` read the now-gated `seed-keywords` without the internal header (would 401 the UAE content_gaps job) → fixed. CLAUDE.md rule 11 (security = build requirement) added.
 
 Last built (v7.4.44): **SECURITY batch #2 — gate the expensive background jobs (cost/DoS fix, IT #3) + migration-proof design.**
 - IT flagged (correct): `scheduler-background`, `international-seo-background`, `competitor-matrix-background`, `keyword-discovery-background` were reachable at `/.netlify/functions/<name>` with NO auth — anyone could loop them to run up Anthropic + DataForSEO bills. (Ironic given the intl cron was disabled for cost, but the manual trigger was wide open.)

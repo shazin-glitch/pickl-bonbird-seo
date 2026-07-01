@@ -16,6 +16,7 @@
 //   &limit=6     → cap locations processed this run (default 6)
 
 const { getStore } = require('@netlify/blobs');
+const { authorizeJob } = require('./_lib/auth');
 const { getBrandContext, getBrandExamples, buildBrandPrompt, runBrandVoiceCheck, fixBrandVoice, hardStripBannedTokens } = require('./_lib/brand');
 const { callClaude, createApproval, listApprovals, extractJson } = require('./_lib/store');
 
@@ -109,6 +110,8 @@ Return ONLY JSON:
 }
 
 exports.handler = async (event) => {
+  const _job = await authorizeJob(event);
+  if (!_job.ok) return { statusCode: 401, headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ error: 'Not authenticated' }) };
   console.log(`[local-seo-pages] Starting — ${new Date().toISOString()}`);
   const qs    = event.queryStringParameters || {};
   const brand = qs.brand === 'bonbird' ? 'bonbird' : 'pickl';

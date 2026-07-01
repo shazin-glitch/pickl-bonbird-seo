@@ -122,7 +122,10 @@ function buildHtml(brands) {
 }
 
 // ── Handler ───────────────────────────────────────────────────────────────────
+const { authorizeJob } = require('./_lib/auth');
 exports.handler = async (event) => {
+  const _job = await authorizeJob(event);
+  if (!_job.ok) return { statusCode: 401, headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ error: 'Not authenticated' }) };
   const headers = {
     'Content-Type': 'application/json',
     'Access-Control-Allow-Origin': '*',

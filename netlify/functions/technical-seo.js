@@ -4,8 +4,10 @@
 
 const { getSetting, setSetting, ok, bad, preflight, parseBody } = require('./_lib/store');
 
+const { authorize, denied, internalHeaders } = require('./_lib/auth');
 exports.handler = async (event) => {
   if (event.httpMethod === 'OPTIONS') return preflight();
+  { const _a = await authorize(event); if (!_a.ok) return denied(); }
 
   const isGet = event.httpMethod === 'GET';
   const brand = isGet
@@ -51,7 +53,7 @@ exports.handler = async (event) => {
   const siteUrl = process.env.URL || 'https://yolkseo.netlify.app';
   fetch(`${siteUrl}/.netlify/functions/technical-seo-background`, {
     method:  'POST',
-    headers: { 'Content-Type': 'application/json' },
+    headers: internalHeaders({ 'Content-Type': 'application/json' }),
     body:    JSON.stringify({ brand }),
   }).catch(e => console.warn('[technical-seo] Background trigger failed:', e.message));
 

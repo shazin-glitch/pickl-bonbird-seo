@@ -15,8 +15,10 @@ const CORS = {
   'Access-Control-Allow-Origin': '*',
 };
 
+const { authorize, denied } = require('./_lib/auth');
 exports.handler = async (event) => {
   if (event.httpMethod === 'OPTIONS') return { statusCode: 204, headers: CORS, body: '' };
+  { const _a = await authorize(event); if (!_a.ok) return denied(); }
 
   // GET — not used by the main flow (reviews are bundled in gbp-data response)
   if (event.httpMethod === 'GET') {

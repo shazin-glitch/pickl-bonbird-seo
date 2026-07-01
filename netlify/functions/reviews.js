@@ -45,8 +45,10 @@ async function getMode() {
   };
 }
 
+const { authorize, denied } = require('./_lib/auth');
 exports.handler = async (event) => {
   if (event.httpMethod === 'OPTIONS') return preflight();
+  { const _a = await authorize(event); if (!_a.ok) return denied(); }
   if (event.httpMethod !== 'POST') return bad(405, 'Method Not Allowed');
   const body = parseBody(event);
   if (body === null) return bad(400, 'Invalid JSON');

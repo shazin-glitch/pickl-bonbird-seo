@@ -25,8 +25,10 @@ const CORS = {
   'Access-Control-Allow-Origin': '*',
 };
 
+const { authorize, denied } = require('./_lib/auth');
 exports.handler = async (event) => {
   if (event.httpMethod === 'OPTIONS') return { statusCode: 204, headers: CORS, body: '' };
+  { const _a = await authorize(event); if (!_a.ok) return denied(); }
 
   const brand = event.queryStringParameters?.brand || 'pickl';
 

@@ -9,6 +9,7 @@
 // Trigger: Netlify dashboard → Deploys → Trigger deploy → Deploy site
 
 const { getStore } = require("@netlify/blobs");
+const { authorizeJob } = require("./_lib/auth");
 
 const QUERIES = {
   pickl: [
@@ -291,7 +292,9 @@ async function processBrand(brand, store) {
   return { brand, date: todayStr, summary, totalQueries };
 }
 
-exports.handler = async () => {
+exports.handler = async (event) => {
+  const _job = await authorizeJob(event);
+  if (!_job.ok) return { statusCode: 401, headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ error: 'Not authenticated' }) };
   console.log(`[llm-mentions] Starting — ${new Date().toISOString()}`);
   const store = getStore({ name: "seo-tool", siteID: process.env.NETLIFY_SITE_ID, token: process.env.NETLIFY_AUTH_TOKEN });
   const results = {};

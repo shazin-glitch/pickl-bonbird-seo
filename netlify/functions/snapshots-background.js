@@ -13,6 +13,7 @@
 // Manual: GET /.netlify/functions/snapshots-background?brand=pickl
 
 const { getStore } = require('@netlify/blobs');
+const { authorizeJob, internalHeaders } = require('./_lib/auth');
 
 const SITE_URL = process.env.URL || 'https://yolkseo.netlify.app';
 
@@ -33,7 +34,7 @@ async function saveOnce(key, payload) {
 async function snapshotGbp(brand, dateKey) {
   let data;
   try {
-    const res = await fetch(`${SITE_URL}/.netlify/functions/gbp-data?brand=${brand}`);
+    const res = await fetch(`${SITE_URL}/.netlify/functions/gbp-data?brand=${brand}`, { headers: internalHeaders() });
     data = await res.json();
   } catch (e) { return { ok: false, reason: `gbp fetch failed: ${e.message}` }; }
 
@@ -81,6 +82,8 @@ async function snapshotSpeed(brand, dateKey) {
 }
 
 exports.handler = async (event) => {
+  const _job = await authorizeJob(event);
+  if (!_job.ok) return { statusCode: 401, headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ error: 'Not authenticated' }) };
   console.log(`[snapshots] Starting — ${new Date().toISOString()}`);
   const dateKey = new Date().toISOString().split('T')[0];
   const qs      = event.queryStringParameters || {};

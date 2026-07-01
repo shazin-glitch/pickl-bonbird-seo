@@ -16,6 +16,7 @@
 //   GET /.netlify/functions/content-outcomes-background
 
 const { getStore } = require('@netlify/blobs');
+const { authorizeJob } = require('./_lib/auth');
 const { listApprovals, updateApproval } = require('./_lib/store');
 
 // GSC cache keys differ per brand (query-dimension cache: { rows:[{keyword,position}] }).
@@ -29,7 +30,9 @@ const REMEASURE_DAYS = 7;  // re-measure at most weekly so trends accumulate
 
 function daysSince(ms) { return (Date.now() - ms) / 86400000; }
 
-exports.handler = async () => {
+exports.handler = async (event) => {
+  const _job = await authorizeJob(event);
+  if (!_job.ok) return { statusCode: 401, headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ error: 'Not authenticated' }) };
   const store = getStore({
     name:   'seo-tool',
     consistency: 'strong',

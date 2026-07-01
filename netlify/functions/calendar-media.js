@@ -79,8 +79,10 @@ function newId() {
 
 // ── Handler ───────────────────────────────────────────────────────────────────
 
+const { authorize, denied } = require('./_lib/auth');
 exports.handler = async (event) => {
   if (event.httpMethod === 'OPTIONS') return { statusCode: 200, headers: CORS, body: '' };
+  { const _a = await authorize(event); if (!_a.ok) return denied(); }
 
   // ── GET ?id= : serve legacy Blob image ───────────────────────────────────
   if (event.httpMethod === 'GET' && event.queryStringParameters?.id) {

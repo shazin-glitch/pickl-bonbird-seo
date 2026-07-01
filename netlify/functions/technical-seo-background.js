@@ -13,6 +13,7 @@
 //         NEVER written to the main Approvals Queue.
 
 const { getSetting, setSetting, newId, logAudit } = require('./_lib/store');
+const { authorizeJob } = require('./_lib/auth');
 const { INTERNATIONAL_MARKETS } = require('./_lib/international-config');
 
 const BRAND_DOMAINS = {
@@ -26,6 +27,8 @@ const BRAND_WP = {
 };
 
 exports.handler = async (event) => {
+  const _job = await authorizeJob(event);
+  if (!_job.ok) return { statusCode: 401, headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ error: 'Not authenticated' }) };
   let brand;
   try { brand = JSON.parse(event.body || '{}').brand; } catch { brand = null; }
   if (!brand || !BRAND_DOMAINS[brand]) return;

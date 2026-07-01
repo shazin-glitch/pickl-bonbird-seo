@@ -23,7 +23,9 @@ function store() {
   return getStore({ name: 'seo-tool', siteID: process.env.NETLIFY_SITE_ID, token: process.env.NETLIFY_AUTH_TOKEN });
 }
 
+const { authorize, denied } = require('./_lib/auth');
 exports.handler = async (event) => {
+  if (event.httpMethod !== 'OPTIONS') { const _a = await authorize(event); if (!_a.ok) return denied(); }
   const s = store();
   const refresh = (event.queryStringParameters || {}).refresh === 'true';
 

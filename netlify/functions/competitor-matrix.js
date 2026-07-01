@@ -82,8 +82,10 @@ async function discoverCompetitors(brand) {
     .slice(0, 15);
 }
 
+const { authorize, denied } = require("./_lib/auth");
 exports.handler = async (event) => {
   if (event.httpMethod === "OPTIONS") return { statusCode: 204, headers: CORS, body: "" };
+  { const _a = await authorize(event); if (!_a.ok) return denied(); }
   if (event.httpMethod !== "GET") return { statusCode: 405, headers: CORS, body: JSON.stringify({ error: "Method not allowed" }) };
 
   const q = event.queryStringParameters || {};

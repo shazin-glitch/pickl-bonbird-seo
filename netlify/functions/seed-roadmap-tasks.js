@@ -69,8 +69,10 @@ const TASKS = [
     d: 'After an audit, produce a ranked action list by impact vs effort; high-touch → Perch task, low-touch → content queue.' },
 ];
 
+const { authorize, denied } = require('./_lib/auth');
 exports.handler = async (event) => {
   if (event.httpMethod === 'OPTIONS') return preflight();
+  { const _a = await authorize(event); if (!_a.ok) return denied(); }
   const force = (event.queryStringParameters || {}).force === 'true';
 
   const seeded = await getSetting('perchRoadmapSeeded').catch(() => null);

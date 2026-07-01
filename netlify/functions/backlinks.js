@@ -210,7 +210,9 @@ async function refreshBrand(brand, store, authHeader) {
 }
 
 // ── Handler ───────────────────────────────────────────────────────────────────
+const { authorize, denied } = require('./_lib/auth');
 exports.handler = async (event) => {
+  if (event.httpMethod !== 'OPTIONS') { const _a = await authorize(event); if (!_a.ok) return denied(); }
   const headers = {
     'Content-Type': 'application/json',
     'Access-Control-Allow-Origin': '*',

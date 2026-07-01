@@ -7,6 +7,7 @@
 // Stores data in Blobs for the Analytics tab.
 
 const { getStore } = require('@netlify/blobs');
+const { authorizeJob } = require('./_lib/auth');
 
 const DATAFORSEO_BASE = 'https://api.dataforseo.com/v3';
 
@@ -180,6 +181,8 @@ async function processBrand(brand, store, authHeader) {
 }
 
 exports.handler = async (event) => {
+  const _job = await authorizeJob(event);
+  if (!_job.ok) return { statusCode: 401, headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ error: 'Not authenticated' }) };
   // On-demand manual refresh passes ?brand=pickl|bonbird; the Monday cron passes
   // no query string and runs both brands.
   const only   = event?.queryStringParameters?.brand;

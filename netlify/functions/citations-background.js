@@ -7,8 +7,11 @@
 
 const { getStore } = require('@netlify/blobs');
 const { checkBrand } = require('./citations');
+const { authorizeJob } = require('./_lib/auth');
 
 exports.handler = async (event) => {
+  const _job = await authorizeJob(event);
+  if (!_job.ok) return { statusCode: 401, headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ error: 'Not authenticated' }) };
   // On-demand manual check passes ?brand=pickl|bonbird; the Monday cron passes
   // no query string and runs both brands.
   const only   = event?.queryStringParameters?.brand;

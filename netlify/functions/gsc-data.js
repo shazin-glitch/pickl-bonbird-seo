@@ -1,6 +1,8 @@
 const { getStore } = require('@netlify/blobs');
 
+const { authorize, denied } = require('./_lib/auth');
 exports.handler = async (event) => {
+  if (event.httpMethod !== 'OPTIONS') { const _a = await authorize(event); if (!_a.ok) return denied(); }
   if (event.httpMethod === 'OPTIONS') {
     return { statusCode: 200, headers: { 'Access-Control-Allow-Origin': '*', 'Access-Control-Allow-Headers': 'Content-Type', 'Access-Control-Allow-Methods': 'POST, OPTIONS' }, body: '' };
   }
