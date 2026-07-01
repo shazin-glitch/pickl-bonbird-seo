@@ -10,12 +10,15 @@
 //   perch_due_alert   — Daily overdue/due-soon digest
 
 const { getStore } = require('@netlify/blobs');
+const { authorize, denied } = require('./_lib/auth');
 
 const SITE_URL = process.env.URL || 'https://yolkseo.netlify.app';
 
 exports.handler = async (event) => {
   const headers = { 'Content-Type': 'application/json', 'Access-Control-Allow-Origin': '*' };
   if (event.httpMethod === 'OPTIONS') return { statusCode: 204, headers, body: '' };
+  const _auth = await authorize(event);
+  if (!_auth.ok) return denied();
 
   // Get webhook URL — Blobs takes priority over env var
   let webhookUrl = process.env.SLACK_WEBHOOK_URL || '';

@@ -12,11 +12,14 @@
 // Skips silently if no Slack webhook is configured.
 
 const { getSetting } = require('./_lib/store');
+const { internalHeaders, authorizeJob } = require('./_lib/auth');
 
 const SITE_URL = process.env.URL || 'https://yolkseo.netlify.app';
 const BRANDS   = ['pickl', 'bonbird', 'southpour', 'shadowburg', 'shadowbird'];
 
-exports.handler = async () => {
+exports.handler = async (event) => {
+  const _job = await authorizeJob(event);
+  if (!_job.ok) return { statusCode: 401, headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ error: 'Not authenticated' }) };
   try {
     // ── Story/Reel manual post reminder ──────────────────────────────────────
     const todayStr = new Date().toISOString().slice(0, 10); // YYYY-MM-DD
@@ -38,7 +41,7 @@ exports.handler = async () => {
     if (manualDue.length) {
       await fetch(`${SITE_URL}/.netlify/functions/slack-notify`, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: internalHeaders({ 'Content-Type': 'application/json' }),
         body: JSON.stringify({ type: 'calendar_manual_reminder', posts: manualDue }),
       });
       console.log(`[perch-notify] Sent manual reminder for ${manualDue.length} story/reel post(s).`);
@@ -92,7 +95,7 @@ exports.handler = async () => {
 
     await fetch(`${SITE_URL}/.netlify/functions/slack-notify`, {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
+      headers: internalHeaders({ 'Content-Type': 'application/json' }),
       body: JSON.stringify({
         type: 'perch_due_alert',
         overdue,

@@ -233,7 +233,7 @@ exports.handler = async (event) => {
 
         await fetch(`${siteUrl}/.netlify/functions/slack-notify`, {
           method:  'POST',
-          headers: { 'Content-Type': 'application/json' },
+          headers: internalHeaders({ 'Content-Type': 'application/json' }),
           body:    JSON.stringify({ type: 'queue_summary', brand, count: brandCount, items }),
         });
       } catch (e) {
@@ -465,7 +465,7 @@ async function enrichGscWithCpc(brand, rows, brandConfig) {
 async function loadSeedKeywords(brand) {
   try {
     const siteUrl = process.env.URL || 'https://yolkseo.netlify.app';
-    const res  = await fetch(`${siteUrl}/.netlify/functions/seed-keywords?brand=${brand}`);
+    const res  = await fetch(`${siteUrl}/.netlify/functions/seed-keywords?brand=${brand}`, { headers: internalHeaders() });
     const data = await res.json();
     return data[brand]?.keywords || [];
   } catch {

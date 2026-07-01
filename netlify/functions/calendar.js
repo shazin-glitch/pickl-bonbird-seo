@@ -12,7 +12,7 @@
 
 const { getStore } = require('@netlify/blobs');
 const { newId, ok, bad, preflight, parseBody, CORS } = require('./_lib/store');
-const { authorize, denied } = require('./_lib/auth');
+const { authorize, denied, internalHeaders } = require('./_lib/auth');
 
 const SITE_URL = process.env.URL || 'https://yolkseo.netlify.app';
 
@@ -72,7 +72,7 @@ async function notifySlack(type, data) {
   try {
     await fetch(`${SITE_URL}/.netlify/functions/slack-notify`, {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
+      headers: internalHeaders({ 'Content-Type': 'application/json' }),
       body: JSON.stringify({ type, ...data }),
     });
   } catch (e) { console.warn('[calendar] Slack notify failed:', e.message); }

@@ -15,6 +15,7 @@
 8. **Bootstrap admins** (always Admin regardless of Blobs): `shazin@yolkbrands.com`, `steve@yolkbrands.com`
 9. **Claude model:** `claude-sonnet-4-6` (set in `_lib/store.js` callClaude function)
 10. **Syntax check** all JS before committing: `node --check` on every function file + extract and check index.html JS.
+11. **Security is a build requirement, not an afterthought.** EVERY function/endpoint must gate with `_lib/auth` before it ships: `authorize(event)` (valid session OR `x-nest-internal` header) for on-demand endpoints; `authorizeJob(event)` for `-background`/cron jobs (allows the scheduled invoke + internal header + session). NEVER expose secrets, spend money (Anthropic/DataForSEO), publish externally, or mutate state on an unauthenticated handler. Any internal function→function `fetch` to a gated endpoint MUST send `internalHeaders()`. When building/reviewing a feature, ask "what's the auth + abuse surface?" first. Reads that return anything non-public get gated too.
 
 ---
 

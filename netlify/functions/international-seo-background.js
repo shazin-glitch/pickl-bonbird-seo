@@ -1721,7 +1721,7 @@ exports.handler = async (event) => {
       const siteUrl = process.env.URL || 'https://yolkseo.netlify.app';
       await fetch(`${siteUrl}/.netlify/functions/slack-notify`, {
         method:  'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: internalHeaders({ 'Content-Type': 'application/json' }),
         body:    JSON.stringify({
           type:  'international_queue',
           count: summary.queued,
