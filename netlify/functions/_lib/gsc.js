@@ -43,7 +43,9 @@ async function getGscAccessToken(store) {
 
 // Pull the page+query breakdown for a property over the last `days`.
 // Returns { rows: [{page, keyword, position, impressions, clicks}], error? }.
-async function fetchGscPageQuery(siteUrl, token, days = 90, rowLimit = 5000) {
+// rowLimit defaults to GSC's max (25000): the low-traffic INTL page+query rows sit
+// in the long tail of a busy property, so a small cap silently clips them.
+async function fetchGscPageQuery(siteUrl, token, days = 90, rowLimit = 25000) {
   const end = new Date();
   const start = new Date();
   start.setDate(start.getDate() - days);

@@ -3665,7 +3665,13 @@ A custom domain on Netlify (above) is cosmetic. **Moving OFF Netlify to a Google
 
 ---
 
-## Current Version: v7.4.49
+## Current Version: v7.4.50
+
+Last built (v7.4.50): **GSC page+query rowLimit 5000→25000 (GSC max) + live-validated with GSC connected.** File: `_lib/gsc.js`.
+- **Live findings (GSC reconnected, validated 2 Jul):** GSC page+query is now the active organic source (data shifted materially from the Labs fallback). First-party truth: our INTL market pages rank almost entirely for BRAND/navigational terms → after the brand filter, non-branded organic on Bahrain/KSA pages is tiny (2–3), so the opportunity lists are (correctly) competitor-gap-dominated.
+- **GSC page presence confirmed:** Bahrain 7 pages/24k impr, KSA 4/30k, Qatar 4/10k, Egypt 5/72k, Jordan 2/12k — all URL-token-matched. **Oman: 0 pages / 0 impr** → genuinely no organic footprint AND not in Labs → 0 sourceable keywords is the TRUTH, not a bug. Oman needs pages built before any source can find keywords.
+- **rowLimit bump:** low-traffic intl page+query rows sit in the long tail of a busy property; 5000 could clip them. Raised to 25000 (GSC max) so intl organic isn't silently truncated.
+- **NEXT:** re-validate incl. Qatar (non-Labs but HAS a footprint — the real test that GSC helps non-Labs markets). Phase 1 then closed → Phase 2 (crawler). DEFERRED: `GET /keyword-opportunities` ungated. ON SHAZIN/IT: rotate Anthropic/Slack keys (GSC just reconnected).
 
 Last built (v7.4.49): **Phase 1 COMPLETE — first-party GSC page+query as the primary "what we rank for" source.** `node --check` clean. Files: new `_lib/gsc.js`, `keyword-discovery-background.js`.
 - **Why:** v7.4.48 used DataForSEO Labs `ranked_keywords` for our own rankings — accurate but (a) rented data, (b) Labs lacks Qatar/Oman/Pakistan, so those 3 markets had NO organic source. GSC is Google's first-party data: free, more accurate, and covers every market.
