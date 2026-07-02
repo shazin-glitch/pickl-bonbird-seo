@@ -67,7 +67,8 @@ function pageIssues(item = {}, wordCount = 0) {
   if (has('is_4xx_code'))                                                  out.push('4xx error');
   if (has('is_5xx_code'))                                                  out.push('5xx error');
   if (has('is_broken'))                                                    out.push('broken');
-  if ((item.broken_links || 0) > 0)                                        out.push(`${item.broken_links} broken link(s)`);
+  if (typeof item.broken_links === 'number' && item.broken_links > 0)      out.push(`${item.broken_links} broken links`);
+  else if (item.broken_links === true || c.has_broken_links === true)      out.push('has broken links');
   if (has('no_image_alt'))                                                 out.push('images missing alt');
   if (has('is_orphan_page'))                                               out.push('orphan page (no inbound links)');
   if (has('canonical_to_broken') || has('canonical_to_redirect'))          out.push('canonical issue');

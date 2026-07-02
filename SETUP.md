@@ -3665,7 +3665,9 @@ A custom domain on Netlify (above) is cosmetic. **Moving OFF Netlify to a Google
 
 ---
 
-## Current Version: v7.4.53
+## Current Version: v7.4.54
+
+Last built (v7.4.54): **Site Audit crawler fix — `broken_links` renders as boolean not count.** First full deployed crawl (208 pages, health 82.31, all markets attributed, Oman=0 flagged) showed the page-issue chip printing literal "true broken link(s)". `item.broken_links` is a boolean on the OnPage /pages item → now shows "has broken links" (or "N broken links" if numeric). Re-crawled to regenerate stored issues. Audit findings confirmed valuable: 77 thin UAE pages (empty /location/* CPT, e.g. al-aali-mall=43 words), 101 missing meta, 66 orphan, 61 no-H1, 15 4xx.
 
 Last built (v7.4.53): **Phase 2.2 — Site Audit UI (SEMrush-grade) + crawler sitemap-seeding fix.** `node --check` clean (functions + extracted index.html JS). Files: `onpage-audit-background.js`, `index.html`, `netlify.toml`.
 - **Crawler coverage fix (validated locally, no deploy wasted):** default link-follow crawl found only 15 pages / ZERO market pages (they're standalone, not in nav). FIX: `respect_sitemap:true` + `custom_sitemap:https://<domain>/sitemap_index.xml` → 150+ pages incl. all /bh//ksa//egypt/ + /location/* . Default maxPages 150→250 (site has >150 pages); filters /cdn-cgi/ junk; poll cap 48×15s. Field paths verified against a live 10-page probe.
