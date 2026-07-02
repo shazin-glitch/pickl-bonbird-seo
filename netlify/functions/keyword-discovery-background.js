@@ -111,6 +111,15 @@ function applyStaticFilter(keywords) {
   });
 }
 
+// Scalar form of applyStaticFilter — used to gate GSC organic candidates too.
+// GSC was previously un-gated ("never drop what we rank for"), but live validation
+// showed our pages accidentally rank for off-category terms (wok/public/lettuce) —
+// so an opportunity for a burger/chicken brand must still carry a food-category root.
+function passesStaticRelevance(kw) {
+  const s = String(kw || '').toLowerCase();
+  return isRelevantKeyword(s) && !OFF_MENU_DISHES.some(term => s.includes(term));
+}
+
 // ── DataForSEO keyword ideas ──────────────────────────────────────────────────
 // Returns { ideas: [...], diag: "<human-readable reason>" } so the UI can show
 // the REAL DataForSEO outcome instead of guessing "balance/location code".
@@ -321,17 +330,15 @@ function intentLabel(keyword) {
   return v >= 1 ? 'transactional' : v <= 0.3 ? 'informational' : 'mixed';
 }
 
-// ── Winnability (how realistically we can rank) ───────────────────────────────
-// Driven by Keyword Difficulty, softened by how close we already are.
-// CRITICAL: DataForSEO returns KD=0 (or null) for regional/long-tail keywords it
-// has no data for — that is UNKNOWN, NOT "easy". Unknown → neutral 0.5, never 1.0,
-// so no-data long-tail can't masquerade as a slam-dunk and float to the top.
-function winnabilityScore(kd, ourPosition) {
-  let w = (kd == null || kd <= 0) ? 0.5 : (1 - Math.min(kd, 100) / 100);
-  const pos = ourPosition || 101;
-  if (pos <= 20) w = Math.max(w, 0.7);  // already on page 2 → within reach
-  if (pos <= 10) w = Math.max(w, 0.85); // already on page 1 → very winnable
-  return Math.min(w, 1);
+// ── Winnability (difficulty-based reachability) ───────────────────────────────
+// KD ONLY — "how hard is it to rank". Whether we ALREADY rank is handled by the
+// position-opportunity term, not here (mixing them made already-ranking top-10 out-
+// score quick-wins — backwards for an opportunity list).
+// CRITICAL: DataForSEO returns KD=0 (or null) for regional/long-tail keywords it has
+// no data for — that is UNKNOWN, NOT "easy". Unknown → neutral 0.5, never 1.0.
+function winnabilityScore(kd) {
+  if (kd == null || kd <= 0) return 0.5;
+  return 1 - Math.min(kd, 100) / 100;
 }
 
 // ── "What we rank for" — own-domain organic keywords, URL-attributed ──────────
@@ -419,29 +426,36 @@ async function fetchOwnRankedKeywords(domain, locationCode, langs, authHeader) {
   return out;
 }
 
-// ── Opportunity scoring ───────────────────────────────────────────────────────
-// score = relevance × (0.35·volume + 0.25·winnability + 0.25·intent + 0.15·gap)
-// Relevance-by-source is a MULTIPLIER (not a term) so a weak-source keyword can
-// never out-score a primary-source one on raw volume alone. KD-aware winnability
-// replaces the old CPC/"reachability" heuristic; intent replaces volume-domination.
+// ── Position opportunity (the SEMrush/Ahrefs "quick-win vs already-ranking" lever)
+// Opportunity value = MARGINAL gain from acting, not current success:
+//   pos 11–20  striking distance → HIGHEST ROI (page 2 → page 1 is a big CTR jump)
+//   not ranking + a competitor ranks top-10 → content gap, high
+//   pos 21–50  push → medium
+//   pos ≤10    already ranking well → LOW (little upside; near-won)
+function positionOpportunity(ourPosition, competitorBest) {
+  const pos = ourPosition || 101;
+  if (pos <= 10)  return 0.15;                     // already ranking well — low upside
+  if (pos <= 20)  return 1.0;                      // striking distance / quick win
+  if (pos <= 50)  return 0.55;                     // push
+  return competitorBest <= 10 ? 0.9 : 0.5;         // not ranking: competitor-owned gap ranks highest
+}
+
+// ── Opportunity scoring — SEMrush/Ahrefs-grade ────────────────────────────────
+// score = relevance × (0.30·volume + 0.30·positionOpportunity + 0.20·intent + 0.20·winnability)
+// Position opportunity is the PRIMARY lever (quick-wins & competitor gaps beat
+// already-ranking top-10). Volume is CAPPED (min(vol/2000,1)) on purpose: our KD
+// data is sparse, so we must not let an unknown-difficulty head term dominate on raw
+// volume — a deliberate, robust deviation from a pure traffic-potential model.
+// Relevance-by-source stays a multiplier so weak-source keywords can't out-score primary ones.
 function scoreOpportunity(kw, ourPosition, competitorPositions) {
   const volumeNorm     = Math.min((kw.volume || 0) / 2000, 1);
   const competitorBest = Math.min(...(competitorPositions.length ? competitorPositions : [100]));
-  const ourPos         = ourPosition || 101;
+  const posOpp         = positionOpportunity(ourPosition, competitorBest);
+  const win            = winnabilityScore(kw.kd);
+  const intent         = intentScore(kw.keyword);
+  const relevance      = SOURCE_RELEVANCE[kw.source] ?? 0.75;
 
-  // Gap: competitor ranks well, we don't
-  let gap = 0;
-  if (ourPos > 20  && competitorBest <= 10) gap = 1.0; // they own it, we're nowhere
-  else if (ourPos > 10 && competitorBest <= 10) gap = 0.7; // they're top 10, we're not
-  else if (ourPos > 10 && competitorBest <= 20) gap = 0.5; // both in 11-20
-  else if (ourPos <= 20 && ourPos > 3)           gap = 0.3; // we're close, no competitor needed
-  else if (ourPos <= 3)                           gap = 0.0; // already winning
-
-  const win       = winnabilityScore(kw.kd, ourPosition);
-  const intent    = intentScore(kw.keyword);
-  const relevance = SOURCE_RELEVANCE[kw.source] ?? 0.75;
-
-  return relevance * (volumeNorm * 0.35 + win * 0.25 + intent * 0.25 + gap * 0.15);
+  return relevance * (volumeNorm * 0.30 + posOpp * 0.30 + intent * 0.20 + win * 0.20);
 }
 
 // ── Tier classification ───────────────────────────────────────────────────────
@@ -511,7 +525,7 @@ async function discoverKeywords(brand, store, authHeader, force = false, marketK
       let kept = 0;
       for (const r of (rows || [])) {
         const kw = (r.keyword || '').toLowerCase();
-        if (!kw || !belongsToMarket(r.page) || isOwnBrandKeyword(kw, brand)) continue;
+        if (!kw || !belongsToMarket(r.page) || isOwnBrandKeyword(kw, brand) || !passesStaticRelevance(kw)) continue;
         if (r.position != null && (gscMap[kw] == null || r.position < gscMap[kw])) gscMap[kw] = r.position; // best rank across market pages
         if (!seenOrganic.has(kw)) { seenOrganic.add(kw); ownRankedKws.push({ keyword: r.keyword, volume: 0, cpc: 0, competition: 'medium' }); kept++; }
       }
@@ -526,7 +540,7 @@ async function discoverKeywords(brand, store, authHeader, force = false, marketK
     const ranked = await fetchOwnRankedKeywords(ownDomain, locationCode, rkLangs, authHeader);
     for (const r of ranked) {
       const kw = (r.keyword || '').toLowerCase();
-      if (!kw || !belongsToMarket(r.url) || isOwnBrandKeyword(kw, brand)) continue;
+      if (!kw || !belongsToMarket(r.url) || isOwnBrandKeyword(kw, brand) || !passesStaticRelevance(kw)) continue;
       if (r.position != null && (gscMap[kw] == null || r.position < gscMap[kw])) gscMap[kw] = r.position;
       if (!seenOrganic.has(kw)) { seenOrganic.add(kw); ownRankedKws.push({ keyword: r.keyword, volume: r.volume || 0, cpc: r.cpc || 0, competition: 'medium' }); }
     }
@@ -692,6 +706,9 @@ async function discoverKeywords(brand, store, authHeader, force = false, marketK
       };
     })
     .filter(k => k.tier !== 'top3') // already winning, skip
+    // Drop already-ranking top-10 with no measured volume — near-won + no upside =
+    // long-tail noise (the ~60 vol-0 "we rank #8" terms that flooded intl lists).
+    .filter(k => !(k.tier === 'top10' && !(k.volume > 0)))
     .sort((a, b) => b.score - a.score)
     .slice(0, 100); // top 100 opportunities
 

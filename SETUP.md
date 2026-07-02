@@ -3665,7 +3665,13 @@ A custom domain on Netlify (above) is cosmetic. **Moving OFF Netlify to a Google
 
 ---
 
-## Current Version: v7.4.50
+## Current Version: v7.4.51
+
+Last built (v7.4.51): **Phase 1 quality pass — SEMrush/Ahrefs-grade opportunity scoring + GSC relevance gate.** `node --check` clean; scoring order offline-verified. File: `keyword-discovery-background.js`. Fixes the two quality problems the v7.4.50 live run exposed.
+- **Problem 1 — non-food junk leaked from GSC:** our pages accidentally rank for off-category terms (`wok`/`public`/`lettuce`) which, being un-gated, scored high on raw volume. FIX: GSC organic candidates now pass `passesStaticRelevance` (the same food-category allowlist as ideas/competitor). Reverses the v7.4.40 "never gate GSC" call — validated necessary. Food quick-wins still pass; off-category dropped. Brand-navigational still dropped separately.
+- **Problem 2 — scoring rewarded ALREADY-ranking over opportunity:** old winnability boosted pos≤10 (0.85) above pos 11–20 (0.7), so we-already-rank-#8 out-scored quick-wins, and ~60 zero-volume top-10 long-tail flooded intl lists. FIX: new `positionOpportunity` term (pos 11–20 quick-win=1.0, content-gap=0.9, push=0.55, already-top-10=0.15) is now the PRIMARY lever; `winnabilityScore` is KD-only (unknown=0.5); volume stays CAPPED (min/2000) so unknown-KD head terms can't dominate. Score = relevance × (0.30·vol + 0.30·positionOpp + 0.20·intent + 0.20·winnability). Plus: drop already-ranking top-10 with zero volume (near-won + no upside = noise).
+- **Offline order check:** competitor-gap kd3 0.854 > head-term برجر(vol301k, unknown KD) 0.711 > top-10-with-real-vol 0.645 > quick-win-vol0 0.60 > top-10-vol0 0.345(dropped). Quick-wins/gaps now correctly beat already-ranking; head terms don't run away.
+- **NEXT:** re-validate Qatar/Bahrain/KSA (expect: non-food gone, quick-wins/gaps on top, vol-0 top-10 flood cleared). Then Phase 1 fully closed → Phase 2 (crawler). DEFERRED: `GET /keyword-opportunities` ungated. NEW BACKLOG: "Issues & Flags" module (Shazin — flag markets with 0 footprint like Oman). ON SHAZIN/IT: TOP UP Claude API credits (content engine + Monday cron need it), rotate Anthropic/Slack keys.
 
 Last built (v7.4.50): **GSC page+query rowLimit 5000→25000 (GSC max) + live-validated with GSC connected.** File: `_lib/gsc.js`.
 - **Live findings (GSC reconnected, validated 2 Jul):** GSC page+query is now the active organic source (data shifted materially from the Labs fallback). First-party truth: our INTL market pages rank almost entirely for BRAND/navigational terms → after the brand filter, non-branded organic on Bahrain/KSA pages is tiny (2–3), so the opportunity lists are (correctly) competitor-gap-dominated.
