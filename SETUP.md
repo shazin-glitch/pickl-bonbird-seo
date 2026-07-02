@@ -3665,7 +3665,14 @@ A custom domain on Netlify (above) is cosmetic. **Moving OFF Netlify to a Google
 
 ---
 
-## Current Version: v7.4.47
+## Current Version: v7.4.48
+
+Last built (v7.4.48): **Phase 1 — market-correct "what we rank for" + brand filter (fixes the v7.4.47 live-validation bugs).** `node --check` clean; helpers offline-verified. File: `keyword-discovery-background.js`.
+- **Root cause found in live validation:** the GSC cache (`gscCache.rows`) is query-dimension only (`dimensions:['query']`, no page — [gsc-data.js:73](netlify/functions/gsc-data.js#L73)), so the intl per-market filter `row.page.includes('/'+marketSlug)` silently failed open → every intl market got all 500 property-wide UAE keywords with UAE positions mislabeled as local. Bahrain top-20 was ~14/20 branded-navigational + UAE-contaminated.
+- **Fix — own-domain ranked keywords, URL-attributed (SEMrush/Ahrefs "Organic Research" model):** new `fetchOwnRankedKeywords` pulls OUR domain from DataForSEO Labs `ranked_keywords` (same endpoint the competitor matrix uses) — each keyword arrives WITH its ranking URL. `urlMatchesTokens` (via existing `getMarketPageTokens`, whole-segment, handles flat slugs like `/bahrain-locations/`) attributes each keyword to the market whose page it ranks on. Intl = URL matches that market's tokens; UAE = URL matches NO intl market. `gscMap`/organic candidates are now market-correct.
+- **Brand filter:** `isOwnBrandKeyword` drops navigational brand searches (`pick*`/`بيك*` for Pickl, `bonbird*` for Bonbird) — they're not opportunities.
+- **Coverage:** works for Labs markets (UAE/KSA/Bahrain/Jordan/Egypt). Qatar/Oman/Pakistan aren't in Labs → intl skips organic (leans on competitor+ideas); UAE falls back to the GSC-query cache. FOLLOW-UP: GSC `['page','query']` pull for first-party accuracy + full-market coverage.
+- **NEXT:** re-run discovery (Bahrain/KSA/UAE) → eyeball top-20 (should now be market-correct, no brand junk). STILL DEFERRED (separate small fix): `GET /keyword-opportunities` is ungated ([keyword-opportunities.js:27](netlify/functions/keyword-opportunities.js#L27)) — rule-11 gap. STILL ON SHAZIN/IT: rotate Anthropic/GSC/Slack keys.
 
 Last built (v7.4.47): **Phase 1 international keyword-first rebuild — DEPLOYED.** `node --check` clean + offline-sanity-checked. File: `keyword-discovery-background.js`. ⚠️ Live top-20-per-market acceptance gate STILL OWED (see NEXT below) — code is shipped, not yet validated against a real run.
 - **GSC + competitor now PRIMARY candidate sources.** New `addCandidate`/`candidates` Map in `discoverKeywords`: GSC-ranked keywords become opportunities directly (were only position-annotation before → quick-wins were invisible); GSC bypasses the allowlist (relevant by construction); competitor keywords stay filtered; idea-expansion demoted to a supplement.

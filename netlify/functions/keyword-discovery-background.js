@@ -18,7 +18,7 @@
 const { getStore }        = require('@netlify/blobs');
 const { getBrandContext } = require('./_lib/brand');
 const { callClaude, extractJson } = require('./_lib/store');
-const { INTERNATIONAL_MARKETS } = require('./_lib/international-config');
+const { INTERNATIONAL_MARKETS, getMarketPageTokens } = require('./_lib/international-config');
 const { resolveLocation } = require('./_lib/dfs-locations');
 const { enrichKeywordsMixed } = require('./_lib/keyword-metrics');
 
@@ -333,6 +333,91 @@ function winnabilityScore(kd, ourPosition) {
   return Math.min(w, 1);
 }
 
+// ── "What we rank for" — own-domain organic keywords, URL-attributed ──────────
+// SEMrush/Ahrefs model: pull our OWN domain's ranked keywords WITH the ranking
+// URL so each keyword is attributed to the market whose page it ranks on. This is
+// the market-correct replacement for the old whole-property GSC-query cache (no
+// page dimension → flooded every intl market with UAE keywords; validated v7.4.47).
+const LABS_RANKED_URL = 'https://api.dataforseo.com/v3/dataforseo_labs/google/ranked_keywords/live';
+const OWN_DOMAINS = { pickl: 'eatpickl.com', bonbird: 'bonbirdchicken.com' };
+
+// Navigational brand searches (people looking for US) — not opportunities. EN+AR.
+// 'pick' is deliberately broad: the brand is "Pickl", so pick*/بيك* in these
+// markets is navigational and near-zero volume — cheap to drop, costly to keep.
+const BRAND_TERMS = {
+  pickl:   ['pick', 'بيك', 'بيكل', 'بكل', 'بيكلز'],
+  bonbird: ['bonbird', 'bon bird', 'بونبيرد', 'بون بيرد'],
+};
+function isOwnBrandKeyword(kw, brand) {
+  const s = String(kw || '').toLowerCase();
+  return (BRAND_TERMS[brand] || []).some(t => s.includes(t));
+}
+
+// Does a ranking URL belong to a market? Whole-segment token match (handles the
+// flat intl slugs — /bh/, /bahrain-locations/, /bh-arabic/ — via getMarketPageTokens).
+function urlMatchesTokens(url, tokens) {
+  if (!url || !tokens || !tokens.length) return false;
+  const path = String(url).replace(/^https?:\/\/[^\/]+/, '').toLowerCase();
+  return tokens.some(t => path === `/${t}` || path === `/${t}/` || path.startsWith(`/${t}/`) || path.startsWith(`/${t}-`));
+}
+
+// Pull our own domain's ranked keywords (keyword + position + ranking URL + volume)
+// from DataForSEO Labs. Same endpoint/shape the competitor matrix uses. Tries the
+// market's languages, drops language_code on a 40501 rejection. SAFE: [] on failure.
+async function fetchOwnRankedKeywords(domain, locationCode, langs, authHeader) {
+  const labsLoc = (!locationCode || locationCode === 21191) ? 2784 : locationCode; // Labs needs country code
+  const tgt = String(domain || '').replace(/^www\./, '');
+  const seen = new Set(), out = [];
+  const post = async (lang) => {
+    const payload = {
+      target: tgt, location_code: labsLoc,
+      filters:  [['keyword_data.keyword_info.search_volume', '>', 0]],
+      order_by: ['keyword_data.keyword_info.search_volume,desc'],
+      limit: 200,
+    };
+    if (lang) payload.language_code = lang;
+    const res = await fetch(LABS_RANKED_URL, {
+      method: 'POST', headers: { Authorization: authHeader, 'Content-Type': 'application/json' },
+      body: JSON.stringify([payload]),
+    });
+    return res.json();
+  };
+  const parse = (data) => {
+    for (const it of (data?.tasks?.[0]?.result?.[0]?.items || [])) {
+      const kw = it.keyword_data?.keyword;
+      const key = kw && kw.toLowerCase();
+      if (!key || seen.has(key)) continue;
+      seen.add(key);
+      out.push({
+        keyword:  kw,
+        volume:   it.keyword_data?.keyword_info?.search_volume || 0,
+        cpc:      it.keyword_data?.keyword_info?.cpc || 0,
+        position: it.ranked_serp_element?.serp_item?.rank_absolute || null,
+        url:      it.ranked_serp_element?.serp_item?.url || null,
+      });
+    }
+  };
+  const cands = [...new Set((langs && langs.length ? langs : ['en']).filter(Boolean))].slice(0, 2);
+  try {
+    let droppedLang = false;
+    for (const lang of cands) {
+      let data = await post(lang);
+      const task = data?.tasks?.[0] || {};
+      const langRej = /language_code/i.test(`${data?.status_message || ''} ${task.status_message || ''}`);
+      if (task.status_code !== 20000 && langRej && !droppedLang) {
+        droppedLang = true;
+        parse(await post(null));   // location auto-derives language; result spans languages
+        break;
+      }
+      if (data?.status_code === 20000 && task.status_code === 20000) parse(data);
+      else console.warn(`[kw-discovery] own ranked_keywords ${tgt} loc ${labsLoc} lang ${lang}: ${data?.status_code}/${task.status_code} ${task.status_message || data?.status_message || ''}`);
+    }
+  } catch (e) {
+    console.warn(`[kw-discovery] own ranked_keywords error: ${e.message}`);
+  }
+  return out;
+}
+
 // ── Opportunity scoring ───────────────────────────────────────────────────────
 // score = relevance × (0.35·volume + 0.25·winnability + 0.25·intent + 0.15·gap)
 // Relevance-by-source is a MULTIPLIER (not a term) so a weak-source keyword can
@@ -394,19 +479,45 @@ async function discoverKeywords(brand, store, authHeader, force = false, marketK
     ? [`best burger in ${marketLabel}`, `burger restaurant ${marketLabel}`, `smash burger ${marketLabel}`]
     : [`best fried chicken in ${marketLabel}`, `fried chicken restaurant ${marketLabel}`, `crispy chicken ${marketLabel}`];
 
-  // Load GSC cache — international pages live on same GSC property
-  const GSC_URL   = brand === 'pickl' ? 'https://eatpickl.com/' : 'sc-domain:bonbirdchicken.com';
-  const gscCache  = await store.get(`gscCache:${GSC_URL}`, { type: 'json' }).catch(() => null);
-  const gscMap    = {};
-  if (gscCache?.rows) {
-    for (const row of gscCache.rows) {
-      if (!row.keyword) continue;
-      // For international: only include rows matching the market URL pattern
-      if (isIntl && row.page && !row.page.includes(`/${market.marketSlug}`)) continue;
-      gscMap[row.keyword.toLowerCase()] = row.position;
+  // ── "What we rank for" — market-attributed via the ranking URL ───────────────
+  // Primary source. Pull our own domain's ranked keywords and keep only those whose
+  // ranking URL belongs to THIS market (intl) or is NOT an intl page (UAE = home).
+  // Brand-navigational queries are dropped — they're not opportunities.
+  const ownDomain = OWN_DOMAINS[brand];
+  const marketTokens = isIntl ? getMarketPageTokens(market) : null;
+  const intlTokensForBrand = Object.values(INTERNATIONAL_MARKETS)
+    .filter(m => m.brand === brand)
+    .flatMap(m => getMarketPageTokens(m));
+  const gscMap = {};        // keyword(lower) → our position (market-correct)
+  const ownRankedKws = [];  // organic candidates we rank for in THIS market
+  const ownRankSupported = !(isIntl && loc.inCache && loc.supported === false);
+  if (ownRankSupported && ownDomain) {
+    const rkLangs = (isIntl && loc.languages.length) ? loc.languages : ['en'];
+    const ranked = await fetchOwnRankedKeywords(ownDomain, locationCode, rkLangs, authHeader);
+    for (const r of ranked) {
+      const kw = (r.keyword || '').toLowerCase();
+      if (!kw) continue;
+      const belongs = isIntl ? urlMatchesTokens(r.url, marketTokens)
+                             : !urlMatchesTokens(r.url, intlTokensForBrand);
+      if (!belongs || isOwnBrandKeyword(kw, brand)) continue;
+      if (gscMap[kw] == null && r.position != null) gscMap[kw] = r.position;
+      ownRankedKws.push({ keyword: r.keyword, volume: r.volume || 0, cpc: r.cpc || 0, competition: 'medium' });
     }
+    console.log(`${tag} own ranked_keywords: ${ranked.length} pulled → ${ownRankedKws.length} attributed to market (brand-filtered)`);
+  } else if (!isIntl) {
+    // UAE fallback only: whole-property GSC-query cache (intl would be contaminated).
+    const GSC_URL  = brand === 'pickl' ? 'https://eatpickl.com/' : 'sc-domain:bonbirdchicken.com';
+    const gscCache = await store.get(`gscCache:${GSC_URL}`, { type: 'json' }).catch(() => null);
+    for (const row of (gscCache?.rows || [])) {
+      const kw = row.keyword?.toLowerCase();
+      if (!kw || isOwnBrandKeyword(kw, brand)) continue;
+      if (gscMap[kw] == null) gscMap[kw] = row.position;
+      ownRankedKws.push({ keyword: row.keyword, volume: 0, cpc: 0, competition: 'medium' });
+    }
+    console.log(`${tag} own rankings: Labs unsupported → GSC-cache fallback, ${ownRankedKws.length} keywords`);
+  } else {
+    console.log(`${tag} own rankings: market not in Labs → skipped (intl; relying on competitor + ideas)`);
   }
-  console.log(`${tag} GSC positions loaded: ${Object.keys(gscMap).length} keywords`);
 
   // Load competitor ranked keywords — market-qualified for intl, unsuffixed for UAE (back-compat)
   const compKey  = isIntl ? `competitorRankedKeywords:${brand}:${marketKey}` : `competitorRankedKeywords:${brand}`;
@@ -505,8 +616,9 @@ async function discoverKeywords(brand, store, authHeader, force = false, marketK
     candidates.set(key, { keyword, volume, cpc, competition, source });
   };
 
-  // 1) GSC (primary) — every keyword we rank for; pos<=3 pruned at the tier stage.
-  for (const kw of Object.keys(gscMap)) addCandidate(kw, { source: 'gsc' });
+  // 1) Organic (primary) — keywords we rank for in THIS market (URL-attributed).
+  //    pos<=3 (already winning) pruned at the tier stage. source 'gsc' = "we rank".
+  for (const k of ownRankedKws) addCandidate(k.keyword, { volume: k.volume, cpc: k.cpc, competition: k.competition, source: 'gsc' });
   // 2) Competitor (primary) — filtered competitor-ranked keywords we don't own.
   for (const k of filteredComp) addCandidate(k.keyword, { volume: k.volume, cpc: k.cpc, competition: k.competition, source: 'competitor' });
   // 3) Idea-expansion (supplement) — allowlist + Claude filtered.
