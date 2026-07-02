@@ -169,6 +169,11 @@
   status = 200
 
 [[redirects]]
+  from = "/api/onpage-audit"
+  to = "/.netlify/functions/onpage-audit"
+  status = 200
+
+[[redirects]]
   from = "/api/email-digest"
   to = "/.netlify/functions/email-digest"
   status = 200

@@ -1230,6 +1230,57 @@ body { font-family: var(--font-sans); background: var(--bg-base); color: var(--t
         <span id="techseo-last-run" style="color:var(--text-muted);font-size:13px"></span>
       </div>
 
+      <!-- Sub-mode: Speed & Vitals vs Site Audit (crawler) -->
+      <div class="pill-nav" id="techseo-mode-pills" style="margin-bottom:20px">
+        <div class="pill active" onclick="switchTechSeoMode('speed')">⚡ Speed &amp; Vitals</div>
+        <div class="pill" onclick="switchTechSeoMode('audit')">🔎 Site Audit</div>
+      </div>
+
+      <!-- ══ SITE AUDIT (full-site crawl) mode ══ -->
+      <div id="techseo-mode-audit" style="display:none">
+        <div style="display:flex;align-items:center;gap:16px;margin-bottom:20px;flex-wrap:wrap">
+          <button class="btn-primary" onclick="runSiteAudit()" id="siteaudit-run-btn" style="padding:8px 18px;font-size:13px">🔎 Run Site Crawl</button>
+          <span id="siteaudit-last-run" style="color:var(--text-muted);font-size:13px"></span>
+        </div>
+        <div id="siteaudit-loading" style="display:none">
+          <div class="card" style="text-align:center;padding:40px 24px">
+            <div style="font-size:32px;margin-bottom:12px">🕷️</div>
+            <div style="font-weight:600;margin-bottom:8px">Crawling the site…</div>
+            <div style="color:var(--text-muted);font-size:13px">Crawling every page via the sitemap — titles, meta, headings, content depth, links and errors.<br>This takes 3–8 minutes. Leave this tab open.</div>
+          </div>
+        </div>
+        <div id="siteaudit-empty">
+          <div class="card" style="text-align:center;padding:48px 24px">
+            <div style="font-size:48px;margin-bottom:12px">🔎</div>
+            <div style="font-weight:600;font-size:16px;margin-bottom:8px">No site crawl yet</div>
+            <div style="color:var(--text-muted);font-size:14px;max-width:440px;margin:0 auto">Run a full-site crawl to inventory every page and surface on-page issues — thin content, missing titles/meta, no H1, broken pages — across all markets.</div>
+          </div>
+        </div>
+        <div id="siteaudit-results" style="display:none">
+          <div id="siteaudit-scorecards" style="display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:12px;margin-bottom:20px"></div>
+          <div class="card" style="margin-bottom:16px">
+            <div style="font-weight:600;font-size:14px;margin-bottom:16px">🌍 Coverage by market</div>
+            <div id="siteaudit-bymarket" style="overflow-x:auto"></div>
+          </div>
+          <div class="card" style="margin-bottom:16px">
+            <div style="font-weight:600;font-size:14px;margin-bottom:16px">⚠️ Issues by type</div>
+            <div id="siteaudit-issues"></div>
+          </div>
+          <div class="card">
+            <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:16px;flex-wrap:wrap;gap:8px">
+              <div style="font-weight:600;font-size:14px">📄 Pages</div>
+              <div style="display:flex;gap:8px;flex-wrap:wrap">
+                <select id="siteaudit-market-filter" onchange="renderSiteAuditPages()" style="font-size:12px;padding:5px 8px;border-radius:6px;border:1px solid var(--border);background:var(--bg-surface);color:var(--text-main)"></select>
+                <select id="siteaudit-issue-filter" onchange="renderSiteAuditPages()" style="font-size:12px;padding:5px 8px;border-radius:6px;border:1px solid var(--border);background:var(--bg-surface);color:var(--text-main)"></select>
+              </div>
+            </div>
+            <div id="siteaudit-pages-table" style="overflow-x:auto"></div>
+          </div>
+        </div>
+      </div>
+
+      <!-- ══ SPEED & VITALS mode (existing) ══ -->
+      <div id="techseo-mode-speed">
       <!-- Running state -->
       <div id="techseo-loading" style="display:none">
         <div class="card" style="text-align:center;padding:40px 24px">
@@ -1317,6 +1368,7 @@ body { font-family: var(--font-sans); background: var(--bg-base); color: var(--t
         </div>
 
       </div><!-- /techseo-results -->
+      </div><!-- /techseo-mode-speed -->
     </div><!-- /view-techseo -->
 
     <!-- ═══ VIEW 3: INTERNATIONAL SEO ═══ -->
@@ -6837,6 +6889,8 @@ function switchTechSeoBrand(brand) {
   });
   loadTechnicalSeo();
   loadTechDevKanban(brand);
+  const auditEl = document.getElementById('techseo-mode-audit');
+  if (auditEl && auditEl.style.display !== 'none') loadSiteAudit();
 }
 
 async function loadTechnicalSeo() {
@@ -6912,6 +6966,185 @@ function showTechSeoEmpty() {
   document.getElementById('techseo-loading').style.display = 'none';
   document.getElementById('techseo-results').style.display = 'none';
   document.getElementById('techseo-empty').style.display   = '';
+}
+
+// ── Site Audit (full-site crawler) sub-view ───────────────────────────────
+const siteAuditState = { pollTimer: null, startedAt: null, data: null };
+
+function switchTechSeoMode(mode) {
+  const audit = mode === 'audit';
+  document.querySelectorAll('#techseo-mode-pills .pill').forEach(p =>
+    p.classList.toggle('active', p.textContent.toLowerCase().includes(audit ? 'audit' : 'speed')));
+  document.getElementById('techseo-mode-audit').style.display = audit ? '' : 'none';
+  document.getElementById('techseo-mode-speed').style.display = audit ? 'none' : '';
+  const speedBtn = document.getElementById('techseo-run-btn');
+  if (speedBtn) speedBtn.style.display = audit ? 'none' : '';
+  if (!audit && siteAuditState.pollTimer) { clearInterval(siteAuditState.pollTimer); siteAuditState.pollTimer = null; }
+  if (audit) loadSiteAudit();
+}
+
+async function loadSiteAudit() {
+  try {
+    const data = await apiGet('/api/onpage-audit?brand=' + techSeoState.brand + '&pages=1');
+    if (data && data.audit) { siteAuditState.data = data; renderSiteAudit(data); }
+    else showSiteAuditEmpty();
+  } catch { showSiteAuditEmpty(); }
+}
+
+function showSiteAuditEmpty() {
+  document.getElementById('siteaudit-loading').style.display = 'none';
+  document.getElementById('siteaudit-results').style.display = 'none';
+  document.getElementById('siteaudit-empty').style.display   = '';
+}
+
+async function runSiteAudit() {
+  const btn = document.getElementById('siteaudit-run-btn');
+  btn.disabled = true; btn.textContent = '⏳ Starting…';
+  siteAuditState.startedAt = new Date().toISOString();
+  try { await apiPost('/api/onpage-audit', { brand: techSeoState.brand }); }
+  catch (e) { console.warn('[siteaudit] trigger:', e.message); }
+  btn.textContent = '🕷️ Crawling…';
+  document.getElementById('siteaudit-empty').style.display   = 'none';
+  document.getElementById('siteaudit-results').style.display = 'none';
+  document.getElementById('siteaudit-loading').style.display = '';
+  startSiteAuditPoll(techSeoState.brand);
+}
+
+function startSiteAuditPoll(brand) {
+  if (siteAuditState.pollTimer) clearInterval(siteAuditState.pollTimer);
+  siteAuditState.pollTimer = setInterval(async () => {
+    try {
+      const data = await apiGet('/api/onpage-audit?brand=' + brand + '&pages=1');
+      if (data && data.audit && (!siteAuditState.startedAt || data.audit.crawledAt > siteAuditState.startedAt)) {
+        clearInterval(siteAuditState.pollTimer); siteAuditState.pollTimer = null;
+        const btn = document.getElementById('siteaudit-run-btn');
+        if (btn) { btn.disabled = false; btn.textContent = '🔎 Run Site Crawl'; }
+        siteAuditState.data = data; renderSiteAudit(data);
+      }
+    } catch (e) { console.warn('[siteaudit] poll:', e.message); }
+  }, 15000);
+}
+
+const SITEAUDIT_SEVERITY = {
+  '4xx error':'error','5xx error':'error','broken':'error','missing title':'error',
+  'duplicate title':'warning','duplicate meta description':'warning','duplicate content':'warning',
+  'missing meta description':'warning','missing H1':'warning','thin content':'warning',
+  'title too short':'warning','title too long':'warning',
+  'images missing alt':'notice','orphan page (no inbound links)':'notice','canonical issue':'notice',
+};
+function siteAuditSeverity(label) {
+  if (/broken link/.test(label)) return 'error';
+  return SITEAUDIT_SEVERITY[label] || 'notice';
+}
+function siteAuditChip(label) {
+  const s = siteAuditSeverity(label);
+  const c = s === 'error' ? ['var(--danger-bg)','var(--danger)'] : s === 'warning' ? ['var(--warning-bg)','var(--warning)'] : ['var(--info-bg)','var(--info)'];
+  return `<span class="tag" style="background:${c[0]};color:${c[1]};margin:1px 2px;display:inline-block">${label}</span>`;
+}
+function siteAuditStat(label, val, color) {
+  return `<div class="card" style="text-align:center;padding:20px 12px">
+    <div style="font-size:12px;color:var(--text-muted);font-weight:600;margin-bottom:12px;text-transform:uppercase;letter-spacing:.5px">${label}</div>
+    <div style="font-size:28px;font-weight:700;color:${color}">${val}</div></div>`;
+}
+
+function renderSiteAudit(data) {
+  const a = data.audit || {};
+  const pages = data.pages || [];
+  document.getElementById('siteaudit-empty').style.display   = 'none';
+  document.getElementById('siteaudit-loading').style.display = 'none';
+  document.getElementById('siteaudit-results').style.display = '';
+  const lr = document.getElementById('siteaudit-last-run');
+  if (lr) lr.textContent = a.crawledAt ? ('Last crawl: ' + new Date(a.crawledAt).toLocaleString()) : '';
+
+  let errors = 0, warnings = 0, notices = 0;
+  const issueCounts = {};
+  for (const p of pages) for (const iss of (p.issues || [])) {
+    issueCounts[iss] = (issueCounts[iss] || 0) + 1;
+    const s = siteAuditSeverity(iss);
+    if (s === 'error') errors++; else if (s === 'warning') warnings++; else notices++;
+  }
+
+  document.getElementById('siteaudit-scorecards').innerHTML = `
+    <div class="card" style="text-align:center;padding:20px 12px">
+      <div style="font-size:12px;color:var(--text-muted);font-weight:600;margin-bottom:12px;text-transform:uppercase;letter-spacing:.5px">Health score</div>
+      ${buildScoreGauge(a.onpageScore != null ? Math.round(a.onpageScore) : null)}
+    </div>
+    ${siteAuditStat('Pages crawled', (a.pageCount != null ? a.pageCount : pages.length), 'var(--text-main)')}
+    ${siteAuditStat('Errors', errors, 'var(--danger)')}
+    ${siteAuditStat('Warnings', warnings, 'var(--warning)')}
+    ${siteAuditStat('Notices', notices, 'var(--info)')}`;
+
+  renderSiteAuditByMarket(a.byMarket || {});
+
+  const issRows = Object.entries(issueCounts).sort((x, y) => y[1] - x[1]);
+  document.getElementById('siteaudit-issues').innerHTML = issRows.length
+    ? issRows.map(([iss, n]) => `<div style="display:flex;justify-content:space-between;align-items:center;padding:8px 0;border-bottom:1px solid var(--border)">
+        <div style="font-size:13px">${siteAuditChip(iss)}</div>
+        <div style="font-weight:600;font-size:13px">${n}</div></div>`).join('')
+    : '<div style="color:var(--success);font-size:13px">No issues found across crawled pages 🎉</div>';
+
+  const markets = ['all', ...Array.from(new Set(pages.map(p => p.market)))];
+  const mSel = document.getElementById('siteaudit-market-filter');
+  if (mSel) mSel.innerHTML = markets.map(m => `<option value="${m}">${m === 'all' ? 'All markets' : m}</option>`).join('');
+  const issues = ['all', ...Object.keys(issueCounts).sort()];
+  const iSel = document.getElementById('siteaudit-issue-filter');
+  if (iSel) iSel.innerHTML = issues.map(i => `<option value="${i}">${i === 'all' ? 'All issues' : i}</option>`).join('');
+
+  renderSiteAuditPages();
+}
+
+function renderSiteAuditByMarket(byMarket) {
+  const rows = Object.entries(byMarket);
+  const el = document.getElementById('siteaudit-bymarket');
+  if (!el) return;
+  if (!rows.length) { el.innerHTML = '<div style="color:var(--text-muted);font-size:13px">—</div>'; return; }
+  el.innerHTML = `<table style="width:100%;border-collapse:collapse;font-size:13px">
+    <thead><tr style="border-bottom:1px solid var(--border);color:var(--text-muted)">
+      <th style="text-align:left;padding:8px 12px;font-weight:600">Market</th>
+      <th style="text-align:center;padding:8px 12px;font-weight:600">Pages</th>
+      <th style="text-align:center;padding:8px 12px;font-weight:600">Thin</th>
+      <th style="text-align:center;padding:8px 12px;font-weight:600">Missing meta</th>
+      <th style="text-align:center;padding:8px 12px;font-weight:600">No H1</th>
+      <th style="text-align:center;padding:8px 12px;font-weight:600">Errors</th>
+    </tr></thead><tbody>
+    ${rows.map(([m, v]) => `<tr style="border-bottom:1px solid var(--border)">
+      <td style="padding:10px 12px;font-weight:500">${m}${v.pages === 0 ? ' <span class="tag" style="background:var(--warning-bg);color:var(--warning)">0 pages</span>' : ''}</td>
+      <td style="text-align:center;padding:10px 12px">${v.pages || 0}</td>
+      <td style="text-align:center;padding:10px 12px">${v.thin || 0}</td>
+      <td style="text-align:center;padding:10px 12px">${v.missingMeta || 0}</td>
+      <td style="text-align:center;padding:10px 12px">${v.noH1 || 0}</td>
+      <td style="text-align:center;padding:10px 12px">${v.errors || 0}</td>
+    </tr>`).join('')}</tbody></table>`;
+}
+
+function renderSiteAuditPages() {
+  const pages = (siteAuditState.data && siteAuditState.data.pages) || [];
+  const mfEl = document.getElementById('siteaudit-market-filter');
+  const ifEl = document.getElementById('siteaudit-issue-filter');
+  const mf = mfEl ? mfEl.value : 'all';
+  const iff = ifEl ? ifEl.value : 'all';
+  let rows = pages;
+  if (mf !== 'all')  rows = rows.filter(p => p.market === mf);
+  if (iff !== 'all') rows = rows.filter(p => (p.issues || []).includes(iff));
+  rows = rows.slice().sort((a, b) => (b.issues ? b.issues.length : 0) - (a.issues ? a.issues.length : 0));
+  const el = document.getElementById('siteaudit-pages-table');
+  if (!el) return;
+  if (!rows.length) { el.innerHTML = '<div style="color:var(--text-muted);font-size:13px;padding:12px">No pages match the filter.</div>'; return; }
+  el.innerHTML = `<table style="width:100%;border-collapse:collapse;font-size:13px">
+    <thead><tr style="border-bottom:1px solid var(--border);color:var(--text-muted)">
+      <th style="text-align:left;padding:8px 12px;font-weight:600">Page</th>
+      <th style="text-align:center;padding:8px 12px;font-weight:600">Market</th>
+      <th style="text-align:center;padding:8px 12px;font-weight:600">Words</th>
+      <th style="text-align:center;padding:8px 12px;font-weight:600">Status</th>
+      <th style="text-align:left;padding:8px 12px;font-weight:600">Issues</th>
+    </tr></thead><tbody>
+    ${rows.map(p => `<tr style="border-bottom:1px solid var(--border)">
+      <td style="padding:10px 12px"><a href="${p.url}" target="_blank" style="color:var(--accent-text);font-size:12px">${p.url.replace('https://', '').replace(/\/$/, '')}</a></td>
+      <td style="text-align:center;padding:10px 12px">${p.market || '—'}</td>
+      <td style="text-align:center;padding:10px 12px;color:${(p.wordCount && p.wordCount < 200) ? 'var(--warning)' : 'var(--text-main)'}">${p.wordCount != null ? p.wordCount : '—'}</td>
+      <td style="text-align:center;padding:10px 12px">${p.statusCode || '—'}</td>
+      <td style="padding:10px 12px">${(p.issues && p.issues.length) ? p.issues.map(siteAuditChip).join(' ') : '<span style="color:var(--success)">clean</span>'}</td>
+    </tr>`).join('')}</tbody></table>`;
 }
 
 function renderTechSeoResults(data) {

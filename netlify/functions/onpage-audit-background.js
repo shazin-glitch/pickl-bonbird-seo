@@ -80,19 +80,22 @@ async function auditBrand(brand, store, auth, maxPages) {
   const tag = `[onpage/${brand}]`;
   if (!domain) { console.warn(`${tag} no domain configured`); return { error: 'no domain' }; }
 
-  // 1) task_post — start the crawl (bounded by maxPages for cost)
+  // 1) task_post — start the crawl (bounded by maxPages for cost).
+  // Seed from the sitemap: market/location landing pages aren't linked from the main
+  // nav, so a pure link-follow crawl misses them (validated: 15 pages vs 150 w/ sitemap).
   const post = await dfsPost('/on_page/task_post', {
     target: domain, max_crawl_pages: maxPages, load_resources: false,
-    enable_javascript: false, tag: 'nest-onpage',
+    enable_javascript: false, respect_sitemap: true,
+    custom_sitemap: `https://${domain}/sitemap_index.xml`, tag: 'nest-onpage',
   }, auth);
   if (post.status_code !== 20000) { console.warn(`${tag} task_post failed ${post.status_code}: ${post.status_message}`); return { error: `${post.status_code}: ${post.status_message}` }; }
   const taskId = post.tasks?.[0]?.id;
   if (!taskId) { console.warn(`${tag} no task id`); return { error: 'no task id' }; }
   console.log(`${tag} crawl started id=${taskId} max=${maxPages}`);
 
-  // 2) poll summary until the crawl finishes (cap ~10 min)
+  // 2) poll summary until the crawl finishes (cap ~12 min; Netlify bg limit is 15).
   let summaryResult = null;
-  for (let i = 0; i < 40; i++) {
+  for (let i = 0; i < 48; i++) {
     await sleep(15000);
     const s = await dfsGet(`/on_page/summary/${taskId}`, auth);
     const r = s.tasks?.[0]?.result?.[0];
@@ -132,7 +135,7 @@ async function auditBrand(brand, store, auth, maxPages) {
       indexable:       (status >= 200 && status < 300) && c.is_broken !== true && c.is_4xx_code !== true && c.is_5xx_code !== true,
       issues:          pageIssues(it, wc),
     };
-  }).filter(p => p.url);
+  }).filter(p => p.url && !/\/cdn-cgi\//.test(p.url)); // drop Cloudflare email-protection junk
 
   // Per-market rollup (drives the "Issues & Flags" view — e.g. market with 0 pages)
   const byMarket = {};
@@ -170,7 +173,7 @@ exports.handler = async (event) => {
   const auth  = getAuth();
   const qs    = event.queryStringParameters || {};
   const brands   = qs.brand ? [qs.brand] : ['pickl', 'bonbird'];
-  const maxPages = Math.min(Math.max(parseInt(qs.maxPages, 10) || 150, 10), 1000);
+  const maxPages = Math.min(Math.max(parseInt(qs.maxPages, 10) || 250, 10), 1000);
 
   const results = {};
   for (const brand of brands) {
