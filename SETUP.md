@@ -3665,7 +3665,14 @@ A custom domain on Netlify (above) is cosmetic. **Moving OFF Netlify to a Google
 
 ---
 
-## Current Version: v7.4.48
+## Current Version: v7.4.49
+
+Last built (v7.4.49): **Phase 1 COMPLETE — first-party GSC page+query as the primary "what we rank for" source.** `node --check` clean. Files: new `_lib/gsc.js`, `keyword-discovery-background.js`.
+- **Why:** v7.4.48 used DataForSEO Labs `ranked_keywords` for our own rankings — accurate but (a) rented data, (b) Labs lacks Qatar/Oman/Pakistan, so those 3 markets had NO organic source. GSC is Google's first-party data: free, more accurate, and covers every market.
+- **New `_lib/gsc.js`:** `getGscAccessToken(store)` (loads `gscTokens`, refreshes if expiring, persists) + `fetchGscPageQuery(site, token)` — the `['page','query']` dimension that gives each keyword its ranking URL (the whole-property query-only cache couldn't, which caused the v7.4.47 contamination).
+- **Discovery now:** PRIMARY = GSC page+query, attributed to market by ranking URL via `belongsToMarket` (intl = URL matches market tokens; UAE = URL is not any intl page). Best position across a market's pages. Brand-navigational queries dropped. FALLBACK = Labs own-domain `ranked_keywords`, only when GSC yields nothing for the market (not connected / no local impressions) — so if the pending GSC key rotation breaks tokens, discovery degrades gracefully to Labs.
+- **Fixes the last Phase-1 gap:** Qatar/Oman/Pakistan now get organic keywords (via GSC), and all markets get first-party-accurate positions.
+- **NEXT:** re-validate live incl. a non-Labs market (Oman) to confirm it now returns organic data. Then Phase 1 is fully closed → Phase 2 (crawler). STILL DEFERRED: `GET /keyword-opportunities` ungated (rule-11). STILL ON SHAZIN/IT: rotate Anthropic/GSC/Slack keys.
 
 Last built (v7.4.48): **Phase 1 — market-correct "what we rank for" + brand filter (fixes the v7.4.47 live-validation bugs).** `node --check` clean; helpers offline-verified. File: `keyword-discovery-background.js`.
 - **Root cause found in live validation:** the GSC cache (`gscCache.rows`) is query-dimension only (`dimensions:['query']`, no page — [gsc-data.js:73](netlify/functions/gsc-data.js#L73)), so the intl per-market filter `row.page.includes('/'+marketSlug)` silently failed open → every intl market got all 500 property-wide UAE keywords with UAE positions mislabeled as local. Bahrain top-20 was ~14/20 branded-navigational + UAE-contaminated.

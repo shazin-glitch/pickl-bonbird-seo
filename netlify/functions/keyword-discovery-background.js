@@ -21,6 +21,7 @@ const { callClaude, extractJson } = require('./_lib/store');
 const { INTERNATIONAL_MARKETS, getMarketPageTokens } = require('./_lib/international-config');
 const { resolveLocation } = require('./_lib/dfs-locations');
 const { enrichKeywordsMixed } = require('./_lib/keyword-metrics');
+const { getGscAccessToken, fetchGscPageQuery } = require('./_lib/gsc');
 
 const DATAFORSEO_BASE = 'https://api.dataforseo.com/v3';
 
@@ -480,43 +481,58 @@ async function discoverKeywords(brand, store, authHeader, force = false, marketK
     : [`best fried chicken in ${marketLabel}`, `fried chicken restaurant ${marketLabel}`, `crispy chicken ${marketLabel}`];
 
   // ── "What we rank for" — market-attributed via the ranking URL ───────────────
-  // Primary source. Pull our own domain's ranked keywords and keep only those whose
-  // ranking URL belongs to THIS market (intl) or is NOT an intl page (UAE = home).
-  // Brand-navigational queries are dropped — they're not opportunities.
+  // PRIMARY source = first-party GSC page+query (Google's own numbers, free, covers
+  // EVERY market incl. Qatar/Oman/Pakistan which aren't in DataForSEO Labs). Each row
+  // carries the page it ranks on → attribute to THIS market (intl) or to home (UAE =
+  // NOT an intl page). Brand-navigational queries dropped — not opportunities.
+  // FALLBACK = Labs own-domain ranked_keywords, only if GSC yields nothing for the
+  // market (GSC not connected, or no local pages with impressions).
   const ownDomain = OWN_DOMAINS[brand];
+  const siteUrl   = brand === 'pickl' ? 'https://eatpickl.com/' : 'sc-domain:bonbirdchicken.com';
   const marketTokens = isIntl ? getMarketPageTokens(market) : null;
   const intlTokensForBrand = Object.values(INTERNATIONAL_MARKETS)
     .filter(m => m.brand === brand)
     .flatMap(m => getMarketPageTokens(m));
-  const gscMap = {};        // keyword(lower) → our position (market-correct)
+  const belongsToMarket = (pageUrl) => isIntl
+    ? urlMatchesTokens(pageUrl, marketTokens)
+    : !urlMatchesTokens(pageUrl, intlTokensForBrand); // UAE = any page that isn't an intl market page
+  const gscMap = {};        // keyword(lower) → our BEST position in this market
   const ownRankedKws = [];  // organic candidates we rank for in THIS market
+  const seenOrganic  = new Set();
+
+  // 1) First-party GSC page+query
+  try {
+    const token = await getGscAccessToken(store);
+    if (!token) {
+      console.warn(`${tag} GSC not connected — no first-party organic source (will try Labs)`);
+    } else {
+      const { rows, error } = await fetchGscPageQuery(siteUrl, token);
+      if (error) console.warn(`${tag} GSC page+query error: ${error}`);
+      let kept = 0;
+      for (const r of (rows || [])) {
+        const kw = (r.keyword || '').toLowerCase();
+        if (!kw || !belongsToMarket(r.page) || isOwnBrandKeyword(kw, brand)) continue;
+        if (r.position != null && (gscMap[kw] == null || r.position < gscMap[kw])) gscMap[kw] = r.position; // best rank across market pages
+        if (!seenOrganic.has(kw)) { seenOrganic.add(kw); ownRankedKws.push({ keyword: r.keyword, volume: 0, cpc: 0, competition: 'medium' }); kept++; }
+      }
+      console.log(`${tag} GSC page+query: ${rows?.length || 0} rows → ${kept} attributed to market (brand-filtered)`);
+    }
+  } catch (e) { console.warn(`${tag} GSC page+query failed: ${e.message}`); }
+
+  // 2) Fallback — Labs own-domain ranked_keywords (only if GSC gave us nothing)
   const ownRankSupported = !(isIntl && loc.inCache && loc.supported === false);
-  if (ownRankSupported && ownDomain) {
+  if (!ownRankedKws.length && ownRankSupported && ownDomain) {
     const rkLangs = (isIntl && loc.languages.length) ? loc.languages : ['en'];
     const ranked = await fetchOwnRankedKeywords(ownDomain, locationCode, rkLangs, authHeader);
     for (const r of ranked) {
       const kw = (r.keyword || '').toLowerCase();
-      if (!kw) continue;
-      const belongs = isIntl ? urlMatchesTokens(r.url, marketTokens)
-                             : !urlMatchesTokens(r.url, intlTokensForBrand);
-      if (!belongs || isOwnBrandKeyword(kw, brand)) continue;
-      if (gscMap[kw] == null && r.position != null) gscMap[kw] = r.position;
-      ownRankedKws.push({ keyword: r.keyword, volume: r.volume || 0, cpc: r.cpc || 0, competition: 'medium' });
+      if (!kw || !belongsToMarket(r.url) || isOwnBrandKeyword(kw, brand)) continue;
+      if (r.position != null && (gscMap[kw] == null || r.position < gscMap[kw])) gscMap[kw] = r.position;
+      if (!seenOrganic.has(kw)) { seenOrganic.add(kw); ownRankedKws.push({ keyword: r.keyword, volume: r.volume || 0, cpc: r.cpc || 0, competition: 'medium' }); }
     }
-    console.log(`${tag} own ranked_keywords: ${ranked.length} pulled → ${ownRankedKws.length} attributed to market (brand-filtered)`);
-  } else if (!isIntl) {
-    // UAE fallback only: whole-property GSC-query cache (intl would be contaminated).
-    const GSC_URL  = brand === 'pickl' ? 'https://eatpickl.com/' : 'sc-domain:bonbirdchicken.com';
-    const gscCache = await store.get(`gscCache:${GSC_URL}`, { type: 'json' }).catch(() => null);
-    for (const row of (gscCache?.rows || [])) {
-      const kw = row.keyword?.toLowerCase();
-      if (!kw || isOwnBrandKeyword(kw, brand)) continue;
-      if (gscMap[kw] == null) gscMap[kw] = row.position;
-      ownRankedKws.push({ keyword: row.keyword, volume: 0, cpc: 0, competition: 'medium' });
-    }
-    console.log(`${tag} own rankings: Labs unsupported → GSC-cache fallback, ${ownRankedKws.length} keywords`);
-  } else {
-    console.log(`${tag} own rankings: market not in Labs → skipped (intl; relying on competitor + ideas)`);
+    console.log(`${tag} GSC empty → Labs own ranked_keywords fallback: ${ownRankedKws.length} keywords`);
+  } else if (!ownRankedKws.length) {
+    console.log(`${tag} own rankings: none (GSC empty${ownRankSupported ? '' : ', market not in Labs'})`);
   }
 
   // Load competitor ranked keywords — market-qualified for intl, unsuffixed for UAE (back-compat)
