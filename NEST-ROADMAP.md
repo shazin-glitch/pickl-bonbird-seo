@@ -65,3 +65,9 @@ We will **not** out-index Ahrefs/SEMrush — their keyword/backlink databases ar
 
 ### Progress
 - ✅ v7.4.40 (Phase 1, step 1): positive multilingual relevance allowlist (`RELEVANT_ROOTS` + `isRelevantKeyword`) added to `applyStaticFilter` in keyword-discovery-background.js. Offline-validated against live garbage. Kills ministries/museums/telecoms/prayer-times/competitor-brand-names.
+- ✅ v7.4.47 (Phase 1, steps 2+3 — DEPLOYED; live top-20 validation still owed): keyword-first rebuild of `discoverKeywords`.
+  - **GSC + competitor are now PRIMARY sources.** GSC-ranked keywords become opportunity candidates directly (not just position annotation) — captures quick-wins we currently miss; GSC bypasses the allowlist (relevant by construction). Competitor keywords stay filtered. Idea-expansion demoted to supplement.
+  - **Scoring redesign** (`scoreOpportunity`): `relevance × (0.35·volume + 0.25·winnability + 0.25·intent + 0.15·gap)`. Relevance-by-source is a MULTIPLIER (gsc 1.0 / competitor 0.9 / idea 0.75) so weak-source keywords can't out-score primary ones on raw volume. New `intentScore` (transactional>informational, EN+AR) and `winnabilityScore` (KD-driven, softened by our proximity) replace the old CPC/reachability heuristic.
+  - **KD=0 = UNKNOWN, not easy.** `winnabilityScore` maps null/≤0 KD to neutral 0.5; enrichment stores KD=0/null as `null`. No-data long-tail can no longer masquerade as a slam-dunk.
+  - **Enrich-before-score.** Volume/CPC/KD now enriched for ALL candidates BEFORE scoring (batched → ~2 calls/lang, cheap), fixing the old enrich-after-slice bug that dropped 0-volume GSC/competitor keywords before backfill.
+  - Offline sanity-checked: GSC quick-win (#14) 0.810 > competitor (900 vol) 0.626 > high-vol idea (5000 vol, KD=0) 0.544 > informational recipe 0.203. Acceptance gate (eyeball top-20/market live) STILL PENDING — needs deploy after rotations.

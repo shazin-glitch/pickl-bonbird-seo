@@ -2,13 +2,15 @@
 // Keyword Discovery Engine — runs weekly, builds a scored opportunity list
 // from DataForSEO keyword ideas + competitor data + GSC cross-reference.
 //
-// Approach: data-driven, zero human input required.
-//   1. Menu items + brand + location → DataForSEO keyword ideas (what people search for)
-//   2. Cross-reference with GSC cache → what do we already rank for?
-//   3. Cross-reference with competitorRankedKeywords → do competitors rank for it?
-//   4. Filter by menu relevancy, minimum volume, market fit
-//   5. Score by: volume × CPC weight × gap vs competitors × reachability
-//   6. Store top opportunities as keywordOpportunities:<brand>
+// Approach: keyword-first, relevance-by-source, zero human input required.
+//   1. PRIMARY candidate sources (relevant by construction):
+//        GSC cache        → keywords we already rank for
+//        competitorRanked → keywords tracked competitors rank for (filtered)
+//   2. SUPPLEMENT: DataForSEO keyword ideas, gated by the positive allowlist.
+//   3. Enrich ALL candidates (volume + CPC + KD) BEFORE scoring (batched, cheap).
+//   4. Score = relevance × (0.35·volume + 0.25·winnability + 0.25·intent + 0.15·gap);
+//        relevance-by-source multiplier; KD=0/null = UNKNOWN (never "easy").
+//   5. Store top opportunities as keywordOpportunities:<brand>
 //
 // Runs Monday 4am UTC alongside main scheduler.
 // Manual trigger: GET /.netlify/functions/keyword-discovery-background?brand=pickl&force=true
@@ -285,26 +287,75 @@ ${kwList}`;
   }
 }
 
+// ── Source relevance (relevant-by-construction) ───────────────────────────────
+// The keyword-first model ranks sources by how confidently the keyword is OURS:
+//   gsc        — we already rank for it → relevant by definition
+//   competitor — a tracked competitor ranks for it → relevant by construction
+//   idea       — idea-expansion, only kept after the positive allowlist → weakest
+// This is the multiplier that demotes idea-expansion below the primary sources.
+const SOURCE_RELEVANCE = { gsc: 1.0, competitor: 0.9, idea: 0.75 };
+
+// ── Intent (commercial/transactional > informational) ─────────────────────────
+// A restaurant wants eaters, not recipe-readers. Transactional/local terms
+// (delivery, order, near me, menu, best <food> in <city>) beat informational
+// ones (recipe, calories, how to make). EN + AR markers; medium default.
+const INTENT_HIGH = [
+  'near me', 'delivery', 'deliver', 'order', 'takeaway', 'take away', 'open now',
+  'best', 'top', 'cheap', 'halal', 'menu', 'restaurant', 'buy', 'price', 'offers',
+  'توصيل', 'قريب', 'أفضل', 'مطعم', 'قائمة', 'منيو', 'طلب', 'حلال', 'اسعار', 'أسعار', 'عروض',
+];
+const INTENT_LOW = [
+  'recipe', 'how to make', 'how to cook', 'calories', 'nutrition', 'history',
+  'meaning', 'vs ', ' vs', 'difference', 'what is', 'homemade',
+  'طريقة', 'وصفة', 'سعرات', 'كيف', 'الفرق',
+];
+function intentScore(keyword) {
+  const s = String(keyword || '').toLowerCase();
+  if (INTENT_LOW.some(t => s.includes(t)))  return 0.3;
+  if (INTENT_HIGH.some(t => s.includes(t))) return 1.0;
+  return 0.6;
+}
+function intentLabel(keyword) {
+  const v = intentScore(keyword);
+  return v >= 1 ? 'transactional' : v <= 0.3 ? 'informational' : 'mixed';
+}
+
+// ── Winnability (how realistically we can rank) ───────────────────────────────
+// Driven by Keyword Difficulty, softened by how close we already are.
+// CRITICAL: DataForSEO returns KD=0 (or null) for regional/long-tail keywords it
+// has no data for — that is UNKNOWN, NOT "easy". Unknown → neutral 0.5, never 1.0,
+// so no-data long-tail can't masquerade as a slam-dunk and float to the top.
+function winnabilityScore(kd, ourPosition) {
+  let w = (kd == null || kd <= 0) ? 0.5 : (1 - Math.min(kd, 100) / 100);
+  const pos = ourPosition || 101;
+  if (pos <= 20) w = Math.max(w, 0.7);  // already on page 2 → within reach
+  if (pos <= 10) w = Math.max(w, 0.85); // already on page 1 → very winnable
+  return Math.min(w, 1);
+}
+
 // ── Opportunity scoring ───────────────────────────────────────────────────────
-// score = volume_norm × 0.4 + cpc_norm × 0.2 + gap_score × 0.3 + reachability × 0.1
+// score = relevance × (0.35·volume + 0.25·winnability + 0.25·intent + 0.15·gap)
+// Relevance-by-source is a MULTIPLIER (not a term) so a weak-source keyword can
+// never out-score a primary-source one on raw volume alone. KD-aware winnability
+// replaces the old CPC/"reachability" heuristic; intent replaces volume-domination.
 function scoreOpportunity(kw, ourPosition, competitorPositions) {
-  const volumeNorm      = Math.min(kw.volume / 2000, 1);
-  const cpcNorm         = Math.min((kw.cpc || 0) / 3, 1);
-  const competitorBest  = Math.min(...(competitorPositions.length ? competitorPositions : [100]));
-  const ourPos          = ourPosition || 101;
+  const volumeNorm     = Math.min((kw.volume || 0) / 2000, 1);
+  const competitorBest = Math.min(...(competitorPositions.length ? competitorPositions : [100]));
+  const ourPos         = ourPosition || 101;
 
   // Gap: competitor ranks well, we don't
-  let gapScore = 0;
-  if (ourPos > 20  && competitorBest <= 10) gapScore = 1.0; // they own it, we're nowhere
-  else if (ourPos > 10 && competitorBest <= 10) gapScore = 0.7; // they're top 10, we're not
-  else if (ourPos > 10 && competitorBest <= 20) gapScore = 0.5; // both in 11-20
-  else if (ourPos <= 20 && ourPos > 3)           gapScore = 0.3; // we're close, no competitor needed
-  else if (ourPos <= 3)                           gapScore = 0.0; // already winning
+  let gap = 0;
+  if (ourPos > 20  && competitorBest <= 10) gap = 1.0; // they own it, we're nowhere
+  else if (ourPos > 10 && competitorBest <= 10) gap = 0.7; // they're top 10, we're not
+  else if (ourPos > 10 && competitorBest <= 20) gap = 0.5; // both in 11-20
+  else if (ourPos <= 20 && ourPos > 3)           gap = 0.3; // we're close, no competitor needed
+  else if (ourPos <= 3)                           gap = 0.0; // already winning
 
-  // Reachability: easier competition = more reachable
-  const reachability = kw.competition === 'low' ? 1.0 : kw.competition === 'medium' ? 0.6 : 0.3;
+  const win       = winnabilityScore(kw.kd, ourPosition);
+  const intent    = intentScore(kw.keyword);
+  const relevance = SOURCE_RELEVANCE[kw.source] ?? 0.75;
 
-  return (volumeNorm * 0.4) + (cpcNorm * 0.2) + (gapScore * 0.3) + (reachability * 0.1);
+  return relevance * (volumeNorm * 0.35 + win * 0.25 + intent * 0.25 + gap * 0.15);
 }
 
 // ── Tier classification ───────────────────────────────────────────────────────
@@ -434,57 +485,87 @@ async function discoverKeywords(brand, store, authHeader, force = false, marketK
     : [];
   console.log(`${tag} comp Claude filter: ${staticFilteredComp.length} → ${filteredComp.length} keywords`);
 
-  // Merge all sources
-  const allKeywords = [...filteredIdeas, ...filteredComp];
-  const seen = new Set();
-  const unique = allKeywords.filter(k => {
-    if (!k.keyword || seen.has(k.keyword.toLowerCase())) return false;
-    seen.add(k.keyword.toLowerCase());
-    return true;
-  });
+  // ── Assemble candidates, PRIMARY sources first (relevant by construction) ────
+  // Keyword-first model: GSC (what we rank for) + competitor-ranked keywords are
+  // relevant by definition; idea-expansion is a SUPPLEMENT (already allowlist- +
+  // Claude-filtered above). GSC bypasses the allowlist by design — our own
+  // rankings define relevance. Dedup keeps the highest-relevance source per
+  // keyword but never drops a real volume/cpc figure.
+  const candidates = new Map(); // keywordLower → { keyword, volume, cpc, competition, source }
+  const addCandidate = (keyword, { volume = 0, cpc = 0, competition = 'medium', source }) => {
+    const key = String(keyword || '').toLowerCase();
+    if (!key) return;
+    const existing = candidates.get(key);
+    if (existing) {
+      if (volume > (existing.volume || 0)) existing.volume = volume;
+      if (cpc    > (existing.cpc    || 0)) existing.cpc    = cpc;
+      if ((SOURCE_RELEVANCE[source] || 0) > (SOURCE_RELEVANCE[existing.source] || 0)) existing.source = source;
+      return;
+    }
+    candidates.set(key, { keyword, volume, cpc, competition, source });
+  };
 
-  // Score and tier (no static filter — Claude already cleaned the list)
-  const opportunities = unique
-    .filter(k => k.volume >= (isIntl ? 0 : 10) || k.fromCompetitor)
-    .map(k => {
-      const kw           = k.keyword.toLowerCase();
-      const ourPosition  = gscMap[kw] || null;
+  // 1) GSC (primary) — every keyword we rank for; pos<=3 pruned at the tier stage.
+  for (const kw of Object.keys(gscMap)) addCandidate(kw, { source: 'gsc' });
+  // 2) Competitor (primary) — filtered competitor-ranked keywords we don't own.
+  for (const k of filteredComp) addCandidate(k.keyword, { volume: k.volume, cpc: k.cpc, competition: k.competition, source: 'competitor' });
+  // 3) Idea-expansion (supplement) — allowlist + Claude filtered.
+  for (const k of filteredIdeas) addCandidate(k.keyword, { volume: k.volume, cpc: k.cpc, competition: k.competition, source: 'idea' });
+  const candList = [...candidates.values()];
+  console.log(`${tag} candidates: ${candList.length} (gsc+competitor primary, ideas supplement)`);
+
+  // ── Enrich ALL candidates (volume + CPC + KD) BEFORE scoring ─────────────────
+  // Batched → ~2 API calls per language regardless of count, so cheap. Fixes the
+  // old enrich-AFTER-slice bug where 0-volume GSC/competitor keywords were dropped
+  // before volume backfill could reach them.
+  try {
+    const enrichLangs = (isIntl && loc.languages && loc.languages.length) ? loc.languages : ['en', 'ar'];
+    // Labs (KD) needs a COUNTRY-level code. UAE is passed as city 21191 → map to 2784.
+    const labsLocationCode = locationCode === 21191 ? 2784 : locationCode;
+    const m = await enrichKeywordsMixed(candList.map(c => c.keyword), labsLocationCode, authHeader, enrichLangs);
+    for (const c of candList) {
+      const e = m[c.keyword.toLowerCase()];
+      if (!e) continue;
+      if ((!c.volume || c.volume === 0) && e.volume != null) c.volume = e.volume;
+      if ((!c.cpc    || c.cpc    === 0) && e.cpc    != null) c.cpc    = e.cpc;
+      // KD=0/null from DataForSEO = NO DATA (regional/long-tail) → UNKNOWN, not easy.
+      c.kd = (e.kd != null && e.kd > 0) ? e.kd : null;
+    }
+    console.log(`${tag} enriched ${Object.keys(m).length}/${candList.length} candidates pre-scoring`);
+  } catch (e) { console.warn(`${tag} pre-score enrich failed: ${e.message}`); }
+
+  // ── Score + tier ─────────────────────────────────────────────────────────────
+  // Idea-expansion must clear a volume floor; primary sources (gsc/competitor) are
+  // kept even at 0 volume — they're relevant by construction and score low anyway.
+  const opportunities = candList
+    .filter(c => c.volume >= (isIntl ? 0 : 10) || c.source !== 'idea')
+    .map(c => {
+      const kw            = c.keyword.toLowerCase();
+      const ourPosition   = gscMap[kw] || null;
       const compPositions = compMap[kw] || [];
-      const score        = scoreOpportunity(k, ourPosition, compPositions);
-      const tier         = getTier(ourPosition, Math.min(...(compPositions.length ? compPositions : [100])), score);
+      const competitorBest = compPositions.length ? Math.min(...compPositions) : 100;
+      const score         = scoreOpportunity(c, ourPosition, compPositions);
+      const tier          = getTier(ourPosition, competitorBest, score);
       return {
-        keyword:          k.keyword,
-        volume:           k.volume,
-        cpc:              k.cpc,
-        competition:      k.competition,
+        keyword:          c.keyword,
+        volume:           c.volume,
+        cpc:              c.cpc,
+        kd:               c.kd ?? null,
+        competition:      c.competition,
+        intent:           intentLabel(c.keyword),
+        source:           c.source,
         ourPosition:      ourPosition,
-        competitorBest:   compPositions.length ? Math.min(...compPositions) : null,
+        competitorBest:   compPositions.length ? competitorBest : null,
         competitorCount:  compPositions.length,
         score:            Math.round(score * 1000) / 1000,
         tier,
-        fromCompetitor:   k.fromCompetitor || false,
+        fromCompetitor:   c.source === 'competitor',
+        fromGsc:          c.source === 'gsc',
       };
     })
     .filter(k => k.tier !== 'top3') // already winning, skip
     .sort((a, b) => b.score - a.score)
     .slice(0, 100); // top 100 opportunities
-
-  // Enrich with Keyword Difficulty (volume already present from keyword_ideas).
-  try {
-    const enrichLangs = (isIntl && loc.languages && loc.languages.length) ? loc.languages : ['en', 'ar'];
-    // Labs (KD) needs a COUNTRY-level code. UAE is passed as city 21191 → map to 2784,
-    // same as getKeywordIdeas does. Without this, every UAE keyword's KD came back null.
-    const labsLocationCode = locationCode === 21191 ? 2784 : locationCode;
-    const m = await enrichKeywordsMixed(opportunities.map(o => o.keyword), labsLocationCode, authHeader, enrichLangs);
-    for (const o of opportunities) {
-      const e = m[o.keyword.toLowerCase()];
-      if (e) {
-        if (e.kd != null) o.kd = e.kd;
-        if ((!o.volume || o.volume === 0) && e.volume != null) o.volume = e.volume; // backfill competitor-sourced volume
-      }
-    }
-    console.log(`${tag} KD-enriched ${Object.keys(m).length} opportunity keywords`);
-  } catch (e) { console.warn(`${tag} KD enrich failed: ${e.message}`); }
 
   const summary = {
     quick_win:    opportunities.filter(k => k.tier === 'quick_win').length,

@@ -3665,7 +3665,15 @@ A custom domain on Netlify (above) is cosmetic. **Moving OFF Netlify to a Google
 
 ---
 
-## Current Version: v7.4.46
+## Current Version: v7.4.47
+
+Last built (v7.4.47): **Phase 1 international keyword-first rebuild — DEPLOYED.** `node --check` clean + offline-sanity-checked. File: `keyword-discovery-background.js`. ⚠️ Live top-20-per-market acceptance gate STILL OWED (see NEXT below) — code is shipped, not yet validated against a real run.
+- **GSC + competitor now PRIMARY candidate sources.** New `addCandidate`/`candidates` Map in `discoverKeywords`: GSC-ranked keywords become opportunities directly (were only position-annotation before → quick-wins were invisible); GSC bypasses the allowlist (relevant by construction); competitor keywords stay filtered; idea-expansion demoted to a supplement.
+- **Scoring redesigned** (`scoreOpportunity`): `relevance × (0.35·volume + 0.25·winnability + 0.25·intent + 0.15·gap)`. `SOURCE_RELEVANCE` multiplier {gsc 1.0 / competitor 0.9 / idea 0.75} so weak-source keywords can't out-score primary ones on raw volume. New `intentScore` (EN+AR transactional>informational) + `winnabilityScore` (KD-driven, softened by our proximity) replace the old CPC/reachability terms.
+- **KD=0/null = UNKNOWN, not easy** → neutral 0.5 winnability + stored as `null`. No-data long-tail can no longer masquerade as a slam-dunk.
+- **Enrich-before-score** (batched → ~2 calls/lang) fixes the old enrich-after-slice bug that dropped 0-volume GSC/competitor keywords before backfill.
+- Offline sanity: GSC quick-win 0.810 > competitor 0.626 > high-vol-KD0 idea 0.544 > recipe 0.203.
+- **NEXT:** manual `?brand=&market=` discovery run (or Monday cron) → `/keyword-opportunities?brand=&market=` → **eyeball top-20/market** (the acceptance gate — genuinely ours, not branded/junk). Watch for branded/navigational GSC queries flooding top-20 (GSC un-gated by design); if so add a brand-name filter to GSC candidates. STILL ON SHAZIN/IT: rotate Anthropic/GSC/Slack keys (orthogonal to this deploy — old keys still valid, rotation is defense-in-depth).
 
 Last built (v7.4.46): **SECURITY sweep COMPLETE — every function gated.**
 - Gated the entire remaining tail in one batch. `-background` money/cron jobs (`authorizeJob`): ai-overview, backlinks, citations, llm-mentions, local-seo-pages, content-outcomes, snapshots, technical-seo, email-digest. On-demand HTTP (`authorize`, OPTIONS bypassed so CORS preflight still works): ai-overview, backlinks, citations, competitor-audit, competitor-matrix, content-outcomes, dataforseo-locations, ga4-data, gbp-data, gbp-reviews, gsc-data, hreflang, llm-mentions, reviews, technical-seo, calendar-media, sweep-report, seed-roadmap-tasks.
