@@ -19,7 +19,9 @@ We will **not** out-index Ahrefs/SEMrush — their keyword/backlink databases ar
 | 4 | **Reporting engine** | Rankings + traffic value + site health in one view; monthly per-market reports; GBP/speed PDFs | 🔴 Not started | ~2 wk | $400–800 |
 | 5 | **Local SEO depth** | GBP Performance API metrics, location-health report, location-page populator | 🔴 Not started | ~1.5 wk | $300–650 |
 | 6 | **International hardening** | Group B/C data-quality + scoring + coverage fixes, verify all 9 markets, hreflang w/ dev | 🔴 Not started | ~2 wk | $400–800 |
-| 7 | **Multi-site onboarding** | Add any new brand/website (Southpour, Yolk, Shadow brands) without rebuilding; non-restaurant verticals; access controls (RBAC) | 🔴 Not started | ~2.5–3 wk | $550–1,100 |
+| 7 | **Multi-site onboarding + config layer** | Add any new brand/website (Southpour, Yolk, Shadow) or MARKET without rebuilding; non-restaurant verticals; access controls (RBAC) | 🔴 Not started | ~2.5–3 wk | $550–1,100 |
+
+> **WS7 end-game (scalability) — noted 2 Jul 2026 (Shazin).** Today market config is HARDCODED as a JS literal (`INTERNATIONAL_MARKETS` in `_lib/international-config.js`, ~15 fields/market) and DUPLICATED across ~10 code locations (CLAUDE.md add-a-market checklist: `MARKET_LOCATIONS`, `MARKET_KEYWORD_TERMS`, `calendar.js` timezones + `SP_ACCOUNTS`, `index.html` mirrors `CAL_MARKETS`/`CAL_MARKET_TIMEZONES`/`SP_ACCOUNTS_FLAT`/`SP_HAS_ACCOUNT`). Adding a market = multi-file edit + deploy, constants can drift. TARGET: single source of truth in Blobs (`marketsConfig`/`brandsConfig`) + Settings→Markets/Brands admin form + shared accessor both BE & FE read from (extend `getMarketsForBrand` to read blob, code literal = seed/fallback). Auto-derive hard fields (location_code via `resolveLocation(country)`, timezone via IANA lookup) so the form only needs country+brand+slug. Migration: seed blob from current literal, switch reads, keep literal fallback. Do AFTER core loop (WS1-3). PRINCIPLE NOW: build all new code (crawler, Stage 2) config-driven — iterate `getMarketsForBrand`/config, attribute via `getMarketPageTokens`, never hardcode market lists inline → zero rework when the config layer lands.
 | — | **Cross-cutting** | Perch task-hub, auth follow-ups, voice-gate consistency — woven through | — | ~1.5 wk | $300–650 |
 
 ## Timeline
@@ -71,3 +73,29 @@ We will **not** out-index Ahrefs/SEMrush — their keyword/backlink databases ar
   - **KD=0 = UNKNOWN, not easy.** `winnabilityScore` maps null/≤0 KD to neutral 0.5; enrichment stores KD=0/null as `null`. No-data long-tail can no longer masquerade as a slam-dunk.
   - **Enrich-before-score.** Volume/CPC/KD now enriched for ALL candidates BEFORE scoring (batched → ~2 calls/lang, cheap), fixing the old enrich-after-slice bug that dropped 0-volume GSC/competitor keywords before backfill.
   - Offline sanity-checked: GSC quick-win (#14) 0.810 > competitor (900 vol) 0.626 > high-vol idea (5000 vol, KD=0) 0.544 > informational recipe 0.203. Acceptance gate (eyeball top-20/market live) STILL PENDING — needs deploy after rotations.
+- ✅ **v7.4.48–51 — Phase 1 COMPLETE + live-validated (2 Jul 2026).** (48) own-domain ranked_keywords URL-attributed by market fixed cross-market contamination; (49) first-party **GSC page+query** (`_lib/gsc.js`) as primary "what we rank for", covers non-Labs markets (Qatar/Oman/Pakistan); (50) rowLimit→25000; (51) **SEMrush/Ahrefs-grade opportunity scoring** = `relevance × (0.30·vol[capped] + 0.30·positionOpportunity + 0.20·intent + 0.20·winnability[KD-only])` — position-opportunity is the primary lever (quick-win 11-20=1.0, gap=0.9, push=0.55, already-top-10=0.15), GSC organic now gated by `passesStaticRelevance`, vol-0 top-10 noise dropped. Live PASS: KSA/Bahrain/Qatar clean, quick-wins/gaps on top, no junk. Oman=0 (0 indexed pages — reality; seeded the "Issues & Flags" backlog).
+
+## Competitive read — is "the rest" (research/audit/tracking, i.e. everything except publish) at SEMrush/Ahrefs par? (2 Jul 2026)
+| Capability | SEMrush/Ahrefs | The Nest | Verdict |
+|---|---|---|---|
+| Keyword research (vol, KD, intent, ideas) | deep | rebuilt, market-correct | ~85% at par |
+| Competitor keyword gap | ✅ | competitor ranked-keywords + gap | ~80% at par |
+| **Keyword → page → action** ("Opportunities"/"Organic Pages") | ✅ | UAE only, not surfaced | **Stage 2 — building** |
+| **Site audit / crawler** (on-page issues, health) | ✅ crown jewel | PageSpeed only | **biggest gap (Phase 2)** |
+| Rank tracking (visibility %, trend, tags) | ✅ | raw GSC pos + weekly snapshots | ~60% needs tracker view |
+| Traffic value/estimation per kw & domain | ✅ | receive etv/CPC, barely surfaced | cheap win — surface it |
+| Backlinks (ref domains, anchors, toxic) | ✅ deep | ref-domains + compare (now unpaywalled) | ~50% |
+| Keyword clustering / topical maps | ✅ | ❌ | missing |
+| On-page recs + writing + PUBLISH | recommend only | recommend + write + **publish** | **we exceed** |
+Bottom line: research ~at par; the two real "they have, we need" gaps are **(1) site audit/crawler** and **(2) keyword→page→action layer (Stage 2)**. Rest is polish (surface traffic value, rank-tracker view, clustering). We already beat them on execution (the loop).
+
+## ⭐ STAGE 2 (= rebuild Phase 3) — "Action Plan": keyword → page → recommended action (NEXT BUILD, planned 2 Jul 2026)
+**Why:** turns the (now trustworthy) opportunity list into a concrete worklist so we can actually start shipping changes and growing traffic. Highest-value research gap + the on-ramp to execution. Crawler (Phase 2) mostly *feeds* this, so it comes after.
+**De-risked by reuse:** every ingredient exists. UAE already maps keyword→page→action: `fetchGscWithPages`→`gscPageCache` (store.js:277, dims query+page) + 4 action types in scheduler-background.js (quick_wins pos11-20→rewrite page; meta_rewrites pos≤20+CTR gap→fetch current meta+rewrite; content_gaps pos21+/seed→blog; page_creation location-intent→landing). Approval payload schema known (store.js `createApproval`: type/brand/title/payload{url,title,description,targetKeyword,wpAction,voiceScore,currentPos,...}). Competitor page-to-beat already stored (matrix `topDomains.url` + `competitorRankedKeywords` items carry `url`, v7.4.27). UI: `renderOpportunitiesTable` (index.html:8402) is the template; new Analytics sub-tab after "Opportunities"; `queueOppKeyword` (8315) already turns an opp into an approval.
+**Phases (value each step; NO Claude spend until 2c):**
+- **2a (backend, free):** enrich each opportunity in keyword-discovery-background.js with `targetPage` (URL we rank on — kept from GSC page+query, currently discarded; null=no page), `competitorPage` (top competitor URL from matrix), `recommendedAction {actionType,label,rationale}` via new `recommendAction()` reusing UAE tier→action rules + location-intent routing (blog vs landing). Acceptance: re-run KSA/Bahrain, eyeball sensible page+action per row.
+- **2b (frontend, free):** "Action Plan" sub-tab. Table: Keyword · Target page(link/"＋create") · Pos · KD · Vol · Recommended action · Competitor to beat · [Generate]. Quick-wins first. Filters market/action. This is the visible worklist.
+- **2c (needs Claude credits):** [Generate] → approval item carrying actionType+targetPage+competitorPage → existing generators (fetch live meta, inject competitor ctx, voice+fact guards) → Approvals Queue → publish. Loop closed for all markets.
+**Fold-in:** consolidate GSC page logic (`fetchGscWithPages` store.js vs my `_lib/gsc.js`) to one path; surface traffic value (CPC/etv) in the same table.
+**Risks:** thin competitor data for small markets → competitorPage often null (degrade gracefully); content-gap keywords have no page (correct → "create"). **Cost:** 2a/2b free; only 2c generation spends Claude.
+**Acceptance gate:** KSA+Bahrain Action Plan shows prioritised worklist; quick-wins→correct existing pages; gaps→"create"; Generate produces correctly-targeted approval item.

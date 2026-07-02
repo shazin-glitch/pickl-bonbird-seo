@@ -470,6 +470,49 @@ function getTier(ourPosition, competitorBest, score) {
   return 'monitor';
 }
 
+// ── Recommended action (Stage 2 "decide" layer) ──────────────────────────────
+// Turns a scored opportunity into a concrete next move, reusing the UAE tier→action
+// rules. actionType maps to the existing generator/approval types. Local intent →
+// landing page; otherwise blog. Where we already have a ranking page, we optimise it;
+// where we don't, we create one.
+const LOCATION_INTENT_TERMS = [
+  'near me', 'delivery', 'deliver', 'order', 'takeaway', 'take away', 'open now',
+  'قريب', 'توصيل', 'اقرب', 'أقرب', 'طلب',
+];
+function hasLocationIntent(keyword) {
+  const s = String(keyword || '').toLowerCase();
+  return LOCATION_INTENT_TERMS.some(t => s.includes(t));
+}
+function recommendAction(opp) {
+  const pos     = opp.ourPosition;
+  const hasPage = !!opp.targetPage;
+  switch (opp.tier) {
+    case 'top10':
+      return { actionType: 'meta_update', label: 'Defend & fine-tune',
+        rationale: `Ranking #${pos} — refresh title/meta to hold position and nudge toward the top 3.` };
+    case 'quick_win':
+      return hasPage
+        ? { actionType: 'page_update', label: 'Optimise page to reach page 1',
+            rationale: `Ranking #${pos} (page 2) — refresh title/H1/content + internal links to push onto page 1.` }
+        : { actionType: 'page_creation', label: 'Create a page to capture this',
+            rationale: `Striking distance with no dedicated page — build one targeting this keyword.` };
+    case 'push':
+      return hasPage
+        ? { actionType: 'page_update', label: 'Strengthen the page to climb',
+            rationale: `Ranking #${pos} — expand the content + add internal links + target this keyword.` }
+        : { actionType: hasLocationIntent(opp.keyword) ? 'page_creation' : 'blog_draft', label: 'Create content to climb',
+            rationale: `Ranking #${pos} on a non-dedicated page — create a focused ${hasLocationIntent(opp.keyword) ? 'landing page' : 'post'}.` };
+    case 'content_gap':
+      return hasLocationIntent(opp.keyword)
+        ? { actionType: 'page_creation', label: 'Create a location/landing page',
+            rationale: `A competitor ranks and we have no page. Local intent → build a landing page.` }
+        : { actionType: 'blog_draft', label: 'Create a blog post',
+            rationale: `A competitor ranks and we have no page. Topic/informational intent → write a post.` };
+    default:
+      return { actionType: 'monitor', label: 'Monitor', rationale: 'Track for now — no clear action yet.' };
+  }
+}
+
 // ── Main discovery per brand (optionally per market) ─────────────────────────
 async function discoverKeywords(brand, store, authHeader, force = false, marketKey = null) {
   const isIntl   = marketKey && marketKey !== 'uae';
@@ -511,8 +554,14 @@ async function discoverKeywords(brand, store, authHeader, force = false, marketK
     ? urlMatchesTokens(pageUrl, marketTokens)
     : !urlMatchesTokens(pageUrl, intlTokensForBrand); // UAE = any page that isn't an intl market page
   const gscMap = {};        // keyword(lower) → our BEST position in this market
+  const gscPageMap = {};    // keyword(lower) → the page URL we rank on (Stage 2 target page)
   const ownRankedKws = [];  // organic candidates we rank for in THIS market
   const seenOrganic  = new Set();
+  // Record the page that holds our BEST position for a keyword.
+  const noteOurPage = (kw, page, position) => {
+    if (position == null || !page) return;
+    if (gscMap[kw] == null || position < gscMap[kw]) { gscMap[kw] = position; gscPageMap[kw] = page; }
+  };
 
   // 1) First-party GSC page+query
   try {
@@ -526,7 +575,7 @@ async function discoverKeywords(brand, store, authHeader, force = false, marketK
       for (const r of (rows || [])) {
         const kw = (r.keyword || '').toLowerCase();
         if (!kw || !belongsToMarket(r.page) || isOwnBrandKeyword(kw, brand) || !passesStaticRelevance(kw)) continue;
-        if (r.position != null && (gscMap[kw] == null || r.position < gscMap[kw])) gscMap[kw] = r.position; // best rank across market pages
+        noteOurPage(kw, r.page, r.position); // best rank + its page across this market's pages
         if (!seenOrganic.has(kw)) { seenOrganic.add(kw); ownRankedKws.push({ keyword: r.keyword, volume: 0, cpc: 0, competition: 'medium' }); kept++; }
       }
       console.log(`${tag} GSC page+query: ${rows?.length || 0} rows → ${kept} attributed to market (brand-filtered)`);
@@ -541,7 +590,7 @@ async function discoverKeywords(brand, store, authHeader, force = false, marketK
     for (const r of ranked) {
       const kw = (r.keyword || '').toLowerCase();
       if (!kw || !belongsToMarket(r.url) || isOwnBrandKeyword(kw, brand) || !passesStaticRelevance(kw)) continue;
-      if (r.position != null && (gscMap[kw] == null || r.position < gscMap[kw])) gscMap[kw] = r.position;
+      noteOurPage(kw, r.url, r.position);
       if (!seenOrganic.has(kw)) { seenOrganic.add(kw); ownRankedKws.push({ keyword: r.keyword, volume: r.volume || 0, cpc: r.cpc || 0, competition: 'medium' }); }
     }
     console.log(`${tag} GSC empty → Labs own ranked_keywords fallback: ${ownRankedKws.length} keywords`);
@@ -554,14 +603,20 @@ async function discoverKeywords(brand, store, authHeader, force = false, marketK
   const compData = await store.get(compKey, { type: 'json' }).catch(() => null);
   const compMap  = {}; // keyword → [positions from competitors]
   const compMeta = {}; // keyword → { volume, cpc } — carry the real DataForSEO volume, don't discard it
+  const compPageMap = {}; // keyword → the competitor URL holding the BEST rank (Stage 2 "page to beat")
   if (compData?.competitors) {
     for (const [, kwList] of Object.entries(compData.competitors)) {
       for (const kw of kwList || []) {
         const key = kw.keyword?.toLowerCase();
         if (key) {
+          const pos = kw.position || 100;
           if (!compMap[key]) compMap[key] = [];
-          compMap[key].push(kw.position || 100);
+          compMap[key].push(pos);
           if (!compMeta[key]) compMeta[key] = { volume: kw.searchVolume || 0, cpc: kw.cpc || 0 };
+          // keep the URL of the best-ranked competitor for this keyword
+          if (kw.url && (compPageMap[key] == null || pos < compPageMap[key].position)) {
+            compPageMap[key] = { url: kw.url, position: pos };
+          }
         }
       }
     }
@@ -688,7 +743,7 @@ async function discoverKeywords(brand, store, authHeader, force = false, marketK
       const competitorBest = compPositions.length ? Math.min(...compPositions) : 100;
       const score         = scoreOpportunity(c, ourPosition, compPositions);
       const tier          = getTier(ourPosition, competitorBest, score);
-      return {
+      const opp = {
         keyword:          c.keyword,
         volume:           c.volume,
         cpc:              c.cpc,
@@ -703,7 +758,12 @@ async function discoverKeywords(brand, store, authHeader, force = false, marketK
         tier,
         fromCompetitor:   c.source === 'competitor',
         fromGsc:          c.source === 'gsc',
+        // Stage 2 "decide" layer — keyword → page → action
+        targetPage:       gscPageMap[kw] || null,                 // the page we rank on (null = no page yet → create)
+        competitorPage:   compPageMap[kw] ? compPageMap[kw].url : null, // the competitor page to beat
       };
+      opp.action = recommendAction(opp);                          // { actionType, label, rationale }
+      return opp;
     })
     .filter(k => k.tier !== 'top3') // already winning, skip
     // Drop already-ranking top-10 with no measured volume — near-won + no upside =
