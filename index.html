@@ -8645,6 +8645,22 @@ async function perchOppKeyword(keyword, brand, btn) {
   } catch (e) { btn.disabled = false; btn.textContent = '📋 Perch'; showToast('Failed: ' + e.message, 'error'); }
 }
 
+// Stage 2c — generate an optimised meta DRAFT for this worklist row, on demand.
+// Queues into Approvals for human review; never auto-publishes.
+async function generateDraftFromWorklist(keyword, brand, url, market, competitorPage, btn) {
+  if (!url) { showToast('No target page for this keyword', 'error'); return; }
+  const orig = btn.textContent;
+  btn.disabled = true; btn.textContent = '⏳ Generating…';
+  try {
+    const r = await apiPost('/api/generate-draft', { brand, keyword, url, market, competitorPage: competitorPage || null });
+    if (r.skipped) { btn.textContent = '✓ Already good'; showToast(`Current meta for "${keyword}" is already strong — nothing queued.`, 'success'); }
+    else { btn.textContent = '✓ Queued'; btn.style.color = '#059669'; showToast(`Meta draft for "${keyword}" queued — review it in the Approvals Queue.`, 'success'); }
+  } catch (e) {
+    btn.textContent = '✗ Failed'; showToast('Generate failed: ' + e.message, 'error');
+  }
+  setTimeout(() => { btn.textContent = orig; btn.disabled = false; btn.style.color = ''; }, 5000);
+}
+
 async function queueAuditKeyword(keyword) {
   try {
     const brand = state.activeAnalyticsBrand === 'bonbird' ? 'bonbird' : 'pickl';
@@ -8694,6 +8710,7 @@ function renderOpportunitiesTable() {
   const table    = document.getElementById('opp-table-wrap');
   const tierFilter = document.getElementById('opp-tier-filter')?.value || '';
   const brand    = document.getElementById('opp-brand-filter')?.value || 'pickl';
+  const oppMarket = document.getElementById('opp-market-filter')?.value || 'uae';
 
   const all   = kwOppData.opportunities || [];
   const s     = kwOppData.summary || {};
@@ -8778,12 +8795,13 @@ function renderOpportunitiesTable() {
               <div style="font-size:10px;margin-top:2px"><span style="color:${confCol};font-weight:600">${conf} confidence</span>${flagsHtml}</div>`;
           })()}</td>
           <td style="padding:7px 12px;text-align:center">
+            <div style="display:flex;gap:4px;flex-wrap:wrap;justify-content:center">
+            ${(k.targetPage || k.existingPage) ? `<button onclick="generateDraftFromWorklist('${esc(k.keyword).replace(/'/g,"\\'")}','${brand}','${esc(k.targetPage||k.existingPage).replace(/'/g,"\\'")}','${oppMarket}','${esc(k.competitorPage||'').replace(/'/g,"\\'")}',this)" class="btn btn-outline" style="font-size:10px;padding:2px 7px" title="Generate an optimised meta draft for this page → queues in Approvals for your review (never auto-publishes)">⚡ Generate</button>` : ''}
             ${k.tier === 'content_gap' ? `
-              <div style="display:flex;gap:4px">
                 <button onclick="queueOppKeyword('${esc(k.keyword).replace(/'/g,"\\'")}','${brand}',this)" class="btn btn-outline" style="font-size:10px;padding:2px 7px" title="Add to AI content pipeline">📝 AI</button>
-                <button onclick="perchOppKeyword('${esc(k.keyword).replace(/'/g,"\\'")}','${brand}',this)" class="btn btn-outline" style="font-size:10px;padding:2px 7px" title="Create Perch task for content team">📋 Perch</button>
-              </div>` :
+                <button onclick="perchOppKeyword('${esc(k.keyword).replace(/'/g,"\\'")}','${brand}',this)" class="btn btn-outline" style="font-size:10px;padding:2px 7px" title="Create Perch task for content team">📋 Perch</button>` :
             ['push','quick_win'].includes(k.tier) ? `<button onclick="queueOppKeyword('${esc(k.keyword).replace(/'/g,"\\'")}','${brand}',this)" class="btn btn-outline" style="font-size:11px;padding:2px 8px">📝 Queue</button>` : ''}
+            </div>
           </td>
         </tr>`).join('')}
       </tbody>

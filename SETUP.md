@@ -3665,7 +3665,13 @@ A custom domain on Netlify (above) is cosmetic. **Moving OFF Netlify to a Google
 
 ---
 
-## Current Version: v7.4.60
+## Current Version: v7.4.61
+
+Last built (v7.4.61): **Stage 2c — one-click "Generate" from the worklist (meta-first, closes the loop).** `node --check` clean (backend + index.html JS). Credits back → unblocked. NEVER auto-publishes — creates a DRAFT for the human gate.
+- **NEW `generate-draft.js`** (gated `authorize`; POST = manager/admin or internal) — on-demand single-item meta generation. Input `{brand, keyword, url, market, competitorPage}`. Reuses the PROVEN path: `get_current_meta` (live meta) → `buildBrandPrompt` + the single-candidate meta prompt with the shared `metaLengthRule` + menu + competitor-to-beat + Arabic-aware → `callClaude` → `runBrandVoiceCheck` → `metaLenIssues` → `createApproval` as a `meta_update` draft. Claude respects "skip if already good" (returns skipped, queues nothing). `/api/generate-draft` redirect added.
+- **Worklist UI:** "⚡ Generate" button on any Opportunities row that has a page (targetPage or existingPage) → POSTs to generate-draft → toast "queued — review in Approvals". Content-gap-with-no-page rows keep the existing AI/Perch (meta-first: don't auto-spawn thin pages).
+- **Scope:** v1 = META generation (safest, highest-ROI, proven). Full page/blog on-demand generation = later 2c phase (needs the cron generators factored out). The loop now runs end-to-end on demand: worklist → Generate → draft → approve → publish.
+- **NEXT:** validate one live draft (queues, no publish); then tier-2 brand-aware UI; verify measurement.
 
 Last built (v7.4.60): **Worklist confidence + strategic flags (surface "judgment as input" to a non-SEO reviewer).** `node --check` clean (backend + index.html JS). Second item of the "judgment as input" strategy.
 - **`keyword-discovery-background.js`:** each opportunity now carries `confidence` ('high'|'medium'|'low', = count of independent signals: our position known + KD known + volume>0 + competitor data) and `flags` (advisory notes) via new `assessOpportunity()`. Flags include: "ranks via a generic/home page — a dedicated page would win it better" (`isGenericTargetPage` detects homepage + market-hub roots like /bh, /ksa), "difficulty unknown", "search volume unknown", "from keyword-expansion (weaker signal)". All derived from existing data — no new API cost.

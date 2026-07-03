@@ -179,6 +179,11 @@
   status = 200
 
 [[redirects]]
+  from = "/api/generate-draft"
+  to = "/.netlify/functions/generate-draft"
+  status = 200
+
+[[redirects]]
   from = "/api/email-digest"
   to = "/.netlify/functions/email-digest"
   status = 200
