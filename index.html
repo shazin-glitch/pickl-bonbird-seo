@@ -1795,6 +1795,34 @@ body { font-family: var(--font-sans); background: var(--bg-base); color: var(--t
         <span id="goals-save-status" style="font-size:12px;color:var(--text-muted);margin-left:10px"></span>
       </div>
 
+      <!-- Business Priorities -->
+      <div class="card" style="grid-column:1/-1;margin-bottom:0">
+        <div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:20px">
+          <div>
+            <h3 style="font-size:16px;font-weight:600">💰 Business Priorities</h3>
+            <p style="font-size:13px;color:var(--text-muted);margin-top:4px">Tell the SEO worklist what matters commercially. Opportunities are re-weighted toward these products &amp; markets, so the top of the list points at what makes money — not just raw SEO opportunity. Leave blank for neutral. Re-run discovery for changes to take effect.</p>
+          </div>
+          <select id="bizprio-brand-select" class="form-input" style="width:140px;font-family:var(--font-sans)" onchange="loadBusinessPriority()">
+            <option value="pickl">Pickl</option>
+            <option value="bonbird">Bonbird</option>
+          </select>
+        </div>
+        <div class="form-group">
+          <label class="form-label">Priority products / terms <span style="color:var(--text-muted);font-weight:400">— comma-separated; keywords containing these rank higher</span></label>
+          <input type="text" id="bizprio-products" class="form-input" placeholder="burger, smash, cheeseburger" style="font-family:var(--font-sans)">
+        </div>
+        <div class="form-group">
+          <label class="form-label">Priority markets <span style="color:var(--text-muted);font-weight:400">— comma-separated market keys (uae, pickl_ksa, …)</span></label>
+          <input type="text" id="bizprio-markets" class="form-input" placeholder="uae, pickl_ksa" style="font-family:var(--font-sans)">
+        </div>
+        <div class="form-group">
+          <label class="form-label">Growth focus this quarter <span style="color:var(--text-muted);font-weight:400">— context note for the team</span></label>
+          <input type="text" id="bizprio-note" class="form-input" placeholder="e.g. push KSA delivery" style="font-family:var(--font-sans)">
+        </div>
+        <button class="btn btn-primary" onclick="saveBusinessPriority()" style="font-size:13px">Save Priorities</button>
+        <span id="bizprio-save-status" style="font-size:12px;color:var(--text-muted);margin-left:10px"></span>
+      </div>
+
       <!-- Audit Log -->
         <div class="card">
           <h3 style="font-size:16px;font-weight:600;margin-bottom:20px">Audit Log &amp; Rollbacks</h3>
@@ -2446,7 +2474,7 @@ function switchView(target) {
   if (target === 'analytics')  { loadGscIfNeeded(); renderAnalyticsCards(); }
   if (target === 'techseo')    { loadTechnicalSeo(); loadTechDevKanban(techSeoState.brand); }
   if (target === 'localseo')   { loadLocalSeo(); loadCitationData(); }
-  if (target === 'settings')   { renderAuditLog(); loadBrandCtx(); loadBrandExamples(); loadSlackWebhook(); checkGbpConnection(); checkGa4Connection(); loadCitationNap(); loadGoalSettings(); if (state.userRole === 'admin') { document.getElementById('users-panel').style.display = ''; loadUsersPanel(); } }
+  if (target === 'settings')   { renderAuditLog(); loadBrandCtx(); loadBrandExamples(); loadSlackWebhook(); checkGbpConnection(); checkGa4Connection(); loadCitationNap(); loadGoalSettings(); loadBusinessPriority(); if (state.userRole === 'admin') { document.getElementById('users-panel').style.display = ''; loadUsersPanel(); } }
   if (target === 'howto')      loadHowItWorks();
 }
 
@@ -5403,6 +5431,34 @@ async function saveGoalSettings() {
   try {
     await apiPost('/api/db/save', { key: `seoGoals:${brand}`, value: goals });
     if (statusEl) { statusEl.textContent = '✓ Saved'; statusEl.style.color = '#059669'; setTimeout(() => { statusEl.textContent = ''; }, 3000); }
+  } catch (e) {
+    if (statusEl) { statusEl.textContent = 'Failed: ' + e.message; statusEl.style.color = '#ef4444'; }
+  }
+}
+
+async function loadBusinessPriority() {
+  const brand = document.getElementById('bizprio-brand-select')?.value || 'pickl';
+  try {
+    const d = await apiGet('/api/business-priority?brand=' + brand);
+    document.getElementById('bizprio-products').value = (d.products || []).join(', ');
+    document.getElementById('bizprio-markets').value  = (d.markets  || []).join(', ');
+    document.getElementById('bizprio-note').value     = d.growthNote || '';
+  } catch { /* leave blank on error */ }
+}
+
+async function saveBusinessPriority() {
+  const brand    = document.getElementById('bizprio-brand-select')?.value || 'pickl';
+  const statusEl = document.getElementById('bizprio-save-status');
+  const split    = (id) => (document.getElementById(id)?.value || '').split(',').map(s => s.trim()).filter(Boolean);
+  if (statusEl) { statusEl.textContent = 'Saving…'; statusEl.style.color = 'var(--text-muted)'; }
+  try {
+    await apiPost('/api/business-priority', {
+      brand,
+      products:   split('bizprio-products'),
+      markets:    split('bizprio-markets'),
+      growthNote: document.getElementById('bizprio-note')?.value || '',
+    });
+    if (statusEl) { statusEl.textContent = '✓ Saved — re-run discovery for it to take effect'; statusEl.style.color = '#059669'; setTimeout(() => { statusEl.textContent = ''; }, 5000); }
   } catch (e) {
     if (statusEl) { statusEl.textContent = 'Failed: ' + e.message; statusEl.style.color = '#ef4444'; }
   }

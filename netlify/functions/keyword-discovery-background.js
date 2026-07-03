@@ -626,6 +626,15 @@ async function discoverKeywords(brand, store, authHeader, force = false, marketK
   const marketPages = (inventory?.pages || []).filter(p => p.market === (marketKey || 'uae'));
   console.log(`${tag} page inventory: ${marketPages.length} pages for this market (of ${inventory?.pages?.length || 0} crawled)`);
 
+  // ── Business-priority input — human judgment the SEO engine can't infer ───────
+  // Re-weights the worklist toward products/markets that matter commercially.
+  // Neutral (boost 1.0) if unset → fully backward-compatible. Config-driven (#12).
+  const bizPriority     = await store.get(`businessPriority:${brand}`, { type: 'json' }).catch(() => null);
+  const priorityTerms   = (bizPriority?.products || []).map(t => String(t).toLowerCase());
+  const isPriorityMarket = (bizPriority?.markets || []).includes(marketKey || 'uae');
+  const businessBoost   = (kw) => priorityTerms.some(t => kw.includes(t)) ? 1.4 : 1.0;
+  if (priorityTerms.length || isPriorityMarket) console.log(`${tag} business priority: ${priorityTerms.length} product terms, priorityMarket=${isPriorityMarket}`);
+
   // Load competitor ranked keywords — market-qualified for intl, unsuffixed for UAE (back-compat)
   const compKey  = isIntl ? `competitorRankedKeywords:${brand}:${marketKey}` : `competitorRankedKeywords:${brand}`;
   const compData = await store.get(compKey, { type: 'json' }).catch(() => null);
@@ -769,7 +778,9 @@ async function discoverKeywords(brand, store, authHeader, force = false, marketK
       const ourPosition   = gscMap[kw] || null;
       const compPositions = compMap[kw] || [];
       const competitorBest = compPositions.length ? Math.min(...compPositions) : 100;
-      const score         = scoreOpportunity(c, ourPosition, compPositions);
+      const rawScore      = scoreOpportunity(c, ourPosition, compPositions);
+      const boost         = businessBoost(kw);       // 1.4 if it hits a priority product term, else 1.0
+      const score         = rawScore * boost;
       const tier          = getTier(ourPosition, competitorBest, score);
       const opp = {
         keyword:          c.keyword,
@@ -791,6 +802,8 @@ async function discoverKeywords(brand, store, authHeader, force = false, marketK
         // an existing page (from the crawler) that plausibly targets this kw but doesn't rank — only when we don't already rank
         existingPage:     gscPageMap[kw] ? null : matchExistingPage(c.keyword, marketPages),
         competitorPage:   compPageMap[kw] ? compPageMap[kw].url : null, // the competitor page to beat
+        businessBoost:    boost,           // >1 = matched a priority product (re-weighted up)
+        priorityMarket:   isPriorityMarket, // this market is flagged commercially-priority
       };
       opp.action = recommendAction(opp);                          // { actionType, label, rationale }
       return opp;

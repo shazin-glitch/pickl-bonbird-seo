@@ -3665,7 +3665,14 @@ A custom domain on Netlify (above) is cosmetic. **Moving OFF Netlify to a Google
 
 ---
 
-## Current Version: v7.4.58
+## Current Version: v7.4.59
+
+Last built (v7.4.59): **Business-priority input → worklist re-weighting ("judgment as input").** `node --check` clean (backend + index.html JS). Implements the agreed top-priority from the "judgment as input" strategy (see [[seo-platform-roadmap]] memory + NEST-ROADMAP): capture the commercial judgment the SEO engine can't infer, so the worklist points at what makes money.
+- **NEW `business-priority.js`** (gated `authorize`; POST = manager/admin only) — GET/POST `businessPriority:<brand>` Blob `{products:[terms], markets:[keys], growthNote}`. `/api/business-priority` redirect added.
+- **`keyword-discovery-background.js`** loads it + applies a `businessBoost` (×1.4 if a keyword contains a priority product term, else ×1.0) to the opportunity score; stores `businessBoost` + `priorityMarket` on each opportunity. Neutral (×1.0) if unset → fully backward-compatible. Config-driven per brand (#12).
+- **Settings UI:** new "💰 Business Priorities" card (mirrors SEO Goals) — priority products, priority markets, growth note; per-brand; saves via `apiPost`. `loadBusinessPriority()` hooked into settings-view load.
+- Offline verified: with burger/smash priority, `burger near me` (raw 0.60 ×1.4 = 0.84) jumps above `chicken near me` (0.62 ×1.0). Re-weighting works.
+- **NEXT (from the strategy):** surface strategic FLAGS + per-rec confidence on the worklist; then 2c one-click Generate; tier-2 brand-aware UI; verify measurement. Quarterly human-SEO audit = the backstop.
 
 Last built (v7.4.58): **Shared SEO-meta length module + honest correction on "fact grounding".** `node --check` clean; validated with 2 bounded single-draft Claude tests (~2¢ total, no queue writes).
 - **NEW `_lib/seo-meta.js`** — single source of truth for meta length (title 52-58/floor 50, desc 150-158/floor 148) + `metaLengthRule` prompt block + `metaLenIssues(title,desc)` checker. Scalable per CLAUDE.md #12: UAE + intl + any future brand read the numbers from ONE place. Wired into `scheduler-background.js` meta prompt (replaced the duplicated inline "52-58"/"150-158"). TODO (consolidation): intl `generateMetaUpdate` in international-seo-background.js should adopt the same module.
