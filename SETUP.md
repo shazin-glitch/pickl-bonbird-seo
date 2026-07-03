@@ -3665,7 +3665,12 @@ A custom domain on Netlify (above) is cosmetic. **Moving OFF Netlify to a Google
 
 ---
 
-## Current Version: v7.4.55
+## Current Version: v7.4.56
+
+Last built (v7.4.56): **Stage 2 — keyword→page→action worklist (2.3 crawler-fed create-vs-fix + 2b UI).** `node --check` clean (backend + index.html JS). NO Claude spend (pure JS + DataForSEO; the worklist doesn't need credits — only future 2c "Generate" does).
+- **2.3 (backend, `keyword-discovery-background.js`):** each opportunity now resolves keyword→page→action definitively. Loads `pageInventory:<brand>` (crawler), filters to the market's pages, and `matchExistingPage()` (keyword content-token overlap ≥50% vs page url/title/h1) finds an EXISTING page even one we don't rank for. `recommendAction()` now: rank → optimise that page; don't rank but a relevant page EXISTS → "optimise existing (don't duplicate)"; genuinely no page → create (landing vs blog by intent). Adds `existingPage` to each opportunity. This closes Shazin's gap (GSC alone can't see a non-ranking page).
+- **2b (UI, `index.html`):** Opportunities table now has a **"Recommended action"** column — action label + the exact page (target/existing path, or "＋ new page/post") + "beat: <competitor page>", with the rationale on hover. The worklist is now visible in Analytics → Opportunities.
+- **NEXT:** re-run discovery so stored opportunities carry the new fields (done post-deploy), eyeball the worklist. Then 2c: wire a "Generate" that hands actionType+targetPage+competitorPage to the existing generators → approval → publish (needs Claude credits). Then tier-2 brand-aware UI. ON SHAZIN/IT: top up Claude credits.
 
 Last built (v7.4.55): **Cross-brand competitor contamination fix + scalability rule (CLAUDE.md #12).**
 - **Bug (found via live blobs):** `competitor-matrix-background.js:868` — the on-demand market refresh ran BOTH brands (`["pickl","bonbird"].map(...)`) for any market, ignoring who operates there → created `competitorMatrix:bonbird:pickl_ksa` etc. (Bonbird tracked in Pickl-only KSA/Bahrain + doubled DataForSEO spend). The monthly-cron path (line 879) was correct (`market.brand`); classic UAE-vs-intl two-path divergence. FIX: derive brand from `INTERNATIONAL_MARKETS[targetMarket].brand` for intl markets; UAE/null runs both (both brands operate there). UAE data verified clean (only the known off-brand `best burger in sharjah` Bonbird seed).

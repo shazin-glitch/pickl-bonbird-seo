@@ -483,31 +483,54 @@ function hasLocationIntent(keyword) {
   const s = String(keyword || '').toLowerCase();
   return LOCATION_INTENT_TERMS.some(t => s.includes(t));
 }
+// Match a keyword to an EXISTING page from the crawler inventory (pageInventory:<brand>),
+// even one we don't rank for — so "create" only fires when we genuinely lack a relevant
+// page (Shazin's point: GSC alone can't see a page that exists but doesn't rank).
+const KW_STOPWORDS = new Set(['the','a','an','in','of','for','to','and','or','near','me','my','your',
+  'best','top','good','great','cheap','online','order','delivery','deliver','restaurant','restaurants',
+  'shop','shops','place','places','store','stores','food','near-me']);
+function keywordTokens(kw) {
+  return String(kw || '').toLowerCase().replace(/[^\p{L}\p{N}\s]/gu, ' ').split(/\s+/)
+    .filter(t => t.length >= 3 && !KW_STOPWORDS.has(t));
+}
+function matchExistingPage(keyword, marketPages) {
+  const toks = keywordTokens(keyword);
+  if (!toks.length || !marketPages || !marketPages.length) return null;
+  let best = null, bestScore = 0;
+  for (const p of marketPages) {
+    const hay = `${p.url || ''} ${p.title || ''} ${p.h1 || ''}`.toLowerCase();
+    const hits = toks.filter(t => hay.includes(t)).length;
+    const score = hits / toks.length;
+    if (hits > 0 && score > bestScore) { bestScore = score; best = p; }
+  }
+  return bestScore >= 0.5 ? best.url : null; // ≥50% of content tokens present → a real match
+}
+
+// Recommended next action — reuses the UAE tier→action rules, now crawler-aware:
+// if we don't rank but a relevant page already EXISTS, optimise it (never duplicate).
 function recommendAction(opp) {
-  const pos     = opp.ourPosition;
-  const hasPage = !!opp.targetPage;
+  const pos      = opp.ourPosition;
+  const hasPage  = !!opp.targetPage;
+  const existing = opp.existingPage; // a page we already have that plausibly targets this keyword
+  const OPT_EXISTING = (url, why) => ({ actionType: 'page_update', label: 'Optimise existing page', rationale: `${why} A page already exists (${url}) — improve it, don't create a duplicate.` });
+  const CREATE = () => hasLocationIntent(opp.keyword)
+    ? { actionType: 'page_creation', label: 'Create a location/landing page', rationale: 'No relevant page yet + local intent → build a landing page.' }
+    : { actionType: 'blog_draft', label: 'Create a blog post', rationale: 'No relevant page yet + topic intent → write a post.' };
   switch (opp.tier) {
     case 'top10':
       return { actionType: 'meta_update', label: 'Defend & fine-tune',
         rationale: `Ranking #${pos} — refresh title/meta to hold position and nudge toward the top 3.` };
     case 'quick_win':
-      return hasPage
-        ? { actionType: 'page_update', label: 'Optimise page to reach page 1',
-            rationale: `Ranking #${pos} (page 2) — refresh title/H1/content + internal links to push onto page 1.` }
-        : { actionType: 'page_creation', label: 'Create a page to capture this',
-            rationale: `Striking distance with no dedicated page — build one targeting this keyword.` };
+      if (hasPage)  return { actionType: 'page_update', label: 'Optimise page to reach page 1', rationale: `Ranking #${pos} (page 2) — refresh title/H1/content + internal links to push onto page 1.` };
+      if (existing) return OPT_EXISTING(existing, `Striking distance (#${pos}).`);
+      return { actionType: 'page_creation', label: 'Create a page to capture this', rationale: 'Striking distance with no relevant page — build one.' };
     case 'push':
-      return hasPage
-        ? { actionType: 'page_update', label: 'Strengthen the page to climb',
-            rationale: `Ranking #${pos} — expand the content + add internal links + target this keyword.` }
-        : { actionType: hasLocationIntent(opp.keyword) ? 'page_creation' : 'blog_draft', label: 'Create content to climb',
-            rationale: `Ranking #${pos} on a non-dedicated page — create a focused ${hasLocationIntent(opp.keyword) ? 'landing page' : 'post'}.` };
+      if (hasPage)  return { actionType: 'page_update', label: 'Strengthen the page to climb', rationale: `Ranking #${pos} — expand the content + add internal links + target this keyword.` };
+      if (existing) return OPT_EXISTING(existing, `Ranking #${pos} on a non-dedicated page.`);
+      return CREATE();
     case 'content_gap':
-      return hasLocationIntent(opp.keyword)
-        ? { actionType: 'page_creation', label: 'Create a location/landing page',
-            rationale: `A competitor ranks and we have no page. Local intent → build a landing page.` }
-        : { actionType: 'blog_draft', label: 'Create a blog post',
-            rationale: `A competitor ranks and we have no page. Topic/informational intent → write a post.` };
+      if (existing) return OPT_EXISTING(existing, 'A competitor ranks and we don\'t.');
+      return CREATE();
     default:
       return { actionType: 'monitor', label: 'Monitor', rationale: 'Track for now — no clear action yet.' };
   }
@@ -597,6 +620,13 @@ async function discoverKeywords(brand, store, authHeader, force = false, marketK
   } else if (!ownRankedKws.length) {
     console.log(`${tag} own rankings: none (GSC empty${ownRankSupported ? '' : ', market not in Labs'})`);
   }
+
+  // ── Page inventory (from the crawler) — this market's existing pages ──────────
+  // Lets recommendAction decide "fix existing" vs "create" definitively: a page can
+  // EXIST without ranking, which GSC alone can't see (Stage 2.3 / Shazin's point).
+  const inventory   = await store.get(`pageInventory:${brand}`, { type: 'json' }).catch(() => null);
+  const marketPages = (inventory?.pages || []).filter(p => p.market === (marketKey || 'uae'));
+  console.log(`${tag} page inventory: ${marketPages.length} pages for this market (of ${inventory?.pages?.length || 0} crawled)`);
 
   // Load competitor ranked keywords — market-qualified for intl, unsuffixed for UAE (back-compat)
   const compKey  = isIntl ? `competitorRankedKeywords:${brand}:${marketKey}` : `competitorRankedKeywords:${brand}`;
@@ -759,7 +789,9 @@ async function discoverKeywords(brand, store, authHeader, force = false, marketK
         fromCompetitor:   c.source === 'competitor',
         fromGsc:          c.source === 'gsc',
         // Stage 2 "decide" layer — keyword → page → action
-        targetPage:       gscPageMap[kw] || null,                 // the page we rank on (null = no page yet → create)
+        targetPage:       gscPageMap[kw] || null,                 // the page we rank on (null = we don't rank)
+        // an existing page (from the crawler) that plausibly targets this kw but doesn't rank — only when we don't already rank
+        existingPage:     gscPageMap[kw] ? null : matchExistingPage(c.keyword, marketPages),
         competitorPage:   compPageMap[kw] ? compPageMap[kw].url : null, // the competitor page to beat
       };
       opp.action = recommendAction(opp);                          // { actionType, label, rationale }
