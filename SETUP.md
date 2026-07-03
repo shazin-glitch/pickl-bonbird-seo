@@ -3665,7 +3665,13 @@ A custom domain on Netlify (above) is cosmetic. **Moving OFF Netlify to a Google
 
 ---
 
-## Current Version: v7.4.54
+## Current Version: v7.4.55
+
+Last built (v7.4.55): **Cross-brand competitor contamination fix + scalability rule (CLAUDE.md #12).**
+- **Bug (found via live blobs):** `competitor-matrix-background.js:868` — the on-demand market refresh ran BOTH brands (`["pickl","bonbird"].map(...)`) for any market, ignoring who operates there → created `competitorMatrix:bonbird:pickl_ksa` etc. (Bonbird tracked in Pickl-only KSA/Bahrain + doubled DataForSEO spend). The monthly-cron path (line 879) was correct (`market.brand`); classic UAE-vs-intl two-path divergence. FIX: derive brand from `INTERNATIONAL_MARKETS[targetMarket].brand` for intl markets; UAE/null runs both (both brands operate there). UAE data verified clean (only the known off-brand `best burger in sharjah` Bonbird seed).
+- **Cleanup:** deleted **32** contaminated blobs (wrong-brand across all 5 prefixes — competitorMatrix/Config/autoDetected/sovHistory/rankedKeywords — for every single-brand intl market, both directions).
+- **CLAUDE.md rule #12 added — "Scalability is a build requirement."** New code must be config-driven, never hardcode brand/market lists inline; derive from `getMarketsForBrand`/`INTERNATIONAL_MARKETS` (backend) + one endpoint (frontend, brand-filtered). Onboarding a brand/market = one config record, not ~10 files.
+- **Brand↔market scale plan (Shazin, tiered):** T1 ✅ this fix + cleanup. T2 (next, small-med): make UI market dropdowns DYNAMIC + brand-filtered from one endpoint — kill the hardcoded static `<option>` lists (index.html:971-981/1018-1028) + the `INTL_MARKETS` JS mirror; a brand not in a market must not appear. T3 (real refactor, after Stage 2.3): config→Blobs + Settings onboarding form + consolidate UAE+intl into ONE brand×market-parameterised pipeline (ends the whack-a-mole). See WS7 in `/NEST-ROADMAP.md`.
 
 Last built (v7.4.54): **Site Audit crawler fix — `broken_links` renders as boolean not count.** First full deployed crawl (208 pages, health 82.31, all markets attributed, Oman=0 flagged) showed the page-issue chip printing literal "true broken link(s)". `item.broken_links` is a boolean on the OnPage /pages item → now shows "has broken links" (or "N broken links" if numeric). Re-crawled to regenerate stored issues. Audit findings confirmed valuable: 77 thin UAE pages (empty /location/* CPT, e.g. al-aali-mall=43 words), 101 missing meta, 66 orphan, 61 no-H1, 15 4xx.
 

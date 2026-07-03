@@ -864,8 +864,13 @@ exports.handler = async (event) => {
   }
 
   if (targetMarket) {
-    // Specific market requested — run just that market for both brands
-    await Promise.all(["pickl", "bonbird"].map(b => processBrand(b, targetMarket)));
+    // Specific market requested. An intl market belongs to exactly ONE brand
+    // (the market key encodes it, e.g. pickl_ksa), so derive the brand from config
+    // — never run both brands blindly (that created competitorMatrix:bonbird:pickl_ksa
+    // etc. + doubled DataForSEO spend). UAE (not in INTERNATIONAL_MARKETS) runs both.
+    const m = INTERNATIONAL_MARKETS[targetMarket];
+    if (m) await processBrand(m.brand, targetMarket);
+    else   await Promise.all(["pickl", "bonbird"].map(b => processBrand(b, targetMarket)));
   } else {
     // UAE always runs weekly
     await Promise.all(["pickl", "bonbird"].map(b => processBrand(b, null)));
