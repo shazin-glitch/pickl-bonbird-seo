@@ -3665,7 +3665,12 @@ A custom domain on Netlify (above) is cosmetic. **Moving OFF Netlify to a Google
 
 ---
 
-## Current Version: v7.4.59
+## Current Version: v7.4.60
+
+Last built (v7.4.60): **Worklist confidence + strategic flags (surface "judgment as input" to a non-SEO reviewer).** `node --check` clean (backend + index.html JS). Second item of the "judgment as input" strategy.
+- **`keyword-discovery-background.js`:** each opportunity now carries `confidence` ('high'|'medium'|'low', = count of independent signals: our position known + KD known + volume>0 + competitor data) and `flags` (advisory notes) via new `assessOpportunity()`. Flags include: "ranks via a generic/home page — a dedicated page would win it better" (`isGenericTargetPage` detects homepage + market-hub roots like /bh, /ksa), "difficulty unknown", "search volume unknown", "from keyword-expansion (weaker signal)". All derived from existing data — no new API cost.
+- **Opportunities UI:** the Recommended-action cell now shows a colour-coded **confidence** label + a hoverable **⚑ N** flag count (full notes on hover). Tells a non-SEO which recs to trust vs double-check.
+- **NEXT (queue):** 2c one-click Generate (credits back → unblocked); tier-2 brand-aware UI; verify measurement (closed-loop). Quarterly human-SEO audit = backstop.
 
 Last built (v7.4.59): **Business-priority input → worklist re-weighting ("judgment as input").** `node --check` clean (backend + index.html JS). Implements the agreed top-priority from the "judgment as input" strategy (see [[seo-platform-roadmap]] memory + NEST-ROADMAP): capture the commercial judgment the SEO engine can't infer, so the worklist points at what makes money.
 - **NEW `business-priority.js`** (gated `authorize`; POST = manager/admin only) — GET/POST `businessPriority:<brand>` Blob `{products:[terms], markets:[keys], growthNote}`. `/api/business-priority` redirect added.

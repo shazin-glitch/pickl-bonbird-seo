@@ -8769,8 +8769,13 @@ function renderOpportunitiesTable() {
             const isCreate = a.actionType === 'page_creation' || a.actionType === 'blog_draft';
             const pageLabel = page ? page.replace(/^https?:\/\/[^\/]+/,'').replace(/\/$/,'') : (a.actionType === 'blog_draft' ? '＋ new post' : '＋ new page');
             const col = isCreate ? 'var(--info)' : 'var(--accent-text)';
+            const conf = k.confidence || 'medium';
+            const confCol = conf === 'high' ? 'var(--success)' : conf === 'low' ? 'var(--danger)' : 'var(--warning)';
+            const fl = k.flags || [];
+            const flagsHtml = fl.length ? ` <span title="${esc(fl.join('  •  '))}" style="color:var(--warning);cursor:help">⚑ ${fl.length}</span>` : '';
             return `<div style="font-size:12px;font-weight:600;color:${col}" title="${esc(a.rationale||'')}">${esc(a.label)}</div>
-              <div style="font-size:10px;color:var(--text-muted)" title="${esc(page||'')}">${esc(pageLabel)}${k.competitorPage ? ` · beat: ${esc(k.competitorPage.replace(/^https?:\/\/[^\/]+/,'').replace(/\/$/,'').slice(0,28))}` : ''}</div>`;
+              <div style="font-size:10px;color:var(--text-muted)" title="${esc(page||'')}">${esc(pageLabel)}${k.competitorPage ? ` · beat: ${esc(k.competitorPage.replace(/^https?:\/\/[^\/]+/,'').replace(/\/$/,'').slice(0,28))}` : ''}</div>
+              <div style="font-size:10px;margin-top:2px"><span style="color:${confCol};font-weight:600">${conf} confidence</span>${flagsHtml}</div>`;
           })()}</td>
           <td style="padding:7px 12px;text-align:center">
             ${k.tier === 'content_gap' ? `

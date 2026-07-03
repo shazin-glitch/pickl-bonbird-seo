@@ -534,6 +534,31 @@ function recommendAction(opp) {
     : { actionType: 'blog_draft', label: 'Create a blog post', rationale: 'A competitor ranks and we have no relevant page. Topic intent → write a post.' };
 }
 
+// ── Advisory flags + confidence (judgment-as-input for a non-SEO reviewer) ────
+// Surfaces WHY a rec might need a second look, and how much to trust it — so the
+// human gate is informed, not blind. All derived from data we already have.
+function isGenericTargetPage(url, market) {
+  if (!url) return false;
+  const path = (String(url).replace(/^https?:\/\/[^\/]+/, '').replace(/\/+$/, '') || '/');
+  if (path === '/') return true;                          // homepage
+  for (const slug of [market && market.marketSlug, market && market.arabicSlug].filter(Boolean)) {
+    if (path === '/' + String(slug).toLowerCase()) return true; // market hub root (/bh, /ksa)
+  }
+  return false;
+}
+function assessOpportunity(opp, source, market) {
+  const flags = [];
+  if (opp.targetPage && isGenericTargetPage(opp.targetPage, market))
+    flags.push('Ranks via a generic/home page — a dedicated page would likely win this better.');
+  if (opp.kd == null)     flags.push('Difficulty unknown (no KD data) — winnability is an estimate.');
+  if (!(opp.volume > 0))  flags.push('Search volume unknown — opportunity size uncertain.');
+  if (source === 'idea')  flags.push('From keyword-expansion — weaker signal than GSC or competitor data.');
+  // confidence = how many independent signals we actually have
+  const signals = [opp.ourPosition != null, opp.kd != null, opp.volume > 0, (opp.competitorCount || 0) > 0].filter(Boolean).length;
+  const confidence = signals >= 3 ? 'high' : signals <= 1 ? 'low' : 'medium';
+  return { confidence, flags };
+}
+
 // ── Main discovery per brand (optionally per market) ─────────────────────────
 async function discoverKeywords(brand, store, authHeader, force = false, marketKey = null) {
   const isIntl   = marketKey && marketKey !== 'uae';
@@ -806,6 +831,9 @@ async function discoverKeywords(brand, store, authHeader, force = false, marketK
         priorityMarket:   isPriorityMarket, // this market is flagged commercially-priority
       };
       opp.action = recommendAction(opp);                          // { actionType, label, rationale }
+      const assessed = assessOpportunity(opp, c.source, market);
+      opp.confidence = assessed.confidence;                        // 'high' | 'medium' | 'low'
+      opp.flags      = assessed.flags;                             // advisory notes for the reviewer
       return opp;
     })
     .filter(k => k.tier !== 'top3') // already winning, skip
