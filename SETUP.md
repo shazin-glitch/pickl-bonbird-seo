@@ -3665,7 +3665,12 @@ A custom domain on Netlify (above) is cosmetic. **Moving OFF Netlify to a Google
 
 ---
 
-## Current Version: v7.4.57
+## Current Version: v7.4.58
+
+Last built (v7.4.58): **Shared SEO-meta length module + honest correction on "fact grounding".** `node --check` clean; validated with 2 bounded single-draft Claude tests (~2¢ total, no queue writes).
+- **NEW `_lib/seo-meta.js`** — single source of truth for meta length (title 52-58/floor 50, desc 150-158/floor 148) + `metaLengthRule` prompt block + `metaLenIssues(title,desc)` checker. Scalable per CLAUDE.md #12: UAE + intl + any future brand read the numbers from ONE place. Wired into `scheduler-background.js` meta prompt (replaced the duplicated inline "52-58"/"150-158"). TODO (consolidation): intl `generateMetaUpdate` in international-seo-background.js should adopt the same module.
+- **Length result:** one-draft test improved desc 138→149 (in-range) and title 45→49 (still 1 under the 50 floor). LESSON: prompt rules reduce but don't guarantee exact counts (same as the award-fabrication lesson) → the mechanical `metaLenIssues` flag is the real enforcement (surfaces short drafts to the human reviewer rather than silently queuing; not a hard-reject — wouldn't bin a good title over 1 char).
+- **⚠️ CORRECTION — do not repeat:** I twice flagged accurate generator output as "fabrication" — "JLT" (a real Pickl location, in `PICKL_DEFAULT.locations.areas`) and "grain-fed beef" (a MANDATED brand phrase — brand.js:84 "always describe burgers this way"; on the menu). Both are TRUE and correctly grounded. I had added an "ingredient-honesty" blocklist rule to `buildBrandPrompt` forbidding "grain-fed" etc. — it contradicted the brand's own instruction and would suppress a real CTR differentiator. **REVERTED.** The existing menu/locations/awards grounding in `buildBrandPrompt` is working correctly. Lesson: verify against `brandCtx` before calling output a fabrication; over-eager fact-flags suppress good content.
 
 Last built (v7.4.57): **Stage 2 recommendAction fix — `hasPage`-first (no duplicate-page recs).** Live validation caught it: a `content_gap` keyword we rank #64 for on `/bh/` was recommending "Create a location/landing page" (would cannibalize). Root: the content_gap branch didn't check `targetPage`. Fix: if we rank on ANY real page → optimise/strengthen it (page_update); only "create" when there's genuinely no page (targetPage AND no existingPage match). Validation before fix: Bahrain 100 opps, 92 targetPage, but 12 "create" recs — 4 of them on pages we already rank. After fix those flip to page_update. Re-ran to confirm.
 

@@ -17,6 +17,7 @@ const {
 } = require('./_lib/store');
 const { getBrandContext, buildBrandPrompt, runBrandVoiceCheck, fixBrandVoice, getBrandExamples } = require('./_lib/brand');
 const { internalHeaders, authorizeJob } = require('./_lib/auth');
+const { metaLengthRule } = require('./_lib/seo-meta');
 const { getStore } = require('@netlify/blobs');
 
 // ── Brand feedback helper ─────────────────────────────────────────
@@ -939,8 +940,7 @@ YOUR JOB: For each page, decide if the current meta is already good enough OR if
 Only suggest a replacement if the current meta is vague, generic, or missing. If it's already specific and on-brand — skip it.
 
 RULES for any replacement you write — non-negotiable:
-- Title: 52-58 characters exactly — count them
-- Description: 150-158 characters exactly — count them
+${metaLengthRule}
 - Only reference REAL menu items: ${menuItems || 'use items from brand context'}
 - No generic phrases: "great food", "delicious", "best in Dubai", "quality ingredients"
 - Lead with the keyword, end with a reason to click
