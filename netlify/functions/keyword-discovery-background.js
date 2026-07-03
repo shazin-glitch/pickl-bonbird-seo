@@ -510,30 +510,28 @@ function matchExistingPage(keyword, marketPages) {
 // if we don't rank but a relevant page already EXISTS, optimise it (never duplicate).
 function recommendAction(opp) {
   const pos      = opp.ourPosition;
-  const hasPage  = !!opp.targetPage;
-  const existing = opp.existingPage; // a page we already have that plausibly targets this keyword
-  const OPT_EXISTING = (url, why) => ({ actionType: 'page_update', label: 'Optimise existing page', rationale: `${why} A page already exists (${url}) — improve it, don't create a duplicate.` });
-  const CREATE = () => hasLocationIntent(opp.keyword)
-    ? { actionType: 'page_creation', label: 'Create a location/landing page', rationale: 'No relevant page yet + local intent → build a landing page.' }
-    : { actionType: 'blog_draft', label: 'Create a blog post', rationale: 'No relevant page yet + topic intent → write a post.' };
-  switch (opp.tier) {
-    case 'top10':
-      return { actionType: 'meta_update', label: 'Defend & fine-tune',
-        rationale: `Ranking #${pos} — refresh title/meta to hold position and nudge toward the top 3.` };
-    case 'quick_win':
-      if (hasPage)  return { actionType: 'page_update', label: 'Optimise page to reach page 1', rationale: `Ranking #${pos} (page 2) — refresh title/H1/content + internal links to push onto page 1.` };
-      if (existing) return OPT_EXISTING(existing, `Striking distance (#${pos}).`);
-      return { actionType: 'page_creation', label: 'Create a page to capture this', rationale: 'Striking distance with no relevant page — build one.' };
-    case 'push':
-      if (hasPage)  return { actionType: 'page_update', label: 'Strengthen the page to climb', rationale: `Ranking #${pos} — expand the content + add internal links + target this keyword.` };
-      if (existing) return OPT_EXISTING(existing, `Ranking #${pos} on a non-dedicated page.`);
-      return CREATE();
-    case 'content_gap':
-      if (existing) return OPT_EXISTING(existing, 'A competitor ranks and we don\'t.');
-      return CREATE();
-    default:
-      return { actionType: 'monitor', label: 'Monitor', rationale: 'Track for now — no clear action yet.' };
+  const hasPage  = !!opp.targetPage;   // we already rank on a real page (any position)
+  const existing = opp.existingPage;   // a page we have that plausibly targets this kw but doesn't rank
+  // Already ranking top-10 → defend.
+  if (opp.tier === 'top10')
+    return { actionType: 'meta_update', label: 'Defend & fine-tune',
+      rationale: `Ranking #${pos} — refresh title/meta to hold position and push toward the top 3.` };
+  // We ALREADY rank on a real page (even if poorly, e.g. #64) → optimise/strengthen THAT page.
+  // Never create a duplicate for a keyword we already rank for (cannibalization).
+  if (hasPage) {
+    const pageTwo = pos && pos <= 20;
+    return { actionType: 'page_update',
+      label: pageTwo ? 'Optimise page to reach page 1' : 'Strengthen the page to climb',
+      rationale: `Ranking #${pos} on ${opp.targetPage} — ${pageTwo ? 'refresh title/H1/content + internal links to push onto page 1' : 'expand the content + internal links + target this keyword'}.` };
   }
+  // We don't rank, but a relevant page EXISTS (from the crawler) → optimise it, don't duplicate.
+  if (existing)
+    return { actionType: 'page_update', label: 'Optimise existing page',
+      rationale: `We don't rank yet, but a page already exists (${existing}) — optimise it for this keyword instead of creating a duplicate.` };
+  // Genuinely no relevant page → create (landing vs blog by intent).
+  return hasLocationIntent(opp.keyword)
+    ? { actionType: 'page_creation', label: 'Create a location/landing page', rationale: 'A competitor ranks and we have no relevant page. Local intent → build a landing page.' }
+    : { actionType: 'blog_draft', label: 'Create a blog post', rationale: 'A competitor ranks and we have no relevant page. Topic intent → write a post.' };
 }
 
 // ── Main discovery per brand (optionally per market) ─────────────────────────

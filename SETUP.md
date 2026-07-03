@@ -3665,7 +3665,9 @@ A custom domain on Netlify (above) is cosmetic. **Moving OFF Netlify to a Google
 
 ---
 
-## Current Version: v7.4.56
+## Current Version: v7.4.57
+
+Last built (v7.4.57): **Stage 2 recommendAction fix — `hasPage`-first (no duplicate-page recs).** Live validation caught it: a `content_gap` keyword we rank #64 for on `/bh/` was recommending "Create a location/landing page" (would cannibalize). Root: the content_gap branch didn't check `targetPage`. Fix: if we rank on ANY real page → optimise/strengthen it (page_update); only "create" when there's genuinely no page (targetPage AND no existingPage match). Validation before fix: Bahrain 100 opps, 92 targetPage, but 12 "create" recs — 4 of them on pages we already rank. After fix those flip to page_update. Re-ran to confirm.
 
 Last built (v7.4.56): **Stage 2 — keyword→page→action worklist (2.3 crawler-fed create-vs-fix + 2b UI).** `node --check` clean (backend + index.html JS). NO Claude spend (pure JS + DataForSEO; the worklist doesn't need credits — only future 2c "Generate" does).
 - **2.3 (backend, `keyword-discovery-background.js`):** each opportunity now resolves keyword→page→action definitively. Loads `pageInventory:<brand>` (crawler), filters to the market's pages, and `matchExistingPage()` (keyword content-token overlap ≥50% vs page url/title/h1) finds an EXISTING page even one we don't rank for. `recommendAction()` now: rank → optimise that page; don't rank but a relevant page EXISTS → "optimise existing (don't duplicate)"; genuinely no page → create (landing vs blog by intent). Adds `existingPage` to each opportunity. This closes Shazin's gap (GSC alone can't see a non-ranking page).
