@@ -61,7 +61,7 @@ const INTERNATIONAL_MARKETS = {
       'Bahrain is cosmopolitan — mix of locals and large expat community',
       'Family dining is important — mention family-friendly atmosphere',
       'Halal is expected — emphasise quality and freshness instead',
-      'Reference Al Aali Mall and Juffair Square locations specifically',
+      'Reference Al Aali Mall and Riffa locations specifically (Juffair Square is closed — never mention it)',
       'Bahrainis are food-savvy and aware of regional restaurant brands',
       'Arabic: use Gulf Arabic dialect',
     ],

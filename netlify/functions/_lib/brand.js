@@ -86,7 +86,7 @@ const PICKL_DEFAULT = {
   ],
   locations: {
     areas: ['JBR', 'City Walk', 'JLT', 'Motor City', 'Mirdif', 'Al Safa', 'Khalifa City', 'Mamsha Abu Dhabi', 'World Trade Centre Abu Dhabi', 'Al Ain', 'Al Hirah Beach Sharjah', 'Al Jada Sharjah', 'Mina Al Arab RAK'],
-    international: 'Also in Bahrain (Al Aali Mall, Juffair), Qatar, Egypt, Saudi Arabia, Jordan (Vista 4 Amman)',
+    international: 'Also in Bahrain (Al Aali Mall, Riffa), Qatar, Egypt, Saudi Arabia, Jordan (Vista 4 Amman)',
   },
   doNot: [
     'Never call Pickl or its food "legendary" — customers decide that',
