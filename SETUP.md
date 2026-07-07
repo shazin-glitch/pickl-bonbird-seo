@@ -323,6 +323,23 @@ From Google's official AI Optimization Guide (June 2026):
 
 ---
 
+## Session: July 2026 — v7.4.64 — SEO reporting Step 2: rank tracker (tracked keywords, position-over-time, CEO rollup)
+
+Second of the 3-part build (Step 1 = v7.4.63 below; Step 3 = long-term targets, still to do). Deployed together with Step 1 in one batch.
+
+**What was built:**
+- `_lib/rank-tracker.js` (new) — shared logic. Storage keys (config-driven, brand×market, #12): `trackedKeywords:<brand>:<market>` (seeded from the DATA-DRIVEN worklist `keywordOpportunities:<brand>[:<market>]`, top 25 by score; entries carry keyword/vol/kd/targetPage/intent/tier/pinned/aspirational/source) and `rankHistory:<brand>:<market>` = `{ kwLower: [{date,pos}] }` (weekly points, capped 26). Helpers: `marketsForBrand` (derives brand's markets incl. UAE from the single market config), `ensureTracked` (lazy-seed on first read), `updateRankHistory` (append this week's positions for all markets from ONE page+query pull — **market-attributed by page via marketForUrl**, the locked methodology; the query-only gscSnapshot can't attribute), `buildView` (current/delta/history + non-branded summary via `isBrandedQuery`), `posWeight` (visibility score).
+- `rank-tracker.js` (new endpoint) — `authorize()`-gated (#11; non-public reads + POST mutations, no external spend). GET `?brand&market` lazy-seeds, returns keywords+summary+**the brand's market list** (so the UI market selector is config-driven, no hardcoded list). POST `{action: add|remove|pin|unpin|reseed}` — reseed refreshes from worklist while **preserving manual adds + pinned terms**.
+- `scheduler-background.js` — after `trackPublishedItems`, added a non-critical `updateRankHistory` step using `fetchGscWithPages` (cached `['query','page']`, so no extra API cost) → appends weekly positions for every tracked keyword across all the brand's markets. This is the ONLY wiring the Monday cron needed (reuses the existing weekly run).
+- `index.html` — **Rank Tracker card** in Analytics→Rankings (below the traffic card): brand + config-driven market selector, Non-branded (default) / Branded / All filter, summary chips (visibility/top3/top10/improving/declining/avg pos, recomputed per filter), table with current pos, Δ-vs-last-week arrows, inline SVG sparkline (green=improving), vol/KD/target-page, and per-row pin/remove. Add-keyword + Reseed controls. **CEO rollup card** in Reports (`report-rank-tracker`): aggregates non-branded tracked keywords across ALL the brand's markets → summary chips + Top movers / Needs attention (with market tags). Non-blocking load.
+- `netlify.toml` — `/api/rank-tracker` redirect.
+
+**Verified:** all JS syntax + inline blocks; lib logic unit test (seed, weekly history append with market-attribution isolation [Bahrain row does not pollute UAE], idempotent same-date, delta up/down, reseed merge preserves manual+pinned & drops stale, branded classification); live UI render via stubbed-auth preview (market dropdown populated from endpoint, non-branded default hides branded, pinned-first sort, sparklines, filter switch, CEO rollup aggregation across markets). **Post-deploy:** history needs ≥2 weekly cron runs before Δ/trend appear; first run just seeds + records week 1.
+
+**Not done:** Step 3 (long-term targets group in the worklist).
+
+---
+
 ## Session: July 2026 — v7.4.63 — SEO reporting Step 1: per-market organic traffic (GSC, dated, branded/non-branded)
 
 First of the 3-part SEO reporting + rank-tracker build (plan in `seo-reporting-tracker-plan` memory). This session = **Step 1 only** (traffic report); Steps 2 (rank tracker) + 3 (long-term targets in worklist) are next.

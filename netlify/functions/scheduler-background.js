@@ -18,6 +18,7 @@ const {
 const { getBrandContext, buildBrandPrompt, runBrandVoiceCheck, fixBrandVoice, getBrandExamples } = require('./_lib/brand');
 const { internalHeaders, authorizeJob } = require('./_lib/auth');
 const { metaLengthRule } = require('./_lib/seo-meta');
+const { updateRankHistory } = require('./_lib/rank-tracker');
 const { getStore } = require('@netlify/blobs');
 
 // ── Brand feedback helper ─────────────────────────────────────────
@@ -178,6 +179,20 @@ exports.handler = async (event) => {
       await trackPublishedItems(brand, gscRows).catch(e =>
         console.warn(`[scheduler] Tracking update failed for ${brand} (non-critical):`, e.message)
       );
+
+      // Rank tracker — append this week's position for every tracked keyword across
+      // all of the brand's markets. Uses page+query data (cached) so each keyword is
+      // attributed to the market of the PAGE it ranks on (methodology-correct; the
+      // query-only gscRows above cannot attribute to intl markets). Non-critical.
+      try {
+        const pageRows = await fetchGscWithPages(BRANDS[brand].gsc);
+        const rtStore  = getStore({ name: 'seo-tool', siteID: process.env.NETLIFY_SITE_ID, token: process.env.NETLIFY_AUTH_TOKEN });
+        const rankUpd  = await updateRankHistory(rtStore, brand, pageRows);
+        summary.brands[brand].rankHistory = rankUpd;
+        console.log(`[scheduler] Rank history updated for ${brand}:`, JSON.stringify(rankUpd));
+      } catch (e) {
+        console.warn(`[scheduler] Rank history update failed for ${brand} (non-critical):`, e.message);
+      }
 
       // Background mode: run ALL requested jobs, no timeout concern
       // Priority: keyword opportunities first, then GSC-based jobs

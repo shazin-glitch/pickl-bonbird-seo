@@ -189,6 +189,11 @@
   status = 200
 
 [[redirects]]
+  from = "/api/rank-tracker"
+  to = "/.netlify/functions/rank-tracker"
+  status = 200
+
+[[redirects]]
   from = "/api/email-digest"
   to = "/.netlify/functions/email-digest"
   status = 200
