@@ -912,6 +912,70 @@ body { font-family: var(--font-sans); background: var(--bg-base); color: var(--t
 
       <!-- RANKINGS TAB PANEL -->
       <div id="atab-rankings" class="analytics-tab-panel" style="display:none">
+
+        <!-- ── ORGANIC TRAFFIC BY MARKET (GSC) ─────────────────────────── -->
+        <div class="card" style="margin-bottom:24px">
+          <div style="display:flex;justify-content:space-between;align-items:flex-start;gap:12px;flex-wrap:wrap;margin-bottom:6px">
+            <div>
+              <div style="font-weight:600;font-size:15px">🌍 Organic Traffic by Market</div>
+              <div style="font-size:12px;color:var(--text-muted);margin-top:2px">Google organic search clicks per market. <strong>Non-branded</strong> is the real SEO metric (new customers finding us); branded is awareness. Total is the accurate page-level figure.</div>
+            </div>
+            <div id="mt-updated" style="font-size:11px;color:var(--text-muted);text-align:right;white-space:nowrap"></div>
+          </div>
+
+          <div style="display:flex;gap:12px;flex-wrap:wrap;align-items:flex-end;margin:14px 0 4px">
+            <div>
+              <label style="font-size:11px;font-weight:600;color:var(--text-muted);display:block;margin-bottom:4px">BRAND</label>
+              <select id="mt-brand" class="form-input" style="font-family:var(--font-sans);width:150px" onchange="loadMarketTraffic()">
+                <option value="pickl">🟡 Pickl</option>
+                <option value="bonbird">🔴 Bonbird</option>
+              </select>
+            </div>
+            <div>
+              <label style="font-size:11px;font-weight:600;color:var(--text-muted);display:block;margin-bottom:4px">FROM</label>
+              <input type="date" id="mt-start" class="form-input" style="font-family:var(--font-sans)">
+            </div>
+            <div>
+              <label style="font-size:11px;font-weight:600;color:var(--text-muted);display:block;margin-bottom:4px">TO</label>
+              <input type="date" id="mt-end" class="form-input" style="font-family:var(--font-sans)">
+            </div>
+            <button class="btn btn-primary" onclick="loadMarketTraffic()" style="font-size:13px">Apply</button>
+            <div style="display:flex;gap:6px;margin-left:auto;flex-wrap:wrap" id="mt-presets">
+              <button class="btn btn-outline" style="font-size:11px;padding:6px 10px" onclick="setMtRange(28)">28d</button>
+              <button class="btn btn-outline" style="font-size:11px;padding:6px 10px" onclick="setMtRange(90)">90d</button>
+              <button class="btn btn-outline" style="font-size:11px;padding:6px 10px" onclick="setMtRange(180)">6mo</button>
+            </div>
+          </div>
+
+          <div class="pill-nav" id="mt-segment" style="margin:12px 0 14px">
+            <div class="pill active" data-seg="total"      onclick="switchTrafficSegment(this)">Total</div>
+            <div class="pill"        data-seg="nonBranded" onclick="switchTrafficSegment(this)">Non-branded (SEO)</div>
+            <div class="pill"        data-seg="branded"    onclick="switchTrafficSegment(this)">Branded</div>
+          </div>
+
+          <div class="table-wrap">
+            <table class="data-table">
+              <thead>
+                <tr>
+                  <th>Market</th>
+                  <th style="text-align:right">Clicks</th>
+                  <th style="text-align:right">Impressions</th>
+                  <th style="text-align:right">CTR</th>
+                  <th style="text-align:right">Avg Position</th>
+                  <th style="text-align:right">Pages</th>
+                </tr>
+              </thead>
+              <tbody id="mt-tbody">
+                <tr><td colspan="6" style="text-align:center;padding:28px;color:var(--text-muted)">Loading…</td></tr>
+              </tbody>
+            </table>
+          </div>
+          <div style="font-size:11px;color:var(--text-muted);margin-top:10px">
+            Total = page-level GSC (accurate). Branded/Non-branded = query-level and <strong>undercounts</strong> (GSC hides rare/anonymised queries), so the two segments won't sum to Total — use them for the split, not the headline number.
+          </div>
+        </div>
+
+        <div style="font-weight:600;font-size:15px;margin-bottom:10px">🔑 Keyword Rankings</div>
         <div class="pill-nav" id="analytics-pills" style="margin-bottom:16px">
           <div class="pill active" data-view="gsc" data-brand="all" onclick="switchAnalyticsView(this)">All Domains</div>
           <div class="pill" data-view="gsc" data-brand="pickl" onclick="switchAnalyticsView(this)">Pickl Only</div>
@@ -2662,6 +2726,106 @@ function switchAnalyticsView(pill) {
   }
 }
 
+// ══ Organic Traffic by Market (GSC) ══════════════════════════════════════
+// Methodology (locked): Total = page-level (accurate); Branded/Non-branded =
+// query-level (undercounts). The endpoint returns all three segments in one
+// response, so switching segment is client-side — no re-query.
+const mtState = { loaded: false, brand: null, data: null, segment: 'total' };
+
+function fmtDate(d) { return d.toISOString().split('T')[0]; }
+
+// Seed the date inputs to the last 28 days the first time Rankings opens.
+function initMtDates() {
+  const startEl = document.getElementById('mt-start');
+  const endEl   = document.getElementById('mt-end');
+  if (!startEl || !endEl) return;
+  if (!startEl.value || !endEl.value) setMtRange(28, true);
+}
+
+// Set the date inputs to the last `days`; reload unless `skipLoad`.
+function setMtRange(days, skipLoad) {
+  const end = new Date();
+  const start = new Date();
+  start.setDate(start.getDate() - days);
+  const startEl = document.getElementById('mt-start');
+  const endEl   = document.getElementById('mt-end');
+  if (startEl) startEl.value = fmtDate(start);
+  if (endEl)   endEl.value   = fmtDate(end);
+  if (!skipLoad) loadMarketTraffic();
+}
+
+async function loadMarketTraffic() {
+  const brand = document.getElementById('mt-brand')?.value || 'pickl';
+  const start = document.getElementById('mt-start')?.value;
+  const end   = document.getElementById('mt-end')?.value;
+  const tbody = document.getElementById('mt-tbody');
+  if (!tbody) return;
+  tbody.innerHTML = '<tr><td colspan="6" style="text-align:center;padding:28px;color:var(--text-muted)"><span class="spinner dark"></span> Loading Google Search Console…</td></tr>';
+
+  const params = new URLSearchParams({ brand });
+  if (start && end) { params.set('startDate', start); params.set('endDate', end); }
+  try {
+    const data = await apiGet('/api/market-traffic?' + params.toString());
+    mtState.loaded = true;
+    mtState.brand  = brand;
+    mtState.data   = data;
+    if (data.error) {
+      tbody.innerHTML = `<tr><td colspan="6" style="text-align:center;padding:28px;color:var(--text-muted)">${esc(data.error)}</td></tr>`;
+      document.getElementById('mt-updated').textContent = '';
+      return;
+    }
+    renderMarketTraffic();
+  } catch (e) {
+    tbody.innerHTML = `<tr><td colspan="6" style="text-align:center;padding:28px;color:var(--danger)">${esc(e.message)}<br><button class="btn btn-outline" style="margin-top:8px" onclick="loadMarketTraffic()">Retry</button></td></tr>`;
+  }
+}
+
+function switchTrafficSegment(pill) {
+  document.querySelectorAll('#mt-segment .pill').forEach(p => p.classList.remove('active'));
+  pill.classList.add('active');
+  mtState.segment = pill.dataset.seg || 'total';
+  renderMarketTraffic();
+}
+
+function renderMarketTraffic() {
+  const tbody = document.getElementById('mt-tbody');
+  const data  = mtState.data;
+  if (!tbody || !data) return;
+  const seg = mtState.segment;
+  // Show EVERY market for the brand (incl. 0-traffic ones — a market at zero, e.g. a
+  // not-yet-indexed page, is a gap worth surfacing), sorted by the active segment's
+  // clicks so it re-ranks when you switch segment and zeros sink to the bottom.
+  const rows = (data.markets || []).slice().sort((a, b) =>
+    (b[seg]?.clicks || 0) - (a[seg]?.clicks || 0) || (b[seg]?.impressions || 0) - (a[seg]?.impressions || 0));
+
+  if (!rows.length) {
+    tbody.innerHTML = '<tr><td colspan="6" style="text-align:center;padding:28px;color:var(--text-muted)">No markets configured for this brand.</td></tr>';
+  } else {
+    tbody.innerHTML = rows.map(m => {
+      const s = m[seg] || {};
+      const ctr = s.impressions ? ((s.clicks / s.impressions) * 100).toFixed(1) + '%' : '—';
+      const pos = s.avgPosition != null ? s.avgPosition.toFixed(1) : '—';
+      const posClass = s.avgPosition == null ? '' : s.avgPosition <= 3 ? 'rank-good' : s.avgPosition <= 10 ? 'rank-mid' : 'rank-bad';
+      return `<tr>
+        <td style="font-weight:500">${esc(m.flag)} ${esc(m.label)}</td>
+        <td style="text-align:right;font-weight:600">${(s.clicks || 0).toLocaleString()}</td>
+        <td style="text-align:right">${(s.impressions || 0).toLocaleString()}</td>
+        <td style="text-align:right">${ctr}</td>
+        <td style="text-align:right">${pos !== '—' ? `<span class="rank-badge ${posClass}">${pos}</span>` : '—'}</td>
+        <td style="text-align:right">${s.pages || 0}</td>
+      </tr>`;
+    }).join('');
+  }
+
+  // Totals footer + range/update note.
+  const t = data.totals?.[seg] || { clicks: 0, impressions: 0 };
+  const range = data.range?.startDate && data.range?.endDate
+    ? `${data.range.startDate} → ${data.range.endDate}`
+    : (data.range?.days ? `last ${data.range.days} days` : '');
+  document.getElementById('mt-updated').innerHTML =
+    `${range}<br><strong>${t.clicks.toLocaleString()}</strong> clicks · ${t.impressions.toLocaleString()} impressions`;
+}
+
 function switchAnalyticsTab(tab, btn) {
   // Ensure we're on the analytics view
   if (!document.getElementById('view-analytics').classList.contains('active')) {
@@ -2679,7 +2843,7 @@ function switchAnalyticsTab(tab, btn) {
   const panel = document.getElementById('atab-' + tab);
   if (panel) panel.style.display = 'block';
   // Trigger data loads
-  if (tab === 'rankings')     { if (!gscLoaded) loadGscIfNeeded(); else renderGscTable(); }
+  if (tab === 'rankings')     { if (!gscLoaded) loadGscIfNeeded(); else renderGscTable(); initMtDates(); if (!mtState.loaded) loadMarketTraffic(); }
   if (tab === 'competitors')  { loadAuditHistory(); if (window.competitorMatrix?.init) window.competitorMatrix.init(); }
   if (tab === 'opportunities') loadKeywordOpportunities();
   if (tab === 'backlinks')    loadBacklinksIfNeeded();

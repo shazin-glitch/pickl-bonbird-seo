@@ -8,6 +8,11 @@ const { store } = require('./store');
 const PICKL_DEFAULT = {
   brand: 'pickl',
   name: 'Pickl',
+  // Branded search terms that can't be auto-derived from name/slug — Arabic
+  // transliterations + spacing/misspellings. The brand name + slug are ALWAYS
+  // treated as branded automatically (see isBrandedQuery); this list only ADDS
+  // what derivation can't catch. New brands add their variants here (one record).
+  brandedTerms: ['pickle', 'pickles', 'بيكل', 'بكل', 'بيكلز', 'بيك'],
   tagline: 'Grain-fed beef, smashed, seasoned, served up by legends',
   website: 'https://eatpickl.com',
   country: 'UAE',
@@ -100,6 +105,8 @@ const PICKL_DEFAULT = {
 const BONBIRD_DEFAULT = {
   brand: 'bonbird',
   name: 'Bonbird',
+  // See PICKL_DEFAULT.brandedTerms — extras that name/slug derivation can't catch.
+  brandedTerms: ['bon bird', 'بونبيرد', 'بون بيرد'],
   brandStatement: 'All bird. No bull.',
   tagline: 'All bird. No bull.',
   website: 'https://bonbirdchicken.com',
@@ -188,6 +195,32 @@ const BONBIRD_DEFAULT = {
     'Do NOT target "halal" as a keyword in UAE/GCC — halal is assumed, not a differentiator',
   ],
 };
+
+// ── Branded-query classifier ──────────────────────────────────────
+// Single source of truth for "is this GSC query a branded search?" — used by
+// market-traffic, the rank tracker and Reports so all three split branded vs
+// non-branded identically. Scalable (CLAUDE.md #12): the brand NAME + slug are
+// always branded (auto-derived, zero config for a new brand's Latin name); the
+// optional brandCtx.brandedTerms list ADDS variants derivation can't catch
+// (Arabic transliterations, spacing/misspellings). Substring match, case- and
+// diacritic-insensitive on the Latin side; Arabic matched as-is.
+//
+// brandCtxOrName: a brand context object (preferred) or a bare brand slug/name.
+function brandedTermsFor(brandCtxOrName) {
+  const ctx = (brandCtxOrName && typeof brandCtxOrName === 'object') ? brandCtxOrName : null;
+  const slug = ctx ? (ctx.brand || '') : String(brandCtxOrName || '');
+  const name = ctx ? (ctx.name  || '') : '';
+  const extra = (ctx && Array.isArray(ctx.brandedTerms)) ? ctx.brandedTerms : [];
+  // Derive from name/slug: also drop spaces so "bon bird" queries match a "bonbird" name.
+  const derived = [slug, name, name.replace(/\s+/g, '')].filter(Boolean);
+  return [...new Set([...derived, ...extra].map(t => String(t).toLowerCase().trim()).filter(Boolean))];
+}
+
+function isBrandedQuery(query, brandCtxOrName) {
+  if (!query) return false;
+  const q = String(query).toLowerCase();
+  return brandedTermsFor(brandCtxOrName).some(t => q.includes(t));
+}
 
 // ── Public API ────────────────────────────────────────────────────
 
@@ -513,4 +546,4 @@ function hardStripBannedTokens(content) {
     .replace(/ {2,}/g, ' ');
 }
 
-module.exports = { getBrandContext, setBrandContext, getBrandExamples, buildBrandPrompt, runBrandVoiceCheck, fixBrandVoice, hardStripBannedTokens, PICKL_DEFAULT, BONBIRD_DEFAULT };
+module.exports = { getBrandContext, setBrandContext, getBrandExamples, buildBrandPrompt, runBrandVoiceCheck, fixBrandVoice, hardStripBannedTokens, isBrandedQuery, brandedTermsFor, PICKL_DEFAULT, BONBIRD_DEFAULT };

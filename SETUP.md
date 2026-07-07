@@ -323,6 +323,27 @@ From Google's official AI Optimization Guide (June 2026):
 
 ---
 
+## Session: July 2026 — v7.4.63 — SEO reporting Step 1: per-market organic traffic (GSC, dated, branded/non-branded)
+
+First of the 3-part SEO reporting + rank-tracker build (plan in `seo-reporting-tracker-plan` memory). This session = **Step 1 only** (traffic report); Steps 2 (rank tracker) + 3 (long-term targets in worklist) are next.
+
+**Locked methodology (do not repeat past mistakes):**
+- **Total per market = page-level GSC** (`dimensions:['page']`) — accurate, GSC drops no rows.
+- **Branded / Non-branded split = query-level** (`['page','query']`) — this **undercounts** (GSC anonymises rare queries), so it is NEVER used for Total, only for the split. The two segments deliberately won't sum to Total (noted in the UI).
+- **Non-branded is the real SEO KPI** (new customers); branded = awareness context. ~93% of clicks are branded → non-branded is the untapped ceiling.
+- Pages attributed to markets via the shared `marketForUrl` (single source of truth).
+
+**What was built:**
+- `_lib/brand.js` — added optional `brandedTerms` per-brand field (Pickl: pickle/بيكل/بكل/بيكلز/بيك; Bonbird: bon bird/بونبيرد/بون بيرد) + exported `isBrandedQuery(query, brandCtx)` / `brandedTermsFor()`. **Scalable (#12):** brand `name`+`slug` are auto-derived as branded (zero config for a new brand's Latin name); `brandedTerms` only ADDS non-derivable variants. Lives in the one per-brand config record (Settings-editable via `brandContext:<brand>`). Single classifier reused by traffic report + (upcoming) rank tracker + Reports. 15/15 unit tests pass incl. cross-brand isolation.
+- `_lib/gsc.js` — added `fetchGscPageOnly()` (accurate Totals) + `startDate`/`endDate` support on both fetchers (opts object; back-compat preserved — existing callers pass no opts). Shared `runGscQuery`/`resolveWindow` internals.
+- `market-traffic.js` — rewritten: two **parallel** GSC pulls (page-only + page+query), per-market per-segment aggregation (`total`/`branded`/`nonBranded` each with clicks/impressions/impression-weighted avgPosition/pages), accepts `?startDate&endDate` (defaults last 28d), seeds every brand market so 0-traffic markets (e.g. Pickl Oman, not-indexed) still surface. **Auth (#11):** gated with `authorize(event)` (non-public read). No spend (GSC free), no mutation.
+- `index.html` — new "🌍 Organic Traffic by Market" card at top of Analytics→Rankings: brand selector, date-range picker (default 28d) + 28d/90d/6mo presets, segment filter pills (Total default | Non-branded | Branded). All three segments returned in one response → segment switch is client-side (no re-query). Table re-sorts by active segment; footer shows range + segment totals. Below it, the existing keyword-rankings table (now labelled).
+- `netlify.toml` — `/api/market-traffic` redirect.
+
+**Not done (next sessions):** rank tracker (`trackedKeywords`/`rankHistory`, weekly GSC snapshot, seeded from worklist), long-term targets group in worklist, CEO rollup of this data in Reports tab. Verified locally: syntax (all JS + inline blocks), classifier unit tests, id/function reference resolution. Live GSC path verifies post-deploy (auth-gated + secrets).
+
+---
+
 ## Session: June 2026 — v7.4.9 — Voice gate hardening (intl content paths)
 
 All international content paths now require ≥8/10 brand voice score before queuing (was ≥5 warn-and-queue). Hard-strips em/en dashes before scoring (`hardStripBannedTokens`). `fixBrandVoice` improved logic fixed to accept rewrites that clear flagged issues even when score is flat. All `fixBrandVoice` calls now pass accumulated human rejection feedback. `generateBlogDraft` returns null on gate reject; caller handles it. Meta updates now have full fix+gate in both data-driven and seed-content paths.

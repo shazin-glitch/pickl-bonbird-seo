@@ -510,6 +510,26 @@ function getMarketPageTokens(marketOrKey) {
   return [...new Set(tokens.map(t => String(t).toLowerCase().trim()).filter(Boolean))];
 }
 
+// Shared: does a page URL belong to a market (whole-segment token match — handles
+// flat slugs like /bh/, /bahrain-locations/, /bh-arabic/)? Single source of truth
+// so keyword-discovery, onpage-audit and market-traffic all attribute URLs the same
+// way (CLAUDE.md #12). NOTE: keyword-discovery/onpage-audit still have local copies —
+// migrate them to this on next touch.
+function urlMatchesTokens(url, tokens) {
+  if (!url || !tokens || !tokens.length) return false;
+  const path = String(url).replace(/^https?:\/\/[^\/]+/, '').toLowerCase();
+  return tokens.some(t => path === `/${t}` || path === `/${t}/` || path.startsWith(`/${t}/`) || path.startsWith(`/${t}-`));
+}
+
+// Attribute a page URL to its market key for a brand ('uae' if not an intl page).
+function marketForUrl(url, brand) {
+  const markets = Object.entries(INTERNATIONAL_MARKETS).filter(([, m]) => m.brand === brand);
+  for (const [key, m] of markets) {
+    if (urlMatchesTokens(url, getMarketPageTokens(m))) return key;
+  }
+  return 'uae';
+}
+
 // Flat map of marketKey → location_code for quick lookup by any function
 const MARKET_LOCATION_CODES = Object.fromEntries(
   Object.entries(INTERNATIONAL_MARKETS).map(([key, m]) => [key, m.location_code])
@@ -528,6 +548,8 @@ module.exports = {
   buildPostUrl,
   buildMarketPrompt,
   getMarketPageTokens,
+  urlMatchesTokens,
+  marketForUrl,
   MARKET_PAGE_TOKENS,
   isExcludedPageSlug,
   PAGE_SLUG_EXCLUDE,

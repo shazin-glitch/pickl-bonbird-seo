@@ -184,6 +184,11 @@
   status = 200
 
 [[redirects]]
+  from = "/api/market-traffic"
+  to = "/.netlify/functions/market-traffic"
+  status = 200
+
+[[redirects]]
   from = "/api/email-digest"
   to = "/.netlify/functions/email-digest"
   status = 200
