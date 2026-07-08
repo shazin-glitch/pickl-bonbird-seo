@@ -323,6 +323,22 @@ From Google's official AI Optimization Guide (June 2026):
 
 ---
 
+## Session: July 2026 — v7.4.65 — SEO reporting Step 3: long-term targets in the worklist
+
+Final part of the 3-part reporting/tracker build. Adds a strategically-scoped "long-term targets" group to the keyword worklist.
+
+**What was built (all in `keyword-discovery-background.js` + Opportunities UI):**
+- **Modern definition (NOT the old volume>5k cutoff):** `isLongTermTarget(opp, cfg)` = hard by difficulty (KD ≥ threshold) OR hard by position (KD unknown + we don't rank / pos > threshold + an established competitor holds the top N), AND worth pursuing (real volume OR strong commercial intent). Quick-wins/top-10/top-3 are never long-term.
+- **Guaranteed group, never displaces quick-wins:** long-term targets are split off the scored list BEFORE the top-N slice, tagged `tier:'long_term'`, ranked WITHIN the group by **traffic potential** (`min(volume, cap) × intent`, not raw volume), capped, and appended at the END (quick-wins → push → gaps → 🎯 long-term). Each carries `whyLongTerm` (one-line reviewer rationale) + `trafficPotential`.
+- **Scalable (#12):** all thresholds live in ONE config object `DEFAULT_LONG_TERM_CONFIG` (kdThreshold 60, unrankablePos 30, competitorTopPos 10, minVolume 300, strongIntentMin 1.0, volCap 5000, longTermLimit 15, mainLimit 100), **overridable per deployment via the Blobs key `config:keyword-longterm`** (merged over defaults) — tune for any brand/market with no code edit. Nothing brand/market-specific.
+- **UI (Opportunities tab):** 🎯 Long-term summary badge, tier-filter option, purple "Long-term" tier badge, a section-header banner before the group, the `whyLongTerm` note per row, and AI + Perch actions (it's a content play). Added `long_term` to the summary counts.
+
+**Verified:** JS syntax (all files + inline blocks); 10-case classifier unit test (hard-by-difficulty, hard-by-position, quick-win/top10 exclusion, worth-by-volume vs worth-by-intent vs neither, KD-below-threshold, unrankable-pos boundary) + traffic-potential ranking + reason lines; live UI render via stubbed-auth preview (group at end, header banner, badges, filter, reason notes, actions). **Post-deploy:** the group only populates after the next keyword-discovery run per brand/market (it's computed at discovery time).
+
+Reporting/tracker plan (Steps 1–3) now COMPLETE.
+
+---
+
 ## Session: July 2026 — v7.4.64 — SEO reporting Step 2: rank tracker (tracked keywords, position-over-time, CEO rollup)
 
 Second of the 3-part build (Step 1 = v7.4.63 below; Step 3 = long-term targets, still to do). Deployed together with Step 1 in one batch.

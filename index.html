@@ -1158,6 +1158,7 @@ body { font-family: var(--font-sans); background: var(--bg-base); color: var(--t
                   <option value="push">📈 Push to Top 10</option>
                   <option value="quick_win">⚡ Quick Wins</option>
                   <option value="top10">✅ Already Top 10</option>
+                  <option value="long_term">🎯 Long-term Targets</option>
                 </select>
                 <button class="btn btn-outline" onclick="refreshKeywordOpportunities()" style="font-size:12px;white-space:nowrap">🔄 Refresh Now</button>
                 <span id="opp-refresh-status" style="font-size:12px;color:var(--text-muted)"></span>
@@ -9189,6 +9190,7 @@ function renderOpportunitiesTable() {
       { label: '📈 Push to Top 10', count: s.push || 0,        bg: '#fef3c7', color: '#92400e' },
       { label: '⚡ Quick Wins',    count: s.quick_win || 0,    bg: '#dbeafe', color: '#1e40af' },
       { label: '✅ Top 10',        count: s.top10 || 0,        bg: '#dcfce7', color: '#166534' },
+      { label: '🎯 Long-term',     count: s.long_term || 0,    bg: '#f3e8ff', color: '#6b21a8' },
     ].map(b => `<div style="background:${b.bg};color:${b.color};padding:6px 14px;border-radius:8px;font-size:13px;font-weight:600">${b.label}: ${b.count}</div>`).join('');
   }
 
@@ -9219,6 +9221,7 @@ function renderOpportunitiesTable() {
     push:        '<span style="background:#fef3c7;color:#92400e;padding:1px 6px;border-radius:4px;font-size:10px;font-weight:600">📈 Push</span>',
     quick_win:   '<span style="background:#dbeafe;color:#1e40af;padding:1px 6px;border-radius:4px;font-size:10px;font-weight:600">⚡ Win</span>',
     top10:       '<span style="background:#dcfce7;color:#166534;padding:1px 6px;border-radius:4px;font-size:10px;font-weight:600">✅ Top 10</span>',
+    long_term:   '<span style="background:#f3e8ff;color:#6b21a8;padding:1px 6px;border-radius:4px;font-size:10px;font-weight:600">🎯 Long-term</span>',
     monitor:     '<span style="background:var(--bg-base);color:var(--text-muted);padding:1px 6px;border-radius:4px;font-size:10px">Monitor</span>',
   };
 
@@ -9237,7 +9240,13 @@ function renderOpportunitiesTable() {
         <th style="text-align:center;padding:6px 12px;font-size:11px;color:var(--text-muted);font-weight:700;text-transform:uppercase">Act</th>
       </tr></thead>
       <tbody>
-        ${rows.map((k, i) => `<tr style="border-bottom:1px solid var(--border);background:${i%2?'transparent':'rgba(0,0,0,0.015)'}">
+        ${rows.map((k, i) => {
+          // Group separator: banner before the first long-term target (the tagged
+          // group at the end of the worklist). Shown only when a mix is present.
+          const header = (k.longTerm && (i === 0 || !rows[i-1].longTerm))
+            ? `<tr><td colspan="10" style="padding:9px 12px;background:#f3e8ff;color:#6b21a8;font-weight:700;font-size:12px">🎯 Long-term targets — strategic multi-month plays, ranked by traffic potential (not yet winnable, but worth pursuing)</td></tr>`
+            : '';
+          return header + `<tr style="border-bottom:1px solid var(--border);background:${i%2?'transparent':'rgba(0,0,0,0.015)'}">
           <td style="padding:7px 12px;font-weight:500">${esc(k.keyword)}${k.fromCompetitor ? ' <span style="font-size:10px;color:var(--text-muted)">(comp)</span>' : ''}</td>
           <td style="padding:7px 12px;text-align:center">${k.ourPosition ? `<span style="color:${k.ourPosition<=10?'#059669':'#dc2626'};font-weight:700">#${Math.round(k.ourPosition)}</span>` : '<span style="color:#dc2626;font-size:12px">–</span>'}</td>
           <td style="padding:7px 12px;text-align:center;color:var(--text-muted)">${k.competitorBest ? `#${k.competitorBest}` : '–'}</td>
@@ -9257,20 +9266,21 @@ function renderOpportunitiesTable() {
             const confCol = conf === 'high' ? 'var(--success)' : conf === 'low' ? 'var(--danger)' : 'var(--warning)';
             const fl = k.flags || [];
             const flagsHtml = fl.length ? ` <span title="${esc(fl.join('  •  '))}" style="color:var(--warning);cursor:help">⚑ ${fl.length}</span>` : '';
+            const ltNote = (k.longTerm && k.whyLongTerm) ? `<div style="font-size:10px;color:#8b5cf6;margin-top:2px" title="${esc(k.whyLongTerm)}">🎯 ${esc(k.whyLongTerm)}</div>` : '';
             return `<div style="font-size:12px;font-weight:600;color:${col}" title="${esc(a.rationale||'')}">${esc(a.label)}</div>
               <div style="font-size:10px;color:var(--text-muted)" title="${esc(page||'')}">${esc(pageLabel)}${k.competitorPage ? ` · beat: ${esc(k.competitorPage.replace(/^https?:\/\/[^\/]+/,'').replace(/\/$/,'').slice(0,28))}` : ''}</div>
-              <div style="font-size:10px;margin-top:2px"><span style="color:${confCol};font-weight:600">${conf} confidence</span>${flagsHtml}</div>`;
+              <div style="font-size:10px;margin-top:2px"><span style="color:${confCol};font-weight:600">${conf} confidence</span>${flagsHtml}</div>${ltNote}`;
           })()}</td>
           <td style="padding:7px 12px;text-align:center">
             <div style="display:flex;gap:4px;flex-wrap:wrap;justify-content:center">
             ${(k.targetPage || k.existingPage) ? `<button onclick="generateDraftFromWorklist('${esc(k.keyword).replace(/'/g,"\\'")}','${brand}','${esc(k.targetPage||k.existingPage).replace(/'/g,"\\'")}','${oppMarket}','${esc(k.competitorPage||'').replace(/'/g,"\\'")}',this)" class="btn btn-outline" style="font-size:10px;padding:2px 7px" title="Generate an optimised meta draft for this page → queues in Approvals for your review (never auto-publishes)">⚡ Generate</button>` : ''}
-            ${k.tier === 'content_gap' ? `
+            ${['content_gap','long_term'].includes(k.tier) ? `
                 <button onclick="queueOppKeyword('${esc(k.keyword).replace(/'/g,"\\'")}','${brand}',this)" class="btn btn-outline" style="font-size:10px;padding:2px 7px" title="Add to AI content pipeline">📝 AI</button>
                 <button onclick="perchOppKeyword('${esc(k.keyword).replace(/'/g,"\\'")}','${brand}',this)" class="btn btn-outline" style="font-size:10px;padding:2px 7px" title="Create Perch task for content team">📋 Perch</button>` :
             ['push','quick_win'].includes(k.tier) ? `<button onclick="queueOppKeyword('${esc(k.keyword).replace(/'/g,"\\'")}','${brand}',this)" class="btn btn-outline" style="font-size:11px;padding:2px 8px">📝 Queue</button>` : ''}
             </div>
           </td>
-        </tr>`).join('')}
+        </tr>`; }).join('')}
       </tbody>
     </table>`;
 }

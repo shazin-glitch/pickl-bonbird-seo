@@ -305,6 +305,29 @@ ${kwList}`;
 // This is the multiplier that demotes idea-expansion below the primary sources.
 const SOURCE_RELEVANCE = { gsc: 1.0, competitor: 0.9, idea: 0.75 };
 
+// ── Long-term targets (Stage 3) ───────────────────────────────────────────────
+// A strategically valuable but not-yet-winnable keyword — the multi-month play, as
+// opposed to a quick win. MODERN definition (NOT the old "volume > 5k" cutoff):
+// hard by difficulty (KD ≥ threshold) OR hard by position (KD unknown, we don't rank
+// and an established competitor holds the top), AND worth pursuing (real traffic
+// potential OR strong commercial intent). Ranked WITHIN the group by traffic potential
+// (capped volume × intent), never raw volume. Surfaced as a guaranteed tagged group at
+// the END of the worklist — it never displaces quick-wins.
+//
+// SCALABLE (CLAUDE.md #12): all thresholds live in ONE config object, overridable per
+// deployment via the Blobs key `config:keyword-longterm` (merged over these defaults) —
+// tune it for a new brand/market with no code edit. Nothing here is brand/market-specific.
+const DEFAULT_LONG_TERM_CONFIG = {
+  kdThreshold:      60,   // KD ≥ this = hard by difficulty
+  unrankablePos:    30,   // KD unknown + our pos worse than this (or unranked) = hard by position
+  competitorTopPos: 10,   // ...AND a competitor sits in the top N = an established incumbent
+  minVolume:        300,  // "worth it" floor when intent isn't strong
+  strongIntentMin:  1.0,  // intentScore for transactional/commercial (see intentScore)
+  volCap:           5000, // cap volume in the traffic-potential ranking (sparse-KD safety)
+  longTermLimit:    15,   // max long-term targets surfaced (guaranteed, appended)
+  mainLimit:        100,  // top-N of the normal worklist (unchanged behaviour)
+};
+
 // ── Intent (commercial/transactional > informational) ─────────────────────────
 // A restaurant wants eaters, not recipe-readers. Transactional/local terms
 // (delivery, order, near me, menu, best <food> in <city>) beat informational
@@ -559,6 +582,44 @@ function assessOpportunity(opp, source, market) {
   return { confidence, flags };
 }
 
+// ── Long-term target classification (Stage 3) ─────────────────────────────────
+// Is this opportunity a strategic multi-month play rather than a near-term win?
+// See DEFAULT_LONG_TERM_CONFIG for the criteria. Quick-wins/top-10/top-3 are never
+// long-term (they're already winnable/winning). Returns boolean.
+function isLongTermTarget(opp, cfg) {
+  if (['top3', 'top10', 'quick_win'].includes(opp.tier)) return false;
+  const pos = opp.ourPosition;
+  const hardByDifficulty = opp.kd != null && opp.kd >= cfg.kdThreshold;
+  const hardByPosition   = opp.kd == null
+    && (pos == null || pos > cfg.unrankablePos)
+    && (opp.competitorBest != null && opp.competitorBest <= cfg.competitorTopPos);
+  if (!(hardByDifficulty || hardByPosition)) return false;
+  // Must be worth pursuing: meaningful volume OR strong commercial intent.
+  const worthVolume = (opp.volume || 0) >= cfg.minVolume;
+  const worthIntent = intentScore(opp.keyword) >= cfg.strongIntentMin;
+  return worthVolume || worthIntent;
+}
+
+// Rank value WITHIN the long-term group — capped volume × intent (traffic potential),
+// deliberately NOT raw volume (KD data is sparse; a head term shouldn't dominate).
+function trafficPotential(opp, cfg) {
+  return Math.round(Math.min(opp.volume || 0, cfg.volCap) * intentScore(opp.keyword));
+}
+
+// One-line "why this is a long-term play" for the reviewer (judgment-as-input).
+function longTermReason(opp, cfg) {
+  const bits = [];
+  if (opp.kd != null && opp.kd >= cfg.kdThreshold) bits.push(`High difficulty (KD ${opp.kd})`);
+  else if (opp.kd == null)                          bits.push('Difficulty unknown');
+  if (opp.ourPosition == null)                      bits.push('we don\'t rank yet');
+  else if (opp.ourPosition > cfg.unrankablePos)     bits.push(`we sit at #${opp.ourPosition}`);
+  if (opp.competitorBest != null && opp.competitorBest <= cfg.competitorTopPos)
+    bits.push(`a competitor holds #${opp.competitorBest}`);
+  const value = intentScore(opp.keyword) >= cfg.strongIntentMin
+    ? 'strong commercial intent' : `~${(opp.volume || 0).toLocaleString()} monthly searches`;
+  return `${bits.join(', ')} — worth a sustained 3–6 month push for ${value}.`;
+}
+
 // ── Main discovery per brand (optionally per market) ─────────────────────────
 async function discoverKeywords(brand, store, authHeader, force = false, marketKey = null) {
   const isIntl   = marketKey && marketKey !== 'uae';
@@ -793,10 +854,13 @@ async function discoverKeywords(brand, store, authHeader, force = false, marketK
     console.log(`${tag} enriched ${Object.keys(m).length}/${candList.length} candidates pre-scoring`);
   } catch (e) { console.warn(`${tag} pre-score enrich failed: ${e.message}`); }
 
+  // Long-term config: defaults overridable via ONE Blobs key (scalable, no deploy).
+  const ltCfg = { ...DEFAULT_LONG_TERM_CONFIG, ...((await store.get('config:keyword-longterm', { type: 'json' }).catch(() => null)) || {}) };
+
   // ── Score + tier ─────────────────────────────────────────────────────────────
   // Idea-expansion must clear a volume floor; primary sources (gsc/competitor) are
   // kept even at 0 volume — they're relevant by construction and score low anyway.
-  const opportunities = candList
+  const scored = candList
     .filter(c => c.volume >= (isIntl ? 0 : 10) || c.source !== 'idea')
     .map(c => {
       const kw            = c.keyword.toLowerCase();
@@ -839,9 +903,32 @@ async function discoverKeywords(brand, store, authHeader, force = false, marketK
     .filter(k => k.tier !== 'top3') // already winning, skip
     // Drop already-ranking top-10 with no measured volume — near-won + no upside =
     // long-tail noise (the ~60 vol-0 "we rank #8" terms that flooded intl lists).
-    .filter(k => !(k.tier === 'top10' && !(k.volume > 0)))
+    .filter(k => !(k.tier === 'top10' && !(k.volume > 0)));
+
+  // Long-term targets: split off BEFORE the top-N slice so the group is GUARANTEED
+  // and never displaces quick-wins. Tag them, rank by traffic potential, cap the group.
+  const longTerm = scored
+    .filter(k => isLongTermTarget(k, ltCfg))
+    .map(k => {
+      k.tier             = 'long_term';
+      k.longTerm         = true;
+      k.trafficPotential = trafficPotential(k, ltCfg);
+      k.whyLongTerm      = longTermReason(k, ltCfg);
+      k.action           = recommendAction(k); // re-derive: tier changed
+      return k;
+    })
+    .sort((a, b) => b.trafficPotential - a.trafficPotential)
+    .slice(0, ltCfg.longTermLimit);
+  const longTermKeys = new Set(longTerm.map(k => k.keyword.toLowerCase()));
+
+  // Main worklist = everything else, top-N by score (unchanged behaviour).
+  const main = scored
+    .filter(k => !longTermKeys.has(k.keyword.toLowerCase()))
     .sort((a, b) => b.score - a.score)
-    .slice(0, 100); // top 100 opportunities
+    .slice(0, ltCfg.mainLimit);
+
+  // Long-term group appended at the END (quick-wins → push → gaps → 🎯 long-term).
+  const opportunities = [...main, ...longTerm];
 
   const summary = {
     quick_win:    opportunities.filter(k => k.tier === 'quick_win').length,
@@ -849,6 +936,7 @@ async function discoverKeywords(brand, store, authHeader, force = false, marketK
     content_gap:  opportunities.filter(k => k.tier === 'content_gap').length,
     top10:        opportunities.filter(k => k.tier === 'top10').length,
     monitor:      opportunities.filter(k => k.tier === 'monitor').length,
+    long_term:    longTerm.length,
   };
 
   const result = {
