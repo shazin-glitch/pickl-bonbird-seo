@@ -3346,9 +3346,10 @@ function buildTrackingCard(item) {
   window._trackItems[item.id] = item;
   const p = item.payload || {};
   const keyword     = item.trackingKeyword || p.targetKeyword || '—';
-  const posAtPublish = item.positionAtPublish || p.currentPos || null;
-  const posNow      = item.positionLatest || null;
-  const delta       = (posAtPublish && posNow) ? posAtPublish - posNow : null; // positive = improved
+  const r1 = x => (x != null ? Math.round(x * 10) / 10 : null); // round to 1 dp — GSC positions are long floats
+  const posAtPublish = r1(item.positionAtPublish || p.currentPos || null);
+  const posNow      = r1(item.positionLatest || null);
+  const delta       = (posAtPublish != null && posNow != null) ? Math.round((posAtPublish - posNow) * 10) / 10 : null; // positive = improved
   const lastTracked = item.lastTrackedAt ? new Date(item.lastTrackedAt).toLocaleDateString('en-GB', { day: 'numeric', month: 'short' }) : null;
   const publishedDate = item.publishedAt
     ? new Date(item.publishedAt).toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' })
@@ -3382,10 +3383,18 @@ function buildTrackingCard(item) {
         <div style="font-size:11px;color:var(--text-muted);margin-top:2px">Tracking begins next Monday — check back then</div>
       </div>`;
   } else {
-    const isWpDraft = item.status === 'pushed'; // pushed = WP draft, not live yet
+    // Type-aware: meta/schema edits go LIVE on an existing page the moment they're
+    // pushed (no draft step), so they must NOT be labelled "saved as draft". Only
+    // NEW content (blog/page create + page rewrite) is pushed as a WP draft awaiting
+    // manual publish. Mislabelling a live meta edit made it look untracked.
+    const LIVE_ON_PUSH = ['meta_update', 'schema_update'];
+    const isLiveEdit = item.status === 'pushed' && LIVE_ON_PUSH.includes(item.type);
+    const isWpDraft  = item.status === 'pushed' && !isLiveEdit;
     movementHtml = `<div style="padding:10px 14px;border-radius:8px;background:var(--bg-base);font-size:12px;color:var(--text-muted)">
       ${isWpDraft
         ? '📝 Saved as WordPress draft — publish it live so Google can index it, then tracking will begin automatically on Monday.'
+        : isLiveEdit
+        ? '✅ Live on the page — the edit is published. Ranking movement is tracked every Monday once GSC has fresh data.'
         : '⏳ No GSC data yet for this keyword — Google may still be indexing the page. Tracking updates every Monday once impressions appear.'}
     </div>`;
   }
@@ -8916,7 +8925,7 @@ function renderAuditResults(data, container) {
     if (!rows.length) return `<tr><td colspan="${5+brands.length}" style="text-align:center;padding:24px;color:var(--text-muted)">No keyword data returned</td></tr>`;
     return rows.map((k, i) => `<tr style="border-bottom:1px solid var(--border);background:${i%2?'transparent':'rgba(0,0,0,0.015)'}">
       <td style="padding:7px 12px;font-size:13px;font-weight:500">${esc(k.keyword)}</td>
-      <td style="padding:7px 10px;text-align:center"><span style="background:${(k.position||99)<=3?'#dcfce7':(k.position||99)<=10?'#dbeafe':'var(--bg-base)'};color:${(k.position||99)<=3?'#166534':(k.position||99)<=10?'#1e40af':'var(--text-muted)'};font-weight:700;padding:2px 8px;border-radius:4px;font-size:12px">${k.position ? '#'+k.position : '–'}</span></td>
+      <td style="padding:7px 10px;text-align:center"><span style="background:${(k.position||99)<=3?'#dcfce7':(k.position||99)<=10?'#dbeafe':'var(--bg-base)'};color:${(k.position||99)<=3?'#166534':(k.position||99)<=10?'#1e40af':'var(--text-muted)'};font-weight:700;padding:2px 8px;border-radius:4px;font-size:12px">${k.position ? '#'+(Math.round(k.position*10)/10) : '–'}</span></td>
       ${ourPosCells(k)}
       <td style="padding:7px 10px;text-align:right;font-size:13px">${(k.volume||0).toLocaleString()}</td>
       <td style="padding:7px 10px;text-align:right;font-size:12px;color:var(--text-muted)">${k.cpc ? 'AED '+((k.cpc||0)*3.67).toFixed(2) : '—'}</td>

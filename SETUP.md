@@ -323,6 +323,20 @@ From Google's official AI Optimization Guide (June 2026):
 
 ---
 
+## Session: July 2026 — v7.4.66 — WS1 trust & correctness: tracking-status truth + position rounding
+
+Roadmap Workstream 1 (trust/correctness) fixes. No new features — makes the Published & Tracking view tell the truth.
+
+- **Draft-vs-live mislabel (the headline bug):** the tracking card computed `isWpDraft = item.status === 'pushed'` — type-blind. But `meta_update`/`schema_update` push via `update_meta` to an EXISTING live page (live the moment pushed), whereas `blog_draft`/`page_creation`/`page_update` save as a WP draft needing manual publish. So a live meta edit was labelled "📝 Saved as WordPress draft — publish it live," implying an already-live, already-tracked change wasn't live. Fixed in `buildTrackingCard` (index.html): live-on-push types (`meta_update`,`schema_update`) now show "✅ Live on the page — tracked every Monday"; genuine drafts keep the publish prompt; the no-data case is unchanged.
+- **Backend tracking eligibility aligned to the UI:** `trackPublishedItems` (scheduler-background.js) required top-level `item.trackingKeyword` and `continue`d otherwise, while the UI also accepts `payload.targetKeyword`. Items pushed before `trackingKeyword` was captured showed in the UI but were silently never tracked. Now falls back to `payload.targetKeyword || payload.keyword` (matches the UI exactly).
+- **7-decimal position leak:** GSC positions are long floats. Rounded to 1 dp at two display points that rendered raw values — the intl market keyword table (`#7.4285714` → `#7.4`) and the tracking card's positions + delta (`buildTrackingCard`, now via a local `r1()` rounder).
+
+**Verified:** JS syntax (all inline blocks + scheduler); Node render harness of `buildTrackingCard` — live meta edit says "Live" not "draft", blog draft still says "draft", long-float positions render at 1 dp and delta computes to 5.3, no 7-decimal leak.
+
+**WS1 remaining (not done this pass):** verify the untested v7.4.13–28 pile live; the broader "verify" debt. Deferred bugs list in memory unchanged otherwise.
+
+---
+
 ## Session: July 2026 — v7.4.65 — SEO reporting Step 3: long-term targets in the worklist
 
 Final part of the 3-part reporting/tracker build. Adds a strategically-scoped "long-term targets" group to the keyword worklist.

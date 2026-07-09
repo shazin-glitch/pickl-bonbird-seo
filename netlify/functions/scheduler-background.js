@@ -321,14 +321,18 @@ async function trackPublishedItems(brand, gscRows) {
       if (!item) continue;
       if (item.brand !== brand) continue;
       if (!['pushed', 'published'].includes(item.status)) continue;
-      if (!item.trackingKeyword) continue;
+      // Match the UI's eligibility exactly: fall back to the payload keyword so items
+      // pushed before trackingKeyword existed (or where it wasn't captured) still get
+      // tracked, instead of showing in the UI but never updating.
+      const trackKw = item.trackingKeyword || item.payload?.targetKeyword || item.payload?.keyword || null;
+      if (!trackKw) continue;
       if (item.publishedAt && item.publishedAt < cutoff) continue; // older than 8 weeks
 
       // Normalise + fuzzy-match: a published page's tracked keyword often differs
       // slightly from the exact GSC query (rewordings, extra/missing words), so an
       // exact-string lookup left ranking pages permanently stuck on "tracking
       // starts Monday." Try exact first, then containment/word-overlap.
-      const kwNorm = item.trackingKeyword.toLowerCase().replace(/\s+/g, ' ').trim();
+      const kwNorm = trackKw.toLowerCase().replace(/\s+/g, ' ').trim();
       let posNow = kwPosMap[kwNorm] != null ? kwPosMap[kwNorm] : null;
       let clicks = kwClicksMap[kwNorm] || null;
       if (posNow == null) {
