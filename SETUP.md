@@ -323,6 +323,12 @@ From Google's official AI Optimization Guide (June 2026):
 
 ---
 
+## Session: July 2026 — v7.4.67 — Security: gate keyword-opportunities GET (unauthenticated worklist leak)
+
+Found during the post-deploy WS1 verification sweep. `keyword-opportunities.js` gated its POST but NOT its GET — `/api/keyword-opportunities?brand=<b>` returned the full worklist (keyword strategy, competitor positions, target pages, KD/volume) to anyone, unauthenticated. Violates CLAUDE.md #11 ("reads that return non-public data get gated too"). Fix: `authorize()` at the top of the handler (gates all methods; accepts session OR x-nest-internal). Verified the only callers are the frontend via apiGet/apiPost (session cookie) + the audit sub-path — background jobs read the Blob directly, so nothing breaks. Probed the other 9 read endpoints live (competitor-matrix, backlinks, technical-seo, ai-overview, llm-mentions, citations, business-priority, gbp-data, onpage-audit) — all already return 401; this was an isolated gap, not systemic. **Verify post-deploy:** `/api/keyword-opportunities?brand=pickl` returns 401 unauthenticated; the Opportunities tab still loads when signed in.
+
+---
+
 ## Session: July 2026 — v7.4.66 — WS1 trust & correctness: tracking-status truth + position rounding
 
 Roadmap Workstream 1 (trust/correctness) fixes. No new features — makes the Published & Tracking view tell the truth.

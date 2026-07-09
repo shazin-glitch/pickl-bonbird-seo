@@ -20,6 +20,13 @@ const CORS = {
 exports.handler = async (event) => {
   if (event.httpMethod === 'OPTIONS') return { statusCode: 200, headers: CORS, body: '' };
 
+  // Gate ALL methods (#11): the worklist (keyword strategy, competitor positions,
+  // target pages) is non-public business intel — the GET was previously ungated and
+  // served it to anyone. authorize() accepts a valid session OR the x-nest-internal
+  // header, so the frontend and internal callers keep working. (POST re-checks below.)
+  const _auth = await authorize(event);
+  if (!_auth.ok) return denied();
+
   const store = getStore({ name: 'seo-tool', siteID: process.env.NETLIFY_SITE_ID, token: process.env.NETLIFY_AUTH_TOKEN });
   const q     = event.queryStringParameters || {};
 
