@@ -10,10 +10,37 @@
 //   approve_item  — approves an SEO approval item
 //   dismiss_item  — dismisses/rejects an SEO approval item
 
+const crypto = require('crypto');
 const { getSetting, setSetting, getStore } = require('./_lib/store');
 const { internalHeaders } = require('./_lib/auth');
 
 const SITE_URL = process.env.URL || 'https://yolkseo.netlify.app';
+
+// Verify the request genuinely came from Slack (HMAC-SHA256 over the raw body with
+// the app's signing secret) — without this, ANYONE could POST a forged payload and
+// approve/dismiss items or publish calendar posts. FAIL-CLOSED: if the secret is
+// missing or the signature is absent/stale/mismatched, the request is rejected.
+// Requires the SLACK_SIGNING_SECRET env var (Slack App → Basic Information → Signing Secret).
+// Docs: https://api.slack.com/authentication/verifying-requests-from-slack
+function verifySlackSignature(event, rawBody) {
+  const secret = process.env.SLACK_SIGNING_SECRET;
+  if (!secret) return { ok: false, reason: 'SLACK_SIGNING_SECRET not set' };
+  const h = event.headers || {};
+  const sig = h['x-slack-signature'] || h['X-Slack-Signature'];
+  const ts  = h['x-slack-request-timestamp'] || h['X-Slack-Request-Timestamp'];
+  if (!sig || !ts) return { ok: false, reason: 'missing signature headers' };
+  // Reject replays: timestamp must be within 5 minutes of now.
+  if (!/^\d+$/.test(String(ts)) || Math.abs(Date.now() / 1000 - Number(ts)) > 300) {
+    return { ok: false, reason: 'stale or invalid timestamp' };
+  }
+  const expected = 'v0=' + crypto.createHmac('sha256', secret).update(`v0:${ts}:${rawBody}`).digest('hex');
+  const a = Buffer.from(expected);
+  const b = Buffer.from(String(sig));
+  if (a.length !== b.length || !crypto.timingSafeEqual(a, b)) {
+    return { ok: false, reason: 'signature mismatch' };
+  }
+  return { ok: true };
+}
 
 exports.handler = async (event) => {
   if (event.httpMethod === 'OPTIONS') {
@@ -24,9 +51,19 @@ exports.handler = async (event) => {
     return { statusCode: 405, body: 'Method not allowed' };
   }
 
+  // Raw body EXACTLY as Slack sent it — required for the signature to match, and for
+  // correct form parsing when Netlify base64-encodes the body.
+  const rawBody = event.isBase64Encoded ? Buffer.from(event.body || '', 'base64').toString('utf8') : (event.body || '');
+
+  const sigCheck = verifySlackSignature(event, rawBody);
+  if (!sigCheck.ok) {
+    console.warn('[slack-callback] Rejected unverified request:', sigCheck.reason);
+    return { statusCode: 401, body: 'Unauthorized' };
+  }
+
   try {
     // Slack sends the payload as URL-encoded form data: payload=JSON
-    const params = new URLSearchParams(event.body);
+    const params = new URLSearchParams(rawBody);
     const payloadStr = params.get('payload');
     if (!payloadStr) {
       return { statusCode: 400, body: 'Missing payload' };

@@ -323,6 +323,19 @@ From Google's official AI Optimization Guide (June 2026):
 
 ---
 
+## Session: July 2026 — v7.4.68 — Security Tier 0: Slack signature verification + gate approvals/calendar GET
+
+From the 9–10 Jul bug/security audit (register: `/BUGS-AND-SECURITY.md`; plan: `/PLAN-FOR-OPUS.md`). Fixes the three unauthenticated-exposure findings. **⚠️ DEPLOY GATE: set `SLACK_SIGNING_SECRET` in Netlify env BEFORE this deploys, or Slack approve/dismiss buttons will 401** (Slack App → Basic Information → Signing Secret).
+
+- **S1 `slack-callback.js` — Slack request signing (CRITICAL).** Previously NO verification: a forged POST could approve/dismiss any item and publish calendar posts. Added fail-closed HMAC-SHA256 verification (`verifySlackSignature`): checks `x-slack-signature` over `v0:{ts}:{rawBody}` with `SLACK_SIGNING_SECRET`, rejects missing secret / missing headers / stale timestamp (>5 min replay window) / mismatch, using `crypto.timingSafeEqual`. Also now reads the raw body respecting `isBase64Encoded` (correctness for signature + form parse). Unit-tested: valid✓ stale✗ bad-sig✗ missing✗ no-secret✗.
+- **S2 `approvals.js` — GET was unauthenticated (CRITICAL).** GET branch (line 183) ran before `authorize()` (206) → anyone could read the whole content pipeline + audit log, all brands. Hoisted `authorize()` to gate all methods. Fixed the one internal GET caller (`international-seo-background.js:1535`) to send `internalHeaders()` so dedup still works.
+- **S3 `calendar.js` — GET was unauthenticated (CRITICAL).** GET (87) before `authorize()` (149) → whole social calendar readable unauth. Hoisted the gate. No internal GET callers (only slack-callback POST, which sends the token).
+- Swept all 59 functions for the GET-before-authorize pattern: only these two remained (kw-opps fixed v7.4.67); `perch.js`/`user-management.js` flagged by the crude grep are false alarms (gate via `getCurrentUser`/`getCallerRole` admin-only).
+
+Also committed the planning + audit deliverables: `/PLAN-FOR-OPUS.md` (5-phase build plan: P0 verify → P1 unify pipelines → P2 onboarding/config → P3 visibility → P4 CEO → P5 local → P6 backlog) and `/BUGS-AND-SECURITY.md` (verified register). **NEXT (batch 2):** Tier 2 XSS sweep — a corrected `escJs()` helper (the existing `esc(x).replace(/'/g,...)` idiom is a no-op because `esc` already encodes `'`) across ~25 onclick sites + `<img src>` escapes (9834/11668) + crash bugs B1 (star-rating RangeError 7194) and B2 (competitor-matrix-ui esc-out-of-IIFE 1561). Backend-correctness audit still owed (agent died mid-run).
+
+---
+
 ## Session: July 2026 — v7.4.67 — Security: gate keyword-opportunities GET (unauthenticated worklist leak)
 
 Found during the post-deploy WS1 verification sweep. `keyword-opportunities.js` gated its POST but NOT its GET — `/api/keyword-opportunities?brand=<b>` returned the full worklist (keyword strategy, competitor positions, target pages, KD/volume) to anyone, unauthenticated. Violates CLAUDE.md #11 ("reads that return non-public data get gated too"). Fix: `authorize()` at the top of the handler (gates all methods; accepts session OR x-nest-internal). Verified the only callers are the frontend via apiGet/apiPost (session cookie) + the audit sub-path — background jobs read the Blob directly, so nothing breaks. Probed the other 9 read endpoints live (competitor-matrix, backlinks, technical-seo, ai-overview, llm-mentions, citations, business-priority, gbp-data, onpage-audit) — all already return 401; this was an isolated gap, not systemic. **Verify post-deploy:** `/api/keyword-opportunities?brand=pickl` returns 401 unauthenticated; the Opportunities tab still loads when signed in.

@@ -1532,7 +1532,7 @@ async function processMarketLanguage(store, marketKey, market, language, force =
 
       // Check for duplicate keyword already pending
       const siteUrl = process.env.URL || 'https://yolkseo.netlify.app';
-      const existing = await fetch(`${siteUrl}/.netlify/functions/approvals?status=pending&brand=${market.brand}&type=blog_draft&limit=200`)
+      const existing = await fetch(`${siteUrl}/.netlify/functions/approvals?status=pending&brand=${market.brand}&type=blog_draft&limit=200`, { headers: internalHeaders() })
         .then(r => r.json()).catch(() => ({ items: [] }));
       const isDuplicate = (existing.items || []).some(i =>
         i.payload?.targetKeyword === blog.focusKeyword &&

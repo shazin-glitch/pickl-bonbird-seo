@@ -83,6 +83,12 @@ exports.handler = async (event) => {
   if (event.httpMethod === 'OPTIONS') return preflight();
   const s = getS();
 
+  // Auth gate on ALL methods (#11): GET returns the whole social calendar (captions,
+  // media URLs, approver emails, all brands/markets) — gate it, not just POST.
+  // slack-callback (calendar approve) passes x-nest-internal; browser uses session.
+  const auth = await authorize(event);
+  if (!auth.ok) return denied();
+
   // ── GET ───────────────────────────────────────────────────────────────────
   if (event.httpMethod === 'GET') {
     const q = event.queryStringParameters || {};
@@ -143,11 +149,6 @@ exports.handler = async (event) => {
 
   // ── POST ──────────────────────────────────────────────────────────────────
   if (event.httpMethod !== 'POST') return bad(405, 'Method not allowed');
-
-  // Auth gate on all mutations. slack-callback (calendar approve) passes the
-  // x-nest-internal token; the browser path uses the session cookie.
-  const auth = await authorize(event);
-  if (!auth.ok) return denied();
 
   const body = parseBody(event);
   if (!body) return bad(400, 'Invalid JSON');

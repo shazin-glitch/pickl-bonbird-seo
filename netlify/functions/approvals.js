@@ -180,6 +180,12 @@ function parseBody(event)   { try { return event.body ? JSON.parse(event.body) :
 exports.handler = async (event) => {
   if (event.httpMethod === 'OPTIONS') return preflight();
 
+  // Auth gate on ALL methods (#11): GET returns non-public pipeline data (items,
+  // payloads, target keywords, audit log across every brand) — not just POST mutations.
+  // Internal callers (international-seo read/create) pass x-nest-internal; browser uses session.
+  const auth = await authorize(event);
+  if (!auth.ok) return denied();
+
   if (event.httpMethod === 'GET') {
     const q = event.queryStringParameters || {};
     if (q.id) {
@@ -200,11 +206,6 @@ exports.handler = async (event) => {
   }
 
   if (event.httpMethod !== 'POST') return bad(405, 'Method Not Allowed');
-
-  // Auth gate on all mutations. Internal callers (international-seo creating items)
-  // pass the x-nest-internal token; the browser path uses the session cookie.
-  const auth = await authorize(event);
-  if (!auth.ok) return denied();
 
   const body = parseBody(event);
   if (body === null) return bad(400, 'Invalid JSON');
