@@ -4669,6 +4669,17 @@ function esc(s) {
     .replace(/>/g, '&gt;').replace(/"/g, '&quot;').replace(/'/g, '&#39;');
 }
 
+// Safe interpolation for a value inside a SINGLE-QUOTED JS string in an inline
+// handler: onclick="fn('${escJs(x)}')". esc() alone is NOT enough there — it turns
+// ' into &#39;, which the browser HTML-decodes back to ' BEFORE parsing the JS, so a
+// crafted value can still break out and execute. We JS-escape (\, ', newlines) FIRST,
+// then HTML-escape, so the value survives both the HTML-attribute decode and the JS
+// string parse. Prefer data-* attributes + addEventListener for new code.
+function escJs(s) {
+  return esc(String(s == null ? '' : s)
+    .replace(/\\/g, '\\\\').replace(/'/g, "\\'").replace(/[\r\n]/g, ' '));
+}
+
 function relTime(ts) {
   if (!ts) return '';
   const d = Date.now() - ts;
@@ -4843,7 +4854,7 @@ function _renderUsersTable(users) {
             <td>
               <div style="display:flex;flex-wrap:wrap;gap:4px;align-items:center">
                 ${brands.map(b => `<span style="font-size:11px;padding:2px 9px;border-radius:10px;background:${BRAND_COLORS[b]||'#64748b'}18;color:${BRAND_COLORS[b]||'#94a3b8'};border:0.5px solid ${BRAND_COLORS[b]||'#64748b'}40;font-weight:500">${brandLabel(b)}</span>`).join('') || '<span style="font-size:12px;color:var(--text-muted)">—</span>'}
-                ${u.isBootstrap ? '' : `<button onclick="showEditBrandsModal('${esc(u.email)}',${JSON.stringify(brands)})" style="width:20px;height:20px;border-radius:4px;background:var(--bg-hover);border:0.5px solid var(--border);color:var(--text-muted);cursor:pointer;font-size:11px;display:inline-flex;align-items:center;justify-content:center;line-height:1" title="Edit brand access"><i class="ti ti-pencil" style="font-size:10px"></i></button>`}
+                ${u.isBootstrap ? '' : `<button onclick="showEditBrandsModal('${escJs(u.email)}',${JSON.stringify(brands)})" style="width:20px;height:20px;border-radius:4px;background:var(--bg-hover);border:0.5px solid var(--border);color:var(--text-muted);cursor:pointer;font-size:11px;display:inline-flex;align-items:center;justify-content:center;line-height:1" title="Edit brand access"><i class="ti ti-pencil" style="font-size:10px"></i></button>`}
               </div>
             </td>
             <td>
@@ -4853,7 +4864,7 @@ function _renderUsersTable(users) {
               </span>
             </td>
             <td style="text-align:right">
-              ${u.isBootstrap ? '' : `<button onclick="removeUser('${esc(u.email)}')" class="btn btn-outline" style="padding:4px 12px;font-size:12px;color:#ef4444;border-color:rgba(239,68,68,0.3)">Remove</button>`}
+              ${u.isBootstrap ? '' : `<button onclick="removeUser('${escJs(u.email)}')" class="btn btn-outline" style="padding:4px 12px;font-size:12px;color:#ef4444;border-color:rgba(239,68,68,0.3)">Remove</button>`}
             </td>
           </tr>`;
         }).join('')}
@@ -7191,7 +7202,7 @@ function renderReviewQueue(brand, apiPending) {
     <div id="review-card-${esc(r.id)}" style="border:1px solid var(--border);border-radius:10px;padding:14px;margin-bottom:10px">
       <div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:8px;gap:10px">
         <div style="min-width:0">
-          <span style="color:#f59e0b">${'★'.repeat(r.rating || 5)}${'☆'.repeat(5 - (r.rating || 5))}</span>
+          <span style="color:#f59e0b">${(() => { const st = r.rating == null ? 5 : Math.max(0, Math.min(5, Math.round(r.rating))); return '★'.repeat(st) + '☆'.repeat(5 - st); })()}</span>
           <div style="font-size:11px;color:var(--text-muted);margin-top:3px">${esc(r.locationName || '')}${r.locationAddr ? ' · ' + esc(r.locationAddr) : ''} · ${esc(r.relativeTime || '')}</div>
         </div>
         <span style="font-size:11px;color:var(--text-muted);font-style:italic;flex-shrink:0">${esc(r.reviewerName || '')}</span>
@@ -7376,7 +7387,7 @@ function toggleOpportunityDrill(key) {
                 ${cols.includes('clicks')      ? `<td style="padding:8px 14px;color:var(--text-muted)">${r.clicks ? Number(r.clicks).toLocaleString() : '—'}</td>` : ''}
                 ${cols.includes('ctr')         ? `<td style="padding:8px 14px;color:var(--text-muted)">${fmtCtr(r.ctr)}</td>` : ''}
                 ${cols.includes('expectedCtr') ? `<td style="padding:8px 14px;color:#d97706;font-weight:600">${expectedCtr(r.position)} <span style="font-size:11px;color:var(--text-muted);font-weight:400">expected</span></td>` : ''}
-                ${cols.includes('action') ? `<td style="padding:8px 14px"><button onclick="queueGapKeyword('${esc(r.keyword)}','${esc(d.brand)}',this)" style="font-size:11px;padding:4px 10px;border-radius:6px;border:1px solid #dc2626;background:none;color:#dc2626;cursor:pointer;font-weight:600;white-space:nowrap">Queue Brief</button></td>` : ''}
+                ${cols.includes('action') ? `<td style="padding:8px 14px"><button onclick="queueGapKeyword('${escJs(r.keyword)}','${esc(d.brand)}',this)" style="font-size:11px;padding:4px 10px;border-radius:6px;border:1px solid #dc2626;background:none;color:#dc2626;cursor:pointer;font-weight:600;white-space:nowrap">Queue Brief</button></td>` : ''}
               </tr>`).join('')}
           </tbody>
         </table>
@@ -8676,7 +8687,7 @@ async function loadSeedKeywords() {
         ${kws.map(kw => `
           <span style="display:inline-flex;align-items:center;gap:6px;padding:4px 10px;background:${brandCol}10;border:1px solid ${brandCol}30;border-radius:99px;font-size:12px;font-weight:500;color:var(--text)">
             ${esc(kw)}
-            <button onclick="removeSeedKeyword('${esc(kw)}')" style="background:none;border:none;cursor:pointer;color:${brandCol};font-size:14px;line-height:1;padding:0;margin:0" title="Remove">×</button>
+            <button onclick="removeSeedKeyword('${escJs(kw)}')" style="background:none;border:none;cursor:pointer;color:${brandCol};font-size:14px;line-height:1;padding:0;margin:0" title="Remove">×</button>
           </span>`).join('')}
       </div>
       <div style="margin-top:10px;font-size:12px;color:var(--text-muted)">${kws.length} keywords · Scheduler targets these every Monday alongside GSC data</div>`;
@@ -8771,7 +8782,7 @@ async function loadAuditHistory() {
     if (!wrap || !list || !history?.length) return;
     wrap.style.display = '';
     list.innerHTML = history.map(h => `
-      <button onclick="loadAuditFromHistory('${esc(h.domain)}','${esc(h.brand||'pickl')}')"
+      <button onclick="loadAuditFromHistory('${escJs(h.domain)}','${esc(h.brand||'pickl')}')"
         style="font-size:12px;padding:4px 12px;border-radius:6px;border:1px solid var(--border);background:var(--bg-surface);cursor:pointer;color:var(--text-main)">
         ${esc(h.domain)}
         <span style="font-size:10px;color:var(--text-muted);margin-left:4px">${new Date(h.fetchedAt).toLocaleDateString('en-GB',{day:'numeric',month:'short'})}</span>
@@ -8929,7 +8940,7 @@ function renderAuditResults(data, container) {
       ${ourPosCells(k)}
       <td style="padding:7px 10px;text-align:right;font-size:13px">${(k.volume||0).toLocaleString()}</td>
       <td style="padding:7px 10px;text-align:right;font-size:12px;color:var(--text-muted)">${k.cpc ? 'AED '+((k.cpc||0)*3.67).toFixed(2) : '—'}</td>
-      <td style="padding:7px 10px;text-align:center">${brands.every(b => (k.ourPos?.[b] || 101) <= 10) ? '' : `<button onclick="queueAuditKeyword('${esc(k.keyword).replace(/'/g,"\\'")}');this.textContent='✓';this.disabled=true" class="btn btn-outline" style="font-size:11px;padding:2px 8px">➕</button>`}</td>
+      <td style="padding:7px 10px;text-align:center">${brands.every(b => (k.ourPos?.[b] || 101) <= 10) ? '' : `<button onclick="queueAuditKeyword('${escJs(k.keyword)}');this.textContent='✓';this.disabled=true" class="btn btn-outline" style="font-size:11px;padding:2px 8px">➕</button>`}</td>
     </tr>`).join('');
   }
 
@@ -8990,10 +9001,10 @@ function renderAuditActions(recs, domain, brand) {
       const ic = IMPACT_COLORS[r.impact]  || IMPACT_COLORS.medium;
       const ec = EFFORT_COLORS[r.effort]  || EFFORT_COLORS.medium;
       const routeLabel = ROUTE_LABELS[r.route] || r.route;
-      const encodedTitle = esc(r.title).replace(/'/g,"\\'");
-      const encodedAction = esc(r.action).replace(/'/g,"\\'");
-      const encodedKeyword = esc(r.keyword||'').replace(/'/g,"\\'");
-      const encodedFinding = esc(r.finding).replace(/'/g,"\\'");
+      const encodedTitle = escJs(r.title);
+      const encodedAction = escJs(r.action);
+      const encodedKeyword = escJs(r.keyword||'');
+      const encodedFinding = escJs(r.finding);
       return `<div style="display:flex;gap:12px;padding:12px 14px;background:var(--bg-base);border:1px solid var(--border);border-radius:8px;align-items:flex-start">
         <div style="flex:1;min-width:0">
           <div style="font-weight:600;font-size:13px;margin-bottom:3px">${esc(r.title)}</div>
@@ -9282,11 +9293,11 @@ function renderOpportunitiesTable() {
           })()}</td>
           <td style="padding:7px 12px;text-align:center">
             <div style="display:flex;gap:4px;flex-wrap:wrap;justify-content:center">
-            ${(k.targetPage || k.existingPage) ? `<button onclick="generateDraftFromWorklist('${esc(k.keyword).replace(/'/g,"\\'")}','${brand}','${esc(k.targetPage||k.existingPage).replace(/'/g,"\\'")}','${oppMarket}','${esc(k.competitorPage||'').replace(/'/g,"\\'")}',this)" class="btn btn-outline" style="font-size:10px;padding:2px 7px" title="Generate an optimised meta draft for this page → queues in Approvals for your review (never auto-publishes)">⚡ Generate</button>` : ''}
+            ${(k.targetPage || k.existingPage) ? `<button onclick="generateDraftFromWorklist('${escJs(k.keyword)}','${brand}','${escJs(k.targetPage||k.existingPage)}','${oppMarket}','${escJs(k.competitorPage||'')}',this)" class="btn btn-outline" style="font-size:10px;padding:2px 7px" title="Generate an optimised meta draft for this page → queues in Approvals for your review (never auto-publishes)">⚡ Generate</button>` : ''}
             ${['content_gap','long_term'].includes(k.tier) ? `
-                <button onclick="queueOppKeyword('${esc(k.keyword).replace(/'/g,"\\'")}','${brand}',this)" class="btn btn-outline" style="font-size:10px;padding:2px 7px" title="Add to AI content pipeline">📝 AI</button>
-                <button onclick="perchOppKeyword('${esc(k.keyword).replace(/'/g,"\\'")}','${brand}',this)" class="btn btn-outline" style="font-size:10px;padding:2px 7px" title="Create Perch task for content team">📋 Perch</button>` :
-            ['push','quick_win'].includes(k.tier) ? `<button onclick="queueOppKeyword('${esc(k.keyword).replace(/'/g,"\\'")}','${brand}',this)" class="btn btn-outline" style="font-size:11px;padding:2px 8px">📝 Queue</button>` : ''}
+                <button onclick="queueOppKeyword('${escJs(k.keyword)}','${brand}',this)" class="btn btn-outline" style="font-size:10px;padding:2px 7px" title="Add to AI content pipeline">📝 AI</button>
+                <button onclick="perchOppKeyword('${escJs(k.keyword)}','${brand}',this)" class="btn btn-outline" style="font-size:10px;padding:2px 7px" title="Create Perch task for content team">📋 Perch</button>` :
+            ['push','quick_win'].includes(k.tier) ? `<button onclick="queueOppKeyword('${escJs(k.keyword)}','${brand}',this)" class="btn btn-outline" style="font-size:11px;padding:2px 8px">📝 Queue</button>` : ''}
             </div>
           </td>
         </tr>`; }).join('')}
@@ -9831,7 +9842,7 @@ function renderCalList(posts) {
       html += `<div id="list-row-${p.id}" style="background:var(--bg-surface);border:1px solid var(--border);border-radius:8px;padding:12px 16px;margin-bottom:8px;display:flex;gap:10px;align-items:flex-start;transition:box-shadow 0.15s,border-color 0.15s">
         <input type="checkbox" class="cal-list-cb" data-id="${p.id}" style="margin-top:16px;flex-shrink:0;accent-color:var(--primary);width:15px;height:15px;cursor:pointer" onchange="toggleCalListSelect('${p.id}',this.checked)" onclick="event.stopPropagation()">
         <div onclick="openCalDetail('${p.id}')" style="display:flex;gap:12px;align-items:flex-start;flex:1;cursor:pointer;min-width:0" onmouseover="this.parentElement.style.boxShadow='0 2px 8px rgba(0,0,0,0.08)'" onmouseout="this.parentElement.style.boxShadow='none'">
-          ${hasMedia && thumbSrc ? `<div style="width:52px;height:52px;border-radius:6px;overflow:hidden;flex-shrink:0;border:1px solid var(--border)"><img src="${thumbSrc}" style="width:100%;height:100%;object-fit:cover" onerror="this.style.display='none'"></div>` : `<div style="width:52px;height:52px;border-radius:6px;background:var(--bg-base);flex-shrink:0;display:flex;align-items:center;justify-content:center;border:1px solid var(--border);font-size:22px">${typeIcon || (firstPf ? pfIcon(firstPf, 22) : '📋')}</div>`}
+          ${hasMedia && thumbSrc ? `<div style="width:52px;height:52px;border-radius:6px;overflow:hidden;flex-shrink:0;border:1px solid var(--border)"><img src="${esc(thumbSrc)}" style="width:100%;height:100%;object-fit:cover" onerror="this.style.display='none'"></div>` : `<div style="width:52px;height:52px;border-radius:6px;background:var(--bg-base);flex-shrink:0;display:flex;align-items:center;justify-content:center;border:1px solid var(--border);font-size:22px">${typeIcon || (firstPf ? pfIcon(firstPf, 22) : '📋')}</div>`}
           <div style="flex:1;min-width:0">
             <div style="display:flex;align-items:center;gap:8px;margin-bottom:4px;flex-wrap:wrap">
               <span style="font-size:11px;font-weight:600;color:${statusInfo.color};background:${statusInfo.color}18;padding:2px 8px;border-radius:10px">${statusInfo.label}</span>
@@ -11118,7 +11129,7 @@ function renderCalDetailPanel(post) {
   const usersForMention = (calState.allUsers || []).filter(u => u.email !== state.userEmail);
   const mentionDropdown = usersForMention.length ? `
     <div id="cal-mention-list" style="display:none;position:absolute;bottom:100%;left:0;background:var(--bg-surface);border:1px solid var(--border);border-radius:8px;box-shadow:0 4px 12px rgba(0,0,0,0.12);min-width:180px;z-index:10;padding:4px 0">
-      ${usersForMention.map(u => `<div onclick="insertCalMention('${esc(u.name||u.email)}')" style="padding:7px 14px;font-size:13px;cursor:pointer;hover:background:var(--bg-base)">${esc(u.name||u.email)}</div>`).join('')}
+      ${usersForMention.map(u => `<div onclick="insertCalMention('${escJs(u.name||u.email)}')" style="padding:7px 14px;font-size:13px;cursor:pointer;hover:background:var(--bg-base)">${esc(u.name||u.email)}</div>`).join('')}
     </div>` : '';
 
   const commentInput = `
@@ -11665,7 +11676,7 @@ function renderPresentStrip() {
     const _sf0 = (p.mediaFiles||[])[0];
     const stripSrc = _sf0 ? (_sf0.url || (_sf0.id ? `/api/calendar-media?id=${_sf0.id}` : '')) : (p.imageUrl || '');
     const thumb = stripSrc
-      ? `<img src="${stripSrc}" style="width:100%;height:100%;object-fit:cover;border-radius:5px" onerror="this.style.display='none'">`
+      ? `<img src="${esc(stripSrc)}" style="width:100%;height:100%;object-fit:cover;border-radius:5px" onerror="this.style.display='none'">`
       : `<div style="width:100%;height:100%;display:flex;align-items:center;justify-content:center;border-radius:5px;background:rgba(255,255,255,0.05)">${(p.platforms||[])[0] ? pfIcon((p.platforms||[])[0], 20, 'filter:brightness(0) invert(0.6)') : '<span style="font-size:16px">📋</span>'}</div>`;
     return `<div onclick="calState.presentIdx=${i};renderPresentSlide();renderPresentStrip()" style="flex-shrink:0;width:64px;height:64px;border-radius:6px;cursor:pointer;border:2px solid ${i===idx ? '#1BBFA3' : 'rgba(255,255,255,0.15)'};overflow:hidden;position:relative;transition:border-color 0.15s">
       ${thumb}

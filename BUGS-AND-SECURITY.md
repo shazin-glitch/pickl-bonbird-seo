@@ -73,8 +73,8 @@ Keyword interpolated raw (no esc) into the tooltip `innerHTML`. Reported, struct
 ### B1. Star-rating `RangeError` blanks the review queue ✅ HIGH (index.html:7194)
 `'★'.repeat(r.rating || 5) + '☆'.repeat(5 - (r.rating || 5))`. A GBP rating of `6` (or negative/NaN) → `.repeat(-1)` throws `RangeError`, and there's no per-row guard, so **one bad review blanks the whole Local SEO review render**. 🔧 clamp: `const st = Math.max(0, Math.min(5, Math.round(r.rating||0)))`.
 
-### B2. `competitor-matrix-ui.js` — `esc()` called outside its IIFE scope ✅ HIGH (js/competitor-matrix-ui.js:1561+)
-✅ Fully verified: `esc` is defined inside the IIFE (closes at **line 1551**); `cmDiscoverCompetitors` starts **line 1561** (outside it) and calls `esc(c.domain)` at **1592 and 1597** → `ReferenceError: esc is not defined`, the entire "Discover Competitors" result render throws on any successful result. 🔧 move the function inside the IIFE or hoist a module-level `esc`.
+### B2. `competitor-matrix-ui.js` — `esc()` called outside its IIFE scope ❌ FALSE POSITIVE (corrected 11 Jul)
+The agent (and my first note) claimed a `ReferenceError` crash because `esc` is IIFE-local (defined at line 211, IIFE closes 1551) while `cmDiscoverCompetitors` (line 1561) is outside it. **On re-verification this is NOT a crash:** `index.html`'s main `<script>` is bare (not an IIFE), so its `esc`/`escJs` are **global**; the out-of-IIFE function falls back to the global `esc` at runtime. No crash. The *real* (lower-severity) issue there was the same onclick class — `esc(c.domain)` in the `cmAddDiscoveredCompetitor` onclick (line 1597), external DataForSEO data. ✅ FIXED v7.4.69 → `escJs(c.domain)` (global). Lesson logged: verify the global fallback before calling an out-of-scope reference a "crash".
 
 ### B3. `renderCalDetailPanel(res.post)` crash on postless 200 ⚠️ MED (index.html:~11703 + siblings)
 Several callers assign/pass `res.post` without a guard; `renderCalDetailPanel` dereferences `post.createdBy` immediately → throws, blanks the panel. Some callers guard (`if (res.post)`), 11703 (presentApprove) does not. 🔧 guard `res.post`.
@@ -105,9 +105,19 @@ Keyword with `"` breaks CSV quoting; leading `=`/`+`/`-`/`@` = Excel formula inj
 
 ---
 
-## Already fixed this session (do not re-report)
+## Already fixed (do not re-report)
+- ✅ **Tier 0 (v7.4.68, committed, NOT yet pushed — pending `SLACK_SIGNING_SECRET`):** S1 slack-callback signature verification; S2 approvals GET gated; S3 calendar GET gated; intl-seo:1535 internalHeaders.
+- ✅ **Tier 2/4 batch 2 (v7.4.69, committed):** added correct global `escJs()` (JS-escape THEN html-escape; the old `esc(x).replace(/'/g,…)` idiom was a no-op → those 11 sites were ALSO XSS, now converted); converted 6 named free-text onclick sinks (X1 queueGapKeyword, X3 insertCalMention, X4 removeSeedKeyword, + showEditBrandsModal/removeUser/loadAuditFromHistory) to escJs; X2 `<img src>` escaped (thumbSrc 9845, stripSrc 11679); B1 star-rating clamp; B2 competitor-domain onclick → escJs. Verified: escJs neutralises `');alert(1)//` end-to-end; star clamp handles 6/-1/null.
 - ✅ `keyword-opportunities.js` GET auth leak — gated (v7.4.67, live-verified 401).
 - ✅ Draft-vs-live tracking mislabel + backend eligibility + position rounding (v7.4.66).
+
+## Still open after batch 2 (for later phases)
+- **S4 authorization layer** (Viewer-can-publish, cross-brand) — the big one; pairs with P2 onboarding.
+- **Remaining onclick sweep:** ~15 esc-only onclick args carrying fixed-set values (brand/market/ids) — low risk, convert for consistency. Plus `competitor-matrix-ui.js` IIFE-local `esc` doesn't escape quotes at all (its own onclicks); and its queue-tip keyword (X5) needs esc.
+- **Tier 3 XSS** (robots.txt 7831, perf-summary narrative, profile pic) — `esc()` sweep.
+- **Tier 4 remainder** (B3 renderCalDetailPanel guard, B4 backlinks toLocaleString, B5 Reports NaN/try-catch, B6 poll-timer clear on brand switch, B7 Perch res.ok).
+- **Tier 5 hardening** (A1 OAuth state nonce, A2 authorizeJob heuristic, A3 CORS).
+- **⚠️ Backend-correctness audit still owed** (agent died) — re-run before P1.
 
 ## False positives killed during verification
 - showToast XSS (uses textContent). · "rank-tracker seeds UAE-only" (earlier planning agent — `oppKey` handles `:brand:market`). · Most `brand`/`market`/`route` onclick interpolations (fixed-set `<select>` values — flag for consistency, not live exploits).

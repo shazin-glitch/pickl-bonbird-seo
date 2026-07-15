@@ -323,6 +323,21 @@ From Google's official AI Optimization Guide (June 2026):
 
 ---
 
+## Session: July 2026 — v7.4.69 — Security Tier 2/4: onclick XSS sweep (escJs) + crash fixes
+
+Batch 2 of the audit fixes (register: `/BUGS-AND-SECURITY.md`). Frontend only (`index.html`, `js/competitor-matrix-ui.js`).
+
+- **Root cause fixed — the onclick XSS class.** `esc()` encodes `'`→`&#39;`, which the browser HTML-decodes back to `'` *before* parsing an inline `onclick`, so `esc()` alone does NOT protect a JS-string arg — a crafted `');alert(1);//` closes the string and executes. **The codebase's own idiom `esc(x).replace(/'/g,"\\'")` was a no-op** (esc already replaced the quotes), so those 11 "protected" sites were ALSO vulnerable.
+- **Added global `escJs(s)`** = JS-escape (`\`, `'`, newlines) THEN `esc()` — survives both the HTML-attribute decode and the JS parse. Verified end-to-end: apostrophe keywords render fine, `');alert(1);//` is received as a literal string (no execution), `<img onerror>`/quotes safe.
+- **Converted the 11 broken-idiom sites → `escJs`** (balanced-paren transform) + **6 named free-text onclick sinks**: queueGapKeyword, insertCalMention, removeSeedKeyword, showEditBrandsModal, removeUser, loadAuditFromHistory (keyword/name/email/domain — user/external data).
+- **X2 unescaped `<img src>` escaped** — calendar list thumb (9845) + present strip (11679), from user-pasted `imageUrl`/media URLs (was stored XSS).
+- **B1 crash fixed** — GBP star rating `'★'.repeat(r.rating||5)`: a rating of 6/-1/NaN threw `RangeError` and blanked the whole review queue. Now clamped 0–5 (null→5).
+- **B2 was a FALSE POSITIVE** (corrected): the "esc-out-of-IIFE ReferenceError crash" claim is wrong — index.html's `esc`/`escJs` are global (bare `<script>`), so `competitor-matrix-ui.js`'s out-of-IIFE functions fall back to them. No crash. Did convert its one external-data onclick (`cmAddDiscoveredCompetitor` c.domain, line 1597) to `escJs`.
+
+Still open (later phases): S4 authorization layer (Viewer-can-publish); ~15 fixed-set onclick args + competitor-matrix-ui's quote-blind local `esc`; Tier 3 XSS (robots.txt/narrative/profile-pic); Tier 4 remainder (B3–B7); Tier 5 hardening; and the **backend-correctness audit still owed** (agent died mid-run) — re-run before P1.
+
+---
+
 ## Session: July 2026 — v7.4.68 — Security Tier 0: Slack signature verification + gate approvals/calendar GET
 
 From the 9–10 Jul bug/security audit (register: `/BUGS-AND-SECURITY.md`; plan: `/PLAN-FOR-OPUS.md`). Fixes the three unauthenticated-exposure findings. **⚠️ DEPLOY GATE: set `SLACK_SIGNING_SECRET` in Netlify env BEFORE this deploys, or Slack approve/dismiss buttons will 401** (Slack App → Basic Information → Signing Secret).

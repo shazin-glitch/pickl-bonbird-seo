@@ -1594,7 +1594,7 @@ async function cmDiscoverCompetitors(brand, btn) {
             </div>
             ${alreadyTracked
               ? `<span style="font-size:11px;color:#059669;font-weight:600">✓ Already tracked</span>`
-              : `<button onclick="cmAddDiscoveredCompetitor('${brand}','${esc(c.domain)}',this)" style="padding:4px 12px;background:#6366f1;color:#fff;border:none;border-radius:6px;font-size:12px;font-weight:600;cursor:pointer;white-space:nowrap">+ Add</button>`
+              : `<button onclick="cmAddDiscoveredCompetitor('${brand}','${(window.escJs ? escJs(c.domain) : esc(c.domain))}',this)" style="padding:4px 12px;background:#6366f1;color:#fff;border:none;border-radius:6px;font-size:12px;font-weight:600;cursor:pointer;white-space:nowrap">+ Add</button>`
             }
           </div>`;
         }).join("")}
