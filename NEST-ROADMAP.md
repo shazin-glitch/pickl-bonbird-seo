@@ -2,9 +2,10 @@
 
 > Working scope doc, agreed v7.4.36 (June 2026). Companion to SETUP.md.
 > Shareable with leadership. Status legend: ✅ done · 🔧 in progress · 📝 spec'd, not built · 🔴 not started.
+> **⚠️ Statuses below reconciled to reality 11 Jul 2026 (was drifted). The current BUILD SEQUENCING lives in `/PLAN-FOR-OPUS.md` (P0→P6); this doc is the leadership/cost view. Verified bug/security audit: `/BUGS-AND-SECURITY.md`.**
 
 ## Status
-Engine proven on the live site — The Nest generates SEO fixes and publishes them to the website. Verified: a page's RankMath SEO score rose **25 → 78** after an automated meta update; meta writes confirmed in live page source. Remaining work is breadth and hardening, not "does it work."
+Engine proven on the live site — The Nest generates SEO fixes and publishes them to the website. Verified: a page's RankMath SEO score rose **25 → 78** after an automated meta update; meta writes confirmed in live page source. Since v7.4.36 the platform has shipped: per-market traffic reporting + rank tracker + long-term targets (v7.4.63–65), a full security-audit fix sweep (v7.4.67–69: unauth-endpoint gating, Slack request signing, onclick-XSS sweep) and a backend-correctness sweep (v7.4.70–71: queue index-truncation, live-page-unpublish, +6 more). Remaining work is breadth, unification, and hardening — not "does it work."
 
 ## Strategy
 We will **not** out-index Ahrefs/SEMrush — their keyword/backlink databases are years of crawling and hundreds of millions in infrastructure. We rent what we need per-query via DataForSEO (already integrated). We win on the one thing the paid tools **cannot** do: **close the loop — find the issue, write the fix in our brand voice, publish it to the site, and measure the result — across many sites and markets.** They stop at diagnosis; we execute.
@@ -13,13 +14,13 @@ We will **not** out-index Ahrefs/SEMrush — their keyword/backlink databases ar
 
 | # | Workstream | Delivers | State | Effort | Est. cost* |
 |---|---|---|---|---|---|
-| 1 | **Trust & correctness** | Meta-quality fixes, live-vs-draft tracking fix, decimal rounding, + verify the untested v7.4.13–28 backlog | 🔧 In progress | ~2 wk | $300–700 |
-| 2 | **Site scanner (crawler)** | Auto-crawls every page and flags issues (DataForSEO OnPage API) — the independent audit, automated & weekly | 📝 Spec'd, NOT built | ~1.5–2 wk | $400–800 |
-| 3 | **Close the loop** | Scanner findings auto-route to generators → published fixes (schema, meta, content, location pages) | 🔴 Not started | ~1.5 wk | $300–650 |
-| 4 | **Reporting engine** | Rankings + traffic value + site health in one view; monthly per-market reports; GBP/speed PDFs | 🔴 Not started | ~2 wk | $400–800 |
-| 5 | **Local SEO depth** | GBP Performance API metrics, location-health report, location-page populator | 🔴 Not started | ~1.5 wk | $300–650 |
-| 6 | **International hardening** | Group B/C data-quality + scoring + coverage fixes, verify all 9 markets, hreflang w/ dev | 🔴 Not started | ~2 wk | $400–800 |
-| 7 | **Multi-site onboarding + config layer** | Add any new brand/website (Southpour, Yolk, Shadow) or MARKET without rebuilding; non-restaurant verticals; access controls (RBAC) | 🔴 Not started | ~2.5–3 wk | $550–1,100 |
+| 1 | **Trust & correctness** | Meta-quality fixes, live-vs-draft tracking fix, decimal rounding, security+backend audit, + verify the untested v7.4.13–28 backlog | 🔧 Mostly done | ~2 wk | $300–700 |
+| 2 | **Site scanner (crawler)** | Auto-crawls every page and flags issues (DataForSEO OnPage API) — the independent audit, automated & weekly | ✅ Built (v7.4.52) 🔧 needs cron cadence + crawl-diff view | ~1.5–2 wk | $400–800 |
+| 3 | **Close the loop** | Scanner findings auto-route to generators → published fixes (schema, meta, content, location pages) | 🔧 Partial — content-outcomes measurement live; content-intelligence built (untested); scanner→generator routing not built (= P1) | ~1.5 wk | $300–650 |
+| 4 | **Reporting engine** | Rankings + traffic value + site health in one view; monthly per-market reports; GBP/speed PDFs | 🔧 Started — per-market traffic + rank tracker + CEO rollup shipped (v7.4.63–65); monthly per-market PDF + Issues&Flags still to do (= P4) | ~2 wk | $400–800 |
+| 5 | **Local SEO depth** | GBP Performance API metrics, location-health report, location-page populator | 🔴 Not started (= P5) | ~1.5 wk | $300–650 |
+| 6 | **International hardening** | Group B/C data-quality + scoring + coverage fixes, verify all 9 markets, hreflang | 🔴 Not started; hreflang GENERATOR exists (hreflang.js), deployment-audit not built | ~2 wk | $400–800 |
+| 7 | **Multi-site onboarding + config layer** | Add any new brand/website (Southpour, Yolk, Shadow) or MARKET without rebuilding; non-restaurant verticals; access controls (RBAC) | 🔴 Not started (= P2 in the plan — pulled EARLIER, right after pipeline unification) | ~2.5–3 wk | $550–1,100 |
 
 > **WS7 end-game (scalability) — noted 2 Jul 2026 (Shazin).** Today market config is HARDCODED as a JS literal (`INTERNATIONAL_MARKETS` in `_lib/international-config.js`, ~15 fields/market) and DUPLICATED across ~10 code locations (CLAUDE.md add-a-market checklist: `MARKET_LOCATIONS`, `MARKET_KEYWORD_TERMS`, `calendar.js` timezones + `SP_ACCOUNTS`, `index.html` mirrors `CAL_MARKETS`/`CAL_MARKET_TIMEZONES`/`SP_ACCOUNTS_FLAT`/`SP_HAS_ACCOUNT`). Adding a market = multi-file edit + deploy, constants can drift. TARGET: single source of truth in Blobs (`marketsConfig`/`brandsConfig`) + Settings→Markets/Brands admin form + shared accessor both BE & FE read from (extend `getMarketsForBrand` to read blob, code literal = seed/fallback). Auto-derive hard fields (location_code via `resolveLocation(country)`, timezone via IANA lookup) so the form only needs country+brand+slug. Migration: seed blob from current literal, switch reads, keep literal fallback. Do AFTER core loop (WS1-3). PRINCIPLE NOW: build all new code (crawler, Stage 2) config-driven — iterate `getMarketsForBrand`/config, attribute via `getMarketPageTokens`, never hardcode market lists inline → zero rework when the config layer lands.
 | — | **Cross-cutting** | Perch task-hub, auth follow-ups, voice-gate consistency — woven through | — | ~1.5 wk | $300–650 |
@@ -36,10 +37,15 @@ We will **not** out-index Ahrefs/SEMrush — their keyword/backlink databases ar
 - **Funding:** stay on Pro annual + metered top-ups. **No 20x Max (~$200/mo) needed. No SEMrush/Ahrefs subscription, ever** (we build the scanner; rent only data we can't produce).
 
 ## Honest caveats
-- A large body of work shipped v7.4.13–v7.4.28 was **never live-tested** (verification debt). The first real look at the meta sweep found 3/5 cards broken — so Workstream 1 may expand as we test the rest.
+- A large body of work shipped v7.4.13–v7.4.28 was **never live-tested** (verification debt). The first real look at the meta sweep found 3/5 cards broken. This is now the explicit **P0 gate** in `/PLAN-FOR-OPUS.md` — the reporting/tracker/long-term features + the Arabic Opportunities fail-open fix must pass a signed-in live-verify pass before P1 starts. Do NOT run an international content regenerate until the Arabic fix is confirmed live.
 - The biggest cost variable is **debugging iteration**, not the plan tier.
+- Verified bug/security register: `/BUGS-AND-SECURITY.md`. Full build sequencing (P0–P6): `/PLAN-FOR-OPUS.md`.
 
 ## Progress log
+- ✅ v7.4.70–71 — backend-correctness sweep: fixed `approvals:index` 500-truncation (was orphaning items → dedup re-spend), `update_content` unpublishing live pages, findPostByUrl wrong-page, voice-check JSON parse, tracking clobber, gsc-data rowLimit, GBP orderBy encode. (BC3/BC5/BC6/BC9 deferred into P1/P2 where the surrounding code is rewritten once — see BUGS-AND-SECURITY.md.)
+- ✅ v7.4.67–69 — security audit fixes: gated unauthenticated GET leaks (keyword-opportunities, approvals, calendar), added Slack request-signing verification, swept onclick-XSS class (`escJs`), fixed a review-queue crash.
+- ✅ v7.4.63–65 — SEO reporting: per-market GSC traffic (dated, branded/non-branded), rank tracker (weekly position history + CEO rollup), long-term-target worklist group. (WS4 started.)
+- ✅ v7.4.52 — site crawler BUILT (`onpage-audit-background` DataForSEO OnPage, sitemap crawl, per-market rollup, Technical-SEO tab). (WS2 delivered.)
 - ✅ v7.4.36 — meta sweep quality hardening (markdown strip, smart truncation, min-length guard, page-type keyword in title). Workstream 1 started.
 - ✅ v7.4.29–35 — international meta/on-page pipeline: live-content generators, publishing safety, dedup, full-page sweep + slug-token discovery, exclude list, truncation fix, cron disabled (manual trigger).
 - ✅ Loop + meta verified live (RankMath 25→78).

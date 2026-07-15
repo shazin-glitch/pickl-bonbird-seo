@@ -54,16 +54,19 @@
 
 ---
 
-## Current Version: v7.4.28
+## Current Version: v7.4.71
 
-See SETUP.md → "Done (Full History)" for complete build log.
+See SETUP.md → session log for the complete build history.
 
-**Next up (see memory for full deferred backlog):**
-- Slack bot OAuth — deep-link notifications to specific brand → market → calendar post
-- GBP deeper dive (scope TBD — Shazin said "I want to get more in depth on this")
-- Domain migration → thenest.yolkbrands.com (checklist in SETUP.md)
+**Canonical planning docs (read these first):**
+- `/PLAN-FOR-OPUS.md` — the current build sequencing (P0 verify → P1 pipeline unification → P2 brand/market onboarding + config layer → P3 visibility → P4 CEO layer → P5 local → P6 backlog). Supersedes the workstream sequencing below.
+- `/BUGS-AND-SECURITY.md` — verified bug/security register (security Tier 0–2 + backend correctness fixed through v7.4.71; remaining items folded into P1/P2).
 
-**⚠️ Adding a new market — REQUIRED steps:**
+**Next up:** P0 (signed-in live-verify pass — traffic/tracker/long-term + the Arabic Opportunities fail-open fix; do NOT run an intl regenerate until the Arabic fix is confirmed live) → P1 (unify the UAE + intl pipelines into one brand×market-parameterised module — also fixes BC3/BC5/BC6 queue-dup + voice-gate).
+
+**Deferred backlog (see memory):** Slack bot OAuth deep-link · GBP deeper dive · domain migration → thenest.yolkbrands.com (checklist in SETUP.md).
+
+**⚠️ Adding a new market — REQUIRED steps** (this 10-file manual checklist + its drift risk is exactly what **P2 (config layer)** eliminates — `marketsConfig`/`brandsConfig` in Blobs + a Settings form + shared accessors; until P2 ships, follow every step):
 1. Add to `CAL_MARKETS` in `index.html`
 2. Add IANA timezone to `MARKET_TIMEZONES` in `calendar.js`
 3. Add IANA timezone to `CAL_MARKET_TIMEZONES` in `index.html`

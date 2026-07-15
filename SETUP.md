@@ -323,6 +323,18 @@ From Google's official AI Optimization Guide (June 2026):
 
 ---
 
+## Session: July 2026 — v7.4.72 — P0 (truth): doc reconciliation + live-verify checklist
+
+Start of the P0 phase from `/PLAN-FOR-OPUS.md` ("truth first"). Docs only — no code.
+
+- **NEST-ROADMAP.md reconciled to reality** (statuses had drifted): WS1 mostly done (correctness + security + backend sweeps shipped v7.4.63–71), WS2 crawler ✅ BUILT (v7.4.52, was marked "not built"), WS3 partial (content-outcomes live), WS4 started (reporting/tracker/long-term shipped), hreflang GENERATOR exists (deployment-audit not built). Added a banner pointing to `/PLAN-FOR-OPUS.md` (build sequencing) + `/BUGS-AND-SECURITY.md` (audit), progress-log entries for v7.4.52/63-65/67-71, and the Arabic-regenerate gate to the caveats.
+- **CLAUDE.md version drift fixed**: `Current Version` v7.4.28 → v7.4.71; added canonical-docs pointer (PLAN-FOR-OPUS + BUGS-AND-SECURITY) and next-up (P0→P1); noted the 10-file add-a-market checklist is what P2 (config layer) eliminates.
+- **`/P0-VERIFY-CHECKLIST.md` created** — the signed-in live-verify pass (Fable can't run it; needs a session + real GSC/DFS data): V1 Arabic Opportunities fail-open (🔴 GATE — no intl regenerate until it passes), V2 traffic vs June baseline, V3 tracker seeds every market, V4 CEO rollup, V5 long-term group on a discovery run, V6 content-intelligence fields, V7 page_update keeps live page live (BC2), V8 no duplicate re-queue (BC1). Pass/fail criteria each.
+
+P0 remaining = Shazin runs the checklist. All ✅ (esp. V1) → P0 gate cleared → P1 (pipeline unification).
+
+---
+
 ## Session: July 2026 — v7.4.71 — Backend correctness batch: BC4/BC6a/BC7/BC8/BC10 + LOWs
 
 Second backend-correctness batch (register: `/BUGS-AND-SECURITY.md` Tier 6). Self-contained fixes that don't belong to the P1/P2 structural work.
