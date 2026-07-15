@@ -10,7 +10,7 @@
 //   test            verify credentials
 //   create_draft    new blog POST as draft
 //   create_page     new WP PAGE as draft  ← new: for landing/location pages
-//   update_content  rewrite content of existing post/page, saves as draft  ← new
+//   update_content  rewrite content of existing post/page, preserves current status
 //   update_meta     update SEO title/description only
 //   publish         flip draft → published  ← new: triggered by "Approve & Publish"
 //   list_posts      search posts + pages
@@ -176,7 +176,12 @@ async function handleUpdateContent(creds, payload) {
   if (!payload.title && !payload.body) return fail(400, 'title or body required to update content');
 
   const endpoint = postType === 'pages' ? 'pages' : 'posts';
-  const updates = { status: 'draft' }; // always save as draft — never auto-publish
+  // Do NOT force status here. update_content targets an EXISTING page; forcing
+  // status:'draft' flipped a currently-PUBLISHED (live, ranking) page to draft → it
+  // 404'd on its public URL until republished. Omitting status makes WP preserve the
+  // page's current state: a published page stays live with the rewritten content (the
+  // human already approved it in the queue), a draft stays a draft. Matches handleUpdateMeta.
+  const updates = {};
   if (payload.title)   updates.title   = payload.title;
   if (payload.body)    updates.content  = payload.body;
   if (payload.excerpt) updates.excerpt  = payload.excerpt;
@@ -188,7 +193,7 @@ async function handleUpdateContent(creds, payload) {
   return win({
     ok: true, id: postId, postType: endpoint, ref: res.data.link,
     editUrl: `${creds.base}/wp-admin/post.php?post=${postId}&action=edit`,
-    message: `Content updated on ${endpoint.slice(0,-1)} #${postId} — saved as draft`,
+    message: `Content updated on ${endpoint.slice(0,-1)} #${postId} — status preserved (live pages stay live)`,
   });
 }
 

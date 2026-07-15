@@ -76,8 +76,26 @@ async function createApproval(input) {
   await s.setJSON(KEY_ITEM(id), item);
   const idx = await getIndex();
   idx.unshift(id);
-  if (idx.length > 500) idx.length = 500;
-  await setIndex(idx);
+  // Prune dead items (rejected/failed >30d) — keep pushed/published/pending FOREVER so
+  // the dedup window + tracking never lose sight of what's been published. Mirrors
+  // approvals.js createItem exactly. (The old `idx.length = 500` hard-truncate silently
+  // orphaned everything past 500 → broken dedup [Claude re-spend] + broken tracking.)
+  // NOTE: store.js and approvals.js are drifted copies of this queue — unify into one
+  // module in P1 (this is the shared prune logic duplicated for now).
+  const cutoff = now - 30 * 24 * 60 * 60 * 1000;
+  const DEAD = new Set(['rejected', 'failed']);
+  const pruned = [];
+  for (const eid of idx) {
+    if (pruned.length >= 2000) break; // hard ceiling — should never be reached in practice
+    const existing = await s.get(KEY_ITEM(eid), { type: 'json' }).catch(() => null);
+    if (!existing) continue; // already-deleted blob — drop from index
+    if (DEAD.has(existing.status) && existing.updatedAt < cutoff) {
+      await s.delete(KEY_ITEM(eid)).catch(() => null);
+      continue;
+    }
+    pruned.push(eid);
+  }
+  await setIndex(pruned);
   await logAudit({ at: now, actor: item.actor, action: 'queued', target: id, type: item.type, brand: item.brand, note: item.title });
   return item;
 }

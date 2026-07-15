@@ -105,6 +105,55 @@ Keyword with `"` breaks CSV quoting; leading `=`/`+`/`-`/`@` = Excel formula inj
 
 ---
 
+## TIER 6 — Backend correctness (audit re-run 11 Jul; 2 agents, all findings below verified by me against code)
+
+### BC1. `approvals:index` hard-truncated to 500 by `store.js createApproval` ✅ CRITICAL
+`_lib/store.js:79` `if (idx.length > 500) idx.length = 500` — used by **all 6 background content generators** (scheduler, international-seo, generate-draft, hreflang, local-seo-pages, reviews). The newer `approvals.js:114 createItem` prunes to 2000 (dead >30d only, keeps pushed/published/pending) — but that's only the API path. So the primary cron write path silently caps the index at 500. Once pushed/published items (never pruned) accumulate past 500, older ids are dropped from the index → **orphaned blobs**, and every downstream consumer that iterates the index breaks: `getQueuedKeywords`/`getQueuedMetaMap` (→ dedup miss → **duplicate content = Claude re-spend**), `trackPublishedItems`, `content-outcomes`, rank tracking. Root cause: `store.js` and `approvals.js` are two drifted copies of the queue. 🔧 make `store.js createApproval` use the same prune-not-truncate logic (or one shared queue module). **The single highest-impact correctness bug.**
+
+### BC2. `update_content` unpublishes live pages ✅ HIGH
+`wordpress.js:179` `handleUpdateContent` hard-sets `updates = { status: 'draft' }` and POSTs it. Caller: `approvals.js:541` `page_update` = "Claude rewrote content for an EXISTING page". WP REST applies the status → a currently-**published** page flips to **draft = 404s on its public URL** until someone runs publish. The inline comment ("stays live until you Publish") is factually wrong. So approving a `page_update` on a live ranking page silently takes it offline. 🔧 fetch current status first; for an already-published target, omit `status` (or only force draft when target ≠ publish). Note new pages (page_creation/blog_draft) correctly stay draft — this is page_update-specific.
+
+### BC3. `approvals:index` read-modify-write race ✅ HIGH
+Both `store.js:77-80` and `approvals.js:106-123` do getIndex → unshift → setIndex with no locking; `createItem`'s prune loop awaits up to 2000 sequential blob GETs, widening the window; `trackPublishedItems` (`scheduler-background.js:389`) also raw-writes items during a 15-min run. Concurrent writers (scheduler + user approval, or scheduler + intl manual run) → lost updates / dropped ids. 🔧 serialize index mutation, or store items as individual keys + `store.list()` prefix scan instead of one mutable index blob.
+
+### BC4. `findPostByUrl` returns the wrong page on multi-result ✅ MED
+`wordpress.js:382-399`: the `expectedPath` verify+skip guard only covers the **single-result** branch; when a slug returns **multiple** results and none matches, `match` stays undefined and it falls through to `best = res.data[0]`. Two markets sharing a slug (`/ksa/best-burger` vs `/bh/best-burger`) → update_meta / update_content / **publish** can hit the wrong market's page. 🔧 apply the same path verification when `length > 1`; return null if no link matches.
+
+### BC5. meta_update dedup URL-form mismatch → double spend ✅ MED
+`getQueuedMetaMap` keys on `payload.url || payload.targetUrl` (`international-seo-background.js:127`). `runMarketDataDrivenSEO` stores `url = matched.page` (GSC page URL, :300); the page-sweep stores `url/targetUrl = page.link` (WP canonical, :1304/1378). GSC url ≠ WP link for the same page → dedup miss → two meta_update items for one page → double Claude spend + reviewer noise. 🔧 normalize to WP canonical (or dedup by postId) in both writers.
+
+### BC6. Voice-gate parse fallback fails OPEN in UAE / CLOSED in intl ✅ MED
+`_lib/brand.js:455` uses `JSON.parse` (not `extractJson`); on any parse failure the catch (:463-465) returns **score 6**. UAE scheduler skips only `<5` (6 → publishes possibly-unvetted content); intl rejects `<8` (6 → drops good content). Same fallback, opposite behavior. 🔧 use `extractJson`; pick one fallback policy; align thresholds (the P1 voice-gate unification covers this).
+
+### BC7. `trackPublishedItems` raw-write clobbers concurrent edits ✅ MED
+`scheduler-background.js:389` writes the whole item via `s.set(...)`, bypassing `updateApproval`, across a 15-min run. A user editing/approving the same item mid-run → lost update. 🔧 re-read + patch only the tracking fields.
+
+### BC8. `gsc-data.js` rowLimit 500 clips the long tail ✅ MED
+`gsc-data.js:73,78` use `rowLimit: 500` (vs `_lib/gsc.js`'s 25000). Feeds `competitor-audit` gap detection (missing keywords → false "ranking gap"/ourPos:null) and ai-overview keyword selection. No pagination. 🔧 raise to 25000 / reuse `_lib/gsc` helpers (folds into the P1 GSC-path consolidation).
+
+### BC9. Binary `brand === 'pickl' ? … : …` GSC-site mapping ✅ MED (scalability / #12)
+`market-traffic.js:42`, `competitor-audit.js`, `technical-seo-background.js:160`, ai-overview BRAND_CONFIG — GSC property resolved by a two-brand ternary. A 3rd brand (Southpour) silently queries **Bonbird's** property. Latent today; hard-blocks P2 onboarding. 🔧 one brand→GSC-property config map, fail closed for unknown brand.
+
+### BC10. `reviews.js:157` un-encoded `orderBy=updateTime desc` ⚠️ MED (needs live verification)
+Literal space in the v4 URL (gbp-data.js:140 correctly `encodeURIComponent`s it). Strict GBP endpoint may 400 → reviews silently empty → no reply drafts. 🔧 encode it.
+
+### BC11. Labs-support detection may fire for Qatar/Oman ⚠️ MED (needs verification)
+`competitor-matrix-background.js:208`/528 infer Labs support from `resolveLocation` against the DFS-locations cache; if that cache is the SERP list (not Labs), Qatar/Oman resolve as supported → wasted `ranked_keywords` calls + per-competitor `labsError`. Graceful but noisy/wasteful. 🔧 explicit Labs allow-list.
+
+### BC-LOW (verified, batch into cleanup)
+content-outcomes-background.js:62 missing `payload.targetKeyword` fallback (unlike scheduler) → some items never measured · scheduler-background.js:940 `NETLIFY_URL` vs `URL` inconsistency · technical-seo-background.js:261 HEAD-only health check → 405 false positives inflate `intlFailing` · ai-overview-background.js:112 task↔keyword mapped by array index (assumes DFS order) · ai-overview:222 `serp_info.serp_features` field path (primary detection still works) · international-config.js:521 `urlMatchesTokens` hyphen match on country tokens (`saudi`/`oman`) can mis-attribute a UAE slug like `/saudi-expansion/` · backlinks-background.js:70 `pollTask` throws on transient DFS codes → premature abort.
+
+### Down-rated / NOT bugs (verified)
+- **DataForSEO `/live` endpoints** (both agents #3/#7): DataForSEO **Labs** (`keyword_ideas`, `ranked_keywords`, `bulk_keyword_difficulty`) is **live-only by design** — no task mode exists, so `/live` there is correct, NOT a rule-5 violation. Only `keywords_data/.../search_volume/live` has a task mode (minor policy nit, low priority).
+- **700-keyword batch** (pipeline #4): within DataForSEO's real per-task limit for search_volume/bulk_kd; CLAUDE.md's "max 100" is the SERP/competitor-matrix context. Not a correctness bug.
+
+### Verified-correct (do NOT re-flag)
+`_lib/keyword-metrics.js` Arabic language fallback (natural-script → authoritative langs → drop language; detects 40501) · `_lib/gsc.js` 1dp rounding + `dataState:'final'` + 25k rowLimit · `gbp-data.js` v4 `accounts/{id}/locations/{id}` rebuild + readMask encode · `competitor-matrix` genuine Standard-mode SERP polling (task_post→tasks_ready→task_get), BATCH_SIZE 100, per-keyword Arabic language_code, preserves data on 0-row runs · snapshot dedup-by-date + history caps (backlinks/ai-overview/llm/rank-tracker).
+
+**Backend-correctness audit now COMPLETE** (the surface the earlier dead agent left un-audited).
+
+---
+
 ## Already fixed (do not re-report)
 - ✅ **Tier 0 (v7.4.68, committed, NOT yet pushed — pending `SLACK_SIGNING_SECRET`):** S1 slack-callback signature verification; S2 approvals GET gated; S3 calendar GET gated; intl-seo:1535 internalHeaders.
 - ✅ **Tier 2/4 batch 2 (v7.4.69, committed):** added correct global `escJs()` (JS-escape THEN html-escape; the old `esc(x).replace(/'/g,…)` idiom was a no-op → those 11 sites were ALSO XSS, now converted); converted 6 named free-text onclick sinks (X1 queueGapKeyword, X3 insertCalMention, X4 removeSeedKeyword, + showEditBrandsModal/removeUser/loadAuditFromHistory) to escJs; X2 `<img src>` escaped (thumbSrc 9845, stripSrc 11679); B1 star-rating clamp; B2 competitor-domain onclick → escJs. Verified: escJs neutralises `');alert(1)//` end-to-end; star clamp handles 6/-1/null.

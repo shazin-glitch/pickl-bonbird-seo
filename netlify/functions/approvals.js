@@ -539,7 +539,8 @@ async function pushItem(item) {
     }
 
     case 'page_update': {
-      // Claude has rewritten content for an existing page — push as a draft revision
+      // Claude has rewritten content for an existing page — update in place (WP keeps
+      // the page's current status; a live page stays live with the approved rewrite)
       const p = Object.assign({}, item.payload);
       if (p.url && !p.url.startsWith('http')) p.url = 'https://' + p.url.replace(/^\/+/, '');
       if (!p.postId && !p.url) return { ok: false, message: 'page_update is missing a URL — use Edit Draft to set the target page URL' };

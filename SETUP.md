@@ -323,6 +323,17 @@ From Google's official AI Optimization Guide (June 2026):
 
 ---
 
+## Session: July 2026 — v7.4.70 — Backend correctness BC1+BC2: index-truncation + live-page-unpublish
+
+From the backend-correctness audit re-run (register: `/BUGS-AND-SECURITY.md` Tier 6). The two most impactful backend bugs.
+
+- **BC1 (CRITICAL) — `approvals:index` no longer hard-truncated to 500.** `_lib/store.js createApproval` (used by ALL 6 background content generators: scheduler, international-seo, generate-draft, hreflang, local-seo-pages, reviews) did `idx.length = 500`, silently orphaning every item past 500 once pushed/published (never pruned) accumulated → broken dedup (`getQueuedKeywords`/`getQueuedMetaMap` → duplicate content = **Claude re-spend**) + broken `trackPublishedItems`/`content-outcomes`/rank tracking. Replaced with the same prune-not-truncate logic `approvals.js createItem` already uses (drop rejected/failed >30d, keep pushed/published/pending forever, 2000 ceiling). Unit-tested: 600→585 kept, all published/pending/recent-dead preserved, only old-dead dropped. NOTE: store.js + approvals.js are drifted duplicate queue impls — unify into one module in P1 (this replicates the shared logic for now).
+- **BC2 (HIGH) — `update_content` no longer unpublishes live pages.** `wordpress.js handleUpdateContent` hard-set `status:'draft'`, so approving a `page_update` on a currently-**published** page flipped it to draft → the live URL **404'd** until republished. Removed the forced status; WP now preserves the page's current state (published page stays live with the approved rewrite — the human already reviewed it in the queue; a draft stays a draft). Matches `handleUpdateMeta`. Updated the header comment, success message, and the approvals.js push comment.
+
+Verified: syntax on all 3 files; BC1 prune unit-tested. Remaining Tier 6 (BC3 index race, BC4 findPostByUrl wrong-page, BC5 meta dedup url mismatch, BC6 voice-gate fallback, BC7 trackPublished clobber, BC8 gsc-data rowLimit, BC9 brand→GSC ternary, + LOW) fold into P1/P2 — see register. Down-rated non-bugs (verified): DataForSEO `/live` (Labs is live-only by design), 700-keyword batch (within real limits).
+
+---
+
 ## Session: July 2026 — v7.4.69 — Security Tier 2/4: onclick XSS sweep (escJs) + crash fixes
 
 Batch 2 of the audit fixes (register: `/BUGS-AND-SECURITY.md`). Frontend only (`index.html`, `js/competitor-matrix-ui.js`).
