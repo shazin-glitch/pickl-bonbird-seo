@@ -323,6 +323,12 @@ From Google's official AI Optimization Guide (June 2026):
 
 ---
 
+## Session: July 2026 — P1 build spec written (`/P1-BUILD-SPEC.md`)
+
+Wrote the P1 (pipeline unification) build spec while the DataForSEO top-up / P0 gate is pending. 7 incremental ship-and-verify steps: P1.0 `_lib/queue.js` (one queue impl, behavior-preserving) → P1.1 kill the `approvals:index` race via prefix-listing (BC3) → P1.2 config-driven voice gate (BC6) → P1.3 one GSC path (C3/BC8) → P1.4 extract `_lib/content-pipeline.js` + move UAE onto it (pure refactor) → P1.5 route intl onto it → P1.6 turn ON SERP-routing + competitor-context + cannibalization guard for ALL markets (C1, behind a config toggle) → P1.7 measurement holes (C4). Steps 0–5 are behavior-preserving (diff payloads to prove); only step 6 changes output and is instantly rollback-able via `config:content-intelligence`. Acceptance = UAE + 2 intl runs with identical gate behaviour + intelligence fields, a duplicate-target UAE content_gap blocked, GSC live-fetch ≤1/page-load. **Not started — needs P0 (Arabic verify) + positive DFS balance first.** Doc committed unpushed (rides with the P1 code deploy).
+
+---
+
 ## Session: July 2026 — v7.4.75 — Tier 3 XSS esc() wraps (defense-in-depth)
 
 Closed the remaining defense-in-depth XSS (needs a Claude/OAuth/external-data compromise to exploit; wrapped anyway). All in `index.html`, no behavior change: X6 robots.txt snippet → `esc()`; X7 performance-summary narrative paragraphs → `esc()`; X8 sidebar profile-pic `<img src>` → `esc()`. Still open (more sites): X9 technical-SEO PSI/audit fields, X10 Perch label color-in-style. Syntax clean.
