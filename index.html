@@ -2478,7 +2478,7 @@ const TYPE_TAGS = {
   const sidebarRole   = document.getElementById('sidebar-user-role');
   const displayName   = currentUser.name || currentUser.email;
   if (currentUser.picture) {
-    sidebarAvatar.innerHTML = `<img src="${currentUser.picture}" style="width:100%;height:100%;border-radius:50%;object-fit:cover">`;
+    sidebarAvatar.innerHTML = `<img src="${esc(currentUser.picture)}" style="width:100%;height:100%;border-radius:50%;object-fit:cover">`;
   } else {
     sidebarAvatar.textContent = displayName.charAt(0).toUpperCase();
   }
@@ -6341,7 +6341,7 @@ function renderReports(brand, rows, techData, queue, matrixData, perfSummary) {
     talkingPointsEl.innerHTML = perfSummary.narrative
       .split('\n\n')
       .filter(p => p.trim())
-      .map(p => `<p style="margin:0 0 14px">${p.trim()}</p>`)
+      .map(p => `<p style="margin:0 0 14px">${esc(p.trim())}</p>`)
       .join('');
   } else {
     if (summaryMetaEl) summaryMetaEl.textContent = 'Runs after next Monday pipeline';
@@ -7839,7 +7839,7 @@ function renderTechSeoResults(data) {
       ${tc.robotsTxt?.snippet ? `
         <details style="margin-top:12px">
           <summary style="font-size:12px;color:var(--text-muted);cursor:pointer">robots.txt contents</summary>
-          <pre style="font-size:11px;background:#1e293b;color:#e2e8f0;padding:12px;border-radius:6px;overflow-x:auto;margin-top:8px;white-space:pre-wrap">${tc.robotsTxt.snippet}</pre>
+          <pre style="font-size:11px;background:#1e293b;color:#e2e8f0;padding:12px;border-radius:6px;overflow-x:auto;margin-top:8px;white-space:pre-wrap">${esc(tc.robotsTxt.snippet)}</pre>
         </details>` : ''}`;
   } else if (tcEl) {
     tcEl.innerHTML = data.status === 'running'

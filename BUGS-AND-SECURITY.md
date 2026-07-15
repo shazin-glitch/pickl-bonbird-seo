@@ -58,9 +58,9 @@ Keyword interpolated raw (no esc) into the tooltip `innerHTML`. Reported, struct
 
 ## TIER 3 — XSS (needs external-data or model compromise — defense-in-depth) ✅ MEDIUM
 
-- **X6. robots.txt snippet raw into `<pre>`** ✅ (index.html:7831) — `${tc.robotsTxt.snippet}` unescaped. Source = the audited site's live robots.txt (attacker-controllable if you ever audit an external/competitor domain). 🔧 `esc()`.
-- **X7. Performance-summary narrative raw into innerHTML** ✅ (index.html:6330) — `perfSummary.narrative` (Claude output, stored) `.map(p => <p>${p}</p>)` unescaped. Needs Claude to emit HTML or a poisoned store. 🔧 `esc()` each paragraph.
-- **X8. User profile picture URL** ✅ (index.html:2481) — `<img src="${currentUser.picture}">` from the OAuth provider, unvalidated (`javascript:`/`data:` not blocked). 🔧 validate `https:` scheme.
+- ✅ **X6. robots.txt snippet — FIXED v7.4.75.** `esc(tc.robotsTxt.snippet)` in the `<pre>`.
+- ✅ **X7. Performance-summary narrative — FIXED v7.4.75.** `esc(p.trim())` on each paragraph.
+- ✅ **X8. User profile picture URL — FIXED v7.4.75.** `esc(currentUser.picture)` in the img src (prevents attribute breakout).
 - **X9. Technical-SEO PSI/audit fields** ✅ (index.html:7707 `r.error`, 7777–7811 `r.url`/`r.label`/Lighthouse `o.title`/`o.description`, 7880, 8480 error JSON) — external API/error strings into innerHTML unescaped. Mostly Google-controlled; low practical risk, real class. 🔧 `esc()`.
 - **X10. Perch label color into `style`** ⚠️ (index.html:5389) — `background:${l.c}` unescaped; XSS-via-attribute only if a persisted label color can be non-preset. Verify whether `task.labels[].c` is ever non-preset before rating.
 

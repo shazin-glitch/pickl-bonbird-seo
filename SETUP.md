@@ -323,6 +323,12 @@ From Google's official AI Optimization Guide (June 2026):
 
 ---
 
+## Session: July 2026 — v7.4.75 — Tier 3 XSS esc() wraps (defense-in-depth)
+
+Closed the remaining defense-in-depth XSS (needs a Claude/OAuth/external-data compromise to exploit; wrapped anyway). All in `index.html`, no behavior change: X6 robots.txt snippet → `esc()`; X7 performance-summary narrative paragraphs → `esc()`; X8 sidebar profile-pic `<img src>` → `esc()`. Still open (more sites): X9 technical-SEO PSI/audit fields, X10 Perch label color-in-style. Syntax clean.
+
+---
+
 ## Session: July 2026 — v7.4.73–74 — P1 safe fixes (brand-feedback + BC5 meta dedup)
 
 Safe, DataForSEO-independent, unit-tested fixes made while the DFS balance top-up is pending (P0 live-verify gate still open). The risky P1 core (queue merge + pipeline unification) is intentionally held until it can be verified live.
