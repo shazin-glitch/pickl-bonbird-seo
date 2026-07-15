@@ -246,6 +246,17 @@ async function setBrandContext(brand, context) {
   await store().setJSON(`brandContext:${brand}`, context);
 }
 
+// Accumulated human rejection notes (things to never repeat), written by the approvals
+// flow. Shared so every generator injects the same feedback — was previously defined
+// only inside scheduler-background, so generate-draft ignored past rejections.
+async function getBrandFeedback(brand) {
+  try {
+    const raw = await store().get(`brandFeedback:${brand}`, { type: 'text' });
+    const notes = JSON.parse(raw || '[]');
+    return Array.isArray(notes) ? notes : [];
+  } catch { return []; }
+}
+
 // Get user-curated brand voice examples (pasted in Settings)
 async function getBrandExamples(brand) {
   try {
@@ -551,4 +562,4 @@ function hardStripBannedTokens(content) {
     .replace(/ {2,}/g, ' ');
 }
 
-module.exports = { getBrandContext, setBrandContext, getBrandExamples, buildBrandPrompt, runBrandVoiceCheck, fixBrandVoice, hardStripBannedTokens, isBrandedQuery, brandedTermsFor, PICKL_DEFAULT, BONBIRD_DEFAULT };
+module.exports = { getBrandContext, setBrandContext, getBrandExamples, getBrandFeedback, buildBrandPrompt, runBrandVoiceCheck, fixBrandVoice, hardStripBannedTokens, isBrandedQuery, brandedTermsFor, PICKL_DEFAULT, BONBIRD_DEFAULT };

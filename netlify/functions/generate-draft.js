@@ -9,7 +9,7 @@
 //   POST { brand, keyword, url, market, competitorPage }
 //     → { ok, skipped?, item }   (item = the queued meta_update draft)
 
-const { getBrandContext, getBrandExamples, buildBrandPrompt, runBrandVoiceCheck } = require('./_lib/brand');
+const { getBrandContext, getBrandExamples, getBrandFeedback, buildBrandPrompt, runBrandVoiceCheck } = require('./_lib/brand');
 const { callClaude, extractJson, createApproval } = require('./_lib/store');
 const { metaLengthRule, metaLenIssues } = require('./_lib/seo-meta');
 const { INTERNATIONAL_MARKETS } = require('./_lib/international-config');
@@ -42,6 +42,7 @@ exports.handler = async (event) => {
   try {
     const brandCtx  = await getBrandContext(brand);
     const examples  = await getBrandExamples(brand).catch(() => '');
+    const feedback  = await getBrandFeedback(brand).catch(() => []); // past human rejections — never repeat
     const systemPrompt = buildBrandPrompt(brandCtx, examples);
     const menuItems = Array.isArray(brandCtx?.menu)
       ? brandCtx.menu.map(m => m.name || m).filter(x => typeof x === 'string').slice(0, 20).join(', ')
@@ -68,7 +69,7 @@ RULES — non-negotiable:
 ${metaLengthRule}
 - Only reference REAL menu items: ${menuItems || 'use items from the brand context'}
 - Lead with the keyword; end with a reason to click. No generic phrases ("great food", "delicious", "best in Dubai").
-- Write specifically about what the PAGE is about (the URL tells you the topic).${isArabic ? '\n- Write the title AND description in ARABIC (the keyword is Arabic).' : ''}${competitorPage ? `\n- A competitor ranks here with ${competitorPage} — make ours more specific and compelling than a generic competitor page.` : ''}
+- Write specifically about what the PAGE is about (the URL tells you the topic).${isArabic ? '\n- Write the title AND description in ARABIC (the keyword is Arabic).' : ''}${competitorPage ? `\n- A competitor ranks here with ${competitorPage} — make ours more specific and compelling than a generic competitor page.` : ''}${feedback.length ? `\n\nHUMAN FEEDBACK — past rejections, never repeat these:\n${feedback.slice(0, 10).map(n => `- ${n}`).join('\n')}` : ''}
 
 PAGE:
   URL: "${url}"

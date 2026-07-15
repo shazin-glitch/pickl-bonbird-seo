@@ -2,8 +2,15 @@
 > The P0 gate before P1 (pipeline unification). This clears the v7.4.13–28 verification debt + confirms the reporting/tracker/long-term features + the Arabic fail-open fix work on live data. Fable can't run these — they need a signed-in session + real GSC/DataForSEO data.
 > Mark each ✅/❌. Anything ❌ → tell Claude the exact symptom; it becomes a fix before P1.
 
+## STATUS (11 Jul 2026)
+- **V1 attempted (KSA) → INCONCLUSIVE.** DataForSEO balance was **negative**, so the discovery run never reached the Arabic filter (the API rejects on insufficient funds). Not a pass or fail. **PENDING: top up DataForSEO, then re-run KSA + Bahrain.**
+- V2–V4 (free, GSC/stored-data only) — not yet run; can be done anytime with no spend.
+- V5 (long-term group) also needs DataForSEO (Refresh Now = discovery) → PENDING top-up.
+- V6/V7/V8 — not yet run.
+- **P0 gate is OPEN until V1 passes.** Do NOT run an international content regenerate meanwhile.
+
 ## 🔴 GATE — do this FIRST, and do NOT run any international content regenerate until it passes
-### V1. Arabic Opportunities fail-open fix (v7.4.24, never live-tested)
+### V1. Arabic Opportunities fail-open fix (v7.4.24, never live-tested)  — PENDING (DataForSEO top-up)
 1. Analytics → Opportunities. Set brand = **Pickl**, market = **KSA** (🇸🇦). Click **Refresh Now**. Wait 1–3 min.
 2. Then repeat for market = **Bahrain** (🇧🇭).
 - **PASS:** Arabic keyword opportunities populate (rows with Arabic keywords, volume/KD). The empty-state diag no longer says "200 ideas → Claude filtered all as irrelevant".
