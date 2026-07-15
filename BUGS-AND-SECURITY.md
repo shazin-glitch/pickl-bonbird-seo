@@ -166,7 +166,7 @@ content-outcomes-background.js:62 missing `payload.targetKeyword` fallback (unli
 
 **Backend correctness — DEFERRED to build phases (with reason, NOT forgotten):**
 - **BC3 (index race)** + store.js/approvals.js **queue-dup consolidation** → P1 (one queue module; an ad-hoc lock now gets deleted in P1).
-- **BC5 (meta dedup url mismatch)** → P1 — the fix spans 4 key-builders (intl-seo:130/201/287/1282); piecemeal risks a dedup *regression*. Do it inside P1's dedup unification. (MED, self-limiting: worst case a duplicate meta item a reviewer dismisses.)
+- ✅ **BC5 (meta dedup url mismatch) — FIXED v7.4.74** (done carefully as a meanwhile fix, not piecemeal): one shared `metaDedupKey(url,lang)` normalizer (pathname + normalized lang) applied to all 4 key-builders; GSC-url and WP-link forms of the same page now dedup together → no more double meta_update / double Claude spend. Unit-tested (5 cases: cross-form collapse, cross-market/lang distinctness, bare-path).
 - **BC6 voice-gate *thresholds*** (5 vs 8) → P1 voice-gate unification. (extractJson half done in v7.4.71.)
 - **BC9 (brand→GSC ternary)** → P2 config layer (a one-off map now gets replaced by `brandsConfig`; latent — only bites on a 3rd brand).
 - **BC11 + judgment LOWs** (Labs-detection, urlMatchesTokens hyphen, ai-overview field paths, HEAD health check, backlinks transient codes) → fold into the relevant phase; each needs live-response verification or attribution judgment.

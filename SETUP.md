@@ -323,6 +323,17 @@ From Google's official AI Optimization Guide (June 2026):
 
 ---
 
+## Session: July 2026 — v7.4.73–74 — P1 safe fixes (brand-feedback + BC5 meta dedup)
+
+Safe, DataForSEO-independent, unit-tested fixes made while the DFS balance top-up is pending (P0 live-verify gate still open). The risky P1 core (queue merge + pipeline unification) is intentionally held until it can be verified live.
+
+- **v7.4.73** — promoted `getBrandFeedback` to `_lib/brand.js` (was scheduler-only) and wired it into `generate-draft` so on-demand meta drafts stop repeating past human rejections (audit content-loop finding #8). Additive, no blast radius.
+- **v7.4.74 — BC5 fixed.** meta_update dedup missed when the same page was stored under its GSC URL (GSC-driven path) vs its WP permalink (sweep path) → double meta_update = double Claude spend. Added one shared `metaDedupKey(url,lang)` normalizer (→ pathname + normalized lang, host/protocol/trailing-slash agnostic) and applied it to all 4 key-builders in `international-seo-background.js` (builder + 3 lookups). Unit-tested 5 cases (cross-form collapse, cross-market/lang distinctness, bare-path). Pathnames are unique per single-brand site → no false-dedup risk.
+
+P0 status: doc reconciliation done; live-verify PENDING DataForSEO top-up (V1 KSA was inconclusive — negative balance; run never reached the Arabic filter). P0 gate OPEN — no intl regenerate until V1 passes.
+
+---
+
 ## Session: July 2026 — v7.4.72 — P0 (truth): doc reconciliation + live-verify checklist
 
 Start of the P0 phase from `/PLAN-FOR-OPUS.md` ("truth first"). Docs only — no code.

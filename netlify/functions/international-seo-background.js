@@ -118,6 +118,19 @@ async function getQueuedKeywordsForMarket(brand) {
 
 // Returns Map of "normalizedUrl::language" → {id, status, isGscDriven}
 // Used for smart meta_update dedup: GSC-driven replaces seed-block, same-quality = first wins.
+// Canonical dedup key for a meta_update — normalize to PATHNAME (strip protocol/host/
+// trailing slash) + normalized lang, so the same page keys identically whether it was
+// stored from the GSC page URL (GSC-driven path) or the WP permalink (sweep path).
+// Previously these two forms produced different keys → dedup missed → double meta_update
+// = double Claude spend. Pathnames are unique per single-brand site, so no false collisions.
+function metaDedupKey(url, lang) {
+  let path = String(url || '').toLowerCase().trim();
+  try { path = new URL(path).pathname; } catch { /* already a path, or unparseable */ }
+  path = path.replace(/\/+$/, '') || '/';
+  const l = String(lang || 'en').toLowerCase().startsWith('ar') ? 'ar' : 'en';
+  return `${path}::${l}`;
+}
+
 async function getQueuedMetaMap(brand) {
   try {
     const items = await listApprovals({ brand, limit: 300 });
@@ -126,8 +139,7 @@ async function getQueuedMetaMap(brand) {
       if (item.type !== 'meta_update') continue;
       const url = item.payload?.url || item.payload?.targetUrl;
       if (!url) continue;
-      const lang = item.payload?.language || 'en';
-      const key = `${url.toLowerCase().replace(/\/$/, '')}::${lang}`;
+      const key = metaDedupKey(url, item.payload?.language);
       map.set(key, {
         id: item.id,
         status: item.status || 'pending',
@@ -197,7 +209,7 @@ async function runMarketDataDrivenSEO(market, brandCtx, brandExamples, force = f
     .filter(r => force || !alreadyQueuedKws.has(r.keyword.toLowerCase().trim()))
     .filter(r => {
       if (force) return true;
-      const key = `${r.page.toLowerCase().replace(/\/$/, '')}::${isAr ? 'ar' : 'en'}`;
+      const key = metaDedupKey(r.page, isAr ? 'ar' : 'en');
       const ex = alreadyQueuedMetaMap.get(key);
       if (!ex) return true;                          // nothing queued — proceed
       if (ex.status !== 'pending') return false;     // pushed/approved — don't re-queue
@@ -283,7 +295,7 @@ Return ONLY a JSON array:
       }
 
       // Dismiss any pending seed-block meta for this page before queuing the GSC-driven one
-      const metaKey = `${matched.page.toLowerCase().replace(/\/$/, '')}::${isAr ? 'ar' : 'en'}`;
+      const metaKey = metaDedupKey(matched.page, isAr ? 'ar' : 'en');
       const existingMeta = alreadyQueuedMetaMap.get(metaKey);
       if (existingMeta && existingMeta.status === 'pending' && !existingMeta.isGscDriven) {
         await dismissPendingMeta(existingMeta.id, `replaced by GSC-driven meta_update for ${matched.page} (pos ${matched.position?.toFixed(1)}, ${matched.impressions} impressions)`);
@@ -1278,7 +1290,7 @@ Return ONLY a JSON array — one object per page:
     }
 
     // Dedup — GSC-driven (real impressions) wins; never double-queue a page
-    const key      = `${page.link.toLowerCase().replace(/\/$/, '')}::${language}`;
+    const key      = metaDedupKey(page.link, language);
     const existing = queuedMetaMap.get(key);
     if (existing && existing.status === 'pending') {
       console.log(`${tag} — skip ${page.slug} — meta already pending (${existing.isGscDriven ? 'GSC-driven' : 'sweep/seed'} ${existing.id})`);
