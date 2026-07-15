@@ -154,7 +154,7 @@ async function getValidToken() {
 async function fetchLiveReviews(brand) {
   const ids = getBrandIds(brand); if (!ids) return [];
   const token = await getValidToken(); if (!token) return [];
-  const res = await fetch(`https://mybusiness.googleapis.com/v4/accounts/${ids.accountId}/locations/${ids.locationId}/reviews?pageSize=20&orderBy=updateTime desc`, { headers: { 'Authorization': `Bearer ${token}` } });
+  const res = await fetch(`https://mybusiness.googleapis.com/v4/accounts/${ids.accountId}/locations/${ids.locationId}/reviews?pageSize=20&orderBy=${encodeURIComponent('updateTime desc')}`, { headers: { 'Authorization': `Bearer ${token}` } });
   const data = await res.json().catch(() => ({}));
   if (!res.ok) { console.warn('GBP fetch failed:', data.error?.message); return []; }
   const stars = { ONE: 1, TWO: 2, THREE: 3, FOUR: 4, FIVE: 5 };

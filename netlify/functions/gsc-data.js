@@ -70,12 +70,12 @@ exports.handler = async (event) => {
       fetch(gscUrl, {
         method: 'POST',
         headers: commonHeaders,
-        body: JSON.stringify({ ...dateBody, dimensions: ['query'], rowLimit: 500 })
+        body: JSON.stringify({ ...dateBody, dimensions: ['query'], rowLimit: 25000 })
       }),
       fetch(gscUrl, {
         method: 'POST',
         headers: commonHeaders,
-        body: JSON.stringify({ ...dateBody, dimensions: ['page'], rowLimit: 500 })
+        body: JSON.stringify({ ...dateBody, dimensions: ['page'], rowLimit: 25000 })
       }),
     ]);
 

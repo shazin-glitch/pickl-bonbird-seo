@@ -386,7 +386,15 @@ async function trackPublishedItems(brand, gscRows) {
         }
       }
 
-      await s.set(`approvals:item:${id}`, JSON.stringify(patch));
+      // Re-read fresh and merge ONLY the tracking fields, so a user edit/approve that
+      // landed during this 15-min run isn't clobbered by the stale item snapshot.
+      const fresh = (await s.get(`approvals:item:${id}`, { type: 'json' }).catch(() => null)) || item;
+      const merged = { ...fresh, lastTrackedAt: patch.lastTrackedAt };
+      if (patch.positionLatest != null) merged.positionLatest = patch.positionLatest;
+      if (patch.positionDelta  != null) merged.positionDelta  = patch.positionDelta;
+      if (patch.clicksLatest   != null) merged.clicksLatest   = patch.clicksLatest;
+      if (patch.indexStatus)             merged.indexStatus    = patch.indexStatus;
+      await s.set(`approvals:item:${id}`, JSON.stringify(merged));
     } catch { /* skip individual failures */ }
   }
 
@@ -937,7 +945,7 @@ Return ONLY valid JSON:
 
   // Fetch current Yoast meta for every candidate BEFORE calling Claude
   // so Claude can evaluate whether a replacement is actually needed
-  const base = process.env.NETLIFY_URL || 'https://yolkseo.netlify.app';
+  const base = process.env.URL || process.env.NETLIFY_URL || 'https://yolkseo.netlify.app';
   const currentMetaMap = {};
   for (const r of validCandidates) {
     try {

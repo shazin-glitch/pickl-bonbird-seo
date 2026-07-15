@@ -389,6 +389,12 @@ async function findPostByUrl(creds, url) {
         try { return new URL(p.link).pathname.toLowerCase().replace(/\/+$/, '') === expectedPath; }
         catch { return false; }
       });
+      // Multiple results, none matching the expected path → do NOT guess data[0]
+      // (would target the wrong market's page for a shared slug). Skip this endpoint.
+      if (!match) {
+        console.warn(`[findPostByUrl] slug "${slug}" → ${res.data.length} results, none matched ${expectedPath} — skipping`);
+        continue;
+      }
     }
     // Single result: verify it's actually the right page before returning
     if (!match && res.data.length === 1 && expectedPath) {

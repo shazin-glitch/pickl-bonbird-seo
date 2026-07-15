@@ -3,7 +3,7 @@
 // Stored in Blobs under key 'brandContext:<brand>' — editable via the Settings tab.
 // Falls back to hardcoded defaults so the system works out of the box.
 
-const { store } = require('./store');
+const { store, extractJson } = require('./store');
 
 const PICKL_DEFAULT = {
   brand: 'pickl',
@@ -452,7 +452,12 @@ Be harsh. Em dashes = automatic deduction. Generic = low score.`;
   try {
     const result = await callClaudeFn(checkPrompt, { max_tokens: 400 });
     const text   = result.text || result;
-    const parsed = JSON.parse(text.replace(/```json|```/g, '').trim());
+    // Use extractJson (handles prose-wrapped / fenced JSON) so a well-formed reply that
+    // isn't bare JSON no longer falls through to the neutral-6 fallback — that fallback
+    // behaved inconsistently (passes UAE's <5 gate, fails intl's <8 gate). Gate
+    // threshold unification itself is a P1 task.
+    const parsed = extractJson(text);
+    if (!parsed) return { score: 6, issues: [], topFix: '', verdict: 'PASS', bannedWordsFound: foundBanned };
     return {
       score:   parsed.score || 5,
       issues:  parsed.issues || [],

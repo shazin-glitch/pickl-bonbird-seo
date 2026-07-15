@@ -59,7 +59,7 @@ exports.handler = async (event) => {
 
       for (const it of items) {
         if (!['pushed', 'published'].includes(it.status)) continue;
-        const kw   = (it.trackingKeyword || '').toLowerCase().trim();
+        const kw   = (it.trackingKeyword || it.payload?.targetKeyword || it.payload?.keyword || '').toLowerCase().trim();
         const base = it.positionAtPublish;
         const pub  = it.publishedAt;
         if (!kw || base == null || !pub) continue;

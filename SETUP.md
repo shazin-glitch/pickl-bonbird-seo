@@ -323,6 +323,21 @@ From Google's official AI Optimization Guide (June 2026):
 
 ---
 
+## Session: July 2026 — v7.4.71 — Backend correctness batch: BC4/BC6a/BC7/BC8/BC10 + LOWs
+
+Second backend-correctness batch (register: `/BUGS-AND-SECURITY.md` Tier 6). Self-contained fixes that don't belong to the P1/P2 structural work.
+
+- **BC4 (MED) — `wordpress.js findPostByUrl` wrong-page publish.** When a slug returned multiple results and none matched the expected path, it fell through to `data[0]` → update_meta/update_content/publish could hit the wrong market's page. Now skips (continues) instead of guessing.
+- **BC6a (MED) — voice-gate parse.** `runBrandVoiceCheck` used `JSON.parse` and fell back to a neutral score 6 on any non-bare-JSON reply (which passes UAE's <5 gate but fails intl's <8 gate). Now uses `extractJson` (handles fenced/prose-wrapped JSON) so the inconsistent fallback rarely fires. (Threshold unification itself = P1.)
+- **BC7 (MED) — `trackPublishedItems` clobber.** Was raw-writing the whole stale item snapshot over a 15-min run → a concurrent user edit/approve was lost. Now re-reads fresh and merges ONLY the tracking fields (lastTrackedAt/positionLatest/positionDelta/clicksLatest/indexStatus).
+- **BC8 (MED) — `gsc-data.js` rowLimit 500→25000.** The 500 cap clipped the long tail feeding competitor-audit gap detection + ai-overview keyword selection. (Full consolidation onto `_lib/gsc` = P1.)
+- **BC10 (MED) — `reviews.js` orderBy.** `updateTime desc` had a literal space in the v4 URL → possible 400 → empty reviews. Now `encodeURIComponent`'d (matches gbp-data.js).
+- **LOWs:** content-outcomes-background now falls back to `payload.targetKeyword/keyword` (mirrors scheduler) so pre-trackingKeyword items get measured; scheduler internal-fetch base `NETLIFY_URL`→`URL || NETLIFY_URL` (Netlify sets URL, not NETLIFY_URL).
+
+**Deferred with reason (NOT forgotten):** BC3 index race + store/approvals queue-dup → P1 (one queue module); BC5 meta dedup url mismatch → P1 (spans 4 key-builders; piecemeal risks a dedup regression); BC6 thresholds → P1 voice-gate unify; BC9 brand→GSC ternary → P2 config layer; BC11 + judgment LOWs (Labs-detection, urlMatchesTokens hyphen, ai-overview field paths, HEAD health check) → per-phase, need live verification. Verified: syntax all 6 files, modules load, extractJson resolves.
+
+---
+
 ## Session: July 2026 — v7.4.70 — Backend correctness BC1+BC2: index-truncation + live-page-unpublish
 
 From the backend-correctness audit re-run (register: `/BUGS-AND-SECURITY.md` Tier 6). The two most impactful backend bugs.

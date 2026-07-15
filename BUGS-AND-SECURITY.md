@@ -160,6 +160,17 @@ content-outcomes-background.js:62 missing `payload.targetKeyword` fallback (unli
 - ✅ `keyword-opportunities.js` GET auth leak — gated (v7.4.67, live-verified 401).
 - ✅ Draft-vs-live tracking mislabel + backend eligibility + position rounding (v7.4.66).
 
+## Backend correctness — fixed
+- ✅ **BC1 + BC2 (v7.4.70):** index prune-not-truncate; update_content preserves status.
+- ✅ **BC4, BC6a, BC7, BC8, BC10 + LOWs (v7.4.71):** findPostByUrl skips on multi-result no-match (no wrong-page publish); voice check uses `extractJson` (fewer spurious neutral-6 fallbacks); trackPublishedItems re-reads + merges only tracking fields (no clobber); gsc-data rowLimit 500→25000; reviews.js orderBy URL-encoded; content-outcomes trackingKeyword payload fallback; scheduler NETLIFY_URL→URL fallback.
+
+**Backend correctness — DEFERRED to build phases (with reason, NOT forgotten):**
+- **BC3 (index race)** + store.js/approvals.js **queue-dup consolidation** → P1 (one queue module; an ad-hoc lock now gets deleted in P1).
+- **BC5 (meta dedup url mismatch)** → P1 — the fix spans 4 key-builders (intl-seo:130/201/287/1282); piecemeal risks a dedup *regression*. Do it inside P1's dedup unification. (MED, self-limiting: worst case a duplicate meta item a reviewer dismisses.)
+- **BC6 voice-gate *thresholds*** (5 vs 8) → P1 voice-gate unification. (extractJson half done in v7.4.71.)
+- **BC9 (brand→GSC ternary)** → P2 config layer (a one-off map now gets replaced by `brandsConfig`; latent — only bites on a 3rd brand).
+- **BC11 + judgment LOWs** (Labs-detection, urlMatchesTokens hyphen, ai-overview field paths, HEAD health check, backlinks transient codes) → fold into the relevant phase; each needs live-response verification or attribution judgment.
+
 ## Still open after batch 2 (for later phases)
 - **S4 authorization layer** (Viewer-can-publish, cross-brand) — the big one; pairs with P2 onboarding.
 - **Remaining onclick sweep:** ~15 esc-only onclick args carrying fixed-set values (brand/market/ids) — low risk, convert for consistency. Plus `competitor-matrix-ui.js` IIFE-local `esc` doesn't escape quotes at all (its own onclicks); and its queue-tip keyword (X5) needs esc.
