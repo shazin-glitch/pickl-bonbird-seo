@@ -34,9 +34,10 @@ New modules: `_lib/queue.js` (one queue), `_lib/content-pipeline.js` (one genera
 ## Migration order — each step independently shippable + verifiable
 > Golden rule: **no step changes output until the step before it is verified.** Steps 0–5 are behavior-preserving refactors; only 6 turns on new behavior.
 
-### P1.0 — `_lib/queue.js` as a behavior-preserving wrapper (kills the duplication, not the behavior)
+### P1.0 — `_lib/queue.js` as a behavior-preserving wrapper (kills the duplication, not the behavior) ✅ DONE v7.4.76 (committed, unpushed — needs signed-in smoke test)
 - Extract ONE implementation of create/get/update/list/delete/audit (start from `approvals.js createItem` — it has the correct prune logic). `store.js createApproval` and `approvals.js`'s own functions both **delegate** to it. Same keys (`approvals:index`, `approvals:item:*`), same prune.
 - **Acceptance:** create an item via a background generator + via the API; both appear; approve→push→publish still works; audit log intact. No output change.
+- ✅ Built `_lib/queue.js`; store.js queue fns are thin wrappers; approvals.js aliases to queue fns. Verified via mock-store end-to-end test (both create paths, list/get/update+history/index/audit/delete). **Live smoke test still owed before push.**
 
 ### P1.1 — Kill the index race (BC3)
 - Replace the single mutable `approvals:index` blob with a **prefix scan** (`store.list({ prefix:'approvals:item:' })`) in `queue.list()` — no shared mutable index → the read-modify-write race disappears. (Measure list() latency on current volume; if too slow, keep an index but serialize writes through a single mutation path in queue.js.)

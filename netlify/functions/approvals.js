@@ -24,142 +24,18 @@ const CORS = {
 };
 const SITE_URL = process.env.URL || 'https://yolkseo.netlify.app';
 
-// ── Blobs store ─────────────────────────────────────────────────
-function store() {
-  return getStore({
-    name: 'seo-tool',
-    consistency: 'strong',
-    siteID: process.env.NETLIFY_SITE_ID,
-    token: process.env.NETLIFY_AUTH_TOKEN,
-  });
-}
-
-const KEY_INDEX    = 'approvals:index';
-const KEY_ITEM     = id => `approvals:item:${id}`;
-const KEY_AUDIT    = 'audit:log';
-const KEY_FEEDBACK = brand => `brandFeedback:${brand}`;
-
-// ── Brand feedback store ─────────────────────────────────────────
-// Accumulates rejection notes so schedulers can avoid repeating mistakes.
-async function appendBrandFeedback(brand, feedback) {
-  if (!feedback?.trim()) return;
-  const s = store();
-  let notes = [];
-  try { notes = JSON.parse(await s.get(KEY_FEEDBACK(brand), { type: 'text' }) || '[]'); } catch {}
-  if (!Array.isArray(notes)) notes = [];
-  const note = feedback.trim();
-  if (!notes.includes(note)) {
-    notes.push(note);
-    if (notes.length > 20) notes = notes.slice(-20); // keep last 20
-    await s.setJSON(KEY_FEEDBACK(brand), notes);
-  }
-}
-
-function newId() {
-  return `itm_${Date.now().toString(36)}_${Math.random().toString(36).slice(2, 8)}`;
-}
-
-// ── Queue helpers ────────────────────────────────────────────────
-async function getIndex() {
-  return (await store().get(KEY_INDEX, { type: 'json' }).catch(() => null)) || [];
-}
-async function setIndex(ids) { await store().setJSON(KEY_INDEX, ids); }
-
-async function listItems(filter) {
-  filter = filter || {};
-  const s = store();
-  const ids = await getIndex();
-  const items = await Promise.all(ids.map(id => s.get(KEY_ITEM(id), { type: 'json' }).catch(() => null)));
-  let out = items.filter(Boolean);
-  if (filter.status) out = out.filter(i => i.status === filter.status);
-  if (filter.brand)  out = out.filter(i => i.brand  === filter.brand);
-  if (filter.type)   out = out.filter(i => i.type   === filter.type);
-  if (filter.limit)  out = out.slice(0, filter.limit);
-  return out;
-}
-
-async function getItem(id) { return store().get(KEY_ITEM(id), { type: 'json' }).catch(() => null); }
-
-async function saveItem(item) { await store().setJSON(KEY_ITEM(item.id), item); }
-
-async function createItem(input) {
-  const id  = newId();
-  const now = Date.now();
-  const item = {
-    id, status: 'pending', createdAt: now, updatedAt: now,
-    type:    input.type,
-    brand:   input.brand,
-    title:   input.title   || '',
-    reason:  input.reason  || '',
-    actor:   input.actor   || 'claude',
-    payload: input.payload || {},
-    originalPayload: input.payload || {},
-    parentId: input.parentId || null,
-    rejectionFeedback: input.rejectionFeedback || null,
-    history: [{ at: now, actor: input.actor || 'claude', action: 'queued', note: input.reason || '' }],
-    pushResult: null,
-    // Location + language tags for filtering
-    locationTag: input.payload?.locationTag || input.locationTag || '🇦🇪 UAE',
-    languageTag: input.payload?.languageTag || input.languageTag || 'EN',
-  };
-  await saveItem(item);
-  const idx = await getIndex();
-  idx.unshift(id);
-  // Prune dead items (rejected/failed older than 30 days) — keep pushed/published/pending forever
-  // so the dedup window never loses track of what's been published
-  const cutoff = now - 30 * 24 * 60 * 60 * 1000;
-  const DEAD = new Set(['rejected', 'failed']);
-  const pruned = [];
-  for (const eid of idx) {
-    if (pruned.length >= 2000) break; // hard ceiling — should never be reached in practice
-    const existing = await store().get(KEY_ITEM(eid), { type: 'json' }).catch(() => null);
-    if (!existing) continue; // already deleted blob — drop from index
-    if (DEAD.has(existing.status) && existing.updatedAt < cutoff) {
-      await store().delete(KEY_ITEM(eid)).catch(() => null); // clean up the blob too
-      continue;
-    }
-    pruned.push(eid);
-  }
-  await setIndex(pruned);
-  await addAudit({ at: now, actor: item.actor, action: 'queued', target: id, type: item.type, brand: item.brand, note: item.title });
-  return item;
-}
-
-async function patchItem(id, patch, histEvent) {
-  const existing = await getItem(id);
-  if (!existing) throw new Error('approval not found: ' + id);
-  const updated = Object.assign({}, existing, patch, { updatedAt: Date.now() });
-  if (histEvent) updated.history = (existing.history || []).concat([histEvent]);
-  await saveItem(updated);
-  if (histEvent) await addAudit({ at: histEvent.at || Date.now(), actor: histEvent.actor, action: histEvent.action, target: id, type: updated.type, brand: updated.brand, note: histEvent.note || '' });
-  return updated;
-}
-
-async function removeItem(id) {
-  await store().delete(KEY_ITEM(id)).catch(() => null);
-  const idx = await getIndex();
-  await setIndex(idx.filter(x => x !== id));
-}
-
-// ── Audit log ────────────────────────────────────────────────────
-async function addAudit(event) {
-  const s = store();
-  const log = (await s.get(KEY_AUDIT, { type: 'json' }).catch(() => null)) || [];
-  log.unshift(event);
-  if (log.length > 1000) log.length = 1000;
-  await s.setJSON(KEY_AUDIT, log);
-}
-
-async function getAudit(filter) {
-  filter = filter || {};
-  const log = (await store().get(KEY_AUDIT, { type: 'json' }).catch(() => null)) || [];
-  let out = log;
-  if (filter.target) out = out.filter(e => e.target === filter.target);
-  if (filter.actor)  out = out.filter(e => e.actor  === filter.actor);
-  if (filter.brand)  out = out.filter(e => e.brand  === filter.brand);
-  if (filter.limit)  out = out.slice(0, filter.limit);
-  return out;
-}
+// ── Approval queue — single implementation in _lib/queue.js (P1.0) ──────────
+const queue = require('./_lib/queue');
+// Aliased to the names this handler already uses. store.js + this file both delegate
+// to queue.js now (was two drifted copies of the queue → root cause of BC1/BC3/BC5).
+const listItems          = queue.list;
+const getItem            = queue.get;
+const createItem         = queue.create;
+const patchItem          = queue.update;
+const removeItem         = queue.remove;
+const addAudit           = queue.addAudit;
+const getAudit           = queue.getAudit;
+const appendBrandFeedback = queue.appendBrandFeedback;
 
 // ── Counts summary ───────────────────────────────────────────────
 async function summarize() {

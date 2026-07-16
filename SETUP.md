@@ -323,6 +323,14 @@ From Google's official AI Optimization Guide (June 2026):
 
 ---
 
+## Session: July 2026 — v7.4.76 — P1.0: one queue module (`_lib/queue.js`)
+
+First step of P1 (pipeline unification), DataForSEO-free. Consolidated the TWO drifted queue copies — `_lib/store.js createApproval` (used by 6 background generators) and `approvals.js`'s own createItem/patchItem/etc (API path) — into ONE implementation in **`_lib/queue.js`** (create/get/list/update/remove/addAudit/getAudit/appendBrandFeedback + index/prune). Both files now DELEGATE to it (store.js queue fns are thin wrappers; approvals.js aliases `listItems=queue.list` etc). Same Blobs keys, same behaviour (post-BC1 prune logic), strong consistency. This is the root-cause fix for the drift behind BC1/BC3/BC5.
+
+Behaviour-preserving (the mutable-index race BC3 is NOT addressed here — that's P1.1, deferred because deriving the list via `store.list()` prefix-scan changes result ordering and needs its own verification). Verified: syntax on all 9 queue consumers; end-to-end functional test via a mock Blobs store (create via both paths → list/get/update+history/index/audit/delete all correct). **Committed UNPUSHED — needs a 2-min signed-in smoke test before deploy (create a draft → approve → publish → confirm it appears in the queue), since it's the approval spine and can't be verified headlessly.**
+
+---
+
 ## Session: July 2026 — P1 build spec written (`/P1-BUILD-SPEC.md`)
 
 Wrote the P1 (pipeline unification) build spec while the DataForSEO top-up / P0 gate is pending. 7 incremental ship-and-verify steps: P1.0 `_lib/queue.js` (one queue impl, behavior-preserving) → P1.1 kill the `approvals:index` race via prefix-listing (BC3) → P1.2 config-driven voice gate (BC6) → P1.3 one GSC path (C3/BC8) → P1.4 extract `_lib/content-pipeline.js` + move UAE onto it (pure refactor) → P1.5 route intl onto it → P1.6 turn ON SERP-routing + competitor-context + cannibalization guard for ALL markets (C1, behind a config toggle) → P1.7 measurement holes (C4). Steps 0–5 are behavior-preserving (diff payloads to prove); only step 6 changes output and is instantly rollback-able via `config:content-intelligence`. Acceptance = UAE + 2 intl runs with identical gate behaviour + intelligence fields, a duplicate-target UAE content_gap blocked, GSC live-fetch ≤1/page-load. **Not started — needs P0 (Arabic verify) + positive DFS balance first.** Doc committed unpushed (rides with the P1 code deploy).
