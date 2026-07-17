@@ -323,6 +323,16 @@ From Google's official AI Optimization Guide (June 2026):
 
 ---
 
+## Session: July 2026 — v7.4.77 — Page-architecture guardrails (homepage protection) in keyword discovery
+
+Pulled forward from P1.6 after Shazin flagged the worklist recommending a HOMEPAGE meta rewrite for "fast food near me open now" (no SEO expert does that). Root cause: `targetPage` = the page GSC already shows impressions for; on a small site the homepage ranks for everything, so long-tail/local queries get mis-attributed to `/`. Fix in `keyword-discovery-background.js recommendAction`:
+- **Guardrail 1 — homepage protection:** never recommend a meta_update/page_update on the true homepage (`isHomepageUrl`) for a NON-BRAND keyword (branded queries like "pickl"/"بيكل" are still allowed to fine-tune the homepage, via `isBrandedQuery`).
+- **Guardrail 2 — local-intent routing:** such a keyword with local intent ("near me/open now/delivery") → recommend a **location/landing page**; otherwise → a **dedicated page**. Never rewrite the homepage.
+- `recommendAction(opp, brandCtx)` now takes brandCtx; both call sites updated.
+Verified DFS-free (unit-tested 5 cases: the flagged near-me case → location page; non-brand head term → dedicated page; BRAND term on homepage → still fine-tunes; product term on a product page → unchanged page_update; no-page local → location page). **Takes effect on the next discovery run per market** (Monday cron auto-applies; or a manual Refresh — small DFS — to see it now). Guardrail 3 (tighten keyword↔page fit so several distinct terms don't pile onto one loose-match promo page, e.g. the /ksa-win-free-burgers case) = next increment.
+
+---
+
 ## Session: July 2026 — v7.4.76 — P1.0: one queue module (`_lib/queue.js`)
 
 First step of P1 (pipeline unification), DataForSEO-free. Consolidated the TWO drifted queue copies — `_lib/store.js createApproval` (used by 6 background generators) and `approvals.js`'s own createItem/patchItem/etc (API path) — into ONE implementation in **`_lib/queue.js`** (create/get/list/update/remove/addAudit/getAudit/appendBrandFeedback + index/prune). Both files now DELEGATE to it (store.js queue fns are thin wrappers; approvals.js aliases `listItems=queue.list` etc). Same Blobs keys, same behaviour (post-BC1 prune logic), strong consistency. This is the root-cause fix for the drift behind BC1/BC3/BC5.

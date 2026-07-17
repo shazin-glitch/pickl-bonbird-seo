@@ -16,7 +16,7 @@
 // Manual trigger: GET /.netlify/functions/keyword-discovery-background?brand=pickl&force=true
 
 const { getStore }        = require('@netlify/blobs');
-const { getBrandContext } = require('./_lib/brand');
+const { getBrandContext, isBrandedQuery } = require('./_lib/brand');
 const { callClaude, extractJson } = require('./_lib/store');
 const { INTERNATIONAL_MARKETS, getMarketPageTokens } = require('./_lib/international-config');
 const { resolveLocation } = require('./_lib/dfs-locations');
@@ -529,12 +529,37 @@ function matchExistingPage(keyword, marketPages) {
   return bestScore >= 0.5 ? best.url : null; // ≥50% of content tokens present → a real match
 }
 
+// True homepage ("/" or bare domain). Distinct from isGenericTargetPage, which also
+// treats market-hub roots (/ksa) as generic — those are legit market landing pages.
+function isHomepageUrl(url) {
+  if (!url) return false;
+  const path = String(url).replace(/^https?:\/\/[^\/]+/, '').replace(/\/+$/, '');
+  return path === '' || path === '/';
+}
+
 // Recommended next action — reuses the UAE tier→action rules, now crawler-aware:
 // if we don't rank but a relevant page already EXISTS, optimise it (never duplicate).
-function recommendAction(opp) {
+function recommendAction(opp, brandCtx) {
   const pos      = opp.ourPosition;
   const hasPage  = !!opp.targetPage;   // we already rank on a real page (any position)
   const existing = opp.existingPage;   // a page we have that plausibly targets this kw but doesn't rank
+
+  // ── GUARDRAIL: page architecture (P1.6) ─────────────────────────────────────
+  // Never recommend rewriting the HOMEPAGE for a NON-BRAND keyword. On a small site
+  // the homepage ranks for everything by default, so GSC mis-attributes long-tail /
+  // local queries to "/". The homepage must stay focused on the brand head term; a
+  // non-brand keyword belongs on a dedicated page (a location page if local intent).
+  // (Brand queries like "pickl"/"بيكل" ARE allowed to fine-tune the homepage.)
+  const onHomepage = hasPage && isHomepageUrl(opp.targetPage);
+  const branded    = brandCtx ? isBrandedQuery(opp.keyword, brandCtx) : false;
+  if (onHomepage && !branded) {
+    return hasLocationIntent(opp.keyword)
+      ? { actionType: 'page_creation', label: 'Create a location/landing page',
+          rationale: `Ranks via the homepage, but "${opp.keyword}" is a local/near-me query — it needs a dedicated location page, not a homepage rewrite.` }
+      : { actionType: 'page_creation', label: 'Create a dedicated page',
+          rationale: `Ranks via the homepage by default — a dedicated page targets "${opp.keyword}" better than rewriting the homepage (which stays focused on the brand head term).` };
+  }
+
   // Already ranking top-10 → defend.
   if (opp.tier === 'top10')
     return { actionType: 'meta_update', label: 'Defend & fine-tune',
@@ -894,7 +919,7 @@ async function discoverKeywords(brand, store, authHeader, force = false, marketK
         businessBoost:    boost,           // >1 = matched a priority product (re-weighted up)
         priorityMarket:   isPriorityMarket, // this market is flagged commercially-priority
       };
-      opp.action = recommendAction(opp);                          // { actionType, label, rationale }
+      opp.action = recommendAction(opp, brandCtx);                // { actionType, label, rationale }
       const assessed = assessOpportunity(opp, c.source, market);
       opp.confidence = assessed.confidence;                        // 'high' | 'medium' | 'low'
       opp.flags      = assessed.flags;                             // advisory notes for the reviewer
@@ -914,7 +939,7 @@ async function discoverKeywords(brand, store, authHeader, force = false, marketK
       k.longTerm         = true;
       k.trafficPotential = trafficPotential(k, ltCfg);
       k.whyLongTerm      = longTermReason(k, ltCfg);
-      k.action           = recommendAction(k); // re-derive: tier changed
+      k.action           = recommendAction(k, brandCtx); // re-derive: tier changed
       return k;
     })
     .sort((a, b) => b.trafficPotential - a.trafficPotential)
