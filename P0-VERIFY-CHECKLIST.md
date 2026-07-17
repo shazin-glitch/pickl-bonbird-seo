@@ -3,11 +3,10 @@
 > Mark each ✅/❌. Anything ❌ → tell Claude the exact symptom; it becomes a fix before P1.
 
 ## STATUS (11 Jul 2026)
-- **V1 attempted (KSA) → INCONCLUSIVE.** DataForSEO balance was **negative**, so the discovery run never reached the Arabic filter (the API rejects on insufficient funds). Not a pass or fail. **PENDING: top up DataForSEO, then re-run KSA + Bahrain.**
-- V2–V4 (free, GSC/stored-data only) — not yet run; can be done anytime with no spend.
-- V5 (long-term group) also needs DataForSEO (Refresh Now = discovery) → PENDING top-up.
-- V6/V7/V8 — not yet run.
-- **P0 gate is OPEN until V1 passes.** Do NOT run an international content regenerate meanwhile.
+- ✅ **V1 PASSED (no spend).** KSA Opportunities already shows a full set of ARABIC keyword opportunities (16 gaps / 21 push / 63 quick wins / 12 long-term) — the fail-open bug was "0 Arabic opportunities", so their presence proves Arabic ideas now flow through the filter. No refresh needed; **P0 gate CLEARED**; intl regenerate is safe. (Also ✅ V5: long-term group present — 12.)
+- 📌 Observed in the same data (NOT an Arabic-gate issue — the P1.6 page-architecture gap): "برجر" (301k vol) → "create a blog post" (should be a menu/category page); several burger variants → one /ksa-win-free-burgers promo page. Guardrails already added to P1.6.
+- V2–V4 (traffic/tracker, free) — optional, not yet run; nice-to-have, not gating.
+- V7/V8 — spot-checks, optional.
 
 ## 🔴 GATE — do this FIRST, and do NOT run any international content regenerate until it passes
 ### V1. Arabic Opportunities fail-open fix (v7.4.24, never live-tested)  — PENDING (DataForSEO top-up)
