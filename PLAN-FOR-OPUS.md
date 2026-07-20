@@ -120,8 +120,16 @@ Frame: multi-market **restaurant** brands. Local intent, local pack, branded-vs-
 > **RE-SEQUENCED per the North Star (§1b), 19 Jul.** Near-term order now:
 > - **P1 (in progress):** pipeline unification. DONE: P1.0 queue module, P1.1 retire index/kill race, homepage guardrails (recommendAction + generate-draft). NEXT within P1: **(i) turn OFF the scheduler's 4 auto-content-gen jobs (keep its data jobs); (ii) build HUMAN-DRIVEN on-demand ⚡Generate — dispatch by actionType (meta [done] + page_creation + blog_draft), confidence-gated (high/med→Generate, low→Perch), button labels what it makes; (iii) guardrail-3 fit-check + clustering.** Then the remaining P1.2 voice-gate / P1.3 GSC-path / P1.4-1.5 extraction (the on-demand generators + scheduler share ONE `_lib/content-pipeline.js` — build once, both call it).
 > - **BUMPED UP (were later):** Local/GBP as a first-class action type + local-pack tracking, and keyword **clustering** — these are top-value per the F&B priority order, pull them ahead of generic visibility polish.
-> - Everything else (P2 onboarding/config, P3 visibility, P4 CEO layer, P5 local depth, P6 backlog) stays, now oriented around the North Star operating model.
-> Immediate build agreed: kill auto-gen + on-demand Generate (meta/page/blog, confidence, labels). NOT yet started — awaiting go.
+> - Everything else (P3 visibility, P4 CEO layer, P5 local depth, P6 backlog) stays, oriented around the North Star.
+
+> **⚡ ORDER CHANGE (19 Jul): P2 (config layer + one-click onboarding) JUMPS AHEAD of the rest of P1 — it's now THIS WEEK (Southpour + Yolk by EOW).** Revised near-term order:
+> 1. ✅ P0 (done) · ✅ P1.0 queue · ✅ P1.1 race · ✅ homepage guardrails — all done, all config-compatible (queue is brand-agnostic; guardrails already read brandCtx). No rework.
+> 2. **NEXT → P2 `brandsConfig` scalability layer + one-click onboarding (Southpour + Yolk).** THIS WEEK.
+> 3. Then the on-demand ⚡Generate + kill-auto-gen (built config-driven, reading brandsConfig).
+> 4. Then the REMAINING P1 (P1.2 voice-gate, P1.3 GSC-path, P1.4/1.5 extraction, P1.6 intelligence, P1.7 measurement) + guardrail-3/clustering.
+>
+> **KEY DEPENDENCY (why this ISN'T wasted reordering):** P2 and remaining-P1 touch the SAME hardcoded code — the `brand==='pickl'?eatpickl:bonbird` GSC-site ternary is exactly what P1.3 (GSC consolidation) + P1.4 (scheduler extraction) also rewrite. So **do the ternary/BRANDS-literal kill ONCE, config-driven** = P2 and the P1 extraction CONVERGE rather than conflict. Doing config FIRST makes the pipeline extraction cleaner, not redundant. The only reason it's not pure waste is the "every new line config-driven" rule — honor it and nothing gets built twice.
+> Immediate build (kill auto-gen + on-demand Generate): now sequenced AFTER brandsConfig so it reads config from day one. NOT started — awaiting go.
 
 
 Rules for every phase: config-driven (#12 — brand×market from config, zero inline lists), auth-gated (#11), one batched deploy per phase, `node --check` everything, update SETUP.md + memory, **live-verify acceptance gate before the next phase starts**. Prefer editing existing files over new parallel ones.
