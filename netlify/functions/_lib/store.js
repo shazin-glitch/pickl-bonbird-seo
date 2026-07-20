@@ -33,8 +33,6 @@ const KEY_AUDIT = 'audit:log';
 
 // Queue functions delegate to the single implementation in _lib/queue.js (P1.0).
 // Names/signatures preserved so the 6 background generators that import these keep working.
-async function getIndex()            { return queue.getIndex(); }
-async function setIndex(ids)         { return queue.setIndex(ids); }
 async function listApprovals(filter) { return queue.list(filter); }
 async function getApproval(id)       { return queue.get(id); }
 async function createApproval(input) { return queue.create(input); }
@@ -42,6 +40,7 @@ async function updateApproval(id, patch, histEvent) { return queue.update(id, pa
 async function deleteApproval(id)    { return queue.remove(id); }
 async function logAudit(event)       { return queue.addAudit(event); }
 async function getAudit(filter)      { return queue.getAudit(filter); }
+async function pruneApprovals()      { return queue.pruneDead(); } // weekly cleanup (P1.1)
 
 // ── Settings ─────────────────────────────────────────────────────
 async function getSetting(key, fallback) {
@@ -98,7 +97,7 @@ function parseBody(event) {
 module.exports = {
   store, newId,
   listApprovals, getApproval, createApproval, updateApproval, deleteApproval,
-  logAudit, getAudit,
+  logAudit, getAudit, pruneApprovals,
   getSetting, setSetting,
   callClaude, extractJson,
   ok, bad, preflight, parseBody, CORS,

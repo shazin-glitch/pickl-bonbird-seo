@@ -10,6 +10,7 @@
 //   DIGEST_TO_EMAIL    — default recipient (e.g. shazin@yolkbrands.com)
 
 const { getStore } = require('@netlify/blobs');
+const { listApprovals } = require('./_lib/store');
 
 const RESEND_API = 'https://api.resend.com/emails';
 
@@ -31,14 +32,10 @@ async function buildDigestData(brand, store) {
   const quickWins = nonBranded.filter(r => r.position >= 11 && r.position <= 20).length;
   const top3Opps  = nonBranded.sort((a, b) => (b.impressions || 0) - (a.impressions || 0)).slice(0, 3);
 
-  // Approvals queue
-  const approvalIndex = await store.get('approvals:index', { type: 'json' }).catch(() => []) || [];
-  const recentIds     = approvalIndex.slice(-50);
-  const items = await Promise.all(
-    recentIds.map(id => store.get(`approvals:${id}`, { type: 'json' }).catch(() => null))
-  ).then(arr => arr.filter(Boolean));
-
-  const brandItems  = items.filter(i => i.brand === brand);
+  // Approvals queue — prefix-scan via the shared queue (approvals:index retired in P1.1;
+  // this also fixes an old wrong-key bug: it read `approvals:${id}` not `approvals:item:${id}`,
+  // so these counts were always 0).
+  const brandItems  = await listApprovals({ brand });
   const pending     = brandItems.filter(i => i.status === 'pending').length;
   const approved    = brandItems.filter(i => i.status === 'approved' || i.status === 'published').length;
   const published   = brandItems.filter(i => i.status === 'published').length;

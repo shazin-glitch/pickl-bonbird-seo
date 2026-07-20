@@ -11,7 +11,7 @@
 // or Approve & Publish (goes live immediately).
 
 const {
-  createApproval, listApprovals, callClaude, extractJson,
+  createApproval, listApprovals, pruneApprovals, callClaude, extractJson,
   getSetting, setSetting, fetchGscDirect, fetchGscWithPages,
   ok, bad, preflight, parseBody,
 } = require('./_lib/store');
@@ -223,6 +223,16 @@ exports.handler = async (event) => {
     }
   }
 
+  // Weekly cleanup: prune dead (rejected/failed >30d) approval items. Moved here in P1.1
+  // (was per-create) so create() stays O(1) and race-free. Non-critical.
+  try {
+    const removed = await pruneApprovals();
+    summary.prunedApprovals = removed;
+    if (removed) console.log(`[scheduler] pruned ${removed} dead approval item(s)`);
+  } catch (e) {
+    console.warn('[scheduler] pruneApprovals failed (non-critical):', e.message);
+  }
+
   summary.finishedAt = Date.now();
   summary.durationMs = summary.finishedAt - summary.startedAt;
   await setSetting('scheduler:lastrun', summary);
@@ -310,16 +320,14 @@ async function trackPublishedItems(brand, gscRows) {
   const gscToken     = gscTokenData?.access_token || null;
   const siteUrl      = brand === 'pickl' ? 'https://eatpickl.com/' : 'https://bonbirdchicken.com/';
 
-  // Get all approval items for this brand with status pushed/published
-  const indexRaw = await s.get('approvals:index', { type: 'json' }).catch(() => null);
-  const index    = Array.isArray(indexRaw) ? indexRaw : [];
+  // Get all approval items for this brand (prefix-scan via the shared queue — the
+  // approvals:index blob was retired in P1.1; listApprovals already filters by brand).
+  const items = await listApprovals({ brand });
 
   let tracked = 0;
-  for (const id of index) {
+  for (const item of items) {
     try {
-      const item = await s.get(`approvals:item:${id}`, { type: 'json' }).catch(() => null);
-      if (!item) continue;
-      if (item.brand !== brand) continue;
+      const id = item.id;
       if (!['pushed', 'published'].includes(item.status)) continue;
       // Match the UI's eligibility exactly: fall back to the payload keyword so items
       // pushed before trackingKeyword existed (or where it wasn't captured) still get

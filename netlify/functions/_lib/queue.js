@@ -1,29 +1,25 @@
 // netlify/functions/_lib/queue.js
-// SINGLE source of truth for the approvals queue (P1.0 — pipeline unification).
-// Previously the queue existed as TWO drifted copies — approvals.js (API path) and
-// _lib/store.js createApproval (used by 6 background generators) — writing the SAME
-// Blobs keys with divergent logic (root cause of BC1 index-truncation + BC3 race +
-// BC5 dedup drift). This module is the one implementation; store.js and approvals.js
-// both delegate to it. Behaviour is identical to the (post-BC1) approvals.js version.
+// SINGLE source of truth for the approvals queue (P1.0 + P1.1).
 //
-// Keys (unchanged): approvals:index (id list, newest first) · approvals:item:<id> ·
-// audit:log · brandFeedback:<brand>. Strong consistency (queue correctness > latency).
+// P1.0 consolidated the two drifted copies (store.js createApproval + approvals.js
+// createItem) into this one module. P1.1 removed the mutable `approvals:index` blob:
+// items are now discovered by a PREFIX SCAN (`store.list({ prefix:'approvals:item:' })`,
+// which internally collects all pages — no truncation), so there is no shared mutable
+// list in the write path → the BC3 read-modify-write race is GONE. create() just writes
+// its own item key (O(1), race-free); pruning of dead items moved to a weekly sweep
+// (pruneDead, called by the scheduler) instead of running on every create.
 //
-// NOTE (P1.1, later): the mutable approvals:index is still a read-modify-write race
-// surface (BC3). The fix — deriving the list via store.list() prefix scan — is a
-// SEPARATE verified step because it changes result ordering; not done here so P1.0
-// stays strictly behaviour-preserving.
+// Keys: approvals:item:<id> · audit:log · brandFeedback:<brand>. Strong consistency.
 
 const { getStore } = require('@netlify/blobs');
 
-const KEY_INDEX    = 'approvals:index';
 const KEY_ITEM     = id => `approvals:item:${id}`;
+const KEY_PREFIX   = 'approvals:item:';
 const KEY_AUDIT    = 'audit:log';
 const KEY_FEEDBACK = brand => `brandFeedback:${brand}`;
 
-const PRUNE_CEILING = 2000;
 const DEAD_STATUSES = new Set(['rejected', 'failed']);
-const DEAD_MAX_AGE  = 30 * 24 * 60 * 60 * 1000; // dead items pruned after 30 days
+const DEAD_MAX_AGE  = 30 * 24 * 60 * 60 * 1000; // pruneDead removes dead items after 30 days
 
 function store() {
   return getStore({ name: 'seo-tool', consistency: 'strong', siteID: process.env.NETLIFY_SITE_ID, token: process.env.NETLIFY_AUTH_TOKEN });
@@ -33,11 +29,12 @@ function newId(prefix) {
   return `${prefix || 'itm'}_${Date.now().toString(36)}_${Math.random().toString(36).slice(2, 8)}`;
 }
 
-// ── Index ─────────────────────────────────────────────────────────
-async function getIndex() {
-  return (await store().get(KEY_INDEX, { type: 'json' }).catch(() => null)) || [];
+// All item keys via prefix scan. The non-paginate list() collects every page internally,
+// so this never truncates (unlike the old 500/2000-capped index).
+async function allItemKeys() {
+  const { blobs } = await store().list({ prefix: KEY_PREFIX });
+  return (blobs || []).map(b => b.key);
 }
-async function setIndex(ids) { await store().setJSON(KEY_INDEX, ids); }
 
 // ── Items ─────────────────────────────────────────────────────────
 async function get(id) { return store().get(KEY_ITEM(id), { type: 'json' }).catch(() => null); }
@@ -46,14 +43,17 @@ async function saveRaw(item) { await store().setJSON(KEY_ITEM(item.id), item); }
 async function list(filter) {
   filter = filter || {};
   const s = store();
-  const ids = await getIndex();
-  const items = await Promise.all(ids.map(id => s.get(KEY_ITEM(id), { type: 'json' }).catch(() => null)));
-  let out = items.filter(Boolean);
-  if (filter.status) out = out.filter(i => i.status === filter.status);
-  if (filter.brand)  out = out.filter(i => i.brand  === filter.brand);
-  if (filter.type)   out = out.filter(i => i.type   === filter.type);
-  if (filter.limit)  out = out.slice(0, filter.limit);
-  return out;
+  const keys = await allItemKeys();
+  let items = (await Promise.all(keys.map(k => s.get(k, { type: 'json' }).catch(() => null)))).filter(Boolean);
+  // Newest first (was implicit via index unshift; now explicit by createdAt). The id
+  // tiebreaker keeps ordering deterministic (stable across loads) when many items share
+  // the same createdAt ms — e.g. a cron loop queuing a batch.
+  items.sort((a, b) => (b.createdAt || 0) - (a.createdAt || 0) || String(b.id).localeCompare(String(a.id)));
+  if (filter.status) items = items.filter(i => i.status === filter.status);
+  if (filter.brand)  items = items.filter(i => i.brand  === filter.brand);
+  if (filter.type)   items = items.filter(i => i.type   === filter.type);
+  if (filter.limit)  items = items.slice(0, filter.limit);
+  return items;
 }
 
 async function create(input) {
@@ -75,27 +75,7 @@ async function create(input) {
     locationTag: input.locationTag || input.payload?.locationTag || '🇦🇪 UAE',
     languageTag: input.languageTag || input.payload?.languageTag || 'EN',
   };
-  await saveRaw(item);
-
-  // Index: newest first, prune dead (rejected/failed >30d), keep pushed/published/pending
-  // forever so the dedup window never loses what's been published. NEVER hard-truncate.
-  const idx = await getIndex();
-  idx.unshift(id);
-  const cutoff = now - DEAD_MAX_AGE;
-  const s = store();
-  const pruned = [];
-  for (const eid of idx) {
-    if (pruned.length >= PRUNE_CEILING) break;
-    const existing = await s.get(KEY_ITEM(eid), { type: 'json' }).catch(() => null);
-    if (!existing) continue;
-    if (DEAD_STATUSES.has(existing.status) && existing.updatedAt < cutoff) {
-      await s.delete(KEY_ITEM(eid)).catch(() => null);
-      continue;
-    }
-    pruned.push(eid);
-  }
-  await setIndex(pruned);
-
+  await saveRaw(item); // O(1), race-free — no shared index to read-modify-write
   await addAudit({ at: now, actor: item.actor, action: 'queued', target: id, type: item.type, brand: item.brand, note: item.title });
   return item;
 }
@@ -112,8 +92,24 @@ async function update(id, patch, histEvent) {
 
 async function remove(id) {
   await store().delete(KEY_ITEM(id)).catch(() => null);
-  const idx = await getIndex();
-  await setIndex(idx.filter(x => x !== id));
+}
+
+// Weekly cleanup: delete rejected/failed items older than 30 days. Keeps pushed/
+// published/pending FOREVER (dedup + tracking need them). Called from the scheduler,
+// not on every create — so create stays cheap.
+async function pruneDead() {
+  const s = store();
+  const cutoff = Date.now() - DEAD_MAX_AGE;
+  const keys = await allItemKeys();
+  let removed = 0;
+  for (const k of keys) {
+    const it = await s.get(k, { type: 'json' }).catch(() => null);
+    if (it && DEAD_STATUSES.has(it.status) && (it.updatedAt || 0) < cutoff) {
+      await s.delete(k).catch(() => null);
+      removed++;
+    }
+  }
+  return removed;
 }
 
 // ── Audit log ─────────────────────────────────────────────────────
@@ -152,7 +148,7 @@ async function appendBrandFeedback(brand, feedback) {
 }
 
 module.exports = {
-  KEY_INDEX, KEY_ITEM, KEY_AUDIT, KEY_FEEDBACK, newId,
-  getIndex, setIndex, list, get, saveRaw, create, update, remove,
+  KEY_ITEM, KEY_PREFIX, KEY_AUDIT, KEY_FEEDBACK, newId,
+  allItemKeys, list, get, saveRaw, create, update, remove, pruneDead,
   addAudit, getAudit, appendBrandFeedback,
 };

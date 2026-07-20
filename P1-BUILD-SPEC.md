@@ -39,9 +39,11 @@ New modules: `_lib/queue.js` (one queue), `_lib/content-pipeline.js` (one genera
 - **Acceptance:** create an item via a background generator + via the API; both appear; approve→push→publish still works; audit log intact. No output change.
 - ✅ Built `_lib/queue.js`; store.js queue fns are thin wrappers; approvals.js aliases to queue fns. Verified via mock-store end-to-end test (both create paths, list/get/update+history/index/audit/delete). **Live smoke test still owed before push.**
 
-### P1.1 — Kill the index race (BC3)
-- Replace the single mutable `approvals:index` blob with a **prefix scan** (`store.list({ prefix:'approvals:item:' })`) in `queue.list()` — no shared mutable index → the read-modify-write race disappears. (Measure list() latency on current volume; if too slow, keep an index but serialize writes through a single mutation path in queue.js.)
-- **Acceptance:** concurrent create (simulate scheduler + API) loses no ids; listApprovals returns the same set as before; dedup (`getQueuedKeywords`/`getQueuedMetaMap`) unaffected.
+### P1.1 — Kill the index race (BC3) ✅ DONE v7.4.78 (committed — needs signed-in smoke test)
+- Replaced the mutable `approvals:index` blob with a **prefix scan** (`store.list({ prefix:'approvals:item:' })` — the non-paginate form collects all pages internally, so no truncation). `create()` now just writes its own item key → **O(1) and race-free** (concurrent creates touch different keys). `remove()` just deletes the blob. Pruning of dead>30d moved to a **weekly sweep** (`queue.pruneDead` → `store.pruneApprovals`, called once per scheduler run) instead of on every create. `list()` sorts by `createdAt` desc with an `id` tiebreaker (deterministic even for same-ms batches).
+- Migrated the two direct index consumers off it: `scheduler-background.js trackPublishedItems` and `email-digest.js` (the latter also fixed a pre-existing wrong-key bug — it read `approvals:${id}` not `approvals:item:${id}`, so its counts were always 0). Old index blob is now orphaned/ignored — no data migration needed (items found by prefix).
+- Verified: mock end-to-end (prefix-scan list, O(1) create, brand filter, pruneDead removes old-rejected, remove, newest-first + same-ms determinism). **Live smoke test owed:** queue lists all items in order; approve/dismiss work; email digest + published-tracking still populate.
+- **Acceptance:** concurrent create loses no ids; listApprovals returns the same set as before; dedup (`getQueuedKeywords`/`getQueuedMetaMap`) unaffected.
 
 ### P1.2 — One voice gate (BC6)
 - `config:voice-gate` Blob `{ min: 8, autofixFloor: 5 }` (default = intl's stricter bar). Shared `voiceGate(score)` → `{ pass, needsFix }`. Replace every inline `<5`/`<8`/`>=5 && <8` check in scheduler + intl-seo with it.
