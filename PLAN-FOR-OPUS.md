@@ -40,6 +40,17 @@ The Nest is the team's **SEO operating system**, NOT an autopilot. Four loops: *
 
 **STOP doing:** autonomous churn · every-keyword-a-blog · keyword-by-keyword targeting · letting GSC's accidental homepage rankings pick targets.
 
+### ⚡ THIS-WEEK PRIORITY (19 Jul, Shazin): SCALABILITY + one-click brand onboarding — Southpour + Yolk live before EOW
+P2 (config layer + brand/market onboarding) is **pulled to THIS WEEK**, not later. Target: onboard **Southpour** (coffee/café) and **Yolk Brands** (corporate parent) as fully-working brands **via a Settings form / config record — ZERO code edits.** Two hard rules from now on:
+1. **Every new line of code MUST be config-driven (CLAUDE.md #12).** Do NOT add another `brand === 'pickl' ? … : …` ternary, hardcoded brand list, or `<option>`. Read brands from ONE source. The on-demand Generate + everything else built this week must already read brand config, so onboarding is truly one-record.
+2. **Build the `brandsConfig` layer as the near-term backbone.** One Blobs record per brand: `{ slug, name, vertical('restaurant'|'cafe'|'corporate'), domain, gscProperty (e.g. 'https://eatpickl.com/' | 'sc-domain:...'), wpEnvPrefix (WP_PICKL/WP_BONBIRD/WP_SOUTHPOUR/WP_YOLK), gbpAccount, brandContext/voice, brandedTerms, competitors[], businessPriority, color, flag }`. Shared accessors `getBrands()`/`getBrand(slug)` (Blobs-first, code literal = seed/fallback) that BE + FE both read; ONE `/api/config` feeds every UI dropdown.
+
+**HARDCODE INVENTORY to kill before/at onboarding (all confirmed in audit):** `brand==='pickl'?eatpickl:bonbird` GSC-site ternary duplicated across market-traffic/rank-tracker/gsc-data/loadReports/competitor-audit/technical-seo/ai-overview (BC9); `getBrandContext` fallback `pickl?PICKL_DEFAULT:BONBIRD_DEFAULT` (⚠️ a NEW brand silently inherits Bonbird's identity — MUST fix); `BRANDS` literal in scheduler; `BRAND_CONFIG` in email-digest/ai-overview; hardcoded Pickl/Bonbird `<option>` lists in index.html; per-brand competitor/seed lists; `WP_PICKL_*`/`WP_BONBIRD_*` env pattern (env vars stay, NAMES come from config).
+
+**VERTICAL ADAPTATION (Southpour=coffee, Yolk=corporate):** menu/keyword/relevance logic is currently burger/chicken-specific (OFF_MENU_DISHES, brandGenericSeeds, keywordMatchesMenu). It must key off `vertical`/brandContext.menu, not hardcoded food terms — else Southpour/Yolk get restaurant keywords. Onboarding a café/corporate brand must NOT require touching discovery/filter code.
+
+**ACCEPTANCE (the gate): add Southpour AND Yolk entirely through Settings → each appears in every dropdown + every cron loop, runs discovery/crawler/traffic/rank-tracker, generates on-demand content in its own voice/vertical — with ZERO code edits.** If any step needs a code change, onboarding isn't done.
+
 ## 2. Cohesion map — how the tabs tie together, and where they don't
 
 ### How data flows today (verified)
