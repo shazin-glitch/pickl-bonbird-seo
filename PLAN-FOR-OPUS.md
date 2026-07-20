@@ -18,6 +18,28 @@ The core problem is no longer missing features. It is **incoherence between the 
 
 ---
 
+## 1b. NORTH STAR — the operating model (agreed w/ Shazin 19 Jul; this governs all phases)
+The Nest is the team's **SEO operating system**, NOT an autopilot. Four loops: **research** (tool finds+prioritizes) → **triage** (human decides, PM-style) → **execute** (tool writes in brand voice + publishes) → **measure** (tool proves what moved). It wins on the one thing SEMrush/Ahrefs can't: insight → published fix → measured outcome, in brand voice, across markets.
+
+**DECISIONS LOCKED THIS SESSION (do not re-litigate):**
+- ❌ **KILL autonomous content-generation.** The scheduler's 4 auto-write jobs (quick_wins/meta_rewrites/content_gaps/page_creation) burn Claude + produce noise/wrong-targets. Turn them OFF. (Intl auto-gen already disabled by Shazin for this reason.)
+- ✅ **KEEP the scheduler's DATA/measurement jobs** (GSC snapshots, rank history, trackPublishedItems, CPC, pruneApprovals) — reporting/tracker need them.
+- ✅ **KEEP research jobs** (keyword-discovery → the worklist [already GSC + DataForSEO hybrid], competitor-matrix) — cadence = monthly cron + on-demand "Refresh Now" (keep DataForSEO spend low).
+- ✅ **Content is HUMAN-DRIVEN on-demand:** worklist → human triages → ⚡Generate (AI, when confident) or 📋 Perch (human, when not) → approve → publish. Confidence-gated (high/med → Generate; low → Perch). Generate LABELS what it makes (meta/page/blog/rewrite) and can CREATE pages & blogs, not just meta.
+- The tool = **"a PM tool that can also generate and publish."**
+
+**RESTAURANT-SPECIFIC PRIORITY ORDER (F&B SEO truth — bake into scoring + routing):**
+1. **Local pack + GBP FIRST.** near-me / "best burger [city]" / open-now = local intent → won by **GBP + reviews + location pages**, NOT blogs/homepage. Often 50%+ of the opportunity. Route these to GBP actions + per-location pages; track **local-pack position**.
+2. **Menu/category pages** (transactional, the money pages) — product terms → dedicated menu/category page.
+3. **Non-branded visibility = THE KPI** (~93% of clicks are branded → growth is non-branded). Point the system + CEO report at closing the non-branded gap.
+4. **Blogs LAST** — only real informational demand / topical authority for the money pages.
+5. Multi-market parameterized; native Arabic; delivery aggregators (Talabat/Deliveroo/Noon) a later parallel surface.
+
+**GAPS between "good" and "best" (priority order — fold into phases):**
+(a) **page-architecture intelligence** (guardrails done fully: right keyword → right page); (b) **clustering** (worklist by topic, not keyword-by-keyword); (c) **local/GBP as a first-class action type** + local-pack tracking; (d) **business-value weighting** (lean on `businessPriority`); (e) **closed-loop attribution surfaced** ("moved #14→#7").
+
+**STOP doing:** autonomous churn · every-keyword-a-blog · keyword-by-keyword targeting · letting GSC's accidental homepage rankings pick targets.
+
 ## 2. Cohesion map — how the tabs tie together, and where they don't
 
 ### How data flows today (verified)
@@ -83,6 +105,13 @@ Frame: multi-market **restaurant** brands. Local intent, local pack, branded-vs-
 ---
 
 ## 5. THE PLAN — phased, for Opus
+
+> **RE-SEQUENCED per the North Star (§1b), 19 Jul.** Near-term order now:
+> - **P1 (in progress):** pipeline unification. DONE: P1.0 queue module, P1.1 retire index/kill race, homepage guardrails (recommendAction + generate-draft). NEXT within P1: **(i) turn OFF the scheduler's 4 auto-content-gen jobs (keep its data jobs); (ii) build HUMAN-DRIVEN on-demand ⚡Generate — dispatch by actionType (meta [done] + page_creation + blog_draft), confidence-gated (high/med→Generate, low→Perch), button labels what it makes; (iii) guardrail-3 fit-check + clustering.** Then the remaining P1.2 voice-gate / P1.3 GSC-path / P1.4-1.5 extraction (the on-demand generators + scheduler share ONE `_lib/content-pipeline.js` — build once, both call it).
+> - **BUMPED UP (were later):** Local/GBP as a first-class action type + local-pack tracking, and keyword **clustering** — these are top-value per the F&B priority order, pull them ahead of generic visibility polish.
+> - Everything else (P2 onboarding/config, P3 visibility, P4 CEO layer, P5 local depth, P6 backlog) stays, now oriented around the North Star operating model.
+> Immediate build agreed: kill auto-gen + on-demand Generate (meta/page/blog, confidence, labels). NOT yet started — awaiting go.
+
 
 Rules for every phase: config-driven (#12 — brand×market from config, zero inline lists), auth-gated (#11), one batched deploy per phase, `node --check` everything, update SETUP.md + memory, **live-verify acceptance gate before the next phase starts**. Prefer editing existing files over new parallel ones.
 
