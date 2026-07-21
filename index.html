@@ -2155,13 +2155,14 @@ body { font-family: var(--font-sans); background: var(--bg-base); color: var(--t
 
       <div class="view-hero" style="background:linear-gradient(100deg,#0D1F1C,#14532d)">
         <div class="view-hero-icon"><i class="ti ti-book"></i></div>
-        <div><h1>How It Works</h1><p>The Nest explained — scheduler logic, keyword tiers, content pipeline and cron schedule.</p></div>
+        <div><h1>How It Works</h1><p>The Nest explained — onboarding a brand, the human-driven content loop, keyword tiers and the weekly data jobs.</p></div>
         <div class="view-hero-actions"><div id="howto-status" style="font-size:12px;color:rgba(255,255,255,0.45);text-align:right;line-height:1.6"></div></div>
       </div>
 
       <!-- Scheduler status -->
       <div class="card" style="margin-bottom:20px;border-left:4px solid var(--primary)">
-        <h3 style="font-size:15px;font-weight:700;margin-bottom:16px">⚙️ Weekly Automation — Monday 8am Dubai</h3>
+        <h3 style="font-size:15px;font-weight:700;margin-bottom:6px">⚙️ Weekly Data Automation — Monday 8am Dubai</h3>
+        <p style="font-size:12px;color:var(--text-muted);margin-bottom:14px">The Monday cron runs the <strong>data &amp; measurement</strong> jobs only — GSC snapshots, rank tracking, CPC, competitor matrix, keyword discovery, crawls. It no longer writes content (that's human-driven on demand). Per-brand last-run detail:</p>
         <div id="scheduler-status-detail" style="font-size:13px;color:var(--text-muted)">Loading…</div>
       </div>
 
@@ -2170,14 +2171,19 @@ body { font-family: var(--font-sans); background: var(--bg-base); color: var(--t
         <h3 style="font-size:15px;font-weight:700;margin-bottom:16px">🗺️ The Full System</h3>
         <div style="display:grid;gap:10px">
 
+          <div style="padding:12px 16px;background:rgba(27,191,163,0.07);border-radius:8px;border-left:3px solid #1BBFA3">
+            <div style="font-weight:700;font-size:13px;color:#128577;margin-bottom:4px">✨ Onboarding a brand — give it a URL, it figures out the rest</div>
+            <div style="font-size:13px;color:var(--text);line-height:1.6">Settings → Brands → <strong>Onboard a brand</strong>. Type the website and the tool reads it: Claude infers the brand's identity, vertical and voice; DataForSEO returns the keywords it already ranks for and its competitors. You <strong>review and edit</strong> everything (nothing is guessed silently), approve, and hit <strong>Run first analysis</strong>. The brand instantly appears in every dropdown, report and cron loop — no code change, no config file. <strong>SEO markets</strong> (international expansion) onboard the same way in Settings → SEO Markets; a brand launches UAE-only with zero markets. Everything below is config-driven off these records.</div>
+          </div>
+
           <div style="padding:12px 16px;background:rgba(124,58,237,0.06);border-radius:8px;border-left:3px solid #7c3aed">
-            <div style="font-weight:700;font-size:13px;color:#7c3aed;margin-bottom:4px">📅 Content Calendar — social media operations platform</div>
-            <div style="font-size:13px;color:var(--text);line-height:1.6">Plan, review, approve and schedule social content for all 5 brands across all markets. Post types: Static, Carousel, Reel, Story, Copy Only. Full approval workflow — submit → Slack ping to approvers → approve or request changes → export CSV for SocialPilot. Reels and Stories show manual posting instructions with date, time, and video link. <strong>AI Caption Generator</strong> inside the post form: describe what the post is about or upload images — Claude looks at them and writes a caption + hashtags. Bulk actions: select multiple posts to reschedule, copy to another market, or submit all at once.</div>
+            <div style="font-weight:700;font-size:13px;color:#7c3aed;margin-bottom:4px">📅 Content Calendar — social media operations platform (content team)</div>
+            <div style="font-size:13px;color:var(--text);line-height:1.6">Plan, review, approve and schedule social content for every brand across all markets. Post types: Static, Carousel, Reel, Story, Copy Only. Full approval workflow — submit → Slack ping to approvers → approve or request changes → export CSV for SocialPilot. Reels and Stories show manual posting instructions with date, time, and video link. <strong>AI Caption Generator</strong> inside the post form: describe what the post is about or upload images — Claude looks at them and writes a caption + hashtags. Bulk actions: select multiple posts to reschedule, copy to another market, or submit all at once.</div>
           </div>
 
           <div style="padding:12px 16px;background:rgba(245,158,11,0.06);border-radius:8px;border-left:3px solid #f59e0b">
             <div style="font-weight:700;font-size:13px;color:#d97706;margin-bottom:4px">📋 Approvals Queue — SEO content to-do list</div>
-            <div style="font-size:13px;color:var(--text);line-height:1.6">Every Monday the system analyses GSC data and generates SEO content: meta rewrites, page updates, blog drafts, new pages. Each item shows: keyword, current ranking, expected impact (estimated extra clicks/month if approved), and brand voice score. Items scoring 5–7 on voice are automatically rewritten before they reach you — only genuinely borderline content needs your attention. Click <strong>Approve → WP Draft</strong> to push to WordPress, or <strong>Publish Live</strong> to go live immediately. <strong>Rewrite with AI</strong> sends it back with specific feedback. Select multiple items with checkboxes to bulk dismiss.</div>
+            <div style="font-size:13px;color:var(--text);line-height:1.6">Content is <strong>human-driven, on demand</strong> (the old autonomous Monday content-gen is retired). You triage the keyword worklist and hit <strong>⚡Generate</strong> on what's worth doing — the tool writes it in brand voice and drops a draft here. It picks the right kind of asset (meta rewrite, new page, or blog), routes local-intent keywords to a location page not a blog, and blocks creating a page when a dedicated one already ranks (cannibalization guard). Low-confidence opportunities route to a human via Perch instead. Each item shows keyword, ranking, expected impact and brand-voice score; borderline voice is auto-rewritten first. <strong>Approve → WP Draft</strong> or <strong>Publish Live</strong>; <strong>Rewrite with AI</strong> sends feedback; checkboxes bulk-dismiss.</div>
           </div>
 
           <div style="padding:12px 16px;background:rgba(16,185,129,0.06);border-radius:8px;border-left:3px solid #10b981">
@@ -2197,17 +2203,17 @@ body { font-family: var(--font-sans); background: var(--bg-base); color: var(--t
 
           <div style="padding:12px 16px;background:rgba(239,68,68,0.06);border-radius:8px;border-left:3px solid #dc2626">
             <div style="font-weight:700;font-size:13px;color:#dc2626;margin-bottom:4px">📍 Local SEO — GBP + citations</div>
-            <div style="font-size:13px;color:var(--text);line-height:1.6">GBP location health cards for all Pickl and Bonbird locations. Citation tracker checks your listings on Zomato, TripAdvisor, Time Out Dubai, What's On, and The Entertainer weekly — flag issues or mark verified. Review reply drafting in brand voice (GBP API activation pending). GBP is the #1 local pack signal — a complete, active profile is required for map results.</div>
+            <div style="font-size:13px;color:var(--text);line-height:1.6">GBP location health cards for every brand's locations. Citation tracker checks your listings on Zomato, TripAdvisor, Time Out Dubai, What's On, and The Entertainer weekly — flag issues or mark verified. Review reply drafting in brand voice (GBP API activation pending). GBP is the #1 local pack signal — a complete, active profile is required for map results.</div>
           </div>
 
           <div style="padding:12px 16px;background:rgba(6,182,212,0.06);border-radius:8px;border-left:3px solid #06b6d4">
             <div style="font-weight:700;font-size:13px;color:#0891b2;margin-bottom:4px">🌍 International SEO — Market Hub</div>
-            <div style="font-size:13px;color:var(--text);line-height:1.6">Covers all 6 Pickl markets (UAE, Bahrain, KSA, Qatar, Egypt, Jordan, Oman) and 3 Bonbird markets (Oman, Pakistan, Qatar). Each market card shows: Top 10 rankings for that market, keyword opportunities count, items queued. One click opens keyword opportunities or competitor analysis pre-filled for that market — no manual switching. Keyword discovery runs per market every Monday using market-specific location codes and seed keywords, not generic UAE data. Claude understands URL structure (/bh/ = Bahrain, /ksa/ = Saudi Arabia) and writes for the specific market audience.</div>
+            <div style="font-size:13px;color:var(--text);line-height:1.6">Covers each brand's international markets — configured in Settings → SEO Markets, no code change. Each market card shows: Top 10 rankings for that market, keyword opportunities count, items queued. One click opens keyword opportunities or competitor analysis pre-filled for that market — no manual switching. Keyword discovery runs per market every Monday using market-specific location codes and seed keywords, not generic UAE data. Claude understands URL structure (/bh/ = Bahrain, /ksa/ = Saudi Arabia) and writes for the specific market audience.</div>
           </div>
 
           <div style="padding:12px 16px;background:rgba(139,92,246,0.06);border-radius:8px;border-left:3px solid #8b5cf6">
             <div style="font-weight:700;font-size:13px;color:#7c3aed;margin-bottom:4px">✨ AI Content Studio — on-demand content tools</div>
-            <div style="font-size:13px;color:var(--text);line-height:1.6">Run any time: Review Responder, Schema Generator, Content Brief Builder, On-Demand Page Audit, YouTube SEO Brief Generator (titles, description, tags, VideoObject schema, content outline). All tools pre-loaded with brand context and real writing examples — output sounds like Pickl or Bonbird, not generic AI.</div>
+            <div style="font-size:13px;color:var(--text);line-height:1.6">Run any time: Review Responder, Schema Generator, Content Brief Builder, On-Demand Page Audit, YouTube SEO Brief Generator (titles, description, tags, VideoObject schema, content outline). All tools pre-loaded with brand context and real writing examples — output sounds like the brand's own voice, not generic AI.</div>
           </div>
 
           <div style="padding:12px 16px;background:rgba(245,158,11,0.06);border-radius:8px;border-left:3px solid #f59e0b">
@@ -2301,7 +2307,7 @@ body { font-family: var(--font-sans); background: var(--bg-base); color: var(--t
       <!-- Voice scoring -->
       <div class="card" style="margin-bottom:20px">
         <h3 style="font-size:15px;font-weight:700;margin-bottom:12px">✦ Brand Voice Scoring</h3>
-        <p style="font-size:13px;color:var(--text-muted);margin-bottom:14px">Every blog draft and page update is scored 1–10 for brand voice accuracy before it reaches your queue. Claude checks for generic phrases, banned words, AI tells like em dashes, and whether the content sounds specifically like Pickl or Bonbird. <strong>Items scoring 5–7 are automatically rewritten</strong> targeting the specific issues before queuing — so what you see has already had one auto-fix pass. Only content that still has voice issues after the auto-fix shows a warning badge.</p>
+        <p style="font-size:13px;color:var(--text-muted);margin-bottom:14px">Every blog draft and page update is scored 1–10 for brand voice accuracy before it reaches your queue. Claude checks for generic phrases, banned words, AI tells like em dashes, and whether the content sounds specifically like the brand. <strong>Items scoring 5–7 are automatically rewritten</strong> targeting the specific issues before queuing — so what you see has already had one auto-fix pass. Only content that still has voice issues after the auto-fix shows a warning badge.</p>
         <div style="display:grid;gap:8px">
           <div style="display:flex;gap:10px;align-items:center;padding:8px 12px;border-radius:6px;background:#05996908">
             <span style="font-size:12px;font-weight:700;color:#059669;width:36px;flex-shrink:0">9–10</span>
@@ -2321,7 +2327,7 @@ body { font-family: var(--font-sans); background: var(--bg-base); color: var(--t
           <div style="display:flex;gap:10px;align-items:center;padding:8px 12px;border-radius:6px;background:#dc262608">
             <span style="font-size:12px;font-weight:700;color:#dc2626;width:36px;flex-shrink:0">&lt; 5</span>
             <span style="font-size:11px;font-weight:700;padding:1px 7px;border-radius:99px;background:#dc262618;color:#dc2626;white-space:nowrap">Auto-rejected</span>
-            <span style="font-size:13px;color:var(--text)">Scored below 5 — never queued. You'll see an error in Settings &amp; Logs if you run the scheduler manually.</span>
+            <span style="font-size:13px;color:var(--text)">Scored below 5 — never queued. You'll see an error in Settings &amp; Logs when generation is run.</span>
           </div>
         </div>
       </div>
@@ -2329,7 +2335,7 @@ body { font-family: var(--font-sans); background: var(--bg-base); color: var(--t
       <!-- AI Search Presence explained -->
       <div class="card" style="margin-bottom:20px">
         <h3 style="font-size:15px;font-weight:700;margin-bottom:12px">🤖 AI Search Presence — Why This Matters</h3>
-        <p style="font-size:13px;color:var(--text-muted);margin-bottom:12px">Every Monday, The Nest asks ChatGPT, Perplexity, Claude, and Gemini "What are the best burger restaurants in Dubai?" (and 5 other category queries per brand). It records whether your brand is mentioned and builds a weekly trend.</p>
+        <p style="font-size:13px;color:var(--text-muted);margin-bottom:12px">Every Monday, The Nest asks ChatGPT, Perplexity, Claude, and Gemini category questions for each brand (e.g. "best burger restaurants in Dubai" — 6 category queries per brand). It records whether your brand is mentioned and builds a weekly trend.</p>
         <div style="display:grid;gap:8px">
           <div style="padding:10px 12px;border-radius:6px;background:rgba(255,255,255,0.03);border:1px solid var(--border)">
             <span style="font-weight:600;font-size:13px">Why LLMs matter:</span>
@@ -2359,7 +2365,7 @@ body { font-family: var(--font-sans); background: var(--bg-base); color: var(--t
         <div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:16px">
           <div>
             <h3 style="font-size:15px;font-weight:700">🚨 Priority Gap Keywords (Seed List)</h3>
-            <p style="font-size:13px;color:var(--text-muted);margin-top:4px">Keywords you want to rank for that don't appear in GSC yet. The scheduler targets these alongside GSC data every Monday. Add anything a competitor ranks for that you don't — these become the highest-priority content briefs.</p>
+            <p style="font-size:13px;color:var(--text-muted);margin-top:4px">Keywords you want to rank for that don't appear in GSC yet. Weekly discovery folds these into the worklist as priority gaps; you then generate content for them on demand. Add anything a competitor ranks for that you don't — these become the highest-priority content briefs.</p>
           </div>
           <select id="seed-brand-selector" class="form-input" style="width:130px;font-family:var(--font-sans)" onchange="loadSeedKeywords()">
             <option value="pickl">Pickl</option>
