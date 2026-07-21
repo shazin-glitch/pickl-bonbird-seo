@@ -388,9 +388,12 @@ function getMarket(marketKey) {
   return INTERNATIONAL_MARKETS[marketKey] || null;
 }
 
-// Returns the correct WP env vars for a market — single WP instance per brand
+// Returns the correct WP env vars for a market — single WP instance per brand.
+// Env-var names derive from the brand slug (WP_<SLUG>_*), the same convention
+// brands-config + wordpress.js use — so a NEW brand's market resolves with zero
+// code edits (just set the env vars). No pickl/bonbird ternary.
 function getWpCredentials(market) {
-  const prefix = market.wpBrand === 'pickl' ? 'WP_PICKL' : 'WP_BONBIRD';
+  const prefix = `WP_${String(market.wpBrand || market.brand || '').toUpperCase()}`;
   return {
     base: process.env[`${prefix}_BASE`],
     user: process.env[`${prefix}_USER`],
@@ -398,11 +401,14 @@ function getWpCredentials(market) {
   };
 }
 
-// Build the full target URL for a post/page
-function buildPostUrl(market, type, slug, language = 'en') {
+// Build the full target URL for a post/page. brandDomain (e.g. 'https://eatpickl.com')
+// should be passed from brands-config for a config-driven domain; falls back to the
+// pickl/bonbird literals only for back-compat when a caller hasn't supplied it.
+function buildPostUrl(market, type, slug, language = 'en', brandDomain = null) {
   const isArabic   = language === 'ar';
   const baseSlug   = isArabic && market.arabicSlug ? market.arabicSlug : market.marketSlug;
-  const brand      = market.wpBrand === 'pickl' ? 'https://eatpickl.com' : 'https://bonbirdchicken.com';
+  const brand      = (brandDomain && brandDomain.replace(/\/$/, '')) ||
+                     (market.wpBrand === 'pickl' ? 'https://eatpickl.com' : 'https://bonbirdchicken.com');
 
   if (type === 'blog_draft') {
     const journalBase = isArabic && market.arabicJournalSlug
@@ -415,20 +421,23 @@ function buildPostUrl(market, type, slug, language = 'en') {
   return `${brand}/${baseSlug}/`;
 }
 
-// Build Claude prompt context for a market
-function buildMarketPrompt(market, brandCtx, language = 'en') {
+// Build Claude prompt context for a market.
+// brandName/brandDomain come from brands-config (config-driven); fall back to a
+// capitalized slug / the buildPostUrl literal so existing callers still work.
+function buildMarketPrompt(market, brandCtx, language = 'en', brandName = null, brandDomain = null) {
   const isArabic = language === 'ar';
-  const marketUrl = buildPostUrl(market, 'page', '', language).replace(/\/$/, '');
+  const bName = brandName || (market.brand ? market.brand.charAt(0).toUpperCase() + market.brand.slice(1) : 'the brand');
+  const marketUrl = buildPostUrl(market, 'page', '', language, brandDomain).replace(/\/$/, '');
   return `
 === INTERNATIONAL MARKET CONTEXT ===
-Brand: ${market.brand === 'pickl' ? 'Pickl' : 'Bonbird'}
+Brand: ${bName}
 Market: ${market.label} ${market.flag}
 Language: ${isArabic ? 'Arabic (local dialect — NOT Modern Standard Arabic)' : 'English'}
 ${market.isNew ? '⚡ NEW MARKET — just opened. Content should celebrate the opening and drive first-visit traffic.' : ''}
 
 URL STRUCTURE (critical — use these exact patterns):
 - Market root:     ${marketUrl}/
-- Journal posts:   ${buildPostUrl(market, 'blog_draft', '<post-slug>', language)}
+- Journal posts:   ${buildPostUrl(market, 'blog_draft', '<post-slug>', language, brandDomain)}
 - Market slug:     /${market.marketSlug}/ — this identifies ALL pages for ${market.label}
 - Any URL containing /${market.marketSlug}/ is a ${market.label} page, NOT a UAE page
 - Write ONLY for the ${market.label} market — do not target or reference UAE, Dubai, or other markets as the location/destination. EXCEPTION: you MAY cite the brand's Dubai/UAE awards (see VERIFIED FACTS) as pedigree (e.g. "the team behind Dubai's award-winning Pickl"), but NEVER claim an award was won in ${market.label}, and never tell ${market.label} visitors to go to Dubai.
@@ -441,7 +450,7 @@ WHAT THIS MARKET NEEDS FROM CONTENT:
 
 CONFIRMED LOCATIONS IN ${market.label.toUpperCase()} (${market.locations.length} SEPARATE outlet${market.locations.length === 1 ? '' : 's'} — distinct places; NEVER merge two into one address like "X, Y"):
 ${market.locations.length > 0 ? market.locations.map((l, i) => `  ${i + 1}. ${l}`).join('\n') : 'Locations TBC — do NOT invent or guess any location names'}
-${market.locations.length > 1 ? `- ${market.brand === 'pickl' ? 'Pickl' : 'Bonbird'} ${market.label} is a MULTI-LOCATION brand (${market.locations.length} outlets) — represent it as a brand across ${market.label}, never as a single outlet. Say "and" between outlets, not a comma.` : ''}
+${market.locations.length > 1 ? `- ${bName} ${market.label} is a MULTI-LOCATION brand (${market.locations.length} outlets) — represent it as a brand across ${market.label}, never as a single outlet. Say "and" between outlets, not a comma.` : ''}
 
 TARGET KEYWORDS FOR THIS MARKET (${language.toUpperCase()}):
 ${(market.seedKeywords[language] || market.seedKeywords['en'] || []).join(', ')}
@@ -522,10 +531,38 @@ function urlMatchesTokens(url, tokens) {
 }
 
 // Attribute a page URL to its market key for a brand ('uae' if not an intl page).
+// SYNC form — uses the seed literal only (covers the built-in markets). For a
+// config-onboarded market use marketForUrlAsync.
 function marketForUrl(url, brand) {
   const markets = Object.entries(INTERNATIONAL_MARKETS).filter(([, m]) => m.brand === brand);
   for (const [key, m] of markets) {
     if (urlMatchesTokens(url, getMarketPageTokens(m))) return key;
+  }
+  return 'uae';
+}
+
+// ── Blobs-aware async accessors (markets-config is the source of truth) ────────
+// Lazy require avoids a circular dependency (markets-config requires this file for
+// its seed). These see markets onboarded via Settings, not just the seed literals.
+function _mc() { return require('./markets-config'); }
+
+// All SEO markets for a brand as a {key: market} object (Blobs-merged).
+async function getMarketsForBrandAsync(brand) {
+  const list = await _mc().getMarketsForBrand(brand);
+  return list.reduce((acc, m) => { acc[m.key] = m; return acc; }, {});
+}
+
+// One market by key (Blobs-merged), or null.
+async function getMarketAsync(key) { return _mc().getMarket(key); }
+
+// Full SEO market map (Blobs-merged), drop-in for the INTERNATIONAL_MARKETS literal.
+async function getMarketsMapAsync() { return _mc().getMarketsMap(); }
+
+// Attribute a URL to its market key for a brand, INCLUDING config-onboarded markets.
+async function marketForUrlAsync(url, brand) {
+  const list = await _mc().getMarketsForBrand(brand);
+  for (const m of list) {
+    if (urlMatchesTokens(url, getMarketPageTokens(m))) return m.key;
   }
   return 'uae';
 }
@@ -553,4 +590,9 @@ module.exports = {
   MARKET_PAGE_TOKENS,
   isExcludedPageSlug,
   PAGE_SLUG_EXCLUDE,
+  // Blobs-aware (config-onboarded markets) — prefer these in handlers:
+  getMarketsForBrandAsync,
+  getMarketAsync,
+  getMarketsMapAsync,
+  marketForUrlAsync,
 };

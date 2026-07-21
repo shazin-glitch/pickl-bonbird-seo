@@ -14,6 +14,7 @@
 
 const crypto    = require('crypto');
 const { getStore } = require('@netlify/blobs');
+const { getBrandSlugs } = require('./_lib/brands-config');
 
 const CORS = {
   'Access-Control-Allow-Origin':  '*',
@@ -141,7 +142,7 @@ exports.handler = async (event) => {
     // ── purge_orphans (legacy Blob cleanup) ───────────────────────────────
     if (body.action === 'purge_orphans') {
       const s = getS();
-      const ALL_BRANDS = ['pickl', 'bonbird', 'southpour', 'shadowburg', 'shadowbird'];
+      const ALL_BRANDS = await getBrandSlugs();
       const refIds = new Set();
       for (const brand of ALL_BRANDS) {
         const ids = await s.get(`calendarIndex:${brand}`, { type: 'json' }).catch(() => []) || [];

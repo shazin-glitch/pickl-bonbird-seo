@@ -12,11 +12,11 @@
 // config-driven and needs zero changes when new markets/brands are added.
 
 const { getStore } = require('@netlify/blobs');
-const { getMarketsForBrand, getMarketPageTokens } = require('./_lib/international-config');
+const { getMarketsForBrandAsync, getMarketPageTokens } = require('./_lib/international-config');
 const { authorizeJob } = require('./_lib/auth');
 
 const BASE = 'https://api.dataforseo.com/v3';
-const BRAND_DOMAINS = { pickl: 'eatpickl.com', bonbird: 'bonbirdchicken.com' };
+const { getBrand, getBrandSlugs, ownDomainFor } = require('./_lib/brands-config');
 
 function getAuth() {
   return 'Basic ' + Buffer.from(`${process.env.DATAFORSEO_LOGIN}:${process.env.DATAFORSEO_PASSWORD}`).toString('base64');
@@ -29,8 +29,9 @@ function urlMatchesTokens(url, tokens) {
   const path = String(url).replace(/^https?:\/\/[^\/]+/, '').toLowerCase();
   return tokens.some(t => path === `/${t}` || path === `/${t}/` || path.startsWith(`/${t}/`) || path.startsWith(`/${t}-`));
 }
-function attributeMarket(url, brand) {
-  const markets = getMarketsForBrand(brand); // config-driven — no hardcoded list
+// `markets` is a pre-fetched {key:market} object (from getMarketsForBrandAsync) so
+// this stays sync and can be called inside a synchronous .map().
+function attributeMarket(url, markets) {
   for (const [key, m] of Object.entries(markets)) {
     if (urlMatchesTokens(url, getMarketPageTokens(m))) return key;
   }
@@ -77,7 +78,7 @@ function pageIssues(item = {}, wordCount = 0) {
 }
 
 async function auditBrand(brand, store, auth, maxPages) {
-  const domain = BRAND_DOMAINS[brand];
+  const domain = await ownDomainFor(brand);
   const tag = `[onpage/${brand}]`;
   if (!domain) { console.warn(`${tag} no domain configured`); return { error: 'no domain' }; }
 
@@ -117,6 +118,7 @@ async function auditBrand(brand, store, auth, maxPages) {
   const items = pg.tasks?.[0]?.result?.[0]?.items || [];
   console.log(`${tag} pages fetched: ${items.length}`);
 
+  const marketsMap = await getMarketsForBrandAsync(brand); // config-driven — no hardcoded list
   const pages = items.map(it => {
     const url  = it.url || it.resource_url || '';
     const meta = it.meta || {};
@@ -126,7 +128,7 @@ async function auditBrand(brand, store, auth, maxPages) {
     const c = it.checks || {};
     return {
       url,
-      market:          attributeMarket(url, brand),
+      market:          attributeMarket(url, marketsMap),
       title:           meta.title || null,
       metaDescription: meta.description || null,
       h1,
@@ -140,7 +142,7 @@ async function auditBrand(brand, store, auth, maxPages) {
 
   // Per-market rollup (drives the "Issues & Flags" view — e.g. market with 0 pages)
   const byMarket = {};
-  for (const [key] of Object.entries(getMarketsForBrand(brand))) byMarket[key] = { pages: 0, thin: 0, missingMeta: 0, noH1: 0, errors: 0 };
+  for (const [key] of Object.entries(marketsMap)) byMarket[key] = { pages: 0, thin: 0, missingMeta: 0, noH1: 0, errors: 0 };
   byMarket.uae = { pages: 0, thin: 0, missingMeta: 0, noH1: 0, errors: 0 };
   for (const p of pages) {
     const b = byMarket[p.market] || (byMarket[p.market] = { pages: 0, thin: 0, missingMeta: 0, noH1: 0, errors: 0 });
@@ -173,7 +175,7 @@ exports.handler = async (event) => {
   const store = getStore({ name: 'seo-tool', siteID: process.env.NETLIFY_SITE_ID, token: process.env.NETLIFY_AUTH_TOKEN });
   const auth  = getAuth();
   const qs    = event.queryStringParameters || {};
-  const brands   = qs.brand ? [qs.brand] : ['pickl', 'bonbird'];
+  const brands   = qs.brand ? [qs.brand] : await getBrandSlugs();
   const maxPages = Math.min(Math.max(parseInt(qs.maxPages, 10) || 250, 10), 1000);
 
   const results = {};

@@ -8,6 +8,7 @@
 
 const { getStore } = require('@netlify/blobs');
 const { authorize, denied, internalHeaders } = require('./_lib/auth');
+const { gscPropertyFor } = require('./_lib/brands-config');
 
 const SITE_URL = process.env.URL || 'https://yolkseo.netlify.app';
 
@@ -38,7 +39,7 @@ exports.handler = async (event) => {
     if (q.audit) {
       const domain  = q.audit;
       const audit   = await store.get(`competitorAuditCache:${domain}`, { type: 'json' }).catch(() => null);
-      const GSC_URL = brand === 'pickl' ? 'https://eatpickl.com/' : 'sc-domain:bonbirdchicken.com';
+      const GSC_URL = await gscPropertyFor(brand);
       const gscCache = await store.get(`gscCache:${GSC_URL}`, { type: 'json' }).catch(() => null);
 
       const gscMap = {};

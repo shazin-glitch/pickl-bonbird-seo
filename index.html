@@ -795,16 +795,8 @@ body { font-family: var(--font-sans); background: var(--bg-base); color: var(--t
       </div>
 
       <div class="metrics-grid">
-        <div class="metric-card">
-          <div class="metric-title"><div class="dot" style="background:var(--pickl)"></div>Pickl Top 10s</div>
-          <div class="metric-val" id="metric-pickl">— <span class="metric-sub">keywords</span></div>
-          <div class="metric-trend" id="metric-pickl-trend" style="color:var(--text-muted)">Loading GSC…</div>
-        </div>
-        <div class="metric-card">
-          <div class="metric-title"><div class="dot" style="background:var(--bonbird)"></div>Bonbird Top 10s</div>
-          <div class="metric-val" id="metric-bonbird">— <span class="metric-sub">keywords</span></div>
-          <div class="metric-trend" id="metric-bonbird-trend" style="color:var(--text-muted)">Loading GSC…</div>
-        </div>
+        <!-- One "Top 10s" card per brand — rendered from /api/config (renderBrandMetricCards). -->
+        <div id="metric-brand-cards" style="display:contents"></div>
         <div class="metric-card">
           <div class="metric-title">Automated Actions</div>
           <div class="metric-val" id="metric-queue">— <span class="metric-sub">pending</span></div>
@@ -1179,7 +1171,7 @@ body { font-family: var(--font-sans); background: var(--bg-base); color: var(--t
               <div style="font-size:32px;margin-bottom:12px">🔗</div>
               <div style="font-size:15px;font-weight:600;margin-bottom:6px">Backlink Monitoring</div>
               <div style="font-size:13px;margin-bottom:20px">DataForSEO referring domains — runs every Monday automatically.</div>
-              <div style="display:flex;gap:12px;justify-content:center;flex-wrap:wrap">
+              <div id="backlinks-refresh-btns" style="display:flex;gap:12px;justify-content:center;flex-wrap:wrap">
                 <button class="btn btn-primary" onclick="refreshBacklinks('pickl')">↻ Fetch Pickl Backlinks</button>
                 <button class="btn btn-outline" onclick="refreshBacklinks('bonbird')">↻ Fetch Bonbird Backlinks</button>
               </div>
@@ -1192,22 +1184,15 @@ body { font-family: var(--font-sans); background: var(--bg-base); color: var(--t
       <div id="atab-markets" class="analytics-tab-panel" style="display:none">
         <div style="display:flex;gap:8px;align-items:center;margin-bottom:10px">
           <span style="font-size:12px;font-weight:600;color:var(--text-muted);width:52px;flex-shrink:0">Brand</span>
-          <div class="pill active" data-intl-brand="all" onclick="switchIntlView(this,'brand')">All</div>
-          <div class="pill" data-intl-brand="pickl" onclick="switchIntlView(this,'brand')">Pickl</div>
-          <div class="pill" data-intl-brand="bonbird" onclick="switchIntlView(this,'brand')">Bonbird</div>
+          <span id="intl-brand-pills" style="display:contents">
+            <div class="pill active" data-intl-brand="all" onclick="switchIntlView(this,'brand')">All</div>
+          </span>
         </div>
         <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin-bottom:28px">
           <span style="font-size:12px;font-weight:600;color:var(--text-muted);width:52px;flex-shrink:0">Market</span>
-          <div class="pill active" data-intl-market="all" onclick="switchIntlView(this,'market')">All</div>
-          <div class="pill pickl-market" data-intl-market="pickl_bahrain" onclick="switchIntlView(this,'market')">🇧🇭 Bahrain</div>
-          <div class="pill pickl-market" data-intl-market="pickl_ksa" onclick="switchIntlView(this,'market')">🇸🇦 Saudi Arabia</div>
-          <div class="pill pickl-market" data-intl-market="pickl_jordan" onclick="switchIntlView(this,'market')">🇯🇴 Jordan</div>
-          <div class="pill pickl-market" data-intl-market="pickl_qatar" onclick="switchIntlView(this,'market')">🇶🇦 Qatar</div>
-          <div class="pill pickl-market" data-intl-market="pickl_egypt" onclick="switchIntlView(this,'market')">🇪🇬 Egypt</div>
-          <div class="pill pickl-market" data-intl-market="pickl_oman" onclick="switchIntlView(this,'market')">🇴🇲 Oman <span style="font-size:10px;background:#f59e0b;color:#000;padding:1px 6px;border-radius:4px;margin-left:4px;font-weight:700">NEW</span></div>
-          <div class="pill bonbird-market" data-intl-market="bonbird_oman" onclick="switchIntlView(this,'market')">🇴🇲 Oman</div>
-          <div class="pill bonbird-market" data-intl-market="bonbird_pakistan" onclick="switchIntlView(this,'market')">🇵🇰 Pakistan</div>
-          <div class="pill bonbird-market" data-intl-market="bonbird_qatar" onclick="switchIntlView(this,'market')">🇶🇦 Qatar</div>
+          <span id="intl-market-pills" style="display:contents">
+            <div class="pill active" data-intl-market="all" onclick="switchIntlView(this,'market')">All</div>
+          </span>
         </div>
         <div id="intl-market-grid" style="display:grid;grid-template-columns:repeat(auto-fill,minmax(340px,1fr));gap:16px">
           <div style="text-align:center;padding:40px;color:var(--text-muted);grid-column:1/-1" id="intl-loading">
@@ -1595,9 +1580,8 @@ body { font-family: var(--font-sans); background: var(--bg-base); color: var(--t
             <div class="pill" onclick="switchCitationBrand('bonbird',this)">🔴 Bonbird</div>
           </div>
 
-          <!-- Platform rows — populated by renderCitationTracker() -->
-          <div id="citation-rows-pickl"></div>
-          <div id="citation-rows-bonbird" style="display:none"></div>
+          <!-- Platform rows — one #citation-rows-<slug> per brand, built by loadCitationData(). -->
+          <div id="citation-rows-wrap"></div>
 
           <div id="citation-loading" style="text-align:center;padding:24px;color:var(--text-muted);font-size:13px;display:none">
             Fetching platform results… this takes up to 60s per brand
@@ -1721,6 +1705,60 @@ body { font-family: var(--font-sans); background: var(--bg-base); color: var(--t
       </div>
 
       <div class="settings-grid">
+        <!-- Brands (config-driven onboarding — CLAUDE.md #12) -->
+        <div class="card" id="brands-admin-card" style="grid-column:1 / -1">
+          <h3 style="font-size:16px;font-weight:600;margin-bottom:6px">🏷️ Brands</h3>
+          <p style="font-size:13px;color:var(--text-muted);margin-bottom:16px">Onboard a new brand here — it appears in every dropdown and every cron loop with no code change. Set the matching env vars in Netlify (WP_&lt;SLUG&gt;_BASE/_USER/_APP_PASS, GBP_&lt;SLUG&gt;_ACCOUNT_ID/_LOCATION_ID) for publishing + GBP.</p>
+          <div id="brands-admin-list" style="margin-bottom:16px;font-size:13px"></div>
+          <div style="border-top:1px solid var(--border);padding-top:16px">
+            <h4 style="font-size:14px;font-weight:600;margin-bottom:12px">Add / edit a brand</h4>
+            <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px">
+              <div class="form-group"><label class="form-label">Slug (lowercase, unique)</label><input id="bf-slug" class="form-input" placeholder="southpour" style="font-family:var(--font-sans)"></div>
+              <div class="form-group"><label class="form-label">Display name</label><input id="bf-name" class="form-input" placeholder="Southpour" style="font-family:var(--font-sans)"></div>
+              <div class="form-group"><label class="form-label">Vertical</label>
+                <select id="bf-vertical" class="form-input" style="font-family:var(--font-sans)">
+                  <option value="restaurant">Restaurant</option>
+                  <option value="cafe">Café / coffee</option>
+                  <option value="corporate">Corporate / group</option>
+                </select>
+              </div>
+              <div class="form-group"><label class="form-label">Domain</label><input id="bf-domain" class="form-input" placeholder="https://southpourcoffee.com" style="font-family:var(--font-sans)"></div>
+              <div class="form-group"><label class="form-label">GSC property</label><input id="bf-gsc" class="form-input" placeholder="https://southpourcoffee.com/ or sc-domain:southpourcoffee.com" style="font-family:var(--font-sans)"></div>
+              <div class="form-group"><label class="form-label">WP env prefix</label><input id="bf-wp" class="form-input" placeholder="WP_SOUTHPOUR" style="font-family:var(--font-sans)"></div>
+              <div class="form-group"><label class="form-label">Flag / emoji</label><input id="bf-flag" class="form-input" placeholder="☕" style="font-family:var(--font-sans)"></div>
+              <div class="form-group"><label class="form-label">Brand colour (hex)</label><input id="bf-color" class="form-input" placeholder="#6F4E37" style="font-family:var(--font-sans)"></div>
+              <div class="form-group" style="grid-column:1 / -1"><label class="form-label">Branded terms (comma-separated — Arabic/misspellings the name can't derive)</label><input id="bf-terms" class="form-input" placeholder="south pour, ساوثبور" style="font-family:var(--font-sans)"></div>
+              <div class="form-group" style="grid-column:1 / -1"><label class="form-label">Competitors (one per line — Name | domain.com)</label><textarea id="bf-competitors" class="form-input" rows="3" placeholder="% Arabica | arabica.com&#10;Starbucks | starbucks.com" style="font-family:var(--font-sans)"></textarea></div>
+              <div class="form-group" style="grid-column:1 / -1"><label class="form-label">Seed keywords (comma-separated)</label><input id="bf-seeds" class="form-input" placeholder="specialty coffee dubai, flat white dubai" style="font-family:var(--font-sans)"></div>
+            </div>
+            <button class="btn btn-primary" onclick="saveBrandFromForm()" style="font-size:13px">Save brand</button>
+            <button class="btn btn-outline" onclick="clearBrandForm()" style="font-size:13px;margin-left:8px">Clear</button>
+            <div id="bf-status" style="font-size:12px;color:var(--text-muted);margin-top:8px"></div>
+          </div>
+        </div>
+        <!-- SEO Markets (config-driven — international expansion. NOT the content calendar.) -->
+        <div class="card" id="markets-admin-card" style="grid-column:1 / -1">
+          <h3 style="font-size:16px;font-weight:600;margin-bottom:6px">🌍 SEO Markets</h3>
+          <p style="font-size:13px;color:var(--text-muted);margin-bottom:16px">Add an international SEO market for a brand — it appears in the International view, rank tracker, keyword discovery, competitor matrix and intl content pipeline with no code change. (This is SEO only; the content calendar's markets are managed separately by the content team.) A brand launches UAE-only with zero markets here.</p>
+          <div id="markets-admin-list" style="margin-bottom:16px;font-size:13px"></div>
+          <div style="border-top:1px solid var(--border);padding-top:16px">
+            <h4 style="font-size:14px;font-weight:600;margin-bottom:12px">Add / edit an SEO market</h4>
+            <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px">
+              <div class="form-group"><label class="form-label">Brand</label><select id="mf-brand" class="form-input" style="font-family:var(--font-sans)"></select></div>
+              <div class="form-group"><label class="form-label">Market key (lowercase, e.g. ksa)</label><input id="mf-marketkey" class="form-input" placeholder="ksa" style="font-family:var(--font-sans)"></div>
+              <div class="form-group"><label class="form-label">Label</label><input id="mf-label" class="form-input" placeholder="Saudi Arabia" style="font-family:var(--font-sans)"></div>
+              <div class="form-group"><label class="form-label">Flag</label><input id="mf-flag" class="form-input" placeholder="🇸🇦" style="font-family:var(--font-sans)"></div>
+              <div class="form-group"><label class="form-label">URL market slug (e.g. ksa)</label><input id="mf-slug" class="form-input" placeholder="ksa" style="font-family:var(--font-sans)"></div>
+              <div class="form-group"><label class="form-label">DataForSEO location_code</label><input id="mf-loccode" class="form-input" placeholder="2682" style="font-family:var(--font-sans)"></div>
+              <div class="form-group"><label class="form-label">Languages (comma)</label><input id="mf-langs" class="form-input" placeholder="en, ar" style="font-family:var(--font-sans)"></div>
+              <div class="form-group"><label class="form-label">Currency</label><input id="mf-currency" class="form-input" placeholder="SAR" style="font-family:var(--font-sans)"></div>
+              <div class="form-group" style="grid-column:1 / -1"><label class="form-label">City/disambiguation terms (comma — for keyword filtering)</label><input id="mf-terms" class="form-input" placeholder="saudi, riyadh, jeddah, ksa" style="font-family:var(--font-sans)"></div>
+            </div>
+            <button class="btn btn-primary" onclick="saveMarketFromForm()" style="font-size:13px">Save market</button>
+            <button class="btn btn-outline" onclick="clearMarketForm()" style="font-size:13px;margin-left:8px">Clear</button>
+            <div id="mf-status" style="font-size:12px;color:var(--text-muted);margin-top:8px"></div>
+          </div>
+        </div>
         <!-- System Preferences -->
         <div class="card">
           <h3 style="font-size:16px;font-weight:600;margin-bottom:20px">System Preferences</h3>
@@ -2404,10 +2442,7 @@ const state = {
   userBrand:      null,
   userDepartment: null,
   gscConnected: false,
-  gscRows: {
-    pickl: [],
-    bonbird: []
-  },
+  gscRows: {},              // per-brand-slug map, populated from config (loadGscIfNeeded)
   queue: [],
   queueView: 'pending',     // 'pending' | 'published' — top-level view toggle
   activeQFilter: 'all',     // type filter ('all' or a content type) — applies to both views
@@ -2421,8 +2456,22 @@ const state = {
   queueSelected: new Set(),
 };
 
-const PICKL_GSC   = 'https://eatpickl.com/';
-const BONBIRD_GSC = 'sc-domain:bonbirdchicken.com';
+// GSC property per brand — from config (window.NEST_BRAND_MAP). Legacy constants
+// kept only as a fallback for the two seed brands before /api/config resolves.
+function gscPropertyForBrand(slug) {
+  const b = (window.NEST_BRAND_MAP || {})[slug];
+  if (b && b.gscProperty) return b.gscProperty;
+  if (slug === 'pickl')   return 'https://eatpickl.com/';
+  if (slug === 'bonbird') return 'sc-domain:bonbirdchicken.com';
+  return null;
+}
+// Config-driven brand display helpers — replace the `=== 'pickl' ? 'Pickl' : 'Bonbird'`
+// ternaries so a 3rd brand renders as itself, not as "Bonbird".
+function brandName(slug)  { return (window.NEST_BRAND_MAP || {})[slug]?.name || (slug ? slug.charAt(0).toUpperCase() + slug.slice(1) : ''); }
+function brandFlag(slug)  { return (window.NEST_BRAND_MAP || {})[slug]?.flag || ''; }
+function brandColor(slug) { return (window.NEST_BRAND_MAP || {})[slug]?.color || 'var(--text-muted)'; }
+function brandDomain(slug){ const b = (window.NEST_BRAND_MAP || {})[slug]; return b?.domain || (slug === 'pickl' ? 'https://eatpickl.com' : slug === 'bonbird' ? 'https://bonbirdchicken.com' : ''); }
+function brandTermsFor(slug){ return (window.NEST_BRAND_MAP || {})[slug]?.brandTerms || [slug]; }
 
 const BRAND_LABELS = { pickl: 'Pickl', bonbird: 'Bonbird', yolk: 'Yolk Brands' };
 const TYPE_LABELS  = {
@@ -2443,6 +2492,155 @@ const TYPE_TAGS = {
   page_update: 'tag-green',
   page_creation: 'tag-purple',
 };
+
+// ═══════════════════════════════════════════════════════════════
+// BRAND CONFIG (config-driven — CLAUDE.md #12)
+// One /api/config fetch is the single source of truth for which brands exist.
+// A brand onboarded via a Blobs record shows up in every dropdown here with NO
+// code edit — this augments the (legacy hardcoded) Pickl/Bonbird options rather
+// than requiring each new brand to be typed into the HTML.
+// ═══════════════════════════════════════════════════════════════
+window.NEST_BRANDS = [];
+window.NEST_BRAND_MAP = {};
+window.NEST_MARKETS = [];
+
+async function bootstrapBrands() {
+  try {
+    const res = await fetch('/api/config', { credentials: 'include' });
+    if (!res.ok) throw new Error('config ' + res.status);
+    const data = await res.json();
+    window.NEST_BRANDS  = Array.isArray(data.brands)  ? data.brands  : [];
+    window.NEST_MARKETS = Array.isArray(data.markets) ? data.markets : [];
+  } catch (e) {
+    // Fallback to the two seed brands so the UI still works if /api/config fails.
+    window.NEST_BRANDS = [
+      { slug: 'pickl',   name: 'Pickl',   flag: '🟡', color: '#185FA5', vertical: 'restaurant' },
+      { slug: 'bonbird', name: 'Bonbird', flag: '🔴', color: '#D85A30', vertical: 'restaurant' },
+    ];
+    window.NEST_MARKETS = window.NEST_MARKETS || [];
+    console.warn('[brands] /api/config failed, using seed fallback:', e.message);
+  }
+  // SEO markets → the International view's INTL_MARKETS (content calendar is separate).
+  if (window.NEST_MARKETS.length) {
+    const built = {};
+    for (const m of window.NEST_MARKETS) {
+      built[m.key] = { brand: m.brand, label: m.label, flag: m.flag, languages: m.languages || ['en'], marketSlug: m.marketSlug, isNew: m.isNew };
+    }
+    INTL_MARKETS = built;
+  }
+  window.NEST_BRAND_MAP = {};
+  for (const b of window.NEST_BRANDS) {
+    window.NEST_BRAND_MAP[b.slug] = b;
+    // Feed the display-name/colour maps so labels/pills resolve for new brands too.
+    if (typeof BRAND_LABELS === 'object') BRAND_LABELS[b.slug] = b.name;
+    if (typeof BRAND_COLORS === 'object' && b.color) BRAND_COLORS[b.slug] = b.color;
+    if (typeof BRAND_CONFIG === 'object') BRAND_CONFIG[b.slug] = { label: b.name, color: b.color, bg: (b.color || '#64748b') + '22' };
+  }
+  syncBrandDropdowns();
+  renderBrandMetricCards();
+  renderBrandPillNavs();
+  renderBacklinksButtons();
+  renderIntlPills();
+}
+
+// International view brand + market pills — from config (SEO markets). Each market
+// pill carries data-market-brand so switchIntlView can show/hide by brand generically.
+function renderIntlPills() {
+  const brands = window.NEST_BRANDS || [];
+  const bp = document.getElementById('intl-brand-pills');
+  if (bp) bp.innerHTML =
+    `<div class="pill active" data-intl-brand="all" onclick="switchIntlView(this,'brand')">All</div>` +
+    brands.map(b => `<div class="pill" data-intl-brand="${esc(b.slug)}" onclick="switchIntlView(this,'brand')">${esc(b.name)}</div>`).join('');
+  const mp = document.getElementById('intl-market-pills');
+  if (mp) mp.innerHTML =
+    `<div class="pill active" data-intl-market="all" onclick="switchIntlView(this,'market')">All</div>` +
+    Object.entries(INTL_MARKETS).map(([key, m]) =>
+      `<div class="pill" data-intl-market="${esc(key)}" data-market-brand="${esc(m.brand)}" onclick="switchIntlView(this,'market')">${m.flag ? m.flag + ' ' : ''}${esc(m.label)}${m.isNew ? ' <span style="font-size:10px;background:#f59e0b;color:#000;padding:1px 6px;border-radius:4px;margin-left:4px;font-weight:700">NEW</span>' : ''}</div>`
+    ).join('');
+}
+
+// Regenerate every per-brand pill nav from config. Each pill carries data-brand so
+// the existing switch* handlers (which match on data-brand or pill text) keep working
+// for any brand. First brand is active by default.
+function renderBrandPillNavs() {
+  const brands = window.NEST_BRANDS || [];
+  if (!brands.length) return;
+  const flag = b => (b.flag ? b.flag + ' ' : '');
+
+  const analytics = document.getElementById('analytics-pills');
+  if (analytics) analytics.innerHTML =
+    `<div class="pill active" data-view="gsc" data-brand="all" onclick="switchAnalyticsView(this)">All Domains</div>` +
+    brands.map(b => `<div class="pill" data-view="gsc" data-brand="${esc(b.slug)}" onclick="switchAnalyticsView(this)">${esc(b.name)} Only</div>`).join('');
+
+  const mkNav = (id, handler, argThis) => {
+    const el = document.getElementById(id);
+    if (!el) return;
+    el.innerHTML = brands.map((b, i) =>
+      `<div class="pill${i === 0 ? ' active' : ''}" data-brand="${esc(b.slug)}" onclick="${handler}('${esc(b.slug)}'${argThis ? ',this' : ''})">${flag(b)}${esc(b.name)}</div>`
+    ).join('');
+  };
+  mkNav('report-brand-pills',   'switchReportBrand',   false);
+  mkNav('techseo-brand-pills',  'switchTechSeoBrand',  false);
+  mkNav('localseo-brand-pills', 'switchLocalSeoBrand', false);
+  mkNav('citation-brand-pills', 'switchCitationBrand', true);
+}
+
+function renderBacklinksButtons() {
+  const brands = window.NEST_BRANDS || [];
+  const wrap = document.getElementById('backlinks-refresh-btns');
+  if (!wrap || !brands.length) return;
+  wrap.innerHTML = brands.map(b =>
+    `<button class="btn btn-outline" style="font-size:12px" id="bl-refresh-${esc(b.slug)}" onclick="refreshBacklinks('${esc(b.slug)}')">↻ Refresh ${esc(b.name)}</button>`
+  ).join(' ');
+}
+
+// Dashboard "Top 10s" cards — one per brand, from config (replaces the two
+// hardcoded metric-pickl / metric-bonbird cards). IDs: metric-<slug> / metric-<slug>-trend.
+function renderBrandMetricCards() {
+  const el = document.getElementById('metric-brand-cards');
+  if (!el) return;
+  el.innerHTML = (window.NEST_BRANDS || []).map(b => `
+    <div class="metric-card">
+      <div class="metric-title"><div class="dot" style="background:${b.color || 'var(--text-muted)'}"></div>${esc(b.name)} Top 10s</div>
+      <div class="metric-val" id="metric-${esc(b.slug)}">— <span class="metric-sub">keywords</span></div>
+      <div class="metric-trend" id="metric-${esc(b.slug)}-trend" style="color:var(--text-muted)">Loading GSC…</div>
+    </div>`).join('');
+}
+
+// Append any config brand missing from a brand <select>. A "brand select" is one
+// whose options are brand slugs (has pickl or bonbird, and no market-style value
+// containing "_") — this reliably skips market/other selects.
+function syncBrandDropdowns() {
+  const brands = window.NEST_BRANDS || [];
+  document.querySelectorAll('select').forEach(sel => {
+    const opts = Array.from(sel.options);
+    const vals = opts.map(o => o.value);
+    const looksBrand = (vals.includes('pickl') || vals.includes('bonbird')) && !vals.some(v => v.includes('_'));
+    if (!looksBrand) return;
+    for (const b of brands) {
+      if (vals.includes(b.slug)) continue;
+      const o = document.createElement('option');
+      o.value = b.slug;
+      o.textContent = `${b.flag ? b.flag + ' ' : ''}${b.name}`;
+      sel.appendChild(o);
+    }
+  });
+  // Brand filter pills: any container holding pills with data-bfilter — add missing.
+  document.querySelectorAll('[data-bfilter]').forEach(pill => {
+    const container = pill.parentElement;
+    if (!container || container.__brandPillsSynced) return;
+    const present = new Set(Array.from(container.querySelectorAll('[data-bfilter]')).map(p => p.dataset.bfilter));
+    for (const b of brands) {
+      if (present.has(b.slug)) continue;
+      const np = pill.cloneNode(true);
+      np.dataset.bfilter = b.slug;
+      np.textContent = b.name;
+      if (b.color) { np.style.border = `1.5px solid ${b.color}`; np.style.color = b.color; np.style.background = 'transparent'; }
+      container.appendChild(np);
+    }
+    container.__brandPillsSynced = true;
+  });
+}
 
 // ═══════════════════════════════════════════════════════════════
 // INIT
@@ -2484,6 +2682,10 @@ const TYPE_TAGS = {
   }
   sidebarName.textContent = displayName;
   if (sidebarRole) sidebarRole.textContent = state.userRole + (state.userDepartment ? ' · ' + state.userDepartment : '');
+
+  // Load brand config (single source of truth) and inject any config brand into
+  // every brand dropdown/pill — so newly-onboarded brands appear with no code edit.
+  await bootstrapBrands();
 
   // Apply role-based UI restrictions
   applyRoleRestrictions(state.userRole);
@@ -2551,11 +2753,13 @@ const TYPE_TAGS = {
     checkGa4Connection();
   }
 
-  // Set dashboard metrics to ready state immediately — update when GSC loads
-  document.getElementById('metric-pickl-trend').innerHTML = '<span style="color:var(--text-muted)">Open Analytics tab to load</span>';
-  document.getElementById('metric-bonbird-trend').innerHTML = '<span style="color:var(--text-muted)">Open Analytics tab to load</span>';
-  document.getElementById('metric-pickl').innerHTML = '- <span class="metric-sub">keywords</span>';
-  document.getElementById('metric-bonbird').innerHTML = '- <span class="metric-sub">keywords</span>';
+  // Set dashboard metrics to ready state immediately — update when GSC loads.
+  for (const b of (window.NEST_BRANDS || [])) {
+    const trEl  = document.getElementById(`metric-${b.slug}-trend`);
+    const valEl = document.getElementById(`metric-${b.slug}`);
+    if (trEl)  trEl.innerHTML  = '<span style="color:var(--text-muted)">Open Analytics tab to load</span>';
+    if (valEl) valEl.innerHTML = '- <span class="metric-sub">keywords</span>';
+  }
 
   // Load db data (keywords etc.)
   loadDbData();
@@ -2608,7 +2812,7 @@ function switchView(target) {
   if (target === 'analytics')  { loadGscIfNeeded(); renderAnalyticsCards(); }
   if (target === 'techseo')    { loadTechnicalSeo(); loadTechDevKanban(techSeoState.brand); }
   if (target === 'localseo')   { loadLocalSeo(); loadCitationData(); }
-  if (target === 'settings')   { renderAuditLog(); loadBrandCtx(); loadBrandExamples(); loadSlackWebhook(); checkGbpConnection(); checkGa4Connection(); loadCitationNap(); loadGoalSettings(); loadBusinessPriority(); if (state.userRole === 'admin') { document.getElementById('users-panel').style.display = ''; loadUsersPanel(); } }
+  if (target === 'settings')   { renderAuditLog(); loadBrandsAdmin(); loadMarketsAdmin(); loadBrandCtx(); loadBrandExamples(); loadSlackWebhook(); checkGbpConnection(); checkGa4Connection(); loadCitationNap(); loadGoalSettings(); loadBusinessPriority(); if (state.userRole === 'admin') { document.getElementById('users-panel').style.display = ''; loadUsersPanel(); } }
   if (target === 'howto')      loadHowItWorks();
 }
 
@@ -2696,7 +2900,7 @@ async function handleGscDisconnect() {
     const existing = await apiGet('/api/db/get').catch(() => ({}));
     await apiPost('/api/db/save', { ...existing, gscTokens: null });
     setGscConnected(false);
-    state.gscRows = { pickl: [], bonbird: [] };
+    state.gscRows = {};
     gscLoaded = false;
     showToast('GSC disconnected', '');
   } catch (e) {
@@ -2714,8 +2918,9 @@ async function loadGscIfNeeded() {
   gscLoaded = true;
   setGscTableLoading();
 
-  // Fetch each brand independently — a missing/unpermissioned brand
-  // silently returns [] so the other brand still loads fine.
+  // Fetch each configured brand independently — a missing/unpermissioned brand
+  // silently returns [] so the others still load fine. Config-driven: loops every
+  // brand from /api/config, using each brand's GSC property.
   const safeFetch = async (siteUrl, brand) => {
     try {
       const rows = await fetchGscRows(siteUrl);
@@ -2726,12 +2931,10 @@ async function loadGscIfNeeded() {
   };
 
   try {
-    const [pickl, bonbird] = await Promise.all([
-      safeFetch(PICKL_GSC, 'pickl'),
-      safeFetch(BONBIRD_GSC, 'bonbird'),
-    ]);
-    state.gscRows.pickl   = pickl;
-    state.gscRows.bonbird = bonbird;
+    const brands = window.NEST_BRANDS || [];
+    const results = await Promise.all(brands.map(b => safeFetch(gscPropertyForBrand(b.slug), b.slug)));
+    state.gscRows = {};
+    brands.forEach((b, i) => { state.gscRows[b.slug] = results[i]; });
     renderGscTable();
     updateDashboardMetrics();
     renderAnalyticsCards();
@@ -2761,8 +2964,9 @@ function setGscTableLoading() {
 function renderGscTable() {
   const brand = state.activeAnalyticsBrand;
   let rows = [];
-  if (brand === 'all' || brand === 'pickl')   rows = rows.concat(state.gscRows.pickl);
-  if (brand === 'all' || brand === 'bonbird') rows = rows.concat(state.gscRows.bonbird);
+  for (const [slug, brandRows] of Object.entries(state.gscRows || {})) {
+    if (brand === 'all' || brand === slug) rows = rows.concat(brandRows || []);
+  }
   rows.sort((a, b) => b.clicks - a.clicks);
 
   const tbody = document.getElementById('gsc-tbody');
@@ -2773,11 +2977,11 @@ function renderGscTable() {
 
   tbody.innerHTML = rows.map(r => {
     const posClass = r.position <= 3 ? 'rank-good' : r.position <= 10 ? 'rank-mid' : 'rank-bad';
-    const brandColor = r.brand === 'pickl' ? 'var(--pickl)' : r.brand === 'yolk' ? 'var(--yolk)' : 'var(--bonbird)';
+    const bCol = brandColor(r.brand);
     return `<tr>
       <td style="font-weight:500">${esc(r.keyword)}</td>
-      <td><span style="display:inline-flex;align-items:center;gap:5px;font-size:12px;font-weight:600;color:${brandColor}">
-        <div class="dot" style="background:${brandColor}"></div>${BRAND_LABELS[r.brand]}</span></td>
+      <td><span style="display:inline-flex;align-items:center;gap:5px;font-size:12px;font-weight:600;color:${bCol}">
+        <div class="dot" style="background:${bCol}"></div>${BRAND_LABELS[r.brand]}</span></td>
       <td><span class="rank-badge ${posClass}">#${r.position}</span></td>
       <td>${r.clicks.toLocaleString()}</td>
       <td>${r.impressions.toLocaleString()}</td>
@@ -3098,10 +3302,11 @@ function showAnalyticsOverview() {
 function renderAnalyticsCards() {
   const container = document.getElementById('analytics-overview-cards');
   if (!container) return;
-  const pickl10   = (state.gscRows?.pickl   || []).filter(r => r.position <= 10).length;
-  const bonbird10 = (state.gscRows?.bonbird || []).filter(r => r.position <= 10).length;
+  const perBrand  = (window.NEST_BRANDS || []).map(b => ({ name: b.name, n: (state.gscRows?.[b.slug] || []).filter(r => r.position <= 10).length }));
+  const total10   = perBrand.reduce((s, x) => s + x.n, 0);
+  const rankDesc  = perBrand.map(x => `${x.name}: ${x.n}`).join(' · ') || 'Connect GSC';
   const cards = [
-    { icon:'ti-chart-bar',       title:'Rankings',      metric: gscLoaded ? String(pickl10 + bonbird10) : '—', sub: gscLoaded ? 'keywords in top 10' : 'Connect GSC to load', desc:`Pickl: ${pickl10} · Bonbird: ${bonbird10}`, tab:'rankings',      color:'#1BBFA3' },
+    { icon:'ti-chart-bar',       title:'Rankings',      metric: gscLoaded ? String(total10) : '—', sub: gscLoaded ? 'keywords in top 10' : 'Connect GSC to load', desc: rankDesc, tab:'rankings',      color:'#1BBFA3' },
     { icon:'ti-swords',          title:'Competitors',   metric:'—',                                              sub:'competitor matrix',                                      desc:'SERP API · Deep audit tool',                  tab:'competitors',   color:'#6366f1' },
     { icon:'ti-target',          title:'Opportunities', metric:'—',                                              sub:'keyword gaps',                                           desc:'Content gaps · Quick wins · Push to top 10',  tab:'opportunities', color:'#f59e0b' },
     { icon:'ti-link',            title:'Backlinks',     metric:'—',                                              sub:'referring domains',                                      desc:'Pickl · Bonbird backlink profiles',            tab:'backlinks',     color:'#10b981' },
@@ -3125,12 +3330,13 @@ function renderAnalyticsCards() {
 }
 
 function updateDashboardMetrics() {
-  const pickl10   = state.gscRows.pickl.filter(r => r.position <= 10).length;
-  const bonbird10 = state.gscRows.bonbird.filter(r => r.position <= 10).length;
-  document.getElementById('metric-pickl').innerHTML   = `${pickl10} <span class="metric-sub">keywords</span>`;
-  document.getElementById('metric-bonbird').innerHTML = `${bonbird10} <span class="metric-sub">keywords</span>`;
-  document.getElementById('metric-pickl-trend').innerHTML   = `<span class="trend-up">&#x2191; Top-10 tracked via GSC</span>`;
-  document.getElementById('metric-bonbird-trend').innerHTML = `<span class="trend-up">&#x2191; Top-10 tracked via GSC</span>`;
+  for (const b of (window.NEST_BRANDS || [])) {
+    const top10 = (state.gscRows?.[b.slug] || []).filter(r => r.position <= 10).length;
+    const valEl = document.getElementById(`metric-${b.slug}`);
+    const trEl  = document.getElementById(`metric-${b.slug}-trend`);
+    if (valEl) valEl.innerHTML = `${top10} <span class="metric-sub">keywords</span>`;
+    if (trEl)  trEl.innerHTML  = `<span class="trend-up">&#x2191; Top-10 tracked via GSC</span>`;
+  }
 }
 
 // ═══════════════════════════════════════════════════════════════
@@ -3357,8 +3563,8 @@ function buildTrackingCard(item) {
     ? new Date(item.approvedAt).toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' })
     : '—';
 
-  const brandColor = item.brand === 'pickl' ? '#DF0070' : item.brand === 'yolk' ? '#F5B800' : '#C5161A';
-  const brandLabel = item.brand === 'pickl' ? '🟡 Pickl' : item.brand === 'yolk' ? '🟨 Yolk Brands' : '🔴 Bonbird';
+  const bCol = brandColor(item.brand);
+  const brandLabel = (brandFlag(item.brand) + ' ' + brandName(item.brand)).trim();
 
   // Movement indicator
   let movementHtml = '';
@@ -3441,7 +3647,7 @@ function buildTrackingCard(item) {
   }
 
   return `
-    <div class="card" style="border-left:4px solid ${brandColor};margin-bottom:12px">
+    <div class="card" style="border-left:4px solid ${bCol};margin-bottom:12px">
       <div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:12px">
         <div>
           <div style="font-weight:600;font-size:14px;margin-bottom:4px">${esc(item.title || keyword)}</div>
@@ -3467,15 +3673,15 @@ function filterBrand(pill) {
   document.querySelectorAll('#queue-filters .pill[data-bfilter]').forEach(p => {
     p.classList.remove('active');
     const b = p.dataset.bfilter;
-    if (b === 'pickl') { p.style.background = 'transparent'; p.style.color = '#DF0070'; p.style.border = '1.5px solid #DF0070'; }
-    else if (b === 'bonbird') { p.style.background = 'transparent'; p.style.color = '#C5161A'; p.style.border = '1.5px solid #C5161A'; }
-    else { p.style.background = ''; p.style.color = ''; p.style.border = ''; }
+    const c = (b && b !== 'all') ? brandColor(b) : '';
+    if (c) { p.style.background = 'transparent'; p.style.color = c; p.style.border = `1.5px solid ${c}`; }
+    else   { p.style.background = ''; p.style.color = ''; p.style.border = ''; }
   });
   pill.classList.add('active');
   const brand = pill.dataset.bfilter;
-  if (brand === 'pickl') { pill.style.background = '#DF0070'; pill.style.color = '#fff'; pill.style.border = '1.5px solid #DF0070'; }
-  else if (brand === 'bonbird') { pill.style.background = '#C5161A'; pill.style.color = '#fff'; pill.style.border = '1.5px solid #C5161A'; }
-  else { pill.style.background = ''; pill.style.color = ''; pill.style.border = ''; }
+  const c = (brand && brand !== 'all') ? brandColor(brand) : '';
+  if (c) { pill.style.background = c; pill.style.color = '#fff'; pill.style.border = `1.5px solid ${c}`; }
+  else   { pill.style.background = ''; pill.style.color = ''; pill.style.border = ''; }
   state.activeBFilter = brand;
   localStorage.setItem('nestBFilter', brand);
   updateRunAuditLabel();
@@ -3600,7 +3806,7 @@ function buildContextBar(item) {
 }
 
 function buildActionCard(item) {
-  const brandColor  = item.brand === 'pickl' ? '#DF0070' : '#C5161A';
+  const bCol  = brandColor(item.brand);
   const tagClass    = TYPE_TAGS[item.type] || 'tag-blue';
   const typeLabel   = TYPE_LABELS[item.type] || item.type;
   const brandLabel  = BRAND_LABELS[item.brand] || item.brand;
@@ -3621,11 +3827,11 @@ function buildActionCard(item) {
       <span class="tag ${tagClass}">${esc(typeLabel)}</span>
     </div>`;
 
-  return `<div class="card action-card" id="card-${esc(item.id)}" style="border-left:4px solid ${brandColor}">
+  return `<div class="card action-card" id="card-${esc(item.id)}" style="border-left:4px solid ${bCol}">
     <div class="card-header">
       <div class="card-title" style="display:flex;align-items:center;width:100%;gap:8px">
         <input type="checkbox" class="queue-cb" data-id="${esc(item.id)}" style="flex-shrink:0;accent-color:var(--primary);width:14px;height:14px;cursor:pointer" onchange="toggleQueueSelect('${esc(item.id)}',this.checked)" onclick="event.stopPropagation()">
-        <div class="dot" style="background:${brandColor};flex-shrink:0"></div>
+        <div class="dot" style="background:${bCol};flex-shrink:0"></div>
         <span style="flex:1;min-width:0">${esc(brandLabel)}: ${esc(item.title || typeLabel)}</span>
         ${tagHtml}
       </div>
@@ -4177,8 +4383,8 @@ function removeCardFromQueue(id) {
 function getAuditScope() {
   const brand  = state.activeBFilter;   // 'all' | 'pickl' | 'bonbird'
   const market = state.activeMFilter;   // 'all' | '__intl__' | '🇦🇪 UAE' | flag string
-  const brands = brand === 'all' ? ['pickl', 'bonbird'] : [brand];
-  const brandLabel  = brand === 'all' ? 'All brands' : (brand === 'pickl' ? 'Pickl' : 'Bonbird');
+  const brands = brand === 'all' ? (window.NEST_BRANDS||[]).map(b=>b.slug) : [brand];
+  const brandLabel  = brand === 'all' ? 'All brands' : brandName(brand);
   const marketLabel = market === 'all' ? 'All markets' : market === '__intl__' ? 'All International' : market;
 
   const targets = [];
@@ -4201,7 +4407,7 @@ function getAuditScope() {
 function updateRunAuditLabel() {
   const span = document.querySelector('#run-audit-btn .run-audit-scope');
   if (!span) return;
-  const b = state.activeBFilter === 'all' ? 'All' : (state.activeBFilter === 'pickl' ? 'Pickl' : 'Bonbird');
+  const b = state.activeBFilter === 'all' ? 'All' : brandName(state.activeBFilter);
   const m = state.activeMFilter === 'all' ? 'All markets' : state.activeMFilter === '__intl__' ? 'All Intl' : state.activeMFilter;
   span.textContent = `· ${b} · ${m}`;
 }
@@ -4299,7 +4505,7 @@ const TOOLS = {
       const brand = document.getElementById('t-brand').value;
       const review = document.getElementById('t-review').value.trim();
       if (!review) throw new Error('Please paste a review first');
-      return `Write a professional, SEO-optimized Google review response for ${BRAND_LABELS[brand]} (UAE restaurant). Brand: ${brand === 'pickl' ? 'Pickl — smash burgers, casual-premium, Dubai' : 'Bonbird — halal fried chicken, UAE'}. Review: "${review}". Include the restaurant name, mention Dubai/UAE naturally, be warm, under 120 words.`;
+      return `Write a professional, SEO-optimized Google review response for ${BRAND_LABELS[brand]} (UAE restaurant). Brand: ${brandName(brand) + ' — ' + ((window.NEST_BRAND_MAP||{})[brand]?.cuisine || '') + ', UAE'}. Review: "${review}". Include the restaurant name, mention Dubai/UAE naturally, be warm, under 120 words.`;
     },
   },
   schema: {
@@ -4340,7 +4546,7 @@ const TOOLS = {
       const brand = document.getElementById('t-brand').value;
       const kw = document.getElementById('t-keyword').value.trim();
       if (!kw) throw new Error('Enter a keyword first');
-      return `Create a detailed SEO content brief for a blog post targeting "${kw}" for ${BRAND_LABELS[brand]} (${brand === 'pickl' ? 'smash burger restaurant, Dubai' : 'halal fried chicken, UAE'}). Include: H1 suggestion, 5-6 H2 sections with brief notes, target word count, 4 FAQ questions, internal link suggestions, and 3 semantic keywords. Format clearly with headers.`;
+      return `Create a detailed SEO content brief for a blog post targeting "${kw}" for ${BRAND_LABELS[brand]} (${((window.NEST_BRAND_MAP||{})[brand]?.cuisine || 'restaurant') + ', UAE'}). Include: H1 suggestion, 5-6 H2 sections with brief notes, target word count, 4 FAQ questions, internal link suggestions, and 3 semantic keywords. Format clearly with headers.`;
     },
   },
   audit: {
@@ -4454,6 +4660,146 @@ async function loadDbData() {
   } catch (_) {}
 }
 
+// ── Brand onboarding (config-driven — writes ONE brandsConfig record) ─────────
+async function loadBrandsAdmin() {
+  const listEl = document.getElementById('brands-admin-list');
+  if (!listEl) return;
+  try {
+    const data = await fetch('/api/config?all=1', { credentials: 'include' }).then(r => r.json());
+    const brands = data.brands || [];
+    listEl.innerHTML = brands.map(b => `
+      <div style="display:flex;align-items:center;gap:10px;padding:8px 10px;border:1px solid var(--border);border-radius:8px;margin-bottom:6px">
+        <span style="font-size:16px">${esc(b.flag || '🏳️')}</span>
+        <span style="font-weight:600">${esc(b.name)}</span>
+        <span style="font-size:11px;background:var(--bg-base);padding:2px 8px;border-radius:4px;color:var(--text-muted)">${esc(b.vertical || '')}</span>
+        <span style="font-size:12px;color:var(--text-muted)">${esc(b.domain || '')}</span>
+        ${b.active === false ? '<span style="font-size:11px;color:#ef4444">(inactive)</span>' : ''}
+        <button class="btn btn-outline" style="font-size:11px;margin-left:auto" onclick='editBrand(${JSON.stringify(b).replace(/'/g, "&#39;")})'>Edit</button>
+      </div>`).join('') || '<div style="color:var(--text-muted)">No brands yet.</div>';
+  } catch (e) { listEl.innerHTML = '<div style="color:#ef4444">Failed to load brands: ' + esc(e.message) + '</div>'; }
+}
+
+function editBrand(b) {
+  document.getElementById('bf-slug').value = b.slug || '';
+  document.getElementById('bf-name').value = b.name || '';
+  document.getElementById('bf-vertical').value = b.vertical || 'restaurant';
+  document.getElementById('bf-domain').value = b.domain || '';
+  document.getElementById('bf-gsc').value = b.gscProperty || '';
+  document.getElementById('bf-wp').value = b.wpEnvPrefix || '';
+  document.getElementById('bf-flag').value = b.flag || '';
+  document.getElementById('bf-color').value = b.color || '';
+  document.getElementById('bf-terms').value = (b.brandedTerms || []).join(', ');
+  document.getElementById('bf-competitors').value = (b.competitors || []).map(c => `${c.name} | ${c.domain}`).join('\n');
+  document.getElementById('bf-seeds').value = (b.keywordSeeds || []).join(', ');
+  document.getElementById('bf-status').textContent = `Editing ${b.name}`;
+  document.getElementById('brands-admin-card').scrollIntoView({ behavior: 'smooth' });
+}
+
+function clearBrandForm() {
+  ['bf-slug','bf-name','bf-domain','bf-gsc','bf-wp','bf-flag','bf-color','bf-terms','bf-competitors','bf-seeds'].forEach(id => { document.getElementById(id).value = ''; });
+  document.getElementById('bf-vertical').value = 'restaurant';
+  document.getElementById('bf-status').textContent = '';
+}
+
+async function saveBrandFromForm() {
+  const slug = document.getElementById('bf-slug').value.trim().toLowerCase();
+  const name = document.getElementById('bf-name').value.trim();
+  const statusEl = document.getElementById('bf-status');
+  if (!slug || !name) { statusEl.textContent = 'Slug and name are required.'; statusEl.style.color = '#ef4444'; return; }
+  const competitors = document.getElementById('bf-competitors').value.split('\n').map(l => l.trim()).filter(Boolean).map(l => {
+    const [n, d] = l.split('|').map(x => (x || '').trim());
+    return { name: n, domain: (d || '').replace(/^https?:\/\//, '').replace(/\/$/, '') };
+  }).filter(c => c.name && c.domain);
+  const brand = {
+    slug, name,
+    vertical: document.getElementById('bf-vertical').value,
+    domain: document.getElementById('bf-domain').value.trim().replace(/\/$/, ''),
+    gscProperty: document.getElementById('bf-gsc').value.trim(),
+    wpEnvPrefix: document.getElementById('bf-wp').value.trim() || `WP_${slug.toUpperCase()}`,
+    flag: document.getElementById('bf-flag').value.trim(),
+    color: document.getElementById('bf-color').value.trim(),
+    brandedTerms: document.getElementById('bf-terms').value.split(',').map(s => s.trim()).filter(Boolean),
+    competitors,
+    keywordSeeds: document.getElementById('bf-seeds').value.split(',').map(s => s.trim()).filter(Boolean),
+    active: true,
+  };
+  statusEl.style.color = 'var(--text-muted)'; statusEl.textContent = 'Saving…';
+  try {
+    const r = await apiPost('/api/config', { action: 'save_brand', brand });
+    if (r.error) throw new Error(r.error);
+    statusEl.style.color = '#059669'; statusEl.textContent = `✓ Saved ${name}. Reloading brand list…`;
+    await loadBrandsAdmin();
+    await bootstrapBrands(); // refresh dropdowns/pills immediately
+    showToast(`Brand "${name}" saved — it now appears in every dropdown.`, 'success');
+  } catch (e) { statusEl.style.color = '#ef4444'; statusEl.textContent = 'Failed: ' + e.message; }
+}
+
+// ── SEO Market onboarding (config-driven — writes ONE marketsConfig record) ────
+async function loadMarketsAdmin() {
+  const listEl = document.getElementById('markets-admin-list');
+  const brandSel = document.getElementById('mf-brand');
+  if (brandSel) brandSel.innerHTML = (window.NEST_BRANDS || []).map(b => `<option value="${esc(b.slug)}">${esc(b.name)}</option>`).join('');
+  if (!listEl) return;
+  try {
+    const data = await fetch('/api/config?all=1', { credentials: 'include' }).then(r => r.json());
+    const markets = data.markets || [];
+    listEl.innerHTML = markets.map(m => `
+      <div style="display:flex;align-items:center;gap:10px;padding:8px 10px;border:1px solid var(--border);border-radius:8px;margin-bottom:6px">
+        <span style="font-size:16px">${esc(m.flag || '🏳️')}</span>
+        <span style="font-weight:600">${esc(m.label)}</span>
+        <span style="font-size:11px;background:var(--bg-base);padding:2px 8px;border-radius:4px;color:var(--text-muted)">${esc(m.brand)}</span>
+        <span style="font-size:12px;color:var(--text-muted)">/${esc(m.marketSlug || '')}/ · loc ${esc(String(m.location_code||'—'))} · ${(m.languages||[]).join('/')}</span>
+        <button class="btn btn-outline" style="font-size:11px;margin-left:auto" onclick='editMarket(${JSON.stringify(m).replace(/'/g, "&#39;")})'>Edit</button>
+      </div>`).join('') || '<div style="color:var(--text-muted)">No SEO markets yet — brands run UAE-only.</div>';
+  } catch (e) { listEl.innerHTML = '<div style="color:#ef4444">Failed to load markets: ' + esc(e.message) + '</div>'; }
+}
+
+function editMarket(m) {
+  document.getElementById('mf-brand').value = m.brand || '';
+  document.getElementById('mf-marketkey').value = m.marketKey || '';
+  document.getElementById('mf-label').value = m.label || '';
+  document.getElementById('mf-flag').value = m.flag || '';
+  document.getElementById('mf-slug').value = m.marketSlug || '';
+  document.getElementById('mf-loccode').value = m.location_code || '';
+  document.getElementById('mf-langs').value = (m.languages || []).join(', ');
+  document.getElementById('mf-currency').value = m.currency || '';
+  document.getElementById('mf-terms').value = (m.keywordTerms || []).join(', ');
+  document.getElementById('mf-status').textContent = `Editing ${m.label}`;
+  document.getElementById('markets-admin-card').scrollIntoView({ behavior: 'smooth' });
+}
+
+function clearMarketForm() {
+  ['mf-marketkey','mf-label','mf-flag','mf-slug','mf-loccode','mf-langs','mf-currency','mf-terms'].forEach(id => { document.getElementById(id).value = ''; });
+  document.getElementById('mf-status').textContent = '';
+}
+
+async function saveMarketFromForm() {
+  const brand = document.getElementById('mf-brand').value;
+  const marketKey = document.getElementById('mf-marketkey').value.trim().toLowerCase();
+  const statusEl = document.getElementById('mf-status');
+  if (!brand || !marketKey) { statusEl.textContent = 'Brand and market key are required.'; statusEl.style.color = '#ef4444'; return; }
+  const market = {
+    brand, marketKey,
+    label: document.getElementById('mf-label').value.trim() || marketKey.toUpperCase(),
+    flag: document.getElementById('mf-flag').value.trim(),
+    marketSlug: document.getElementById('mf-slug').value.trim() || marketKey,
+    location_code: parseInt(document.getElementById('mf-loccode').value, 10) || null,
+    languages: document.getElementById('mf-langs').value.split(',').map(s => s.trim()).filter(Boolean),
+    currency: document.getElementById('mf-currency').value.trim(),
+    keywordTerms: document.getElementById('mf-terms').value.split(',').map(s => s.trim()).filter(Boolean),
+    seo: true, active: true,
+  };
+  statusEl.style.color = 'var(--text-muted)'; statusEl.textContent = 'Saving…';
+  try {
+    const r = await apiPost('/api/config', { action: 'save_market', market });
+    if (r.error) throw new Error(r.error);
+    statusEl.style.color = '#059669'; statusEl.textContent = `✓ Saved ${market.label}. Reloading…`;
+    await loadMarketsAdmin();
+    await bootstrapBrands(); // refresh INTL_MARKETS + pills
+    showToast(`SEO market "${market.label}" saved.`, 'success');
+  } catch (e) { statusEl.style.color = '#ef4444'; statusEl.textContent = 'Failed: ' + e.message; }
+}
+
 // ── Brand Context Settings ──────────────────────────────────────
 const BRAND_CTX_DEFAULTS = {
   pickl: {
@@ -4543,8 +4889,8 @@ async function saveBrandCtx() {
   const splitLines = v => v.split('\n').map(s => s.trim()).filter(Boolean);
   const ctx = {
     brand,
-    name: brand === 'pickl' ? 'Pickl' : 'Bonbird',
-    website: brand === 'pickl' ? 'https://eatpickl.com' : 'https://bonbirdchicken.com',
+    name: brandName(brand),
+    website: brandDomain(brand),
     country: 'UAE',
     halal: true,
     positioning: document.getElementById('bctx-positioning').value.trim(),
@@ -4609,7 +4955,7 @@ async function saveBrandExamples() {
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ brand, examples }),
     });
-    status.textContent = `✓ ${brand === 'pickl' ? 'Pickl' : 'Bonbird'} voice examples saved — Claude will use these in all content generation`;
+    status.textContent = `✓ ${brandName(brand)} voice examples saved — Claude will use these in all content generation`;
     status.style.color = 'var(--success)';
     setTimeout(() => { status.style.color = ''; status.textContent = ''; }, 4000);
   } catch (e) {
@@ -4810,8 +5156,8 @@ async function loadUsersPanel() {
 function _renderUsersTable(users) {
   const list = document.getElementById('users-list');
   if (!list) return;
-  const brandLabel = b => b === 'all' ? 'All' : b ? b.charAt(0).toUpperCase() + b.slice(1) : '';
-  const BRAND_COLORS = { pickl: '#f59e0b', bonbird: '#ef4444', southpour: '#10b981', shadowburg: '#8b5cf6', shadowbird: '#6366f1', all: '#1BBFA3' };
+  const brandLabel = b => b === 'all' ? 'All' : (brandName(b) || (b ? b.charAt(0).toUpperCase() + b.slice(1) : ''));
+  const BRAND_COLORS = Object.assign({ all: '#1BBFA3' }, Object.fromEntries((window.NEST_BRANDS || []).map(b => [b.slug, b.color])));
   const roleClass = r => ({ admin: 'role-admin', manager: 'role-manager', viewer: 'role-viewer', developer: 'role-developer' }[r] || 'role-viewer');
 
   list.innerHTML = `
@@ -4881,8 +5227,8 @@ async function loadUserBrandsMatrix() {
   })();
   if (!users) return;
 
-  const BRANDS = ['pickl','bonbird','southpour','shadowburg','shadowbird'];
-  const BRAND_LABELS = { pickl:'Pickl', bonbird:'Bonbird', southpour:'Southpour', shadowburg:'Shadowburg', shadowbird:'Shadowbird' };
+  const BRANDS = (window.NEST_BRANDS || []).map(b => b.slug);
+  const BRAND_LABELS = Object.fromEntries((window.NEST_BRANDS || []).map(b => [b.slug, b.name]));
 
   const hasBrand = (u, b) => !u.brands || u.brands.includes('all') || u.brands.includes(b);
 
@@ -5127,7 +5473,9 @@ document.addEventListener('keydown', e => {
 // INTERNATIONAL SEO DASHBOARD
 // ═══════════════════════════════════════════════════════════════
 
-const INTL_MARKETS = {
+// Seed fallback — overwritten from /api/config (SEO markets) by bootstrapBrands so
+// a config-onboarded market appears in the International view with no code edit.
+let INTL_MARKETS = {
   pickl_bahrain:    { brand:'pickl',   label:'Bahrain',       flag:'🇧🇭', languages:['en','ar'], marketSlug:'bh' },
   pickl_ksa:        { brand:'pickl',   label:'Saudi Arabia',  flag:'🇸🇦', languages:['en','ar'], marketSlug:'ksa' },
   pickl_jordan:     { brand:'pickl',   label:'Jordan',        flag:'🇯🇴', languages:['en','ar'], marketSlug:'pickl-jordan' },
@@ -5145,7 +5493,7 @@ let intlState = {
   runStatus:       {},
   marketRankings:  {},
   kwOpps:          {},
-  gscRows:         { pickl: [], bonbird: [] },
+  gscRows:         {},
   allItems:        [],
   loaded:          false,
 };
@@ -5817,7 +6165,7 @@ const reportState = { brand: 'pickl' };
 function switchReportBrand(brand) {
   reportState.brand = brand;
   document.querySelectorAll('#report-brand-pills .pill').forEach(p =>
-    p.classList.toggle('active', p.textContent.toLowerCase().includes(brand))
+    p.classList.toggle('active', (p.dataset.brand === brand))
   );
   loadReports();
 }
@@ -5934,7 +6282,7 @@ async function loadReports() {
   let gscRows = state.gscRows?.[brand] || [];
   if (!gscRows.length) {
     try {
-      const siteUrl = brand === 'pickl' ? 'https://eatpickl.com/' : 'sc-domain:bonbirdchicken.com';
+      const siteUrl = gscPropertyForBrand(brand);
       gscRows = await fetchGscRows(siteUrl);
       // Cache into state so Analytics tab benefits too
       if (state.gscRows) state.gscRows[brand] = gscRows;
@@ -6049,7 +6397,7 @@ function renderReports(brand, rows, techData, queue, matrixData, perfSummary) {
   document.getElementById('report-loading').style.display = 'none';
   document.getElementById('report-content').style.display = '';
 
-  const brandName = brand === 'pickl' ? 'Pickl' : 'Bonbird';
+  const brandName = brandName(brand);
   document.getElementById('report-last-updated').textContent = 'Generated: ' + new Date().toLocaleDateString('en-GB', { day:'numeric', month:'long', year:'numeric' });
 
   // ── Compute core metrics ─────────────────────────────────────
@@ -6059,7 +6407,7 @@ function renderReports(brand, rows, techData, queue, matrixData, perfSummary) {
   const top3             = rows.filter(r => r.position <= 3).length;
   // Traffic value: non-branded clicks × real DataForSEO CPC (AED), falling back to AED 5 estimate
   // Branded keywords (pickl/bonbird) excluded — near-zero advertiser value
-  const BRAND_TERMS      = brand === 'pickl' ? ['pickl', 'pickle restaurant'] : ['bonbird', 'bon bird'];
+  const BRAND_TERMS      = brandTermsFor(brand);
   const AED_PER_USD      = 3.67;
   const nonBrandedRows   = rows.filter(r => !BRAND_TERMS.some(t => r.keyword?.toLowerCase().includes(t)));
   const brandedRows      = rows.filter(r =>  BRAND_TERMS.some(t => r.keyword?.toLowerCase().includes(t)));
@@ -6567,7 +6915,7 @@ async function loadLlmMentions(brand) {
     const llmLabels  = { claude:'Claude (Anthropic)', openai:'ChatGPT (OpenAI)', perplexity:'Perplexity', gemini:'Gemini (Google)' };
     const llmEmoji   = { claude:'🤖', openai:'💬', perplexity:'🔍', gemini:'✨' };
     const summary    = latest.summary || {};
-    const brandName  = brand === 'pickl' ? 'Pickl' : 'Bonbird';
+    const brandName  = brandName(brand);
     const dateStr    = latest.date ? new Date(latest.date).toLocaleDateString('en-GB', { day:'numeric', month:'short', year:'numeric' }) : '';
 
     el.innerHTML = `
@@ -6741,74 +7089,49 @@ async function renderBacklinks(data) {
     }
   }
 
-  const pickl    = data.pickl;
-  const bonbird  = data.bonbird;
-  // Only treat as "has data" if we have actual referring domain numbers — not just error records
-  const hasData  = (pickl?.own?.referringDomains > 0) || (bonbird?.own?.referringDomains > 0);
+  // Config-driven: render a section per configured brand from data[<slug>].
+  const brandsList = window.NEST_BRANDS || [];
+  const hasData  = brandsList.some(b => data[b.slug]?.own?.referringDomains > 0);
+  const lastUpd  = (brandsList.map(b => data[b.slug]?.fetchedAt).find(Boolean) || '').slice(0, 10);
 
   let html = `
     <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:20px;flex-wrap:wrap;gap:12px">
       <div>
         <div style="font-size:16px;font-weight:700;color:var(--text-main)">🔗 Backlink Intelligence</div>
-        <div style="font-size:12px;color:var(--text-muted);margin-top:3px">Referring domains via DataForSEO · Runs every Monday · Last updated: ${hasData ? (pickl?.fetchedAt || bonbird?.fetchedAt || '').slice(0,10) : 'Never'}</div>
+        <div style="font-size:12px;color:var(--text-muted);margin-top:3px">Referring domains via DataForSEO · Runs every Monday · Last updated: ${hasData ? lastUpd : 'Never'}</div>
       </div>
       <div style="display:flex;gap:8px;flex-wrap:wrap">
-        <button class="btn btn-outline" style="font-size:12px" id="bl-refresh-pickl" onclick="refreshBacklinks('pickl')">↻ Refresh Pickl</button>
-        <button class="btn btn-outline" style="font-size:12px" id="bl-refresh-bonbird" onclick="refreshBacklinks('bonbird')">↻ Refresh Bonbird</button>
+        ${brandsList.map(b => `<button class="btn btn-outline" style="font-size:12px" id="bl-refresh-${esc(b.slug)}" onclick="refreshBacklinks('${esc(b.slug)}')">↻ Refresh ${esc(b.name)}</button>`).join('')}
       </div>
     </div>`;
 
   if (!hasData) {
-    // Show placeholder with pricing note
+    // No data yet — honest empty state (the DataForSEO Backlinks API paywall was
+    // removed; the Monday cron populates this, or use Refresh above).
     html += `
-      <div style="background:#fffbeb;border:1px solid #fcd34d;border-radius:10px;padding:12px 16px;margin-bottom:20px;display:flex;align-items:flex-start;gap:10px">
-        <span style="font-size:18px;flex-shrink:0">⚠️</span>
-        <div>
-          <div style="font-size:13px;font-weight:700;color:#92400e;margin-bottom:3px">DataForSEO Backlinks API — Requires $100/month minimum balance</div>
-          <div style="font-size:12px;color:#78350f">Your current DataForSEO balance ($34.16) is below the $100/month threshold required to access the Backlinks API. Top up at <a href="https://app.dataforseo.com" target="_blank" style="color:#92400e;text-decoration:underline">app.dataforseo.com</a> to unlock live data. <strong>Placeholder data shown below.</strong></div>
-        </div>
-      </div>
-      <div style="opacity:0.55;pointer-events:none;user-select:none">
-        <div style="display:grid;grid-template-columns:1fr 1fr;gap:20px;margin-bottom:20px">
-          ${['Pickl (eatpickl.com)', 'Bonbird (bonbirdchicken.com)'].map((name, bi) => `
-          <div style="background:var(--bg-surface);border:1px solid var(--border);border-radius:10px;padding:16px">
-            <div style="font-weight:700;font-size:14px;margin-bottom:12px">${name}</div>
-            <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:10px;margin-bottom:14px">
-              <div style="text-align:center"><div style="font-size:22px;font-weight:800;color:var(--primary)">${bi ? '312' : '847'}</div><div style="font-size:10px;color:var(--text-muted)">Referring Domains</div></div>
-              <div style="text-align:center"><div style="font-size:22px;font-weight:800">${bi ? '1,204' : '3,891'}</div><div style="font-size:10px;color:var(--text-muted)">Total Backlinks</div></div>
-              <div style="text-align:center"><div style="font-size:22px;font-weight:800;color:#22c55e">+${bi ? '12' : '34'}</div><div style="font-size:10px;color:var(--text-muted)">New This Week</div></div>
-            </div>
-            <div style="font-size:12px;font-weight:600;color:var(--text-muted);margin-bottom:6px;text-transform:uppercase;letter-spacing:.04em">Top Referring Domains</div>
-            ${['google.com','instagram.com','facebook.com','tripadvisor.com','zomato.com'].map(d =>
-              `<div style="display:flex;justify-content:space-between;padding:4px 0;border-bottom:1px solid var(--border);font-size:12px"><span>${d}</span><span style="color:var(--text-muted)">${Math.floor(Math.random()*50+5)} links</span></div>`
-            ).join('')}
-          </div>`).join('')}
-        </div>
-        <div style="background:var(--bg-surface);border:1px solid var(--border);border-radius:10px;padding:16px">
-          <div style="font-weight:700;font-size:14px;margin-bottom:12px">📈 Competitor Comparison</div>
-          <div style="display:grid;grid-template-columns:repeat(5,1fr);gap:8px">
-            ${[['Pickl','847','#f59e0b'],['Bonbird','312','#ef4444'],['Salt','1,240','#94a3b8'],['Shake Shack','5,680','#94a3b8'],['Five Guys','3,200','#94a3b8']].map(([n,v,c]) =>
-              `<div style="text-align:center"><div style="font-size:18px;font-weight:800;color:${c}">${v}</div><div style="font-size:10px;color:var(--text-muted)">${n}</div></div>`
-            ).join('')}
-          </div>
-        </div>
+      <div style="background:var(--bg-surface);border:1px solid var(--border);border-radius:10px;padding:32px;text-align:center;color:var(--text-muted)">
+        <div style="font-size:28px;margin-bottom:10px">🔗</div>
+        <div style="font-size:14px;font-weight:600;color:var(--text-main);margin-bottom:6px">No backlink data yet</div>
+        <div style="font-size:13px">Backlink data is fetched by the Monday cron, or hit <strong>Refresh</strong> above for a brand to pull it now (DataForSEO referring domains).</div>
       </div>`;
     container.innerHTML = html;
     return;
   }
 
-  // Render each brand
-  for (const [brand, d] of [['pickl', pickl], ['bonbird', bonbird]]) {
+  // Render each configured brand from data[<slug>].
+  for (const b of brandsList) {
+    const brand = b.slug;
+    const d = data[brand];
     if (!d) continue;
-    const brandColor  = brand === 'pickl' ? 'var(--pickl)' : brand === 'yolk' ? 'var(--yolk)' : 'var(--bonbird)';
-    const brandLabel  = brand === 'pickl' ? 'Pickl' : 'Bonbird';
+    const bColor  = brandColor(brand);
+    const bLabel  = brandName(brand);
     const own         = d.own;
     const delta       = d.delta;
     const competitors = d.competitors || [];
 
     if (own?.error) {
       html += `<div style="padding:16px;background:var(--bg-surface);border-radius:10px;border:1px solid var(--border);margin-bottom:20px">
-        <div style="font-weight:700;color:${brandColor};margin-bottom:6px">${brandLabel}</div>
+        <div style="font-weight:700;color:${bColor};margin-bottom:6px">${bLabel}</div>
         <div style="color:var(--danger);font-size:13px">⚠ Fetch failed: ${esc(own.error)}</div>
       </div>`;
       continue;
@@ -6816,8 +7139,8 @@ async function renderBacklinks(data) {
 
     // Summary cards row
     html += `<div style="margin-bottom:24px">
-      <div style="font-size:14px;font-weight:700;color:${brandColor};margin-bottom:12px;display:flex;align-items:center;gap:8px">
-        <div style="width:8px;height:8px;border-radius:50%;background:${brandColor}"></div>${brandLabel} — ${own.target}
+      <div style="font-size:14px;font-weight:700;color:${bColor};margin-bottom:12px;display:flex;align-items:center;gap:8px">
+        <div style="width:8px;height:8px;border-radius:50%;background:${bColor}"></div>${bLabel} — ${own.target}
       </div>
       <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(140px,1fr));gap:12px;margin-bottom:16px">
         <div style="background:var(--bg-surface);border-radius:10px;border:1px solid var(--border);padding:14px 16px">
@@ -6875,7 +7198,7 @@ async function renderBacklinks(data) {
           </tr></thead>
           <tbody>
             ${own.topDomains.map((d, i) => `<tr style="border-top:1px solid var(--border)">
-              <td style="padding:9px 16px;font-weight:500">${i < 3 ? `<span style="color:${brandColor}">#${i+1}</span> ` : ''}${esc(d.domain)}</td>
+              <td style="padding:9px 16px;font-weight:500">${i < 3 ? `<span style="color:${bColor}">#${i+1}</span> ` : ''}${esc(d.domain)}</td>
               <td style="text-align:right;padding:9px 12px;color:var(--text-muted)">${d.rank}</td>
               <td style="text-align:right;padding:9px 12px;font-weight:600">${d.backlinks.toLocaleString()}</td>
               <td style="text-align:right;padding:9px 16px">
@@ -6891,16 +7214,16 @@ async function renderBacklinks(data) {
     const validComps = competitors.filter(c => !c.error && c.referringDomains);
     if (validComps.length) {
       // Build a comparison bar chart
-      const allDomains   = [{ label: brandLabel, referringDomains: own.referringDomains || 0, isOwn: true }, ...validComps.map(c => ({ label: c.label, referringDomains: c.referringDomains || 0 }))];
+      const allDomains   = [{ label: bLabel, referringDomains: own.referringDomains || 0, isOwn: true }, ...validComps.map(c => ({ label: c.label, referringDomains: c.referringDomains || 0 }))];
       const maxDomains   = Math.max(...allDomains.map(d => d.referringDomains), 1);
 
       html += `<div style="background:var(--bg-surface);border-radius:10px;border:1px solid var(--border);padding:16px;margin-bottom:16px">
         <div style="font-size:13px;font-weight:600;margin-bottom:14px">Competitor Comparison — Referring Domains</div>
         ${allDomains.map(d => {
           const pct    = Math.round((d.referringDomains / maxDomains) * 100);
-          const color  = d.isOwn ? brandColor : 'var(--text-muted)';
+          const color  = d.isOwn ? bColor : 'var(--text-muted)';
           const bgOpacity = d.isOwn ? '0.15' : '0.06';
-          const fg        = d.isOwn ? brandColor : '#64748b';
+          const fg        = d.isOwn ? bColor : '#64748b';
           return `<div style="margin-bottom:10px">
             <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:4px">
               <div style="font-size:12px;font-weight:${d.isOwn ? '700' : '500'};color:${d.isOwn ? 'var(--text-main)' : 'var(--text-muted)'}">${d.isOwn ? '⬡ ' : ''}${esc(d.label)}</div>
@@ -6989,7 +7312,7 @@ const reviewStore = {}; // keyed by reviewId — holds full review objects for d
 function switchLocalSeoBrand(brand) {
   localSeoState.brand = brand;
   document.querySelectorAll('#localseo-brand-pills .pill').forEach(p => {
-    p.classList.toggle('active', p.textContent.toLowerCase().includes(brand));
+    p.classList.toggle('active', (p.dataset.brand === brand));
   });
   loadLocalSeo();
 }
@@ -7066,7 +7389,7 @@ function renderLocalSeoSummary(locations) {
   const unanswered = locations.reduce((s, l) => s + (l.unansweredReviews || 0), 0);
   const redLocs  = locations.filter(l => l.health === 'red').length;
   const cards = [
-    { icon: '📍', label: 'Locations', value: total, color: '#3b82f6', sub: `${brand === 'pickl' ? 'Pickl' : 'Bonbird'} UAE + intl` },
+    { icon: '📍', label: 'Locations', value: total, color: '#3b82f6', sub: `${brandName(brand)} UAE + intl` },
     { icon: '⭐', label: 'Avg Rating', value: avgRating, color: avgRating >= 4.5 ? '#059669' : avgRating >= 4.0 ? '#d97706' : '#dc2626', sub: 'across all locations' },
     { icon: '💬', label: 'Unanswered', value: unanswered, color: unanswered > 0 ? '#ef4444' : '#059669', sub: 'reviews need reply' },
     { icon: '🚨', label: 'Needs Attention', value: redLocs, color: redLocs > 0 ? '#ef4444' : '#059669', sub: 'locations flagged red' },
@@ -7143,7 +7466,7 @@ function renderReviewQueue(brand, apiPending) {
         <div style="font-size:24px;flex-shrink:0">⏳</div>
         <div>
           <div style="font-weight:600;font-size:14px;color:#92400e;margin-bottom:6px">Reviews API Access Pending</div>
-          <div style="font-size:13px;color:#78350f;line-height:1.6">Application submitted. Google typically responds within 7-10 business days. Once approved, this section will show all reviews across every location with AI-drafted replies in ${brand === 'pickl' ? 'Pickl' : 'Bonbird'} brand voice — ready to approve and publish in one click.</div>
+          <div style="font-size:13px;color:#78350f;line-height:1.6">Application submitted. Google typically responds within 7-10 business days. Once approved, this section will show all reviews across every location with AI-drafted replies in ${brandName(brand)} brand voice — ready to approve and publish in one click.</div>
           <div style="margin-top:14px;padding-top:14px;border-top:1px solid #fde68a">
             <div style="font-size:12px;font-weight:600;color:#92400e;margin-bottom:8px">WHAT YOU'LL SEE WHEN APPROVED:</div>
             <div style="display:flex;flex-direction:column;gap:8px">
@@ -7429,7 +7752,7 @@ const techSeoState = { brand: 'pickl', pollTimer: null };
 function switchTechSeoBrand(brand) {
   techSeoState.brand = brand;
   document.querySelectorAll('#techseo-brand-pills .pill').forEach(p => {
-    p.classList.toggle('active', p.textContent.toLowerCase().includes(brand));
+    p.classList.toggle('active', (p.dataset.brand === brand));
   });
   loadTechnicalSeo();
   loadTechDevKanban(brand);
@@ -8118,15 +8441,14 @@ async function loadIntlDashboard() {
     '<div style="text-align:center;padding:40px;color:var(--text-muted);grid-column:1/-1">Loading market intelligence…</div>';
 
   try {
-    // Pull approval items to count per market
-    const [approvalsData, pickRows, bonRows] = await Promise.all([
+    // Pull approval items to count per market + GSC rows per configured brand.
+    const brandsList = window.NEST_BRANDS || [];
+    const [approvalsData, ...brandRowArrays] = await Promise.all([
       apiGet('/api/approvals?status=pending').catch(() => ({ items: [] })),
-      fetchGscRows('https://eatpickl.com/').catch(() => []),
-      fetchGscRows('sc-domain:bonbirdchicken.com').catch(() => []),
+      ...brandsList.map(b => fetchGscRows(gscPropertyForBrand(b.slug)).catch(() => [])),
     ]);
-    // Wrap in same shape as gsc-data response for the ranking loop below
-    const gscPickl   = { rows: pickRows };
-    const gscBonbird = { rows: bonRows };
+    const gscRowsBySlug = {};
+    brandsList.forEach((b, i) => { gscRowsBySlug[b.slug] = brandRowArrays[i] || []; });
 
     const items = approvalsData.items || [];
 
@@ -8141,9 +8463,8 @@ async function loadIntlDashboard() {
 
     // Count GSC rankings per market (by URL path matching market slug)
     const marketRankings = {};
-    const gscSources = { pickl: gscPickl, bonbird: gscBonbird };
-    for (const [brand, gsc] of Object.entries(gscSources)) {
-      for (const row of gsc?.rows || []) {
+    for (const [brand, rows] of Object.entries(gscRowsBySlug)) {
+      for (const row of rows || []) {
         if (!row.page || !row.position) continue;
         // Match against each market's slug
         for (const [mk, m] of Object.entries(INTL_MARKETS)) {
@@ -8171,7 +8492,7 @@ async function loadIntlDashboard() {
     intlState.runStatus      = marketCounts;
     intlState.marketRankings = marketRankings;
     intlState.kwOpps         = kwOpps;
-    intlState.gscRows        = { pickl: pickRows, bonbird: bonRows };
+    intlState.gscRows        = gscRowsBySlug;
     intlState.allItems       = items;
     intlState.loaded         = true;
     renderIntlDashboard();
@@ -8214,8 +8535,8 @@ function renderIntlDashboard() {
     const kwData   = intlState.kwOpps?.[key] || {};
     const summary  = kwData.summary || kwData; // backward compat if old shape
     const opps     = kwData.opportunities || [];
-    const bgCol    = m.brand === 'pickl' ? '#DF0070' : '#C5161A';
-    const brandLbl = m.brand === 'pickl' ? 'Pickl' : 'Bonbird';
+    const bgCol    = brandColor(m.brand);
+    const brandLbl = m.brandName(brand);
     const langs    = m.languages.map(l => l === 'ar' ? 'Arabic' : 'English').join(' + ');
     const gaps     = (summary.content_gap || 0) + (summary.push || 0) + (summary.quick_win || 0);
     const topOpp   = opps.find(o => o.tier === 'quick_win') || opps[0];
@@ -8286,9 +8607,9 @@ function renderMarketDetail(key, m) {
   const summary     = kwData.summary || {};
   const opps        = (kwData.opportunities || []).slice(0, 10);
   const count       = intlState.runStatus[key] || 0;
-  const brandLbl    = m.brand === 'pickl' ? 'Pickl' : 'Bonbird';
+  const brandLbl    = m.brandName(brand);
   const langs       = m.languages.map(l => l === 'ar' ? 'Arabic' : 'English').join(' + ');
-  const bgCol       = m.brand === 'pickl' ? '#DF0070' : '#C5161A';
+  const bgCol       = brandColor(m.brand);
   const marketKeyPart = key.split('_').slice(1).join('_'); // 'pickl_bahrain' → 'bahrain'
 
   // GSC rows for this market, sorted by impressions
@@ -8453,11 +8774,9 @@ function switchIntlView(pill, type) {
     intlState.activeBrand = pill.dataset.intlBrand;
     // Show/hide market pills based on brand
     const brand = intlState.activeBrand;
-    document.querySelectorAll('.pickl-market').forEach(p => {
-      p.style.display = (brand === 'all' || brand === 'pickl') ? '' : 'none';
-    });
-    document.querySelectorAll('.bonbird-market').forEach(p => {
-      p.style.display = (brand === 'all' || brand === 'bonbird') ? '' : 'none';
+    // Show/hide market pills by their brand (config-driven — no per-brand classes).
+    document.querySelectorAll('[data-market-brand]').forEach(p => {
+      p.style.display = (brand === 'all' || p.dataset.marketBrand === brand) ? '' : 'none';
     });
     // Reset market filter to all
     intlState.activeMarket = 'all';
@@ -8681,7 +9000,7 @@ async function loadSeedKeywords() {
       return;
     }
 
-    const brandCol = brand === 'pickl' ? '#DF0070' : '#C5161A';
+    const brandCol = brandColor(brand);
     list.innerHTML = `
       <div style="display:flex;flex-wrap:wrap;gap:8px">
         ${kws.map(kw => `
@@ -8845,7 +9164,7 @@ function renderAuditResults(data, container) {
   const pd     = data.pageData || {};
   const ps     = data.pageSpeed|| {};
   const brand  = data.brand    || 'pickl';
-  const brands = brand === 'both' ? ['pickl','bonbird'] : [brand];
+  const brands = brand === 'both' ? (window.NEST_BRANDS||[]).map(b=>b.slug) : [brand];
   const etvAed = m.etv ? Math.round(m.etv * 3.67) : 0;
 
   // ── Keyword summary cards ───────────────────────────────────────────────────
@@ -9026,7 +9345,7 @@ function renderAuditActions(recs, domain, brand) {
 
 async function executeAuditAction(route, title, action, finding, keyword, brand, btn) {
   btn.disabled = true; btn.textContent = 'Working…';
-  const actualBrand = brand === 'both' ? 'pickl' : brand;
+  const actualBrand = brand === 'both' ? ((window.NEST_BRANDS||[])[0]?.slug || 'pickl') : brand;
   try {
     if (route === 'queue') {
       const kw = keyword || title;
@@ -9133,16 +9452,21 @@ async function perchOppKeyword(keyword, brand, btn) {
   } catch (e) { btn.disabled = false; btn.textContent = '📋 Perch'; showToast('Failed: ' + e.message, 'error'); }
 }
 
-// Stage 2c — generate an optimised meta DRAFT for this worklist row, on demand.
-// Queues into Approvals for human review; never auto-publishes.
-async function generateDraftFromWorklist(keyword, brand, url, market, competitorPage, btn) {
-  if (!url) { showToast('No target page for this keyword', 'error'); return; }
+// On-demand generation for a worklist row. Dispatches by actionType:
+//   meta_update (default) | page_creation | blog_draft — see generate-draft.js.
+// Confidence-gated server-side (low → routed to Perch). Queues into Approvals for
+// human review; never auto-publishes.
+async function generateDraftFromWorklist(keyword, brand, url, market, competitorPage, btn, actionType, confidence) {
+  actionType = actionType || 'meta_update';
+  if (actionType === 'meta_update' && !url) { showToast('No target page for this keyword', 'error'); return; }
   const orig = btn.textContent;
   btn.disabled = true; btn.textContent = '⏳ Generating…';
+  const noun = actionType === 'page_creation' ? 'Page' : actionType === 'blog_draft' ? 'Blog' : 'Meta';
   try {
-    const r = await apiPost('/api/generate-draft', { brand, keyword, url, market, competitorPage: competitorPage || null });
-    if (r.skipped) { btn.textContent = '✓ Already good'; showToast(`Current meta for "${keyword}" is already strong — nothing queued.`, 'success'); }
-    else { btn.textContent = '✓ Queued'; btn.style.color = '#059669'; showToast(`Meta draft for "${keyword}" queued — review it in the Approvals Queue.`, 'success'); }
+    const r = await apiPost('/api/generate-draft', { brand, keyword, url, market, actionType, confidence: confidence || null, competitorPage: competitorPage || null });
+    if (r.routeToPerch) { btn.textContent = '📋 Send to Perch'; showToast(`Low confidence — "${keyword}" is better handled by a human. Use 📋 Perch.`, ''); }
+    else if (r.skipped) { btn.textContent = '✓ Already good'; showToast(`"${keyword}" — nothing to queue (${r.reason || 'already strong'}).`, 'success'); }
+    else { btn.textContent = '✓ Queued'; btn.style.color = '#059669'; showToast(`${noun} draft for "${keyword}" queued — review it in the Approvals Queue.`, 'success'); }
   } catch (e) {
     btn.textContent = '✗ Failed'; showToast('Generate failed: ' + e.message, 'error');
   }
@@ -9386,7 +9710,7 @@ function exportReportPdf() {
 
   const brand = reportState.brand;
   const title = document.title;
-  document.title = `The Nest — ${brand === 'pickl' ? 'Pickl' : 'Bonbird'} SEO Report ${new Date().toLocaleDateString('en-GB')}`;
+  document.title = `The Nest — ${brandName(brand)} SEO Report ${new Date().toLocaleDateString('en-GB')}`;
 
   window.print();
 
@@ -10146,7 +10470,7 @@ async function openCalForm(postId, prefillDate) {
       <div class="form-group" style="margin-bottom:0">
         <label class="form-label">Brand</label>
         <select id="cf-brand" class="form-input" style="font-family:var(--font-sans)" onchange="updateCalFormMarkets()">
-          ${['pickl','bonbird','yolk','southpour','shadowburg','shadowbird'].map(b => `<option value="${b}" ${(post?.brand||calState.brand)===b?'selected':''}>${b==='yolk'?'Yolk Brands':b.charAt(0).toUpperCase()+b.slice(1)}</option>`).join('')}
+          ${(window.NEST_BRANDS||[]).map(b => `<option value="${esc(b.slug)}" ${(post?.brand||calState.brand)===b.slug?'selected':''}>${esc(b.name)}</option>`).join('')}
         </select>
       </div>
       <div class="form-group" style="margin-bottom:0">
@@ -11946,7 +12270,7 @@ async function generateYouTubeBrief() {
     behind: 'Behind the Scenes',
     food: 'Food Showcase / ASMR',
   };
-  const brandName = brand === 'pickl' ? 'Pickl (smash burgers, Dubai UAE)' : 'Bonbird Chicken (fresh fried chicken, Dubai UAE)';
+  const brandName = brandName(brand) + ' (' + ((window.NEST_BRAND_MAP||{})[brand]?.cuisine || '') + ', UAE)';
 
   const prompt = `You are a YouTube SEO expert. Generate a complete YouTube SEO package for a ${typeLabels[type]} video for ${brandName} targeting the keyword "${keyword}".
 
@@ -11970,7 +12294,7 @@ Write a production-ready content outline for the video creator:
 - 4–5 main sections with: section title, key talking points (2–3 bullets), B-roll suggestions
 - Outro (last 30 seconds): CTA text
 
-Keep everything in ${brand === 'pickl' ? "Pickl's playful, cheeky brand voice" : "Bonbird's direct, bold, confident brand voice"}.`;
+Keep everything in ${brandName(brand) + "'s brand voice"}.`;
 
   try {
     const data = await apiPost('/api/claude', {
@@ -12085,7 +12409,7 @@ async function loadAiOverview(brand) {
     const res  = await fetch(`/api/ai-overview?brand=${brand}`, { credentials: 'include' });
     const all  = await res.json();
     const d    = all[brand] || { data: [], history: [] };
-    renderAiOverview(el, d.data, d.history, brand === 'pickl' ? 'Pickl' : 'Bonbird', brand);
+    renderAiOverview(el, d.data, d.history, brandName(brand), brand);
   } catch (e) {
     el.innerHTML = `<div style="font-size:13px;color:var(--text-muted)">Could not load AI Overview data.</div>`;
   }
@@ -12241,7 +12565,7 @@ async function triggerAiOverviewRefresh(brand) {
       if (data.length && newCheckedAt !== prevCheckedAt) {
         clearInterval(pollTimer);
         const el = document.getElementById('report-ai-overview');
-        if (el) renderAiOverview(el, data, all[brand]?.history || [], brand === 'pickl' ? 'Pickl' : 'Bonbird', brand);
+        if (el) renderAiOverview(el, data, all[brand]?.history || [], brandName(brand), brand);
         if (btn) { btn.disabled = false; btn.textContent = '↻ Refresh Now'; }
         if (status) status.textContent = '';
         showToast('AI Overview check complete', '');
@@ -12269,25 +12593,35 @@ const citationState = {
 function switchCitationBrand(brand, el) {
   citationState.activeBrand = brand;
   document.querySelectorAll('#citation-brand-pills .pill').forEach(p => p.classList.remove('active'));
-  el.classList.add('active');
-  document.getElementById('citation-rows-pickl').style.display   = brand === 'pickl'   ? '' : 'none';
-  document.getElementById('citation-rows-bonbird').style.display = brand === 'bonbird' ? '' : 'none';
+  if (el) el.classList.add('active');
+  // Show only the selected brand's rows (config-driven — one container per brand).
+  (window.NEST_BRANDS || []).forEach(b => {
+    const rows = document.getElementById(`citation-rows-${b.slug}`);
+    if (rows) rows.style.display = b.slug === brand ? '' : 'none';
+  });
 }
 
 async function loadCitationData() {
   const section = document.getElementById('citation-section');
   if (!section) return;
 
+  // Ensure one rows-container per brand exists (config-driven; first brand visible).
+  const slugs = (window.NEST_BRANDS || []).map(b => b.slug);
+  const wrap = document.getElementById('citation-rows-wrap');
+  if (wrap && !wrap.children.length) {
+    wrap.innerHTML = slugs.map((s, i) => `<div id="citation-rows-${esc(s)}" style="display:${i === 0 ? '' : 'none'}"></div>`).join('');
+    if (slugs.length) citationState.activeBrand = citationState.activeBrand || slugs[0];
+  }
+
   try {
     const res  = await fetch('/api/citations?brand=all', { credentials: 'include' });
     const data = await res.json();
     citationState.data = data;
     section.style.display = '';
-    renderCitationTracker('pickl');
-    renderCitationTracker('bonbird');
+    slugs.forEach(s => renderCitationTracker(s));
   } catch (e) {
     section.style.display = '';
-    ['pickl', 'bonbird'].forEach(b => {
+    (window.NEST_BRANDS||[]).map(b=>b.slug).forEach(b => {
       const el = document.getElementById(`citation-rows-${b}`);
       if (el) el.innerHTML = `<div style="font-size:13px;color:var(--danger);padding:8px 0">Could not load citation data: ${esc(e.message)}</div>`;
     });
@@ -12376,7 +12710,7 @@ async function checkAllCitations() {
   const loadingEl = document.getElementById('citation-loading');
   if (loadingEl) loadingEl.style.display = '';
 
-  const brands = ['pickl', 'bonbird'];
+  const brands = (window.NEST_BRANDS||[]).map(b=>b.slug);
 
   // The backend now runs the DataForSEO SERP polling in a background function and
   // returns 202 immediately (running it inline timed out). Capture each brand's

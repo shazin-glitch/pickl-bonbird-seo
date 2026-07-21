@@ -11,6 +11,7 @@
 // Cost: ~$0.0006/query × 5 platforms = ~$0.003/brand/run
 
 const { getStore } = require('@netlify/blobs');
+const { getBrandSlugs } = require('./_lib/brands-config');
 
 const DATAFORSEO_POST_URL = 'https://api.dataforseo.com/v3/serp/google/organic/task_post';
 const DATAFORSEO_GET_URL  = 'https://api.dataforseo.com/v3/serp/google/organic/task_get/advanced';
@@ -23,6 +24,7 @@ const PLATFORMS = [
   { id: 'entertainer',  label: 'The Entertainer', emoji: '🎟', domain: 'theentertainerme.com' },
 ];
 
+// TODO(config): move to brandsConfig (per-brand NAP address/phone — no config equivalent yet)
 const DEFAULT_NAP = {
   pickl:   { name: 'Pickl',           address: 'Dubai, UAE', phone: '+971' },
   bonbird: { name: 'Bonbird Chicken', address: 'Dubai, UAE', phone: '+971' },
@@ -152,7 +154,7 @@ exports.handler = async (event) => {
     // ── GET: return cached data ──────────────────────────────────────────────
     if (event.httpMethod === 'GET') {
       const brandParam = event.queryStringParameters?.brand || 'all';
-      const brands     = brandParam === 'all' ? ['pickl', 'bonbird'] : [brandParam];
+      const brands     = brandParam === 'all' ? await getBrandSlugs() : [brandParam];
       const result     = {};
 
       for (const brand of brands) {
@@ -205,7 +207,7 @@ exports.handler = async (event) => {
       // Run checks for one brand
       if (action === 'check') {
         const { brand } = body;
-        if (!brand || !['pickl', 'bonbird'].includes(brand)) {
+        if (!brand || !(await getBrandSlugs()).includes(brand)) {
           return { statusCode: 400, headers, body: JSON.stringify({ error: 'Invalid brand' }) };
         }
         // Fire the background function and return immediately. checkBrand polls

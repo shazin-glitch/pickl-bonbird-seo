@@ -19,6 +19,7 @@ const { getStore } = require('@netlify/blobs');
 const { authorizeJob } = require('./_lib/auth');
 const { getBrandContext, getBrandExamples, buildBrandPrompt, runBrandVoiceCheck, fixBrandVoice, hardStripBannedTokens } = require('./_lib/brand');
 const { callClaude, createApproval, listApprovals, extractJson } = require('./_lib/store');
+const { getBrand } = require('./_lib/brands-config');
 
 const GBP_CACHE_VERSION = 'v9'; // keep in sync with gbp-data.js cacheKey
 const DEFAULT_LIMIT     = 6;
@@ -39,12 +40,12 @@ function sanitizeSlug(s) {
 
 // Deterministic, accurate LocalBusiness/Restaurant JSON-LD from real GBP data.
 // Built in code (not by Claude) so the structured data never fabricates fields.
-function buildLocationSchema(loc, brandCtx) {
+function buildLocationSchema(loc, brandCtx, brandRec) {
   const schema = {
     '@context': 'https://schema.org',
     '@type':    'Restaurant',
     name:       loc.name,
-    servesCuisine: brandCtx?.cuisine || (brandCtx?.brand === 'bonbird' ? 'Fried Chicken' : 'Burgers'),
+    servesCuisine: brandCtx?.cuisine || brandRec?.cuisine || 'Food',
   };
   if (loc.address)       schema.address = { '@type': 'PostalAddress', streetAddress: loc.address, addressCountry: 'AE' };
   if (loc.googleMapsUri) schema.hasMap = loc.googleMapsUri;
@@ -66,8 +67,8 @@ async function getQueuedLocationIds(brand) {
   return ids;
 }
 
-async function generateLocationPage(loc, brand, brandCtx, brandPrompt, brandExamples, feedbackNotes) {
-  const brandName = brandCtx?.name || (brand === 'pickl' ? 'Pickl' : 'Bonbird');
+async function generateLocationPage(loc, brand, brandCtx, brandPrompt, brandExamples, feedbackNotes, brandRec) {
+  const brandName = brandCtx?.name || brandRec?.name || brand;
   const userPrompt = `Write a complete, conversion-focused LOCATION PAGE for the ${brandName} branch below. This is a standalone page (not a blog post).
 
 LOCATION (use these real details — do NOT invent addresses or areas):
@@ -103,7 +104,7 @@ Return ONLY JSON:
   if (voiceCheck.score < 8) return { rejected: true, score: voiceCheck.score };
 
   // Append deterministic schema to the page body.
-  parsed.body += '\n' + buildLocationSchema(loc, brandCtx);
+  parsed.body += '\n' + buildLocationSchema(loc, brandCtx, brandRec);
   parsed.voiceScore = voiceCheck.score;
   parsed.voiceIssues = voiceCheck.issues;
   return parsed;
@@ -114,7 +115,11 @@ exports.handler = async (event) => {
   if (!_job.ok) return { statusCode: 401, headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ error: 'Not authenticated' }) };
   console.log(`[local-seo-pages] Starting — ${new Date().toISOString()}`);
   const qs    = event.queryStringParameters || {};
-  const brand = qs.brand === 'bonbird' ? 'bonbird' : 'pickl';
+  const brand = qs.brand || 'pickl';
+  const brandRec = await getBrand(brand);
+  if (!brandRec) {
+    return { statusCode: 400, headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ error: `Unknown brand: ${brand}` }) };
+  }
   const force = qs.force === 'true';
   const limit = Math.max(1, Math.min(20, parseInt(qs.limit, 10) || DEFAULT_LIMIT));
 
@@ -137,7 +142,7 @@ exports.handler = async (event) => {
   const feedbackNotes = await getBrandFeedback(brand).catch(() => []);
   const alreadyQueued = force ? new Set() : await getQueuedLocationIds(brand);
 
-  const flag = brand === 'pickl' ? '🍔' : '🐔';
+  const flag = brandRec.flag || '📍';
   const targets = locations.filter(l => !alreadyQueued.has(l.id)).slice(0, limit);
 
   let queued = 0, rejected = 0, skipped = locations.length - targets.length;
@@ -145,7 +150,7 @@ exports.handler = async (event) => {
 
   for (const loc of targets) {
     try {
-      const page = await generateLocationPage(loc, brand, brandCtx, brandPrompt, brandExamples, feedbackNotes);
+      const page = await generateLocationPage(loc, brand, brandCtx, brandPrompt, brandExamples, feedbackNotes, brandRec);
       if (!page) { results.push({ location: loc.name, status: 'parse_error' }); continue; }
       if (page.rejected) { rejected++; results.push({ location: loc.name, status: `voice_reject_${page.score}` }); continue; }
 
@@ -155,7 +160,7 @@ exports.handler = async (event) => {
         actor:  'claude (local-seo)',
         title:  `Location page: ${page.title}`,
         reason: `Populate location page for ${loc.name}${loc.address ? ` (${loc.address})` : ''} — unique GBP-sourced content + LocalBusiness schema`,
-        locationTag: `${flag} ${brand === 'pickl' ? 'Pickl' : 'Bonbird'} · Local`,
+        locationTag: `${flag} ${brandRec.name} · Local`,
         payload: {
           title:         page.title,
           description:   page.description,

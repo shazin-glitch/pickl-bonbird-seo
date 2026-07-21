@@ -9,9 +9,12 @@
 
 const { getStore } = require('@netlify/blobs');
 const { authorize, denied } = require('./_lib/auth');
+const { getBrandSlugs } = require('./_lib/brands-config');
 
 const SEED_KEY_PREFIX = 'seedKeywords:';
 
+// TODO(config): move to brandsConfig (curated non-branded seed lists — richer than the
+// keywordSeeds roots in config; no direct config equivalent yet)
 const DEFAULT_SEEDS = {
   pickl: [
     // High-value non-branded terms Pickl should own
@@ -61,7 +64,7 @@ exports.handler = async (event) => {
     // ── GET ────────────────────────────────────────────────────────────────
     if (event.httpMethod === 'GET') {
       const brandParam = event.queryStringParameters?.brand || 'all';
-      const brands     = brandParam === 'all' ? ['pickl', 'bonbird'] : [brandParam];
+      const brands     = brandParam === 'all' ? await getBrandSlugs() : [brandParam];
       const result     = {};
 
       for (const brand of brands) {
@@ -86,7 +89,7 @@ exports.handler = async (event) => {
       const brand    = body.brand;
       const keywords = body.keywords;
 
-      if (!brand || !DEFAULT_SEEDS[brand]) {
+      if (!brand || !(await getBrandSlugs()).includes(brand)) {
         return { statusCode: 400, headers, body: JSON.stringify({ error: 'Invalid brand' }) };
       }
       if (!Array.isArray(keywords)) {

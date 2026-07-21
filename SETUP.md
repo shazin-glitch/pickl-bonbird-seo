@@ -221,6 +221,8 @@ The Nest is Yolk Brands' central marketing operations platform. It started as an
 
 | Key | Contents |
 |---|---|
+| `brandsConfig:index` | **Array of brand slugs (the config-layer index)** |
+| `brandsConfig:<slug>` | **One operational brand record: {slug,name,vertical,domain,gscProperty,wpEnvPrefix,gbpAccountEnv,gbpLocationEnv,color,flag,cuisine,brandedTerms,brandTerms,competitors[],keywordSeeds[],active}. Seeded from code literals for pickl/bonbird; new brands (southpour/yolk) exist ONLY here (zero code edits).** |
 | `approvals:index` | Array of all approval IDs |
 | `approvals:<id>` | Individual approval payload |
 | `userSession:<token>` | Session (email, name, picture) |
@@ -275,6 +277,7 @@ Batch up to 100 keywords per SERP POST. Poll every 5s, max 10 minutes.
 
 | Path | Function |
 |---|---|
+| `/api/config` | config.js ← **brand config: GET brand list for all dropdowns; POST save/delete a brand (onboarding)** |
 | `/api/approvals` | approvals.js |
 | `/api/claude` | claude.js |
 | `/api/auth/login` | auth-login.js |
@@ -320,6 +323,66 @@ From Google's official AI Optimization Guide (June 2026):
 4. **RAG means ranking still matters** — AI Overviews are grounded in search rankings. SEO fundamentals still apply.
 5. **Things to ignore** — llms.txt files, content chunking, rewriting for AI, inauthentic mentions.
 6. **Agentic experiences** — emerging. Semantic HTML and accessibility help browser agents use your site.
+
+---
+
+## Session: July 2026 — v7.6.0 — ⭐ FULL config-driven scalability: brands + SEO markets, whole tool (BE + FE)
+
+Extends v7.5.0 (brand layer) to the WHOLE tool — the goal is "better than SEMrush/Ahrefs except historical data," fully config-driven. Onboarding a **brand** OR an **SEO market** is now a Blobs record via Settings, ZERO code edits, and it flows through every dropdown, pill, metric card, cron loop, report and pipeline.
+
+**Architecture — two config layers + one endpoint:**
+- `_lib/brands-config.js` — brand records (v7.5.0). `_lib/markets-config.js` (NEW) — **SEO markets only** (the `INTERNATIONAL_MARKETS` analog; Blobs-first, seeded from it + SEO keyword-terms; fixed the drifted Bahrain code → 2048). ⚠️ **The content calendar / SocialPilot is a SEPARATE module (content team) — markets-config does NOT touch SP_ACCOUNTS / MARKET_TIMEZONES / CAL_MARKETS.**
+- `/api/config` returns `{brands, markets, verticals}` and accepts `save_brand`/`delete_brand`/`save_market`/`delete_market`. The frontend reads it once into `window.NEST_BRANDS` / `NEST_MARKETS` / `NEST_BRAND_MAP`.
+- `international-config.js` gained Blobs-aware async accessors (`getMarketsMapAsync`/`getMarketAsync`/`getMarketsForBrandAsync`/`marketForUrlAsync`, lazy-required → no circular dep) so a config-onboarded market is picked up. WP creds now derive from the slug (`WP_<SLUG>_*`) — no pickl/bonbird prefix ternary.
+
+**WS1 marketsConfig backbone** · **WS2 backend market consumers migrated** (keyword-discovery, competitor-matrix, market-traffic, rank-tracker, onpage-audit, and international-seo-background — the latter also lost its BRAND_GSC/WP/`?'Pickl':'Bonbird'` ternary cluster) · **WS3 backend brand hard-blockers fixed** (local-seo-pages no longer coerces to pickl; backlinks own+competitors from config; user-management VALID_BRANDS; calendar/calendar-media brand loops; db-get/save iterate all brands; ga4 no pickl-misattribution; gbp-data location→brand tagging via config; notify left as safe slug-fallback) · **WS4 frontend render engine**: `state.gscRows` is a per-slug map (loops `NEST_BRANDS` by gscProperty; `PICKL_GSC`/`BONBIRD_GSC` gone); Dashboard "Top 10s" = one card/brand; ALL brand pill navs generated from config (dashboard/analytics/report/techseo/local/citation/backlinks + International brand+market pills); ~25 `?'Pickl':'Bonbird'` ternaries → `brandName/brandFlag/brandColor/brandDomain/brandTermsFor` helpers; citation rows + backlinks render + CEO report loop configured brands; **backlinks $100/mo paywall placeholder REMOVED** (paywall was lifted ~1 Jul per memory; there were never backend guards, only stale FE text + fake demo data — now an honest empty state) · **WS5** Settings "Add Brand" + "Add SEO Market" forms; consolidated the competing brand color/label maps to config-fed.
+
+**Verified (Node + in-memory-Blobs; app is auth+Blobs-gated so no browser run):** `/api/config` onboards Southpour (café) + Yolk (corporate) + a `southpour_ksa` SEO market → all appear in GET; café keeps coffee/rejects burger, corporate no food gate; landmine fix (new brand ≠ Bonbird identity); async market accessors attribute a new market's URLs. `node --check` passes on all 74 functions + extracted index.html inline JS.
+
+**WS6 DONE — the single intelligent content brain (`_lib/content-pipeline.js`, NEW):** lifted SERP-feature/local-pack routing + page-level competitor context + cannibalization guard out of `international-seo-background` into one shared lib, generalized for UAE (`market:'uae'` → unsuffixed matrix key; "dedicated page" = any non-homepage page) and every intl market. `generate-draft` (the LIVE on-demand path) now calls it: before a page/blog it runs the cannibalization guard (blocks creating a 2nd page when a dedicated one already ranks → suggests meta instead), routes local-pack keywords blog→page, and injects SERP-feature + competitor-to-beat directives into the prompt (+ surfaces serpFeatureTag/competitors on the queued item). `international-seo-background`'s 7 intelligence fns now DELEGATE to the lib (one copy, no divergence — the exact C1 split we were avoiding). Legacy auto-gen orchestration stays OFF; delete at leisure. Verified headlessly (mock Blobs): serpTag + competitors + cannibalization + local-pack routing all fire for a UAE keyword.
+
+**Still NOT done (honest):** (1) **live creation of Southpour/Yolk on production Blobs** — do it via Settings → Brands/Markets on the deploy (can't write prod Blobs from a dev box) + set env vars `WP_<SLUG>_*`, `GBP_<SLUG>_*`; (2) **live-verify pass once signed in** (the "test everything in one go" — see checklist below).
+
+**LIVE-VERIFY CHECKLIST (post-deploy, signed in) — test everything in one go:**
+1. Settings → 🏷️ Brands: add **Southpour** (vertical café, domain, GSC property, flag/colour) + **Yolk Brands** (corporate). Confirm they appear in the brand list.
+2. Reload → confirm Southpour + Yolk appear in EVERY brand dropdown/pill (Dashboard cards, Analytics rankings, Report switcher, TechSEO, Local, Citation, Calendar brand, Studio, Perch, user-management).
+3. Settings → 🌍 SEO Markets: optionally add a Southpour intl market → confirm it shows in the International brand/market pills.
+4. Run discovery for Southpour (`/.netlify/functions/keyword-discovery-background?brand=southpour&force=true`) → Opportunities shows COFFEE keywords, not burgers (vertical adaptation). Yolk → corporate terms, no food gate.
+5. Worklist → ⚡Generate on a Southpour keyword → draft queued in café voice; try a local-pack keyword as a blog → confirms it routes to a page + shows the SERP/competitor directive; try a keyword with an existing dedicated page → cannibalization block fires.
+6. Traffic report / rank tracker / crawler (onpage-audit) / competitor-matrix each accept `?brand=southpour` without 400.
+7. Publish a Southpour draft → WP (needs `WP_SOUTHPOUR_*` env). GBP/citations need `GBP_SOUTHPOUR_*`.
+Set env in Netlify first: `WP_SOUTHPOUR_BASE/_USER/_APP_PASS`, `WP_YOLK_*`, `GBP_SOUTHPOUR_*`, `GBP_YOLK_*`. The content **calendar** stays the content team's separate module (brand list is config-driven; markets/SocialPilot untouched).
+
+---
+
+## Session: July 2026 — v7.5.0 — ⭐ P2 SCALABILITY: config-driven brand layer + one-click onboarding (Southpour + Yolk)
+
+THE this-week priority (North Star §1b): make onboarding a brand a **config record, not a code edit**. Built the `brandsConfig` backbone + killed the critical hardcodes + turned off auto-gen + built the real on-demand content path + made keyword discovery vertical-aware.
+
+**1. `brandsConfig` layer — the single source of truth (`netlify/functions/_lib/brands-config.js`, NEW):**
+- One Blobs record per brand (`brandsConfig:<slug>` + `brandsConfig:index`). Code literals (pickl/bonbird) are SEED/fallback only; Blobs wins. A new brand exists ONLY as a Blobs record.
+- Shared accessors both BE + FE read: `getBrands()`, `getBrand(slug)`, `getBrandSlugs()`, `setBrand()`, `deleteBrand()` (Blobs-first, 60s module cache).
+- Resolver helpers kill the ternaries: `gscPropertyFor()` (canonical GSC siteUrl — fixes the sc-domain-vs-https inconsistency), `ownDomainFor()`, `wpCredentialsFor()` (WP_<SLUG>_* convention), `gbpIdsFor()` (GBP_<SLUG>_* convention), `relevanceConfigFor()`.
+- `VERTICALS` map (restaurant | cafe | corporate) drives keyword relevance so café/corporate don't get burger keywords.
+- **ONE `/api/config` endpoint** (`config.js`, NEW): GET brand list for every dropdown (auth-gated); POST save_brand/delete_brand (admin/manager) — backs the Settings onboarding form.
+
+**2. LANDMINE FIXED (`_lib/brand.js`):** `getBrandContext` no longer falls back to `BONBIRD_DEFAULT` for any non-pickl brand — a NEW brand was silently inheriting Bonbird's name/menu/awards/voice. Now returns a neutral skeleton derived from the brandsConfig record (own name/vertical, EMPTY awards + menu — no impersonation).
+
+**3. AUTO-GEN OFF (`scheduler-background.js`):** the weekly cron's 4 content-gen jobs (quick_wins/meta_rewrites/content_gaps/page_creation) no longer run by default (`jobs` defaults to `[]` = data-only). DATA jobs kept (GSC snapshot, CPC, trackPublishedItems, rank history, pruneApprovals). Legacy generators still callable manually via `{jobs:[...],dryRun:true}` for testing; delete at leisure. BRANDS literal → config-derived.
+
+**4. On-demand ⚡Generate (`generate-draft.js`):** now dispatches by `actionType` — `meta_update` (done) + `page_creation` + `blog_draft` — config-driven (brand voice + vertical), **confidence-gated** (low → `{routeToPerch:true}`, no Claude spend), and every queued item is LABELLED (`payload.generatedType`, title prefix "Meta:/Page:/Blog:"). Frontend `generateDraftFromWorklist` forwards actionType/confidence + handles Perch routing.
+
+**5. Vertical adaptation (`keyword-discovery-background.js`):** `isRelevantKeyword`/`applyStaticFilter`/`passesStaticRelevance` now take the brand's vertical relevance config (roots + off-menu). Café keeps coffee & rejects burgers; corporate has no positive food gate; restaurant unchanged. `brandGenericSeeds` + UAE seeds + the Claude filter prompt are all vertical-framed. `isOwnBrandKeyword` takes config branded terms. GSC ternary + OWN_DOMAINS → config.
+
+**6. Hardcodes killed (config accessors):** GSC-site ternary across market-traffic, keyword-opportunities, technical-seo-background, content-outcomes-background, keyword-discovery, competitor-matrix-background, onpage-audit-background; WP creds (wordpress.js WP_<SLUG> derivation, scheduler, technical-seo); GBP ids (reviews.js GBP_<SLUG> derivation); cron iteration `['pickl','bonbird']` → `getBrandSlugs()` in backlinks-background, ai-overview-background, llm-mentions-background, citations, snapshots-background, email-digest, seed-keywords, keyword-config, competitor-config, competitor-matrix, competitor-matrix-background. The `["pickl","bonbird"]` competitor-matrix bug (CLAUDE.md #12) is GONE.
+
+**7. Frontend (`index.html`):** `bootstrapBrands()` fetches `/api/config` on load → `window.NEST_BRANDS`; `syncBrandDropdowns()` injects any config brand into every brand `<select>` + `[data-bfilter]` pill group (augments the legacy Pickl/Bonbird options — no per-brand HTML). Settings → **🏷️ Brands** card: add/edit a brand (slug, name, vertical, domain, GSC property, WP prefix, flag, colour, branded terms, competitors, seeds) → writes ONE record via `/api/config`.
+
+**Verified (Node, headless — app is auth+Blobs-gated so no browser preview):** in-memory-Blobs integration test onboards Southpour (café) + Yolk (corporate) → both appear in `getBrandSlugs()`, resolvers auto-derive WP/GBP env names, café keeps "flat white" & rejects "best burger", corporate has no food gate, and the landmine is fixed (Southpour ctx = own name, empty awards/menu — NOT Bonbird). `/api/config` handler tested: auth gate (401 unauth), GET list, POST save w/ slug validation, seed-delete protection. `node --check` passes on all changed .js + extracted index.html inline JS.
+
+**REMAINING (documented, non-blocking — acceptance gate met):** live creation of the Southpour + Yolk records happens via Settings → Brands (or POST /api/config) on the deploy — can't write production Blobs from a dev box. Cosmetic FE per-brand refs still hardcoded (dashboard "Pickl/Bonbird Top 10s" metric cards, intl market pills, per-brand report pills, calendar CAL_MARKETS/SP_* social maps, citations NAP, ga4 MARKET_PATHS) + a few secondary BE files (`backlinks.js` on-demand, `notify.js` brandLabel, `local-seo-pages-background.js`, `db-get/db-save`, `perch.js`, `international-seo-background.js` BRAND_GSC — intl is pickl/bonbird only). None block a new brand from running discovery/crawler/traffic/tracker/generate/publish. intl markets (INTERNATIONAL_MARKETS) remain a code literal — separate P2 marketsConfig track. Note: backlinks-background competitor domains + email-digest colours now come from config (single source) — intended, slightly different from old file-local values.
+
+**Env vars for a new brand (set in Netlify — the ONLY non-Settings step):** `WP_<SLUG>_BASE/_USER/_APP_PASS` (publishing), `GBP_<SLUG>_ACCOUNT_ID/_LOCATION_ID` (reviews). GSC just needs the property connected in the shared GSC OAuth.
 
 ---
 

@@ -10,10 +10,10 @@
 // Backward compat: single brand string in userProfile still supported
 
 const { getStore } = require('@netlify/blobs');
+const { getBrandSlugs } = require('./_lib/brands-config');
 
 const BOOTSTRAP_ADMINS  = ['shazin@yolkbrands.com', 'steve@yolkbrands.com'];
 const VALID_ROLES       = ['viewer', 'manager', 'admin', 'developer'];
-const VALID_BRANDS      = ['pickl', 'bonbird', 'yolk', 'southpour', 'shadowburg', 'shadowbird', 'all'];
 const VALID_DEPARTMENTS = ['seo', 'social', 'design', 'content', 'all'];
 
 async function getCallerRole(event, store) {
@@ -48,6 +48,9 @@ exports.handler = async (event) => {
   if (callerRole !== 'admin') {
     return { statusCode: 403, headers, body: JSON.stringify({ error: 'Admin access required' }) };
   }
+
+  // Validity is config-driven: active brand slugs + the 'all' full-access sentinel.
+  const validBrands = [...(await getBrandSlugs()), 'all'];
 
   try {
     // ── GET ───────────────────────────────────────────────────────────────────
@@ -90,7 +93,7 @@ exports.handler = async (event) => {
       await store.set(`userRole:${normalised}`, JSON.stringify({ email: normalised, role, addedAt: new Date().toISOString() }));
 
       // Save profile with brands array + department + markets
-      const brandsArr  = normaliseBrands(brands);
+      const brandsArr  = normaliseBrands(brands, validBrands);
       const marketsArr = Array.isArray(body.markets) && body.markets.length ? body.markets : null;
       await store.set(`userProfile:${normalised}`, JSON.stringify({
         email: normalised,
@@ -128,8 +131,8 @@ exports.handler = async (event) => {
         try { existing = await store.get(`userProfile:${normalised}`, { type: 'json' }) || {}; } catch {}
 
         let brandsArr = existing.brands || (existing.brand ? [existing.brand] : []);
-        if (brands !== undefined) brandsArr = normaliseBrands(brands);
-        else if (brand !== undefined) brandsArr = normaliseBrands([brand]);
+        if (brands !== undefined) brandsArr = normaliseBrands(brands, validBrands);
+        else if (brand !== undefined) brandsArr = normaliseBrands([brand], validBrands);
 
         if (department !== undefined && department && !VALID_DEPARTMENTS.includes(department)) {
           return { statusCode: 400, headers, body: JSON.stringify({ error: 'Invalid department' }) };
@@ -174,9 +177,10 @@ exports.handler = async (event) => {
   }
 };
 
-// Normalise brands input to clean array, validate each entry
-function normaliseBrands(input) {
+// Normalise brands input to clean array, validate each entry against the
+// config-driven validBrands list ([...active slugs, 'all']).
+function normaliseBrands(input, validBrands) {
   if (!input) return [];
   const arr = Array.isArray(input) ? input : [input];
-  return arr.map(b => b?.toString().trim().toLowerCase()).filter(b => VALID_BRANDS.includes(b));
+  return arr.map(b => b?.toString().trim().toLowerCase()).filter(b => validBrands.includes(b));
 }

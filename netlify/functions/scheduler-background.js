@@ -16,6 +16,7 @@ const {
   ok, bad, preflight, parseBody,
 } = require('./_lib/store');
 const { getBrandContext, buildBrandPrompt, runBrandVoiceCheck, fixBrandVoice, getBrandExamples } = require('./_lib/brand');
+const { getBrands, getBrandSlugs, getBrand, wpCredentialsFor } = require('./_lib/brands-config');
 const { internalHeaders, authorizeJob } = require('./_lib/auth');
 const { metaLengthRule } = require('./_lib/seo-meta');
 const { updateRankHistory } = require('./_lib/rank-tracker');
@@ -141,10 +142,15 @@ function keywordMatchesPageUrl(keyword, pageUrl) {
 
 const SITE_URL = process.env.URL || 'https://yolkseo.netlify.app';
 
-const BRANDS = {
-  pickl:   { name: 'Pickl',   site: 'eatpickl.com',       domain: 'https://eatpickl.com',       gsc: 'https://eatpickl.com/',       cuisine: 'smash burgers',        tone: 'bold, casual-premium, Dubai-cool' },
-  bonbird: { name: 'Bonbird', site: 'bonbirdchicken.com', domain: 'https://bonbirdchicken.com', gsc: 'sc-domain:bonbirdchicken.com', cuisine: 'halal fried chicken',  tone: 'warm, family-friendly, UAE-local' },
-};
+// BRANDS is now config-derived (CLAUDE.md #12) — built from brandsConfig at the
+// start of each run so a brand onboarded via Settings is iterated with no code
+// edit. Shape preserved ({name,site,domain,gsc,cuisine,tone}) so the run* helpers'
+// BRANDS[brand].gsc lookups keep working. Populated in the handler; module-scope
+// so the run* functions can read it.
+let BRANDS = {};
+function brandRecordToScheduler(b) {
+  return { name: b.name, site: b.ownDomain, domain: b.domain, gsc: b.gscProperty, cuisine: b.cuisine || '', tone: b.tone || '' };
+}
 
 exports.handler = async (event) => {
   const _job = await authorizeJob(event);
@@ -153,10 +159,20 @@ exports.handler = async (event) => {
   const body = event.httpMethod === 'POST' ? (parseBody(event) || {}) : {};
   const dryRun      = !!body.dryRun;
   const forceRun    = !!body.forceRun;
+
+  // Build the brand map from config (single source of truth).
+  BRANDS = {};
+  for (const b of await getBrands()) BRANDS[b.slug] = brandRecordToScheduler(b);
+
   const brandsToRun = body.brand ? [body.brand].filter(b => BRANDS[b]) : Object.keys(BRANDS);
-  const jobs        = Array.isArray(body.jobs) && body.jobs.length
-    ? body.jobs
-    : ['quick_wins', 'meta_rewrites', 'content_gaps', 'page_creation'];
+  // ⚡ AUTONOMOUS CONTENT-GEN IS OFF (North Star, 19 Jul): the weekly cron no longer
+  // auto-writes content — that burned Claude and produced wrong-target noise. Content
+  // is now HUMAN-DRIVEN on-demand via the worklist → ⚡Generate. The cron keeps only
+  // its DATA/measurement jobs (GSC snapshot, CPC enrichment, published-item tracking,
+  // rank history, pruneApprovals — all run above the jobs loop, unconditionally).
+  // A manual/dry-run call MAY still request the legacy generators by passing `jobs`,
+  // e.g. { brand, jobs:['meta_rewrites'], dryRun:true } — for testing only.
+  const jobs        = Array.isArray(body.jobs) ? body.jobs : [];
 
   const summary = { startedAt: Date.now(), brands: {}, queued: 0, errors: [] };
 
@@ -166,7 +182,7 @@ exports.handler = async (event) => {
       const brandCtx = await getBrandContext(brand);
       const brandExamples = await getBrandExamples(brand).catch(() => null);
       const brandPrompt = buildBrandPrompt(brandCtx, brandExamples);
-      const gscRows = await fetchGscRows(BRANDS[brand].gsc);
+      const gscRows = await fetchGscRows(BRANDS[brand].gsc, brand);
       summary.brands[brand].gscRows = gscRows.length;
 
       // Enrich GSC rows with real CPC data from DataForSEO (~$0.008/week for 150 keywords)
@@ -272,14 +288,15 @@ exports.handler = async (event) => {
 };
 
 // ── GSC fetchll, no internal HTTP hop ───────────
-async function fetchGscRows(siteUrl) {
+async function fetchGscRows(siteUrl, brand) {
   try {
     const rows = await fetchGscDirect(siteUrl);
     // Save weekly snapshot — enables week-on-week ranking movement tracking
     // Key: gscSnapshot:<brand>:<YYYY-MM-DD> — saved once per day, never overwritten
     try {
       const dateKey   = new Date().toISOString().split('T')[0];
-      const brand     = siteUrl.includes('pickl') ? 'pickl' : 'bonbird';
+      // brand is passed in (config-driven) — no longer inferred from the siteUrl
+      // string, which only knew 'pickl' vs 'bonbird'.
       const snapKey   = `gscSnapshot:${brand}:${dateKey}`;
       const existing  = await getSetting(snapKey).catch(() => null);
       if (!existing) {
@@ -318,7 +335,8 @@ async function trackPublishedItems(brand, gscRows) {
   // Load GSC token for URL Inspection (fetchGscDirect already refreshed it earlier this run)
   const gscTokenData = await s.get('gscTokens', { type: 'json' }).catch(() => null);
   const gscToken     = gscTokenData?.access_token || null;
-  const siteUrl      = brand === 'pickl' ? 'https://eatpickl.com/' : 'https://bonbirdchicken.com/';
+  // URL Inspection siteUrl = the brand's domain-form property (config-driven).
+  const siteUrl      = ((BRANDS[brand] && BRANDS[brand].domain) || (await getBrand(brand))?.domain || '') + '/';
 
   // Get all approval items for this brand (prefix-scan via the shared queue — the
   // approvals:index blob was retired in P1.1; listApprovals already filters by brand).
@@ -417,7 +435,8 @@ async function enrichGscWithCpc(brand, rows, brandConfig) {
   const password = process.env.DATAFORSEO_PASSWORD;
   if (!login || !password) return; // no credentials — skip silently
 
-  const BRAND_TERMS = brand === 'pickl' ? ['pickl'] : ['bonbird'];
+  // Branded terms from config (used to exclude near-zero-CPC brand queries).
+  const BRAND_TERMS = ((await getBrand(brand))?.brandTerms || [brand]);
   const AED_PER_USD = 3.67;
 
   // All non-branded keywords — DataForSEO Keywords Data API accepts up to 700 per task
@@ -524,7 +543,7 @@ function seedKeywordsToRows(keywords) {
 // Stores as performanceSummary:<brand> in Blobs for the Reports tab.
 async function generatePerformanceSummary(brand, gscRows, jobResults, brandCtx) {
   const s = store();
-  const brandName = brandCtx?.name || (brand === 'pickl' ? 'Pickl' : 'Bonbird');
+  const brandName = brandCtx?.name || BRANDS[brand]?.name || brand;
 
   // Load last week's snapshot for position deltas
   const lastWeekDate = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000);
@@ -1072,9 +1091,7 @@ Return ONLY a JSON array. For pages that don't need changing, set "skip": true.
 async function wpPageCheck(brand, pageUrl) {
   const NO_CREDS = { hasContent: true, canonicalUrl: null };
   try {
-    const wpBase = brand === 'pickl' ? process.env.WP_PICKL_BASE : process.env.WP_BONBIRD_BASE;
-    const wpUser = brand === 'pickl' ? process.env.WP_PICKL_USER : process.env.WP_BONBIRD_USER;
-    const wpPass = brand === 'pickl' ? process.env.WP_PICKL_APP_PASS : process.env.WP_BONBIRD_APP_PASS;
+    const { base: wpBase, user: wpUser, pass: wpPass } = await wpCredentialsFor(brand);
 
     if (!wpBase) return NO_CREDS;
 

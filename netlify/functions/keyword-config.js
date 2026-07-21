@@ -7,9 +7,12 @@
 
 const { getStore } = require("@netlify/blobs");
 const { authorize, denied } = require("./_lib/auth");
+const { getBrandSlugs } = require("./_lib/brands-config");
 
 const CONFIG_KEY_PREFIX = "keywordConfig:";
 
+// TODO(config): move to brandsConfig (curated per-brand keyword lists — richer than
+// the keywordSeeds roots in config; no direct config equivalent yet)
 const DEFAULT_KEYWORDS = {
   pickl: [
     // Product
@@ -89,7 +92,7 @@ exports.handler = async (event) => {
     // ── GET: return keyword config ───────────────────────────────────────────
     if (event.httpMethod === "GET") {
       const brandParam = event.queryStringParameters?.brand || "all";
-      const brands     = brandParam === "all" ? ["pickl", "bonbird"] : [brandParam];
+      const brands     = brandParam === "all" ? await getBrandSlugs() : [brandParam];
       const result     = {};
 
       for (const brand of brands) {
@@ -123,7 +126,7 @@ exports.handler = async (event) => {
       const brand   = body.brand;
       const keywords = body.keywords;
 
-      if (!brand || !DEFAULT_KEYWORDS[brand]) {
+      if (!brand || !(await getBrandSlugs()).includes(brand)) {
         return { statusCode: 400, headers, body: JSON.stringify({ error: "Invalid brand" }) };
       }
       if (!Array.isArray(keywords)) {

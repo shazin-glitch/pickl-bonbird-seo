@@ -8,9 +8,12 @@
 const { getStore } = require("@netlify/blobs");
 const { INTERNATIONAL_MARKETS } = require("./_lib/international-config");
 const { authorize, denied } = require("./_lib/auth");
+const { getBrandSlugs } = require("./_lib/brands-config");
 
 const CONFIG_KEY_PREFIX = "competitorConfig:";
 
+// TODO(config): move to brandsConfig (domain-corrected UAE competitor list — differs from
+// the brandsConfig competitors, which carry the pre-migration domains)
 // Correct UAE competitor domains (updated June 2026)
 const DEFAULT_COMPETITORS = {
   pickl: [
@@ -113,7 +116,7 @@ exports.handler = async (event) => {
       const brandParam  = event.queryStringParameters?.brand  || "all";
       const marketParam = event.queryStringParameters?.market || null;
       const isIntl      = marketParam && marketParam !== "uae";
-      const brands      = brandParam === "all" ? ["pickl", "bonbird"] : [brandParam];
+      const brands      = brandParam === "all" ? await getBrandSlugs() : [brandParam];
 
       // International markets: per-market manual overrides only. No curated
       // defaults and no domain migration — auto-detection fills the rest at
@@ -170,7 +173,7 @@ exports.handler = async (event) => {
       const competitors = body.competitors;
       const isIntl      = market && market !== "uae";
 
-      if (!brand || !DEFAULT_COMPETITORS[brand]) {
+      if (!brand || !(await getBrandSlugs()).includes(brand)) {
         return { statusCode: 400, headers, body: JSON.stringify({ error: "Invalid brand" }) };
       }
       if (isIntl && !INTERNATIONAL_MARKETS[market]) {

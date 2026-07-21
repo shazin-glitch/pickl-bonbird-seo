@@ -19,11 +19,9 @@ const { getStore } = require('@netlify/blobs');
 const { authorizeJob } = require('./_lib/auth');
 const { listApprovals, updateApproval } = require('./_lib/store');
 
-// GSC cache keys differ per brand (query-dimension cache: { rows:[{keyword,position}] }).
-const BRAND_GSC = {
-  pickl:   'gscCache:https://eatpickl.com/',
-  bonbird: 'gscCache:sc-domain:bonbirdchicken.com',
-};
+// GSC cache key per brand = `gscCache:<gscProperty>` (query-dimension cache:
+// { rows:[{keyword,position}] }). Derived from config so a new brand is included.
+const { getBrands } = require('./_lib/brands-config');
 
 const MIN_AGE_DAYS   = 14; // give content time to be indexed + re-ranked before judging
 const REMEASURE_DAYS = 7;  // re-measure at most weekly so trends accumulate
@@ -42,10 +40,12 @@ exports.handler = async (event) => {
 
   const summary = {};
 
-  for (const brand of Object.keys(BRAND_GSC)) {
+  const brandList = await getBrands();
+  for (const b of brandList) {
+    const brand = b.slug;
     try {
       // Current positions by keyword (best/only row per query in the cache).
-      const gsc = await store.get(BRAND_GSC[brand], { type: 'json' }).catch(() => null);
+      const gsc = await store.get(`gscCache:${b.gscProperty}`, { type: 'json' }).catch(() => null);
       const posByKw = {};
       for (const row of (gsc?.rows || [])) {
         if (!row?.keyword || row.position == null) continue;

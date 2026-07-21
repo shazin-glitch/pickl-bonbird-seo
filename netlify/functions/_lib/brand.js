@@ -224,10 +224,41 @@ function isBrandedQuery(query, brandCtxOrName) {
 
 // ── Public API ────────────────────────────────────────────────────
 
+// Neutral skeleton for a brand that has NO built-in default (Southpour, Yolk, …).
+// LANDMINE FIX (CLAUDE.md #12): the old code fell back to BONBIRD_DEFAULT for any
+// non-pickl brand, so a newly-onboarded brand silently inherited Bonbird's name,
+// menu, awards and voice. Instead derive a blank-but-correct identity from the
+// brandsConfig record (name/vertical) — no impersonation, no fake menu/awards.
+async function neutralDefault(brand) {
+  let cfg = null;
+  try { cfg = await require('./brands-config').getBrand(brand); } catch { /* config unavailable */ }
+  const name = cfg?.name || (brand ? brand.charAt(0).toUpperCase() + brand.slice(1) : 'the brand');
+  return {
+    brand,
+    name,
+    vertical:     cfg?.vertical || 'restaurant',
+    brandedTerms: cfg?.brandedTerms || [],
+    tagline:      '',
+    website:      cfg?.domain || '',
+    country:      'UAE',
+    character:    '',
+    tone:         [],
+    positioning:  `${name} is a brand in the Yolk Brands family.`,
+    differentiators: [],
+    awards:       [],          // never inherit another brand's awards
+    menu:         {},          // no fake menu — keywordMatchesMenu degrades open
+    brandLanguage: [],
+    locations:    { areas: [], international: '' },
+    doNot:        [],
+  };
+}
+
 async function getBrandContext(brand) {
   const s = store();
   const stored = await s.get(`brandContext:${brand}`, { type: 'json' }).catch(() => null);
-  const base   = brand === 'pickl' ? PICKL_DEFAULT : BONBIRD_DEFAULT;
+  const base   = brand === 'pickl' ? PICKL_DEFAULT
+               : brand === 'bonbird' ? BONBIRD_DEFAULT
+               : await neutralDefault(brand);
   if (!stored) return base;
   // Merge Settings edits ON TOP of the built-in default rather than replacing it
   // wholesale. The Settings form only manages voice fields (tone, positioning,

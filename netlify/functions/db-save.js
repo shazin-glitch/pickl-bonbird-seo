@@ -1,5 +1,6 @@
 const { getStore } = require('@netlify/blobs');
 const { authorize, denied } = require('./_lib/auth');
+const { getBrandSlugs } = require('./_lib/brands-config');
 
 exports.handler = async (event) => {
   if (event.httpMethod === 'OPTIONS') {
@@ -31,9 +32,12 @@ exports.handler = async (event) => {
     if (body.techChecks !== undefined) saves.push(store.setJSON('techChecks', body.techChecks));
     if (body.dirChecks !== undefined) saves.push(store.setJSON('dirChecks', body.dirChecks));
     if (body.gscTokens !== undefined) saves.push(store.setJSON('gscTokens', body.gscTokens));
-    // Brand context — stored under brandContext:<brand> to match brand.js convention
-    if (body.brandContext_pickl !== undefined) saves.push(store.setJSON('brandContext:pickl', body.brandContext_pickl));
-    if (body.brandContext_bonbird !== undefined) saves.push(store.setJSON('brandContext:bonbird', body.brandContext_bonbird));
+    // Brand context — stored under brandContext:<brand> to match brand.js convention.
+    // Config-driven: accepts brandContext_<slug> for every active brand.
+    for (const slug of await getBrandSlugs()) {
+      const field = `brandContext_${slug}`;
+      if (body[field] !== undefined) saves.push(store.setJSON(`brandContext:${slug}`, body[field]));
+    }
     if (body.slackWebhookUrl !== undefined) saves.push(store.setJSON('slackWebhookUrl', body.slackWebhookUrl));
 
     await Promise.all(saves);

@@ -16,10 +16,11 @@
 // Schedule: Monday 4:00am UTC = Monday 8:00am Dubai time (UTC+4)
 
 const { getStore } = require("@netlify/blobs");
-const { INTERNATIONAL_MARKETS, MARKET_LOCATION_CODES } = require('./_lib/international-config');
+const { INTERNATIONAL_MARKETS, MARKET_LOCATION_CODES, getMarketAsync, getMarketsMapAsync } = require('./_lib/international-config');
 const { resolveLocation } = require('./_lib/dfs-locations');
 const { isAggregatorDomain, domainMatches } = require('./_lib/aggregator-domains');
 const { enrichKeywordsMixed } = require('./_lib/keyword-metrics');
+const { getBrand, getBrandSlugs } = require('./_lib/brands-config');
 
 const CACHE_KEY_PREFIX           = "competitorMatrix:";
 const COMPETITOR_KEY_PREFIX      = "competitorConfig:";
@@ -193,15 +194,17 @@ function estimatedCtr(position) {
 }
 
 async function loadBrandConfig(store, brand, marketKey = null) {
-  let competitors = DEFAULT_COMPETITORS[brand];
-  let keywords    = DEFAULT_KEYWORDS[brand];
+  // Config fallback for brands with no built-in DEFAULT_* seed (Southpour, Yolk, …).
+  const brandCfg = await getBrand(brand).catch(() => null);
+  let competitors = DEFAULT_COMPETITORS[brand] || brandCfg?.competitors || [];
+  let keywords    = DEFAULT_KEYWORDS[brand] || brandCfg?.keywordSeeds || [];
   let location_code = 21191; // Default: Dubai UAE
   let labsSupported = true;  // is this market in DataForSEO Labs? (ranked_keywords)
   let locationLanguages = ['en', 'ar']; // valid Labs languages (UAE accepts both)
 
   // If a specific market is requested, use market-specific config
   if (marketKey && marketKey !== 'uae') {
-    const market = INTERNATIONAL_MARKETS[marketKey];
+    const market = await getMarketAsync(marketKey);
     if (market) {
       const loc = await resolveLocation(market.label);
       location_code = loc.code || market.location_code;
@@ -238,7 +241,7 @@ async function loadBrandConfig(store, brand, marketKey = null) {
   }
 
   return {
-    siteUrl:        BRAND_SITE[brand],
+    siteUrl:        BRAND_SITE[brand] || (brandCfg ? brandCfg.domain.replace(/\/?$/, '/') : null),
     competitors,
     targetKeywords: keywords,
     location_code,
@@ -868,18 +871,18 @@ exports.handler = async (event) => {
     // (the market key encodes it, e.g. pickl_ksa), so derive the brand from config
     // — never run both brands blindly (that created competitorMatrix:bonbird:pickl_ksa
     // etc. + doubled DataForSEO spend). UAE (not in INTERNATIONAL_MARKETS) runs both.
-    const m = INTERNATIONAL_MARKETS[targetMarket];
+    const m = await getMarketAsync(targetMarket);
     if (m) await processBrand(m.brand, targetMarket);
-    else   await Promise.all(["pickl", "bonbird"].map(b => processBrand(b, targetMarket)));
+    else   await Promise.all((await getBrandSlugs()).map(b => processBrand(b, targetMarket)));
   } else {
-    // UAE always runs weekly
-    await Promise.all(["pickl", "bonbird"].map(b => processBrand(b, null)));
+    // UAE always runs weekly — for every configured brand (CLAUDE.md #12).
+    await Promise.all((await getBrandSlugs()).map(b => processBrand(b, null)));
 
     // International markets run monthly (first Monday of month = UTC date 1–7) or when forced
     const isFirstMonday = new Date().getUTCDate() <= 7;
     if (isFirstMonday || force) {
       console.log(`[competitor-matrix] ${force ? 'forced' : 'first Monday'} — running all intl markets`);
-      for (const [marketKey, market] of Object.entries(INTERNATIONAL_MARKETS)) {
+      for (const [marketKey, market] of Object.entries(await getMarketsMapAsync())) {
         try {
           await processBrand(market.brand, marketKey);
         } catch (e) {

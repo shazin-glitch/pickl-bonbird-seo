@@ -20,27 +20,34 @@
 const { store, createApproval, callClaude, ok, bad, preflight, parseBody } = require('./_lib/store');
 const { getBrandContext, buildBrandPrompt } = require('./_lib/brand');
 
+const { getBrandSlugs } = require('./_lib/brands-config');
 const SITE_URL = process.env.URL || 'https://yolkseo.netlify.app';
-const BRANDS = {
-  pickl:   { name: 'Pickl',   accountEnv: 'GBP_PICKL_ACCOUNT_ID',   locationEnv: 'GBP_PICKL_LOCATION_ID' },
-  bonbird: { name: 'Bonbird', accountEnv: 'GBP_BONBIRD_ACCOUNT_ID', locationEnv: 'GBP_BONBIRD_LOCATION_ID' },
-};
 
+// GBP account/location env-var names derived from the slug (GBP_<SLUG>_ACCOUNT_ID /
+// _LOCATION_ID) — the same convention brandsConfig uses. Scales to any onboarded
+// brand with ZERO code edits (just set the two env vars).
 function getBrandIds(brand) {
-  const cfg = BRANDS[brand];
-  if (!cfg) return null;
-  const acc = process.env[cfg.accountEnv];
-  const loc = process.env[cfg.locationEnv];
+  if (!brand || !/^[a-z0-9_]+$/i.test(brand)) return null;
+  const U = String(brand).toUpperCase();
+  const acc = process.env[`GBP_${U}_ACCOUNT_ID`];
+  const loc = process.env[`GBP_${U}_LOCATION_ID`];
   return (acc && loc) ? { accountId: acc, locationId: loc } : null;
 }
 
 async function getMode() {
   const tokens = await store().get('gbpTokens', { type: 'json' }).catch(() => null);
   const tokensReady = !!(tokens && tokens.access_token);
+  const slugs = await getBrandSlugs();
+  const perBrand = {};
+  let anyConfigured = false;
+  for (const slug of slugs) {
+    const configured = !!getBrandIds(slug);
+    if (configured) anyConfigured = true;
+    perBrand[slug] = { configured, tokensReady };
+  }
   return {
-    mode: tokensReady && (getBrandIds('pickl') || getBrandIds('bonbird')) ? 'live' : 'placeholder',
-    pickl:   { configured: !!getBrandIds('pickl'),   tokensReady },
-    bonbird: { configured: !!getBrandIds('bonbird'), tokensReady },
+    mode: tokensReady && anyConfigured ? 'live' : 'placeholder',
+    ...perBrand,
     setup: tokensReady ? null : 'Set GBP_<BRAND>_ACCOUNT_ID / LOCATION_ID env vars and re-run GSC OAuth with business.manage scope',
   };
 }
@@ -68,7 +75,8 @@ exports.handler = async (event) => {
 
 async function handlePull(body) {
   const mode = await getMode();
-  const brandsToRun = body.brand ? [body.brand].filter(b => BRANDS[b]) : Object.keys(BRANDS);
+  const allSlugs = await getBrandSlugs();
+  const brandsToRun = body.brand ? [body.brand].filter(b => allSlugs.includes(b)) : allSlugs;
   const summary = { mode: mode.mode, brands: {}, queued: 0 };
 
   for (const brand of brandsToRun) {
@@ -93,7 +101,8 @@ async function handlePull(body) {
 }
 
 async function handleList(body) {
-  const brandsToRun = body.brand ? [body.brand].filter(b => BRANDS[b]) : Object.keys(BRANDS);
+  const allSlugs = await getBrandSlugs();
+  const brandsToRun = body.brand ? [body.brand].filter(b => allSlugs.includes(b)) : allSlugs;
   const out = {};
   for (const brand of brandsToRun) {
     out[brand] = (await store().get(`reviews:cache:${brand}`, { type: 'json' }).catch(() => null)) || { fetchedAt: null, reviews: [] };
@@ -163,9 +172,8 @@ async function fetchLiveReviews(brand) {
 
 // ── Draft response via Claude ────────────────────────────────────
 async function draftResponse(brand, review) {
-  const cfg = BRANDS[brand];
   const brandCtx = await getBrandContext(brand).catch(() => null);
-  const system   = buildBrandPrompt(brandCtx) || `You are a customer service rep for ${cfg.name}, a UAE restaurant.`;
+  const system   = buildBrandPrompt(brandCtx) || `You are a customer service rep for ${brandCtx?.name || brand}, a UAE restaurant.`;
   const prompt = `Write a Google review response. Sentiment: ${review.sentiment}. Reviewer: ${review.reviewerName}. Stars: ${review.starRating}/5. Review: "${review.text}"\n\nRules: warm and on-brand, mention the restaurant name naturally, address specific points raised, under 120 words, include a UAE/Dubai keyword naturally. For negative reviews: take ownership, apologise, offer a next step. Output ONLY the response text — no labels, no quotes.`;
   try { const { text } = await callClaude(prompt, { max_tokens: 400, system }); return text.trim(); } catch (_) { return ''; }
 }

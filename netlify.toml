@@ -1,4 +1,9 @@
 [[redirects]]
+  from = "/api/config"
+  to = "/.netlify/functions/config"
+  status = 200
+
+[[redirects]]
   from = "/api/claude"
   to = "/.netlify/functions/claude"
   status = 200

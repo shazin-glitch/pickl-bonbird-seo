@@ -8,29 +8,9 @@
 
 const { getStore } = require('@netlify/blobs');
 const { authorizeJob } = require('./_lib/auth');
+const { getBrand, getBrandSlugs } = require('./_lib/brands-config');
 
 const DATAFORSEO_BASE = 'https://api.dataforseo.com/v3';
-
-const BRAND_DOMAINS = {
-  pickl: {
-    own: 'eatpickl.com',
-    competitors: [
-      { domain: 'salt.ae', label: 'Salt' },
-      { domain: 'highjoint.ae', label: 'High Joint' },
-      { domain: 'shakeshack.com', label: 'Shake Shack' },
-      { domain: 'fiveguys.ae', label: 'Five Guys' },
-    ],
-  },
-  bonbird: {
-    own: 'bonbirdchicken.com',
-    competitors: [
-      { domain: 'raisingcanes.com', label: "Raising Cane's" },
-      { domain: 'kfc.com', label: 'KFC' },
-      { domain: 'popeyes.com', label: 'Popeyes' },
-      { domain: 'daves-hot-chicken.com', label: "Dave's Hot Chicken" },
-    ],
-  },
-};
 
 function getAuthHeader() {
   const login    = process.env.DATAFORSEO_LOGIN;
@@ -109,7 +89,11 @@ function computeDelta(current, previous) {
 }
 
 async function processBrand(brand, store, authHeader) {
-  const config = BRAND_DOMAINS[brand];
+  const b = await getBrand(brand);
+  const config = {
+    own:         b.ownDomain,
+    competitors: (b.competitors || []).map(c => ({ domain: c.domain, label: c.name })),
+  };
   console.log(`[backlinks-bg] Processing ${brand}...`);
 
   // Fetch own domain first
@@ -185,8 +169,9 @@ exports.handler = async (event) => {
   if (!_job.ok) return { statusCode: 401, headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ error: 'Not authenticated' }) };
   // On-demand manual refresh passes ?brand=pickl|bonbird; the Monday cron passes
   // no query string and runs both brands.
-  const only   = event?.queryStringParameters?.brand;
-  const brands = only && BRAND_DOMAINS[only] ? [only] : ['pickl', 'bonbird'];
+  const only     = event?.queryStringParameters?.brand;
+  const allSlugs = await getBrandSlugs();
+  const brands   = only && allSlugs.includes(only) ? [only] : allSlugs;
   console.log(`[backlinks-bg] Starting backlink monitoring run for: ${brands.join(', ')}`);
 
   const store      = getStore({

@@ -12,8 +12,10 @@
 //   3. onpage_suggestion — content improvement for the market page
 
 const { getStore } = require('@netlify/blobs');
-const { INTERNATIONAL_MARKETS, getMarketsForBrand, buildMarketPrompt, getWpCredentials, buildPostUrl, getMarketPageTokens, isExcludedPageSlug } = require('./_lib/international-config');
+const { INTERNATIONAL_MARKETS, getMarketsForBrand, buildMarketPrompt, getWpCredentials, buildPostUrl, getMarketPageTokens, isExcludedPageSlug, getMarketsMapAsync, getMarketAsync, getMarketsForBrandAsync } = require('./_lib/international-config');
 const { getBrandContext, getBrandExamples, buildBrandPrompt, runBrandVoiceCheck, fixBrandVoice, hardStripBannedTokens } = require('./_lib/brand');
+const { gscPropertyFor, ownDomainFor } = require('./_lib/brands-config');
+const CP = require('./_lib/content-pipeline'); // WS6: single content-intelligence brain
 const { fetchGscDirect, fetchGscWithPages, listApprovals, createApproval, updateApproval, extractJson } = require('./_lib/store');
 const { internalHeaders, authorizeJob } = require('./_lib/auth');
 
@@ -166,7 +168,6 @@ async function dismissPendingMeta(id, reason) {
 // Mirrors runMetaRewrites from scheduler-background.js but scoped to a market's pages.
 // Returns { queued, skipped, candidates }
 async function runMarketDataDrivenSEO(market, brandCtx, brandExamples, force = false, language = 'en') {
-  const BRAND_GSC = { pickl: 'https://eatpickl.com/', bonbird: 'https://bonbirdchicken.com/' };
   const isAr = language !== 'en';                          // ar/ur both surface as Arabic script in GSC
   const scriptMatch = kw => isAr ? /[؀-ۿ]/.test(kw) : !/[؀-ۿ]/.test(kw);
   const tag = `[intl-seo/${market.marketKey}/${language}]`;
@@ -174,7 +175,7 @@ async function runMarketDataDrivenSEO(market, brandCtx, brandExamples, force = f
   // Fetch GSC data with page URLs
   let rowsWithPages;
   try {
-    rowsWithPages = await fetchGscWithPages(BRAND_GSC[market.brand]);
+    rowsWithPages = await fetchGscWithPages(await gscPropertyFor(market.brand));
   } catch (e) {
     console.warn(`${tag} fetchGscWithPages failed: ${e.message}`);
     return { queued: 0, skipped: 'gsc_failed' };
@@ -339,111 +340,21 @@ Return ONLY a JSON array:
 // ignore them and write a blog regardless. We now load them per market and (a)
 // route local-pack keywords to a landing PAGE not a blog, and (b) inject
 // feature-specific tactics into every prompt so content is built to win them.
-async function loadSerpFeatureMap(market) {
-  try {
-    const s   = getStore({ name: 'seo-tool', consistency: 'strong', siteID: process.env.NETLIFY_SITE_ID, token: process.env.NETLIFY_AUTH_TOKEN });
-    const key = `competitorMatrix:${market.brand}:${market.brand}_${market.marketKey}`;
-    const data = await s.get(key, { type: 'json' });
-    const map = {};
-    for (const row of (data?.rows || [])) {
-      if (row?.keyword && row.serpFeatures) map[row.keyword.toLowerCase().trim()] = row.serpFeatures;
-    }
-    return map;
-  } catch { return {}; }
-}
-
-function serpFeatureBrief(features) {
-  if (!features) return { tag: null, directive: '', isLocal: false };
-  const parts = [];
-  if (features.localPack)     parts.push('LOCAL PACK present — this is a local-intent SERP. A blog post will not rank here; the win is a dedicated location landing page plus Google Business Profile signals. Lead with address / area-served / hours / ordering intent, not an article.');
-  if (features.peopleAlsoAsk) parts.push('PEOPLE ALSO ASK present — add a concise FAQ section answering the top related questions directly, structured so it can carry FAQ schema.');
-  if (features.aiOverview)    parts.push('AI OVERVIEW present — open with a direct, factual 1-2 sentence answer and use clear structured sub-points so the page is easy for AI answers to cite.');
-  if (features.featuredSnippet) parts.push('FEATURED SNIPPET present — include a tight, snippet-style direct answer (40-55 words) or a short ordered/unordered list near the top to win the snippet.');
-  if (features.video)         parts.push('VIDEO results present — consider an embedded or described video element for this topic.');
-  const tag = [
-    features.localPack       && 'Local Pack',
-    features.peopleAlsoAsk   && 'PAA',
-    features.aiOverview      && 'AI Overview',
-    features.featuredSnippet && 'Featured Snippet',
-    features.video           && 'Video',
-  ].filter(Boolean).join(' · ') || null;
-  const directive = parts.length
-    ? `\n\nSERP FEATURE STRATEGY — the live SERP for this keyword shows the features below; tailor the content to win them:\n${parts.map(p => '- ' + p).join('\n')}`
-    : '';
-  return { tag, directive, isLocal: !!features.localPack };
-}
-
-// ── Page-level competitor context ─────────────────────────────────────────────
-// The matrix knows WHICH competitor pages outrank us for each keyword (topDomains:
-// domain + url + rank). Content-gen used to see only a bare keyword. Now we feed
-// the actual competing pages in, so the prompt writes to BEAT specific URLs rather
-// than into a vacuum. Reads the same matrix blob as the SERP map.
-async function loadCompetitorContext(market) {
-  try {
-    const s    = getStore({ name: 'seo-tool', consistency: 'strong', siteID: process.env.NETLIFY_SITE_ID, token: process.env.NETLIFY_AUTH_TOKEN });
-    const key  = `competitorMatrix:${market.brand}:${market.brand}_${market.marketKey}`;
-    const data = await s.get(key, { type: 'json' });
-    const ourRoot = (market.brand === 'pickl' ? 'eatpickl' : 'bonbirdchicken');
-    const map = {};
-    for (const row of (data?.rows || [])) {
-      if (!row?.keyword) continue;
-      const comps = (row.topDomains || [])
-        .filter(d => d.domain && !d.domain.includes(ourRoot) && d.rank <= 10)
-        .sort((a, b) => a.rank - b.rank)
-        .slice(0, 3)
-        .map(d => ({ domain: d.domain, url: d.url || null, rank: d.rank }));
-      if (comps.length) map[row.keyword.toLowerCase().trim()] = comps;
-    }
-    return map;
-  } catch { return {}; }
-}
-
-function competitorBrief(comps) {
-  if (!comps || !comps.length) return { directive: '', list: null };
-  const lines = comps.map(c => `  - #${c.rank} ${c.domain}${c.url ? ` (${c.url})` : ''}`).join('\n');
-  return {
-    list: comps,
-    directive: `\n\nCOMPETITORS TO BEAT — these pages currently rank top-10 for this keyword. Your content must be more useful, specific and complete than theirs (don't copy them — out-cover them):\n${lines}`,
-  };
-}
-
-// ── Cannibalization guard ─────────────────────────────────────────────────────
-// Before creating a NEW page/blog for a keyword, confirm we don't already have a
-// DEDICATED page ranking for it on the property. GSC is the source of truth for
-// what exists + ranks; a second page for the same intent splits authority and the
-// two pages cannibalize each other. Build keyword → ranking pages from the full
-// (whole-property) GSC set, then check for an existing dedicated page.
-function normPage(p) { return p.split('?')[0].split('#')[0].toLowerCase().replace(/\/$/, ''); }
-
-function buildOwnedKeywordMap(rowsWithPages) {
-  const map = {}; // normalized keyword → Set(normalized pageUrl)
-  for (const r of rowsWithPages) {
-    if (!r.keyword || !r.page) continue;
-    const kw = r.keyword.toLowerCase().trim();
-    (map[kw] = map[kw] || new Set()).add(normPage(r.page));
-  }
-  return map;
-}
-
-// Returns an existing dedicated page already ranking for this keyword (other than
-// the page currently surfaced), or null. "Dedicated" = under the market slug with
-// a child segment (mirrors isDedicatedPage), i.e. not the market root/category.
+// WS6: these now DELEGATE to the single content-intelligence brain
+// (_lib/content-pipeline.js) — one copy, shared with the on-demand ⚡Generate path.
+// Signatures preserved (market object in) so the call sites below are unchanged.
+async function loadSerpFeatureMap(market)   { return CP.loadSerpFeatureMap(market.brand, market.marketKey); }
+function serpFeatureBrief(features)         { return CP.serpFeatureBrief(features); }
+async function loadCompetitorContext(market){ return CP.loadCompetitorContext(market.brand, market.marketKey); }
+function competitorBrief(comps)             { return CP.competitorBrief(comps); }
+function normPage(p)                        { return CP.normPage(p); }
+function buildOwnedKeywordMap(rows)         { return CP.buildOwnedKeywordMap(rows); }
 function existingDedicatedPageFor(keyword, currentPage, ownedMap, market) {
-  const pages = ownedMap[keyword.toLowerCase().trim()];
-  if (!pages) return null;
-  const cur  = normPage(currentPage);
-  const slug = market.marketSlug.toLowerCase();
-  for (const p of pages) {
-    if (p === cur) continue;
-    const path = p.replace(/^https?:\/\/[^\/]+/, '');
-    if (path.startsWith(`/${slug}/`) && path.split('/').filter(Boolean).length > 1) return p;
-  }
-  return null;
+  return CP.existingDedicatedPageFor(keyword, currentPage, ownedMap, market.marketSlug);
 }
 
 // ── International keyword opportunities (pos 11-20 → page_update, pos 21-35 → blog_draft) ─────
 async function runMarketKeywordOpportunities(market, brandCtx, brandExamples, force = false, language = 'en') {
-  const BRAND_GSC = { pickl: 'https://eatpickl.com/', bonbird: 'https://bonbirdchicken.com/' };
   const isAr = language !== 'en';                          // ar/ur both surface as Arabic script in GSC
   const scriptMatch = kw => isAr ? /[؀-ۿ]/.test(kw) : !/[؀-ۿ]/.test(kw);
   const langDirective = isAr
@@ -453,7 +364,7 @@ async function runMarketKeywordOpportunities(market, brandCtx, brandExamples, fo
 
   let rowsWithPages;
   try {
-    rowsWithPages = await fetchGscWithPages(BRAND_GSC[market.brand]);
+    rowsWithPages = await fetchGscWithPages(await gscPropertyFor(market.brand));
   } catch (e) {
     console.warn(`${tag} GSC fetch failed: ${e.message}`);
     return { queued: 0, skipped: 'gsc_failed' };
@@ -481,7 +392,7 @@ async function runMarketKeywordOpportunities(market, brandCtx, brandExamples, fo
   const brandPrompt        = buildBrandPrompt(brandCtx, brandExamples);
   const marketCtx          = buildMarketPrompt(market, brandPrompt, language);
   const wp                 = getWpCredentials(market);
-  const brandName          = brandCtx?.name || (market.brand === 'pickl' ? 'Pickl' : 'Bonbird');
+  const brandName          = brandCtx?.name || ((brandCtx?.name || market.brand));
   const voiceFn            = voiceClaudeAdapter(brandName);
   let queued               = 0;
   let pageCreations        = 0;
@@ -504,7 +415,7 @@ async function runMarketKeywordOpportunities(market, brandCtx, brandExamples, fo
     try {
       const sb = serpFeatureBrief(serpMap[r.keyword.toLowerCase().trim()]);
       const cb = competitorBrief(compCtx[r.keyword.toLowerCase().trim()]);
-      const userPrompt = `This ${market.brand === 'pickl' ? 'Pickl' : 'Bonbird'} page ranks position ${r.position.toFixed(1)} for "${r.keyword}" in ${market.label} with ${r.impressions} impressions but isn't on page 1.${langDirective}
+      const userPrompt = `This ${(brandCtx?.name || market.brand)} page ranks position ${r.position.toFixed(1)} for "${r.keyword}" in ${market.label} with ${r.impressions} impressions but isn't on page 1.${langDirective}
 
 PAGE: ${r.page}
 KEYWORD: "${r.keyword}"
@@ -608,7 +519,7 @@ Return ONLY JSON:
 
       if (existingPage) {
         // Dedicated page already exists but ranking poorly — update it, don't create a competing one
-        const userPrompt = `This ${market.brand === 'pickl' ? 'Pickl' : 'Bonbird'} page already exists but ranks at position ${r.position.toFixed(1)} for "${r.keyword}" in ${market.label} — it needs on-page improvements to break into page 1.${langDirective}
+        const userPrompt = `This ${(brandCtx?.name || market.brand)} page already exists but ranks at position ${r.position.toFixed(1)} for "${r.keyword}" in ${market.label} — it needs on-page improvements to break into page 1.${langDirective}
 
 PAGE: ${r.page}
 KEYWORD: "${r.keyword}"
@@ -879,11 +790,11 @@ async function generateBlogDraft(market, brandCtx, brandExamples, language, used
   const isArabic  = language === 'ar';
   const marketCtx = buildMarketPrompt(market, buildBrandPrompt(brandCtx, brandExamples), language);
 
-  const userPrompt = `Write a blog post for ${market.brand === 'pickl' ? 'Pickl' : 'Bonbird'} in ${market.label}.
+  const userPrompt = `Write a blog post for ${(brandCtx?.name || market.brand)} in ${market.label}.
 
 This is NOT generic SEO content. Every sentence must sound unmistakably like the brand — specific, sharp, on-brand.
 
-${market.isNew ? `ANGLE: NEW OPENING — ${market.brand === 'pickl' ? 'Pickl' : 'Bonbird'} just opened in ${market.label} in May 2026. Lead with the energy of a new opening. Make locals feel like they need to go NOW.` : `TARGET KEYWORD: "${primaryKw}"`}
+${market.isNew ? `ANGLE: NEW OPENING — ${(brandCtx?.name || market.brand)} just opened in ${market.label} in May 2026. Lead with the energy of a new opening. Make locals feel like they need to go NOW.` : `TARGET KEYWORD: "${primaryKw}"`}
 
 Language: ${isArabic ? 'Arabic (local dialect — NOT Modern Standard Arabic)' : 'English'}
 
@@ -931,7 +842,7 @@ Return EXACTLY this structure:
   // Brand voice gate — hard-strip, score, fix if <8, reject if still <8 after fix
   if (result.content) {
     result.content = hardStripBannedTokens(result.content);
-    const voiceFn = voiceClaudeAdapter(brandCtx?.name || (market.brand === 'pickl' ? 'Pickl' : 'Bonbird'));
+    const voiceFn = voiceClaudeAdapter(brandCtx?.name || ((brandCtx?.name || market.brand)));
     let voiceCheck = await runBrandVoiceCheck(result.content, brandCtx, voiceFn).catch(() => ({ score: 6, verdict: 'PASS', issues: [] }));
     if (voiceCheck.score < 8) {
       const fixed = await fixBrandVoice(result.content, voiceCheck, brandCtx, voiceFn, brandExamples, feedbackNotes);
@@ -954,7 +865,7 @@ Return EXACTLY this structure:
 async function fetchPageText(market, language) {
   try {
     const slug   = language === 'ar' && market.arabicSlug ? market.arabicSlug : market.marketSlug;
-    const prefix = market.wpBrand === 'pickl' ? 'WP_PICKL' : 'WP_BONBIRD';
+    const prefix = `WP_${String(market.wpBrand || market.brand).toUpperCase()}`;
     const wpBase = process.env[`${prefix}_BASE`];
     const wpUser = process.env[`${prefix}_USER`];
     const wpPass = process.env[`${prefix}_APP_PASS`];
@@ -1006,7 +917,7 @@ ${page.text}
     pageContentBlock = `Note: This page does not exist in WordPress yet (URL: ${pageUrl}). Provide guidance on what the page SHOULD contain when built — target keywords, H1 structure, and content outline.`;
   }
 
-  const userPrompt = `Analyse the ${market.brand === 'pickl' ? 'Pickl' : 'Bonbird'} ${market.label} landing page and provide one specific, actionable on-page SEO improvement.
+  const userPrompt = `Analyse the ${(brandCtx?.name || market.brand)} ${market.label} landing page and provide one specific, actionable on-page SEO improvement.
 
 URL: ${pageUrl}
 Language: ${isArabic ? 'Arabic (local dialect)' : 'English'}
@@ -1178,7 +1089,7 @@ async function runMarketPageMetaSweep(market, brandCtx, brandExamples, language,
     ? '- Title: 45-58 characters\n- Description: 120-150 characters — write ONE or TWO COMPLETE sentences that END with a full stop. Do NOT exceed 150. Never trail off mid-thought.'
     : '- Title: 45-58 characters\n- Description: 135-152 characters — write ONE or TWO COMPLETE sentences that END with a full stop. Count characters; do NOT exceed 152. Never trail off mid-thought (no ending like "...in five heat").';
 
-  const userPrompt = `You are auditing ${market.brand === 'pickl' ? 'Pickl' : 'Bonbird'} ${market.label} pages. For EACH page, decide if the current meta is already good OR genuinely needs improvement.
+  const userPrompt = `You are auditing ${(brandCtx?.name || market.brand)} ${market.label} pages. For EACH page, decide if the current meta is already good OR genuinely needs improvement.
 
 Only propose a replacement if the current meta is vague, generic, missing, or doesn't reflect what the page is about. If it's already specific and on-brand — set "skip": true.
 ${isAr ? '\nWrite all titles/descriptions in Gulf Arabic dialect (NOT Modern Standard Arabic). Never translate brand or menu item names.\n' : ''}
@@ -1187,10 +1098,10 @@ ${charRule}
 - Only reference REAL menu items: ${menuItems || 'use items from brand context'}
 ${spiceSystem ? `- ONLY use the brand's actual spice/heat system: ${spiceSystem} — NEVER invent heat levels\n` : ''}- No generic phrases ("great food", "delicious", "best in ${market.label}", "quality ingredients")
 - Write specifically about what THIS page is about — the slug tells you (e.g. "franchise-${market.marketKey}" = franchising page; "${market.marketKey}-locations" = locations page; "${market.marketKey}-contact" = contact page). Do NOT write generic landing-page meta for a franchise or contact page.
-- The TITLE must contain the page-type keyword + the brand + market — e.g. a contact page → "Contact ${market.brand === 'pickl' ? 'Pickl' : 'Bonbird'} ${market.label}" (${isAr ? 'تواصل مع' : 'Contact'}); a franchise page → "${isAr ? 'امتياز' : 'Franchise'}"; a locations page → "${isAr ? 'فروع' : 'Locations'}". A clever hook is fine, but the keyword must be present.
+- The TITLE must contain the page-type keyword + the brand + market — e.g. a contact page → "Contact ${(brandCtx?.name || market.brand)} ${market.label}" (${isAr ? 'تواصل مع' : 'Contact'}); a franchise page → "${isAr ? 'امتياز' : 'Franchise'}"; a locations page → "${isAr ? 'فروع' : 'Locations'}". A clever hook is fine, but the keyword must be present.
 - PLAIN TEXT ONLY — no markdown, asterisks, bold (**), underscores, backticks, or any formatting characters in the title or description.
 - The description MUST be a complete sentence within the character range — never cut it off mid-thought.
-- LOCATIONS BY PAGE TYPE: journal/blog, about, franchise, events and other brand pages must speak to the WHOLE ${market.label} brand — do NOT anchor them to one outlet (a journal is ${market.brand === 'pickl' ? 'Pickl' : 'Bonbird'}'s ${market.label} stories, NOT "Al Aali Mall's spot"). Only locations/contact pages should foreground specific outlet names, and they must list outlets as SEPARATE places ("X and Y", never "X, Y" which reads as one address).
+- LOCATIONS BY PAGE TYPE: journal/blog, about, franchise, events and other brand pages must speak to the WHOLE ${market.label} brand — do NOT anchor them to one outlet (a journal is ${(brandCtx?.name || market.brand)}'s ${market.label} stories, NOT "Al Aali Mall's spot"). Only locations/contact pages should foreground specific outlet names, and they must list outlets as SEPARATE places ("X and Y", never "X, Y" which reads as one address).
 - Lead with the page's primary keyword, end with a reason to click${feedbackNotes.length ? `
 
 HUMAN FEEDBACK — NEVER do any of the following (explicitly rejected by the team):
@@ -1226,7 +1137,7 @@ Return ONLY a JSON array — one object per page:
 
   // 5. Per-page: skip / voice-gate / dedup / queue. Record EVERY decision + reason
   //    so the run is auditable (read via the sweep-report endpoint) — no log-hunting.
-  const voiceFn       = voiceClaudeAdapter(brandCtx?.name || (market.brand === 'pickl' ? 'Pickl' : 'Bonbird'));
+  const voiceFn       = voiceClaudeAdapter(brandCtx?.name || ((brandCtx?.name || market.brand)));
   const queuedMetaMap = await getQueuedMetaMap(market.brand);
   let queued = 0, skipped = 0;
   const decisions = [];
@@ -1487,10 +1398,9 @@ async function processMarketLanguage(store, marketKey, market, language, force =
 
     // Fetch GSC data for this brand to look up existing positions/impressions per keyword
     // International market pages share the same GSC property as the main site
-    const BRAND_GSC = { pickl: 'https://eatpickl.com/', bonbird: 'https://bonbirdchicken.com/' };
-    let gscMap = {}; // keyword.toLowerCase() → { position, impressions }
+      let gscMap = {}; // keyword.toLowerCase() → { position, impressions }
     try {
-      const gscRows = await fetchGscDirect(BRAND_GSC[market.brand] || BRAND_GSC.pickl);
+      const gscRows = await fetchGscDirect(await gscPropertyFor(market.brand));
       for (const row of gscRows) {
         if (row.keyword) gscMap[row.keyword.toLowerCase()] = { position: row.position, impressions: row.impressions };
       }
@@ -1678,21 +1588,20 @@ exports.handler = async (event) => {
   const onlyMetaOnPage = onlyParam === 'meta,onpage' || onlyParam === 'onpage,meta' || onlyParam === 'meta';
   const skipOnPage     = onlyParam === 'meta'; // meta-only: skip on-page suggestions
 
-  // Determine which markets to run
+  // Determine which markets to run (config-driven; Blobs-onboarded markets included).
+  // marketParam can be 'all', a market key (pickl_bahrain), or a brand slug (pickl).
   let marketsToRun = {};
   if (marketParam === 'all') {
-    marketsToRun = INTERNATIONAL_MARKETS;
-  } else if (marketParam === 'pickl') {
-    marketsToRun = getMarketsForBrand('pickl');
-  } else if (marketParam === 'bonbird') {
-    marketsToRun = getMarketsForBrand('bonbird');
-  } else if (INTERNATIONAL_MARKETS[marketParam]) {
-    marketsToRun = { [marketParam]: INTERNATIONAL_MARKETS[marketParam] };
+    marketsToRun = await getMarketsMapAsync();
   } else {
-    return {
-      statusCode: 400,
-      body: JSON.stringify({ error: `Unknown market: ${marketParam}` }),
-    };
+    const one = await getMarketAsync(marketParam);
+    if (one) {
+      marketsToRun = { [marketParam]: one };
+    } else {
+      const byBrand = await getMarketsForBrandAsync(marketParam); // treat param as a brand slug
+      if (Object.keys(byBrand).length) marketsToRun = byBrand;
+      else return { statusCode: 400, body: JSON.stringify({ error: `Unknown market or brand: ${marketParam}` }) };
+    }
   }
 
   const results = {};

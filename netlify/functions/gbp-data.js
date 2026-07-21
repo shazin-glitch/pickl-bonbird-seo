@@ -14,6 +14,7 @@
 //   each location's v4 resource name from the account it was listed under.
 
 const { getStore } = require('@netlify/blobs');
+const { getBrands } = require('./_lib/brands-config');
 
 const ACCOUNT_MGMT_BASE = 'https://mybusinessaccountmanagement.googleapis.com/v1';
 const BIZ_INFO_BASE     = 'https://mybusinessbusinessinformation.googleapis.com/v1';
@@ -97,6 +98,9 @@ exports.handler = async (event) => {
     const readMask = encodeURIComponent('name,title,storefrontAddress,phoneNumbers,websiteUri,regularHours,metadata,profile');
     const allLocations = [];
     let locError = null;
+    // Config-driven brand tagging so a newly onboarded brand's GBP locations get
+    // matched by its slug/name/brandTerms in the listing title (not just pickl/bonbird).
+    const brandDefs = await getBrands();
     for (const account of accounts.slice(0, 10)) {
       try {
         let pageToken = '';
@@ -110,7 +114,7 @@ exports.handler = async (event) => {
             break;
           }
           for (const loc of locData.locations || []) {
-            allLocations.push(parseLocation(loc, account.name));
+            allLocations.push(parseLocation(loc, account.name, brandDefs));
           }
           pageToken = locData.nextPageToken || '';
         } while (pageToken);
@@ -241,7 +245,7 @@ exports.handler = async (event) => {
   }
 };
 
-function parseLocation(loc, accountName) {
+function parseLocation(loc, accountName, brandDefs = []) {
   const address = [
     ...(loc.storefrontAddress?.addressLines || []),
     loc.storefrontAddress?.locality,
@@ -258,7 +262,14 @@ function parseLocation(loc, accountName) {
 
   const title = loc.title || loc.name?.split('/').pop() || 'Location';
   const tl    = title.toLowerCase();
-  const brand = tl.includes('pickl') ? 'pickl' : tl.includes('bonbird') ? 'bonbird' : null;
+  // Tag by matching the location title against each configured brand's
+  // slug / name / brandTerms. null if none match.
+  const matched = brandDefs.find(bd => {
+    const needles = [bd.slug, bd.name, ...(bd.brandTerms || [])]
+      .filter(Boolean).map(x => String(x).toLowerCase());
+    return needles.some(n => n && tl.includes(n));
+  });
+  const brand = matched ? matched.slug : null;
 
   // Build the v4 resource name: "accounts/{id}/locations/{id}". The Business
   // Information API returns loc.name as "locations/{id}" (no account prefix),

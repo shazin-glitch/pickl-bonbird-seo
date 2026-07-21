@@ -13,6 +13,7 @@
 const { getStore } = require('@netlify/blobs');
 const { newId, ok, bad, preflight, parseBody, CORS } = require('./_lib/store');
 const { authorize, denied, internalHeaders } = require('./_lib/auth');
+const { getBrandSlugs } = require('./_lib/brands-config');
 
 const SITE_URL = process.env.URL || 'https://yolkseo.netlify.app';
 
@@ -102,7 +103,7 @@ exports.handler = async (event) => {
     // List — pending_my_approval shortcut for badge count
     if (q.pending_approver) {
       const email = q.pending_approver;
-      const allBrands = ['pickl', 'bonbird', 'yolk', 'southpour', 'shadowburg', 'shadowbird'];
+      const allBrands = await getBrandSlugs();
       let total = 0;
       for (const brand of allBrands) {
         const ids   = await getIndex(s, brand);

@@ -9,30 +9,9 @@
 // Cost: ~$0.002-0.005 per domain query
 
 const { getStore } = require('@netlify/blobs');
+const { getBrand, getBrandSlugs } = require('./_lib/brands-config');
 
 const DATAFORSEO_BASE = 'https://api.dataforseo.com/v3';
-
-// Domains to track per brand
-const BRAND_DOMAINS = {
-  pickl: {
-    own: 'eatpickl.com',
-    competitors: [
-      { domain: 'salt.ae', label: 'Salt' },
-      { domain: 'highjoint.ae', label: 'High Joint' },
-      { domain: 'shakeshack.com', label: 'Shake Shack' },
-      { domain: 'fiveguys.ae', label: 'Five Guys' },
-    ],
-  },
-  bonbird: {
-    own: 'bonbirdchicken.com',
-    competitors: [
-      { domain: 'raisingcanes.com', label: "Raising Cane's" },
-      { domain: 'kfc.com', label: 'KFC' },
-      { domain: 'popeyes.com', label: 'Popeyes' },
-      { domain: 'daves-hot-chicken.com', label: "Dave's Hot Chicken" },
-    ],
-  },
-};
 
 const CACHE_TTL_MS = 24 * 60 * 60 * 1000; // 24 hours
 
@@ -143,8 +122,12 @@ function computeDelta(current, previous) {
 
 // ── Full brand refresh ────────────────────────────────────────────────────────
 async function refreshBrand(brand, store, authHeader) {
-  const config = BRAND_DOMAINS[brand];
-  if (!config) throw new Error(`Unknown brand: ${brand}`);
+  const b = await getBrand(brand);
+  if (!b) throw new Error(`Unknown brand: ${brand}`);
+  const config = {
+    own: b.ownDomain,
+    competitors: (b.competitors || []).map(c => ({ domain: c.domain, label: c.name })),
+  };
 
   const results = {};
 
@@ -231,7 +214,7 @@ exports.handler = async (event) => {
     // ── GET: return cached data ──────────────────────────────────────────────
     if (event.httpMethod === 'GET') {
       const brandParam = event.queryStringParameters?.brand || 'all';
-      const brands     = brandParam === 'all' ? ['pickl', 'bonbird'] : [brandParam];
+      const brands     = brandParam === 'all' ? await getBrandSlugs() : [brandParam];
       const result     = {};
 
       for (const brand of brands) {
@@ -256,7 +239,7 @@ exports.handler = async (event) => {
       if (action !== 'refresh') {
         return { statusCode: 400, headers, body: JSON.stringify({ error: 'Unknown action' }) };
       }
-      if (!brand || !BRAND_DOMAINS[brand]) {
+      if (!brand || !(await getBrand(brand))) {
         return { statusCode: 400, headers, body: JSON.stringify({ error: 'Invalid brand' }) };
       }
 

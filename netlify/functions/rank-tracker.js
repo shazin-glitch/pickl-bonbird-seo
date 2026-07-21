@@ -46,7 +46,7 @@ exports.handler = async (event) => {
       const { keywords, summary } = buildView(set, history, kw => isBrandedQuery(kw, brandCtx));
       return json(200, {
         brand, market,
-        markets: marketsForBrand(brand),
+        markets: await marketsForBrand(brand),
         keywords, summary,
         seededAt: set.seededAt || null,
         updatedAt: set.updatedAt || null,

@@ -14,6 +14,7 @@
 
 const { getStore } = require('@netlify/blobs');
 const { authorizeJob, internalHeaders } = require('./_lib/auth');
+const { getBrandSlugs } = require('./_lib/brands-config');
 
 const SITE_URL = process.env.URL || 'https://yolkseo.netlify.app';
 
@@ -87,7 +88,7 @@ exports.handler = async (event) => {
   console.log(`[snapshots] Starting — ${new Date().toISOString()}`);
   const dateKey = new Date().toISOString().split('T')[0];
   const qs      = event.queryStringParameters || {};
-  const brands  = qs.brand ? [qs.brand] : ['pickl', 'bonbird'];
+  const brands  = qs.brand ? [qs.brand] : await getBrandSlugs();
 
   const results = {};
   for (const brand of brands) {

@@ -14,26 +14,18 @@
 
 const { getSetting, setSetting, newId, logAudit } = require('./_lib/store');
 const { authorizeJob } = require('./_lib/auth');
+const { getBrand, wpCredentialsFor } = require('./_lib/brands-config');
 const { INTERNATIONAL_MARKETS } = require('./_lib/international-config');
-
-const BRAND_DOMAINS = {
-  pickl:   'https://eatpickl.com',
-  bonbird: 'https://bonbirdchicken.com',
-};
-
-const BRAND_WP = {
-  pickl:   { base: 'WP_PICKL_BASE',   user: 'WP_PICKL_USER',   pass: 'WP_PICKL_APP_PASS' },
-  bonbird: { base: 'WP_BONBIRD_BASE', user: 'WP_BONBIRD_USER', pass: 'WP_BONBIRD_APP_PASS' },
-};
 
 exports.handler = async (event) => {
   const _job = await authorizeJob(event);
   if (!_job.ok) return { statusCode: 401, headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ error: 'Not authenticated' }) };
   let brand;
   try { brand = JSON.parse(event.body || '{}').brand; } catch { brand = null; }
-  if (!brand || !BRAND_DOMAINS[brand]) return;
+  const brandCfg = brand ? await getBrand(brand) : null;
+  if (!brandCfg) return;
 
-  const domain = BRAND_DOMAINS[brand];
+  const domain = brandCfg.domain;
 
   const audit = {
     brand,
@@ -143,10 +135,7 @@ async function getCorePages(brand, domain) {
   const priorityUrls  = new Set(priorityPages.map(p => p.url));
   const pages         = [...priorityPages];
 
-  const envKeys = BRAND_WP[brand];
-  const wpBase  = process.env[envKeys.base];
-  const wpUser  = process.env[envKeys.user];
-  const wpPass  = process.env[envKeys.pass];
+  const { base: wpBase, user: wpUser, pass: wpPass } = await wpCredentialsFor(brand);
 
   if (wpBase && wpUser && wpPass) {
     try {
@@ -157,7 +146,7 @@ async function getCorePages(brand, domain) {
       );
       const wpPages = await res.json();
       if (Array.isArray(wpPages)) {
-        const gscSiteUrl = brand === 'pickl' ? 'https://eatpickl.com/' : 'sc-domain:bonbirdchicken.com';
+        const gscSiteUrl = brandCfg.gscProperty;
         const gscCache   = await getSetting('gscPageCache:' + gscSiteUrl).catch(() => null);
         const impMap     = {};
         for (const row of (gscCache?.rows || [])) {

@@ -11,21 +11,18 @@
 
 const { getStore } = require('@netlify/blobs');
 const { listApprovals } = require('./_lib/store');
+const { getBrand, getBrandSlugs } = require('./_lib/brands-config');
 
 const RESEND_API = 'https://api.resend.com/emails';
 
-const BRAND_CONFIG = {
-  pickl:   { name: 'Pickl',   gscKey: 'gscCache:https://eatpickl.com/',            color: '#f59e0b' },
-  bonbird: { name: 'Bonbird', gscKey: 'gscCache:sc-domain:bonbirdchicken.com',      color: '#ef4444' },
-};
-
 async function buildDigestData(brand, store) {
-  const cfg = BRAND_CONFIG[brand];
+  const b   = await getBrand(brand);
+  const cfg = { name: b.name, gscKey: `gscCache:${b.gscProperty}`, color: b.color };
 
   // GSC data
   const gscCache = await store.get(cfg.gscKey, { type: 'json' }).catch(() => null);
   const rows     = gscCache?.rows || [];
-  const BRAND_TERMS = brand === 'pickl' ? ['pickl'] : ['bonbird'];
+  const BRAND_TERMS = b.brandTerms;
   const nonBranded = rows.filter(r => r.keyword && !BRAND_TERMS.some(t => r.keyword.toLowerCase().includes(t)));
 
   const top10     = nonBranded.filter(r => r.position <= 10).length;
@@ -155,7 +152,7 @@ exports.handler = async (event) => {
   const body    = JSON.parse(event.body || '{}');
   const to      = body.to || process.env.DIGEST_TO_EMAIL || 'shazin@yolkbrands.com';
   const from    = process.env.DIGEST_FROM_EMAIL || 'digest@yolkbrands.com';
-  const brands  = ['pickl', 'bonbird'];
+  const brands  = await getBrandSlugs();
 
   try {
     const brandData = await Promise.all(brands.map(b => buildDigestData(b, store)));

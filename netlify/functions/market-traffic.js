@@ -19,9 +19,10 @@
 
 const { getStore } = require('@netlify/blobs');
 const { getGscAccessToken, fetchGscPageOnly, fetchGscPageQuery } = require('./_lib/gsc');
-const { INTERNATIONAL_MARKETS, marketForUrl } = require('./_lib/international-config');
+const { INTERNATIONAL_MARKETS, marketForUrl, getMarketsMapAsync, marketForUrlAsync } = require('./_lib/international-config');
 const { getBrandContext, isBrandedQuery } = require('./_lib/brand');
 const { authorize, denied } = require('./_lib/auth');
+const { gscPropertyFor } = require('./_lib/brands-config');
 
 const CORS = {
   'Access-Control-Allow-Origin':  '*',
@@ -39,7 +40,8 @@ exports.handler = async (event) => {
 
   const qs    = event.queryStringParameters || {};
   const brand = qs.brand || 'pickl';
-  const site  = brand === 'pickl' ? 'https://eatpickl.com/' : 'sc-domain:bonbirdchicken.com';
+  const site  = await gscPropertyFor(brand);
+  if (!site) return { statusCode: 400, headers: { ...CORS, 'Content-Type': 'application/json' }, body: JSON.stringify({ error: `Unknown brand: ${brand}` }) };
 
   // Date window: explicit range wins (both must be valid YYYY-MM-DD), else last 28 days.
   const hasRange = DATE_RE.test(qs.startDate || '') && DATE_RE.test(qs.endDate || '');
@@ -66,7 +68,8 @@ exports.handler = async (event) => {
     const agg = {}; // key → { total, branded, nonBranded }
     const seed = (k) => { if (!agg[k]) agg[k] = { total: blank(), branded: blank(), nonBranded: blank() }; };
     seed('uae');
-    for (const [key, m] of Object.entries(INTERNATIONAL_MARKETS)) if (m.brand === brand) seed(key);
+    const intlMarketsMap = await getMarketsMapAsync();
+    for (const [key, m] of Object.entries(intlMarketsMap)) if (m.brand === brand) seed(key);
 
     const add = (bucket, r) => {
       bucket.clicks      += r.clicks || 0;
@@ -77,14 +80,14 @@ exports.handler = async (event) => {
 
     // TOTAL — from the accurate page-only pull.
     for (const r of (pageOnly.rows || [])) {
-      const key = marketForUrl(r.page, brand);
+      const key = await marketForUrlAsync(r.page, brand);
       seed(key);
       add(agg[key].total, r);
     }
 
     // BRANDED / NON-BRANDED — from the page+query pull, classified per query.
     for (const r of (pageQuery.rows || [])) {
-      const key = marketForUrl(r.page, brand);
+      const key = await marketForUrlAsync(r.page, brand);
       seed(key);
       add(isBrandedQuery(r.keyword, brandCtx) ? agg[key].branded : agg[key].nonBranded, r);
     }
@@ -95,8 +98,8 @@ exports.handler = async (event) => {
       avgPosition: b.impressions ? Math.round((b.posWeighted / b.impressions) * 10) / 10 : null,
       pages: b.pages.size,
     });
-    const label = (k) => k === 'uae' ? 'UAE' : (INTERNATIONAL_MARKETS[k]?.label || k);
-    const flag  = (k) => k === 'uae' ? '🇦🇪' : (INTERNATIONAL_MARKETS[k]?.flag || '🌍');
+    const label = (k) => k === 'uae' ? 'UAE' : (intlMarketsMap[k]?.label || k);
+    const flag  = (k) => k === 'uae' ? '🇦🇪' : (intlMarketsMap[k]?.flag || '🌍');
 
     const markets = Object.entries(agg).map(([key, a]) => ({
       key, label: label(key), flag: flag(key),

@@ -18,10 +18,11 @@
 const { getStore }        = require('@netlify/blobs');
 const { getBrandContext, isBrandedQuery } = require('./_lib/brand');
 const { callClaude, extractJson } = require('./_lib/store');
-const { INTERNATIONAL_MARKETS, getMarketPageTokens } = require('./_lib/international-config');
+const { INTERNATIONAL_MARKETS, getMarketPageTokens, getMarketAsync, getMarketsMapAsync } = require('./_lib/international-config');
 const { resolveLocation } = require('./_lib/dfs-locations');
 const { enrichKeywordsMixed } = require('./_lib/keyword-metrics');
 const { getGscAccessToken, fetchGscPageQuery } = require('./_lib/gsc');
+const { getBrand, getBrandSlugs, gscPropertyFor, ownDomainFor, relevanceConfigFor } = require('./_lib/brands-config');
 
 const DATAFORSEO_BASE = 'https://api.dataforseo.com/v3';
 
@@ -96,28 +97,36 @@ const RELEVANT_ROOTS = [
   // UR (Pakistan) — mostly English used, plus a couple of native roots
   'برگر', 'چکن', 'فرائز',
 ];
-function isRelevantKeyword(kw) {
+// VERTICAL-AWARE (CLAUDE.md #12): the relevance roots + off-menu blocklist now come
+// from the brand's vertical (restaurant/cafe/corporate) via brands-config, not the
+// hardcoded burger/chicken lists below. A café brand keeps coffee terms; a corporate
+// brand has an EMPTY roots list (no positive category gate — rely on brand terms +
+// the Claude filter). The RELEVANT_ROOTS / OFF_MENU_DISHES literals above remain the
+// restaurant default (VERTICALS.restaurant mirrors them).
+//   rel = { relevantRoots:[...], offMenu:[...] }  (from relevanceConfigFor(brand))
+function isRelevantKeyword(kw, rel) {
+  const roots = (rel && rel.relevantRoots) || RELEVANT_ROOTS;
+  if (!roots.length) return true;               // no positive gate (corporate)
   const s = String(kw || '').toLowerCase();
-  return RELEVANT_ROOTS.some(root => s.includes(root));
+  return roots.some(root => s.includes(root));
 }
 
-// Keep a keyword only if it (a) carries an on-category product/food root AND
-// (b) contains no off-menu/off-brand term. Positive gate + negative blocklist.
-function applyStaticFilter(keywords) {
+// Keep a keyword only if it (a) carries an on-category root (unless the vertical has
+// none) AND (b) contains no off-menu/off-brand term. Positive gate + negative blocklist.
+function applyStaticFilter(keywords, rel) {
+  const offMenu = (rel && rel.offMenu) || OFF_MENU_DISHES;
   return keywords.filter(k => {
     const kw = k.keyword.toLowerCase();
-    if (!isRelevantKeyword(kw)) return false;                 // must be on-category
-    return !OFF_MENU_DISHES.some(term => kw.includes(term));  // and not off-menu/off-brand
+    if (!isRelevantKeyword(kw, rel)) return false;         // must be on-category
+    return !offMenu.some(term => kw.includes(term));       // and not off-menu/off-brand
   });
 }
 
 // Scalar form of applyStaticFilter — used to gate GSC organic candidates too.
-// GSC was previously un-gated ("never drop what we rank for"), but live validation
-// showed our pages accidentally rank for off-category terms (wok/public/lettuce) —
-// so an opportunity for a burger/chicken brand must still carry a food-category root.
-function passesStaticRelevance(kw) {
+function passesStaticRelevance(kw, rel) {
+  const offMenu = (rel && rel.offMenu) || OFF_MENU_DISHES;
   const s = String(kw || '').toLowerCase();
-  return isRelevantKeyword(s) && !OFF_MENU_DISHES.some(term => s.includes(term));
+  return isRelevantKeyword(s, rel) && !offMenu.some(term => s.includes(term));
 }
 
 // ── DataForSEO keyword ideas ──────────────────────────────────────────────────
@@ -205,7 +214,7 @@ async function getKeywordIdeas(seeds, locationCode, authHeader, minVolume = 10, 
 // Sends all keywords to Claude in one batch — model understands brand context and
 // filters out irrelevant keywords (wrong cuisine, competitor brand names, unrelated
 // businesses) far more reliably than a static list ever could.
-async function filterKeywordsWithClaude(allKeywords, brandName, brandCtx, marketLabel = 'UAE') {
+async function filterKeywordsWithClaude(allKeywords, brandName, brandCtx, marketLabel = 'UAE', rel = null) {
   if (!allKeywords.length) return allKeywords;
 
   // Batch so large sets (esp. full Arabic batches) aren't dropped wholesale in a
@@ -215,7 +224,7 @@ async function filterKeywordsWithClaude(allKeywords, brandName, brandCtx, market
   if (allKeywords.length > BATCH) {
     const out = [];
     for (let i = 0; i < allKeywords.length; i += BATCH) {
-      const part = await filterKeywordsWithClaude(allKeywords.slice(i, i + BATCH), brandName, brandCtx, marketLabel);
+      const part = await filterKeywordsWithClaude(allKeywords.slice(i, i + BATCH), brandName, brandCtx, marketLabel, rel);
       out.push(...part);
     }
     console.log(`[kw-discovery] Claude filter (batched): ${allKeywords.length} → ${out.length} keywords`);
@@ -223,29 +232,23 @@ async function filterKeywordsWithClaude(allKeywords, brandName, brandCtx, market
   }
   const keywords = allKeywords;
 
+  // VERTICAL-AWARE: describe the business + what it sells from the vertical +
+  // brand menu, NOT hardcoded burger/chicken framing — so a café/corporate brand
+  // isn't told to keep only "food/restaurant" keywords.
+  const promptNoun  = (rel && rel.promptNoun) || 'restaurant';
   const menuSummary = Object.entries(brandCtx?.menu || {})
     .map(([cat, items]) => `${cat}: ${Array.isArray(items) ? items.join(', ') : items}`)
-    .join('; ') || 'burgers and chicken';
+    .join('; ') || (rel && rel.menuSummary) || 'burgers and chicken';
 
   const kwList = keywords.map((k, i) => `${i + 1}. ${k.keyword}`).join('\n');
 
-  const isPickl   = brandName.toLowerCase() === 'pickl';
-  const offMenu   = isPickl
-    ? 'butter chicken, biryani, shawarma, pizza, pasta, sushi, coffee, cheesecake, bakery items, Indian food, Middle Eastern food not on menu'
-    : 'burgers (we sell chicken, not burgers), pizza, pasta, shawarma, sushi, coffee, biryani, butter chicken, kung pao, tikka masala, curry dishes, bakery items';
+  const prompt = `You are filtering keyword research results for ${brandName}, a ${promptNoun} operating in ${marketLabel}.
 
-  const prompt = `You are filtering keyword research results for ${brandName}, a restaurant operating in ${marketLabel}.
+What ${brandName} sells / is about: ${menuSummary}
 
-What ${brandName} sells: ${menuSummary}
+Below are ${keywords.length} keywords. Return ONLY the numbers of keywords that are CATEGORY or INTENT searches — where someone is looking for the kind of thing ${brandName} actually offers (see above). This is a ${marketLabel} market, so local-language (e.g. Arabic) category searches are valid and should be KEPT.
 
-Below are ${keywords.length} keywords. Return ONLY the numbers of keywords that are CATEGORY or INTENT searches — where someone is looking for a TYPE of food or restaurant that ${brandName} actually sells. This is a ${marketLabel} market, so local-language (e.g. Arabic) category searches are valid and should be KEPT.
-
-KEEP examples:
-- "best burger in dubai" ✓ (category search — Pickl sells burgers)
-- "smash burger dubai" ✓ (food type Pickl sells)
-- "fried chicken restaurant dubai" ✓ (category search — Bonbird sells fried chicken)
-- "crispy chicken delivery dubai" ✓ (Bonbird food type + intent)
-- "برغر" / "أفضل برغر" / "دجاج مقلي" / "مطعم برغر" ✓ (Arabic category searches for food the brand sells — KEEP these)
+KEEP: category and intent searches that match what ${brandName} sells/offers (in ANY language spoken in ${marketLabel}). Keep distinct phrasings and local-language variants of a real category as SEPARATE keywords — do not treat them as duplicates.
 
 REJECT — competitor brand names (most important rule):
 - "dime burger" ✗ (Dime Burger is a UAE restaurant chain)
@@ -257,8 +260,7 @@ REJECT — competitor brand names (most important rule):
 - "nandos" / "kfc" / "mcdonald" / "starbucks" ✗ (brand names)
 - Any phrase where a word or two-word combo is a specific restaurant/chain name — when in doubt, reject
 
-REJECT — food not on ${brandName}'s menu:
-${offMenu}
+REJECT — anything outside what ${brandName} offers (see "What ${brandName} sells / is about" above): a product, category or cuisine the brand does not sell is not an opportunity.
 
 REJECT — wrong intent or too generic:
 - "recipes" / "how to make" / "calories in" ✗ (informational, no restaurant intent)
@@ -379,9 +381,12 @@ const BRAND_TERMS = {
   pickl:   ['pick', 'بيك', 'بيكل', 'بكل', 'بيكلز'],
   bonbird: ['bonbird', 'bon bird', 'بونبيرد', 'بون بيرد'],
 };
-function isOwnBrandKeyword(kw, brand) {
+// ownTerms (optional) lets a config brand pass its own branded terms so a NEW brand
+// still drops its navigational queries (BRAND_TERMS only knows pickl/bonbird).
+function isOwnBrandKeyword(kw, brand, ownTerms) {
   const s = String(kw || '').toLowerCase();
-  return (BRAND_TERMS[brand] || []).some(t => s.includes(t));
+  const terms = (ownTerms && ownTerms.length) ? ownTerms : (BRAND_TERMS[brand] || []);
+  return terms.some(t => s.includes(t));
 }
 
 // Does a ranking URL belong to a market? Whole-segment token match (handles the
@@ -648,15 +653,20 @@ function longTermReason(opp, cfg) {
 // ── Main discovery per brand (optionally per market) ─────────────────────────
 async function discoverKeywords(brand, store, authHeader, force = false, marketKey = null) {
   const isIntl   = marketKey && marketKey !== 'uae';
-  const market   = isIntl ? INTERNATIONAL_MARKETS[marketKey] : null;
+  const market   = isIntl ? await getMarketAsync(marketKey) : null;
   const tag      = isIntl ? `[kw-discovery/${brand}/${marketKey}]` : `[kw-discovery/${brand}]`;
   const storeKey = isIntl ? `keywordOpportunities:${brand}:${marketKey}` : `keywordOpportunities:${brand}`;
   console.log(`${tag} starting discovery`);
 
   const brandCtx = await getBrandContext(brand);
-  const brandName = brand.charAt(0).toUpperCase() + brand.slice(1);
+  const brandCfg = await getBrand(brand);
+  const brandName = brandCfg?.name || (brand.charAt(0).toUpperCase() + brand.slice(1));
+  // Vertical relevance config (restaurant/cafe/corporate) — drives every static
+  // filter + the generic seeds so a café/corporate brand isn't gated on food roots.
+  const rel = await relevanceConfigFor(brand);
+  const ownBrandTerms = BRAND_TERMS[brand] || [...(brandCfg?.brandedTerms || []), brand, (brandCfg?.name || '').toLowerCase()].filter(Boolean);
 
-  // For international: use market seed keywords + brand-appropriate generic seeds
+  // For international: use market seed keywords + vertical-appropriate generic seeds
   // NOTE: marketLabel/locationCode declared BEFORE brandGenericSeeds — they are
   // referenced inside the template literals below (TDZ crash if declared after).
   const marketLabel   = isIntl ? market.label : 'UAE';
@@ -665,9 +675,9 @@ async function discoverKeywords(brand, store, authHeader, force = false, marketK
     ? await resolveLocation(market.label)
     : { code: MARKET_LOCATIONS.UAE, languages: ['en'], supported: true, inCache: true };
   const locationCode = loc.code || (isIntl ? market.location_code : MARKET_LOCATIONS.UAE);
-  const brandGenericSeeds = brand === 'pickl'
-    ? [`best burger in ${marketLabel}`, `burger restaurant ${marketLabel}`, `smash burger ${marketLabel}`]
-    : [`best fried chicken in ${marketLabel}`, `fried chicken restaurant ${marketLabel}`, `crispy chicken ${marketLabel}`];
+  // Generic market seeds come from the VERTICAL (config-driven), not a pickl/bonbird
+  // ternary — so Southpour gets coffee seeds and Yolk gets corporate seeds.
+  const brandGenericSeeds = rel.seeds(marketLabel);
 
   // ── "What we rank for" — market-attributed via the ranking URL ───────────────
   // PRIMARY source = first-party GSC page+query (Google's own numbers, free, covers
@@ -676,10 +686,10 @@ async function discoverKeywords(brand, store, authHeader, force = false, marketK
   // NOT an intl page). Brand-navigational queries dropped — not opportunities.
   // FALLBACK = Labs own-domain ranked_keywords, only if GSC yields nothing for the
   // market (GSC not connected, or no local pages with impressions).
-  const ownDomain = OWN_DOMAINS[brand];
-  const siteUrl   = brand === 'pickl' ? 'https://eatpickl.com/' : 'sc-domain:bonbirdchicken.com';
+  const ownDomain = brandCfg?.ownDomain || OWN_DOMAINS[brand];
+  const siteUrl   = brandCfg?.gscProperty || (await gscPropertyFor(brand));
   const marketTokens = isIntl ? getMarketPageTokens(market) : null;
-  const intlTokensForBrand = Object.values(INTERNATIONAL_MARKETS)
+  const intlTokensForBrand = Object.values(await getMarketsMapAsync())
     .filter(m => m.brand === brand)
     .flatMap(m => getMarketPageTokens(m));
   const belongsToMarket = (pageUrl) => isIntl
@@ -706,7 +716,7 @@ async function discoverKeywords(brand, store, authHeader, force = false, marketK
       let kept = 0;
       for (const r of (rows || [])) {
         const kw = (r.keyword || '').toLowerCase();
-        if (!kw || !belongsToMarket(r.page) || isOwnBrandKeyword(kw, brand) || !passesStaticRelevance(kw)) continue;
+        if (!kw || !belongsToMarket(r.page) || isOwnBrandKeyword(kw, brand, ownBrandTerms) || !passesStaticRelevance(kw, rel)) continue;
         noteOurPage(kw, r.page, r.position); // best rank + its page across this market's pages
         if (!seenOrganic.has(kw)) { seenOrganic.add(kw); ownRankedKws.push({ keyword: r.keyword, volume: 0, cpc: 0, competition: 'medium' }); kept++; }
       }
@@ -721,7 +731,7 @@ async function discoverKeywords(brand, store, authHeader, force = false, marketK
     const ranked = await fetchOwnRankedKeywords(ownDomain, locationCode, rkLangs, authHeader);
     for (const r of ranked) {
       const kw = (r.keyword || '').toLowerCase();
-      if (!kw || !belongsToMarket(r.url) || isOwnBrandKeyword(kw, brand) || !passesStaticRelevance(kw)) continue;
+      if (!kw || !belongsToMarket(r.url) || isOwnBrandKeyword(kw, brand, ownBrandTerms) || !passesStaticRelevance(kw, rel)) continue;
       noteOurPage(kw, r.url, r.position);
       if (!seenOrganic.has(kw)) { seenOrganic.add(kw); ownRankedKws.push({ keyword: r.keyword, volume: r.volume || 0, cpc: r.cpc || 0, competition: 'medium' }); }
     }
@@ -785,7 +795,9 @@ async function discoverKeywords(brand, store, authHeader, force = false, marketK
     const minVol = isIntl ? 0 : 10;
     const langs  = (isIntl && loc.languages.length) ? loc.languages : ['en'];
     const seedsFor = (lang) => {
-      if (!isIntl) return BRAND_SEEDS[brand] || [];
+      // UAE seeds: built-in BRAND_SEEDS, else the brand's configured keywordSeeds,
+      // else the vertical's generic seeds — so a new brand seeds correctly.
+      if (!isIntl) return BRAND_SEEDS[brand] || brandCfg?.keywordSeeds || rel.seeds('UAE');
       if (lang === 'ar') return (market.seedKeywords?.ar || []);
       return [...(market.seedKeywords?.en || []), ...brandGenericSeeds];
     };
@@ -806,9 +818,9 @@ async function discoverKeywords(brand, store, authHeader, force = false, marketK
   console.log(`${tag} DataForSEO returned ${ideas.length} keyword ideas (${marketLabel}) — ${ideasDiag}`);
 
   // Static off-menu filter first (cheap, no API call), then Claude for brand/intent relevance
-  const staticFilteredIdeas = applyStaticFilter(ideas);
+  const staticFilteredIdeas = applyStaticFilter(ideas, rel);
   console.log(`${tag} static filter: ${ideas.length} → ${staticFilteredIdeas.length} ideas`);
-  const filteredIdeas = await filterKeywordsWithClaude(staticFilteredIdeas, brandName, brandCtx, marketLabel);
+  const filteredIdeas = await filterKeywordsWithClaude(staticFilteredIdeas, brandName, brandCtx, marketLabel, rel);
 
   // Also add competitor keywords we don't yet track
   const rawCompKeywords = Object.entries(compMap)
@@ -822,10 +834,10 @@ async function discoverKeywords(brand, store, authHeader, force = false, marketK
     }));
 
   // Competitor keywords must pass static filter + Claude — they're raw and include brand names
-  const staticFilteredComp = applyStaticFilter(rawCompKeywords);
+  const staticFilteredComp = applyStaticFilter(rawCompKeywords, rel);
   console.log(`${tag} comp static filter: ${rawCompKeywords.length} → ${staticFilteredComp.length} keywords`);
   const filteredComp = staticFilteredComp.length > 0
-    ? await filterKeywordsWithClaude(staticFilteredComp.slice(0, 80), brandName, brandCtx, marketLabel)
+    ? await filterKeywordsWithClaude(staticFilteredComp.slice(0, 80), brandName, brandCtx, marketLabel, rel)
     : [];
   console.log(`${tag} comp Claude filter: ${staticFilteredComp.length} → ${filteredComp.length} keywords`);
 
@@ -996,7 +1008,7 @@ exports.handler = async (event) => {
   const brandParam = qs.brand;
   const marketParam= qs.market; // specific market e.g. 'pickl_bahrain', or omit for UAE
 
-  const brands = brandParam ? [brandParam] : ['pickl', 'bonbird'];
+  const brands = brandParam ? [brandParam] : await getBrandSlugs();
 
   const results = {};
   for (const brand of brands) {
@@ -1010,7 +1022,7 @@ exports.handler = async (event) => {
 
     // Run international markets for this brand (skip if specific market requested)
     if (!marketParam) {
-      const intlMarkets = Object.entries(INTERNATIONAL_MARKETS)
+      const intlMarkets = Object.entries(await getMarketsMapAsync())
         .filter(([, m]) => m.brand === brand)
         .map(([key]) => key);
 

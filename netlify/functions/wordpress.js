@@ -24,14 +24,13 @@ const CORS = {
   'Access-Control-Allow-Methods': 'POST, OPTIONS',
 };
 
-const BRAND_ENV = {
-  pickl:   { base: 'WP_PICKL_BASE',   user: 'WP_PICKL_USER',   pass: 'WP_PICKL_APP_PASS' },
-  bonbird: { base: 'WP_BONBIRD_BASE', user: 'WP_BONBIRD_USER', pass: 'WP_BONBIRD_APP_PASS' },
-};
-
+// Env-var names are derived from the slug (WP_<SLUG>_BASE/_USER/_APP_PASS) — the
+// same convention brandsConfig uses for wpEnvPrefix. This scales to any onboarded
+// brand with ZERO code edits (just set the three env vars). No hardcoded map.
 function getCreds(brand) {
-  const cfg = BRAND_ENV[brand];
-  if (!cfg) return null;
+  if (!brand || !/^[a-z0-9_]+$/i.test(brand)) return null;
+  const prefix = `WP_${String(brand).toUpperCase()}`;
+  const cfg = { base: `${prefix}_BASE`, user: `${prefix}_USER`, pass: `${prefix}_APP_PASS` };
   const base = process.env[cfg.base];
   const user = process.env[cfg.user];
   const pass = process.env[cfg.pass];
@@ -74,8 +73,10 @@ exports.handler = async (event) => {
   let body;
   try { body = JSON.parse(event.body); } catch (_) { return fail(400, 'Invalid JSON'); }
   const { action, brand } = body;
-  if (!brand || !BRAND_ENV[brand]) return fail(400, 'brand must be "pickl" or "bonbird"');
+  // Validity = the slug resolves to WP env vars (getCreds derives WP_<SLUG>_* from
+  // the slug). A brand with no creds set returns {error} → surfaced as 503 below.
   const creds = getCreds(brand);
+  if (!creds) return fail(400, `Invalid brand slug: ${brand}`);
   if (creds && creds.error) return fail(503, creds.error);
   try {
     switch (action) {

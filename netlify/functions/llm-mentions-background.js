@@ -10,7 +10,9 @@
 
 const { getStore } = require("@netlify/blobs");
 const { authorizeJob } = require("./_lib/auth");
+const { getBrand, getBrandSlugs } = require("./_lib/brands-config");
 
+// TODO(config): move to brandsConfig (per-brand LLM-mention probe queries — no config equivalent yet)
 const QUERIES = {
   pickl: [
     "What are the best burger restaurants in Dubai?",
@@ -28,11 +30,6 @@ const QUERIES = {
     "Best fast food chicken in Dubai",
     "Nashville hot chicken Dubai — where to go?",
   ],
-};
-
-const BRAND_TERMS = {
-  pickl:   ["pickl", "pick'l"],
-  bonbird: ["bonbird", "bon bird"],
 };
 
 // ── Query helpers — return { text, error } ────────────────────────────────────
@@ -216,8 +213,8 @@ function checkMention(response, brandTerms) {
 
 // ── Process one brand ─────────────────────────────────────────────────────────
 async function processBrand(brand, store) {
-  const queries    = QUERIES[brand];
-  const brandTerms = BRAND_TERMS[brand];
+  const queries    = QUERIES[brand] || [];
+  const brandTerms = (await getBrand(brand)).brandTerms;
 
   // Log which keys are present upfront — shows in Netlify function logs
   const keyStatus = {
@@ -298,7 +295,7 @@ exports.handler = async (event) => {
   console.log(`[llm-mentions] Starting — ${new Date().toISOString()}`);
   const store = getStore({ name: "seo-tool", siteID: process.env.NETLIFY_SITE_ID, token: process.env.NETLIFY_AUTH_TOKEN });
   const results = {};
-  for (const brand of ["pickl", "bonbird"]) {
+  for (const brand of await getBrandSlugs()) {
     try { results[brand] = await processBrand(brand, store); }
     catch (err) { console.error(`[llm-mentions] ${brand} failed:`, err.message); results[brand] = { error: err.message }; }
   }

@@ -6,6 +6,7 @@
 // GET ?discover=1&brand=pickl|bonbird    — live DataForSEO Labs competitors_domain discovery
 
 const { getStore } = require("@netlify/blobs");
+const { getBrandSlugs, ownDomainFor } = require("./_lib/brands-config");
 
 const CORS = {
   "Content-Type": "application/json",
@@ -14,11 +15,6 @@ const CORS = {
 };
 
 const DATAFORSEO_BASE = "https://api.dataforseo.com/v3";
-
-const BRAND_DOMAINS = {
-  pickl:   "eatpickl.com",
-  bonbird: "bonbirdchicken.com",
-};
 
 // Domains to exclude from discovery — aggregators, social, delivery, directories
 const EXCLUDE_DOMAINS = new Set([
@@ -46,7 +42,7 @@ async function discoverCompetitors(brand) {
   if (!login || !password) throw new Error("DataForSEO credentials missing");
 
   const auth   = "Basic " + Buffer.from(`${login}:${password}`).toString("base64");
-  const domain = BRAND_DOMAINS[brand];
+  const domain = await ownDomainFor(brand);
   if (!domain) throw new Error(`Unknown brand: ${brand}`);
 
   const res = await fetch(`${DATAFORSEO_BASE}/dataforseo_labs/google/competitors_domain/live`, {
@@ -93,7 +89,7 @@ exports.handler = async (event) => {
   // ── Competitor discovery — live DataForSEO call ──────────────────────────────
   if (q.discover === "1") {
     const brand = q.brand || "pickl";
-    if (!BRAND_DOMAINS[brand]) return { statusCode: 400, headers: CORS, body: JSON.stringify({ error: "brand must be pickl or bonbird" }) };
+    if (!(await getBrandSlugs()).includes(brand)) return { statusCode: 400, headers: CORS, body: JSON.stringify({ error: `Unknown brand: ${brand}` }) };
     try {
       const competitors = await discoverCompetitors(brand);
       return { statusCode: 200, headers: CORS, body: JSON.stringify({ brand, competitors }) };
@@ -111,7 +107,7 @@ exports.handler = async (event) => {
 
   const brandParam = q.brand || "all";
   const marketParam = q.market || null; // e.g. 'pickl_bahrain'
-  const brands     = brandParam === "all" ? ["pickl", "bonbird"] : [brandParam];
+  const brands     = brandParam === "all" ? await getBrandSlugs() : [brandParam];
 
   try {
     const result = {};

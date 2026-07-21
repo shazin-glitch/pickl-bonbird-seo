@@ -148,7 +148,9 @@ exports.handler = async (event) => {
 
   try {
     const accessToken = await refreshTokenIfNeeded(tokens, store);
-    const markets     = MARKET_PATHS[brand] || MARKET_PATHS.pickl;
+    // Degrade gracefully for a brand with no configured market paths — an empty
+    // market breakdown, NOT Pickl's paths (which would misattribute the data).
+    const markets     = MARKET_PATHS[brand] || {};
 
     // ── Report 1: Monthly sessions (last 13 months, all organic) ─────────────
     const endDate   = new Date().toISOString().split("T")[0];

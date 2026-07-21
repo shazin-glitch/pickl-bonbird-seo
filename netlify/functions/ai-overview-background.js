@@ -12,6 +12,7 @@
 
 const { getStore } = require('@netlify/blobs');
 const { authorizeJob } = require('./_lib/auth');
+const { getBrand, getBrandSlugs } = require('./_lib/brands-config');
 
 const DATAFORSEO_POST_URL = 'https://api.dataforseo.com/v3/serp/google/organic/task_post';
 const DATAFORSEO_GET_URL  = 'https://api.dataforseo.com/v3/serp/google/organic/task_get/advanced';
@@ -19,6 +20,7 @@ const DATAFORSEO_GET_URL  = 'https://api.dataforseo.com/v3/serp/google/organic/t
 // ── Conversational queries that reliably trigger AI Overviews ─────────────────
 // These are decision-intent queries Google summarises with an AI Overview.
 // Short head terms ("best burger dubai") often don't trigger AI Overviews.
+// TODO(config): move to brandsConfig (per-brand AI-Overview trigger seeds — no config equivalent yet)
 const CONVERSATIONAL_QUERIES = {
   pickl: [
     'where can i find the best burger in dubai',
@@ -46,20 +48,17 @@ const CONVERSATIONAL_QUERIES = {
   ],
 };
 
-const BRAND_CONFIG = {
-  pickl: {
-    gscKey:    'gscCache:https://eatpickl.com/',
-    brandName: 'Pickl',
-    ownDomain: 'eatpickl.com',
-    brandTerms: ['pickl', 'pickel', 'pikle', 'pickels', 'بيكل', 'بكلز', 'بيكلز', 'بيكل برجر'],
-  },
-  bonbird: {
-    gscKey:    'gscCache:sc-domain:bonbirdchicken.com',
-    brandName: 'Bonbird',
-    ownDomain: 'bonbirdchicken.com',
-    brandTerms: ['bonbird', 'bon bird', 'بونبيرد'],
-  },
-};
+// Per-brand config resolved from the single source of truth (brandsConfig).
+// gscCache blob key is `gscCache:<gscProperty>`.
+async function brandCfg(slug) {
+  const b = await getBrand(slug);
+  return {
+    gscKey:     `gscCache:${b.gscProperty}`,
+    brandName:  b.name,
+    ownDomain:  b.ownDomain,
+    brandTerms: b.brandTerms,
+  };
+}
 
 function getAuthHeader() {
   const login    = process.env.DATAFORSEO_LOGIN;
@@ -69,7 +68,7 @@ function getAuthHeader() {
 
 // ── Build keyword list: top 10 GSC + 10 conversational queries ───────────────
 async function getTopKeywords(brand, store) {
-  const config  = BRAND_CONFIG[brand];
+  const config  = await brandCfg(brand);
   const cached  = await store.get(config.gscKey, { type: 'json' }).catch(() => null);
   const rows    = cached?.rows || [];
 
@@ -198,7 +197,7 @@ async function pollAll(taskMap, authHeader, maxWaitMs = 120000) {
 
 // ── Process one brand ────────────────────────────────────────────────────────
 async function processBrand(brand, store, authHeader) {
-  const config   = BRAND_CONFIG[brand];
+  const config   = await brandCfg(brand);
   const keywords = await getTopKeywords(brand, store);
 
   if (!keywords.length) {
@@ -296,9 +295,10 @@ exports.handler = async (event) => {
 
   // Single brand via query string for manual refresh
   const targetBrand = event?.queryStringParameters?.brand;
-  const brands = (targetBrand && BRAND_CONFIG[targetBrand])
+  const allSlugs    = await getBrandSlugs();
+  const brands = (targetBrand && allSlugs.includes(targetBrand))
     ? [targetBrand]
-    : ['pickl', 'bonbird'];
+    : allSlugs;
 
   for (const brand of brands) {
     try {

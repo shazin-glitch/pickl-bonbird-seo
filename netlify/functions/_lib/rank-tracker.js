@@ -12,15 +12,15 @@
 // market by the PAGE Google serves (shared marketForUrl), NOT by query text — the
 // whole-property query-only snapshot floods every market with UAE positions.
 
-const { getMarketsForBrand, marketForUrl } = require('./international-config');
+const { getMarketsForBrandAsync, marketForUrlAsync } = require('./international-config');
 
 const HISTORY_CAP = 26; // ~6 months of weekly points; oldest trimmed
 const SEED_LIMIT  = 25; // top-N worklist opportunities auto-seeded on first view
 
 // [{ key, label, flag }] for a brand incl. UAE (the base property market). Derived
 // from the single market config — a new brand/market appears here with no code edit.
-function marketsForBrand(brand) {
-  const intl = Object.entries(getMarketsForBrand(brand))
+async function marketsForBrand(brand) {
+  const intl = Object.entries(await getMarketsForBrandAsync(brand))
     .map(([key, m]) => ({ key, label: m.label || key, flag: m.flag || '🌍' }));
   return [{ key: 'uae', label: 'UAE', flag: '🇦🇪' }, ...intl];
 }
@@ -80,7 +80,7 @@ async function getHistory(store, brand, market) {
 // Returns { market: keywordCount } for logging.
 async function updateRankHistory(store, brand, pageQueryRows, dateStr) {
   const date    = dateStr || new Date().toISOString().slice(0, 10);
-  const markets = marketsForBrand(brand).map(m => m.key);
+  const markets = (await marketsForBrand(brand)).map(m => m.key);
   const updated = {};
   for (const market of markets) {
     const set = await getTracked(store, brand, market);
@@ -90,7 +90,7 @@ async function updateRankHistory(store, brand, pageQueryRows, dateStr) {
     const best = {};
     for (const r of (pageQueryRows || [])) {
       if (!r.keyword || r.position == null) continue;
-      if (marketForUrl(r.page, brand) !== market) continue;
+      if ((await marketForUrlAsync(r.page, brand)) !== market) continue;
       const k = r.keyword.toLowerCase();
       if (best[k] == null || r.position < best[k]) best[k] = r.position;
     }
