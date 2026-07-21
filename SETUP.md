@@ -326,6 +326,20 @@ From Google's official AI Optimization Guide (June 2026):
 
 ---
 
+## Session: July 2026 — v7.7.0 — ⭐ Auto-discovery onboarding wizard (URL → discover → review → launch)
+
+Onboarding is now an EXPERIENCE, not a form (Shazin: "give it a URL, it figures out the rest"). New `brand-discover.js` (`/api/brand-discover`, gated admin/manager): given a DOMAIN it runs 3 discoveries in parallel — (1) fetches homepage + /menu + /about and Claude infers IDENTITY (name, vertical, positioning, what-it-sells, brand-voice sample, tagline, branded terms, locations); (2) DataForSEO `ranked_keywords` on the domain → seed keywords it already ranks for (brand-navigational terms post-filtered out using the discovered name); (3) DataForSEO `competitors_domain` → competitor suggestions (social/aggregator domains filtered). All the capability already existed (crawler, ranked_keywords, competitors_domain) — this WIRES it into onboarding.
+
+Settings → 🏷️ Brands → "✨ Onboard a brand" opens a **4-screen wizard** (replaces the manual form):
+1. **URL** (+ optional name, vertical override, GSC property).
+2. **Analyzing…** animated progress (crawl / read / keywords / competitors).
+3. **Review & edit** — everything pre-filled from discovery (identity, vertical, voice, seed-keyword list, competitors, branded terms), fully editable. Approve → writes `brandsConfig` (`save_brand`) + `brandContext:<slug>` voice (via `/api/db/save` → the key `getBrandContext` reads, so the generator uses it).
+4. **Connect & launch** — onboarding checklist (GSC/competitors/seeds/voice/WP-env status) + env-var reminder + "🚀 Run first analysis" (fires keyword-discovery + onpage crawler in the background). `editBrand` reuses the review step (no re-discovery).
+
+Verified headlessly (fetch/Anthropic/DataForSEO stubbed): discovery returns correct identity/vertical/voice, drops brand-navigational seeds, filters social competitors; wizard JS + all functions + inline JS `node --check` clean; all integration tests pass. Browser flow still needs a signed-in deploy to click through.
+
+---
+
 ## Session: July 2026 — v7.6.0 — ⭐ FULL config-driven scalability: brands + SEO markets, whole tool (BE + FE)
 
 Extends v7.5.0 (brand layer) to the WHOLE tool — the goal is "better than SEMrush/Ahrefs except historical data," fully config-driven. Onboarding a **brand** OR an **SEO market** is now a Blobs record via Settings, ZERO code edits, and it flows through every dropdown, pill, metric card, cron loop, report and pipeline.

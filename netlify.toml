@@ -4,6 +4,11 @@
   status = 200
 
 [[redirects]]
+  from = "/api/brand-discover"
+  to = "/.netlify/functions/brand-discover"
+  status = 200
+
+[[redirects]]
   from = "/api/claude"
   to = "/.netlify/functions/claude"
   status = 200

@@ -7,9 +7,9 @@
 
 1. **Read SETUP.md first**, every session, before touching any file.
 2. **Update SETUP.md before committing** any changes. No exceptions.
-3. **Work in `output/`** — that's the deployable site root.
+3. **Repo layout (v7.5.0 restructure):** functions at `netlify/functions/`, frontend `index.html` at repo ROOT. (The old `output/` root is gone — ignore any "output/" references below.)
 4. **Deploy:** `git push origin main` → Netlify auto-deploys. No manual steps.
-5. **DataForSEO: Standard mode ONLY** — `task_post` + `task_get` polling. NEVER use live/advanced endpoints. Batch max 100 keywords per POST.
+5. **DataForSEO: Standard mode (`task_post`+`task_get`) for crawls & SERP** — NEVER the expensive live/advanced SERP/OnPage endpoints; batch ≤100/POST. EXCEPTION (in use since before v7.4 + v7.7.0 onboarding): cheap instant DataForSEO **Labs** lookups — `ranked_keywords/live`, `competitors_domain/live`, `keyword_ideas/live` — are allowed (they're not the metered SERP/crawl class; used by keyword-discovery, competitor-matrix, brand-discover).
 6. **Jordan URL is `/pickl-jordan/`** — NEVER change this. Already indexed by Google.
 7. **Background functions** must be called at `/.netlify/functions/<name>` directly — redirects in netlify.toml do NOT work for them.
 8. **Bootstrap admins** (always Admin regardless of Blobs): `shazin@yolkbrands.com`, `steve@yolkbrands.com`
@@ -54,7 +54,7 @@
 
 ---
 
-## Current Version: v7.6.0
+## Current Version: v7.7.0
 
 See SETUP.md → session log for the complete build history.
 
@@ -66,18 +66,12 @@ See SETUP.md → session log for the complete build history.
 
 **Deferred backlog (see memory):** Slack bot OAuth deep-link · GBP deeper dive · domain migration → thenest.yolkbrands.com (checklist in SETUP.md).
 
-**⚠️ Adding a new market — REQUIRED steps** (this 10-file manual checklist + its drift risk is exactly what **P2 (config layer)** eliminates — `marketsConfig`/`brandsConfig` in Blobs + a Settings form + shared accessors; until P2 ships, follow every step):
-1. Add to `CAL_MARKETS` in `index.html`
-2. Add IANA timezone to `MARKET_TIMEZONES` in `calendar.js`
-3. Add IANA timezone to `CAL_MARKET_TIMEZONES` in `index.html`
-4. Add timezone abbreviation to `CAL_MARKET_TZ_ABBR` in `index.html`
-5. Add SP account IDs to `SP_ACCOUNTS` in `calendar.js`
-6. Add SP account IDs to `SP_ACCOUNTS_FLAT` in `index.html`
-7. Add SP has-account map to `SP_HAS_ACCOUNT` in `index.html`
-8. Add market config to `INTERNATIONAL_MARKETS` in `_lib/international-config.js`
-9. Add location code to `MARKET_LOCATIONS` in `keyword-discovery-background.js`
-10. Add market keyword terms to `MARKET_KEYWORD_TERMS` in `international-seo-background.js`
-- Delivery platform SEO — Talabat, Deliveroo, Noon Food keyword optimisation
+**✅ Adding a brand or SEO market is now CONFIG-DRIVEN (v7.5.0–v7.7.0) — no code edits:**
+- **Brand:** Settings → 🏷️ Brands → "✨ Onboard a brand" (URL → auto-discover identity/keywords/competitors → review → save). Or POST `/api/config {action:'save_brand'}`. Writes one `brandsConfig:<slug>` record. Set env `WP_<SLUG>_*` + `GBP_<SLUG>_*` in Netlify for publish/reviews.
+- **SEO market:** Settings → 🌍 SEO Markets (or POST `/api/config {action:'save_market'}`). Writes one `marketsConfig:<key>` record. A brand launches UAE-only with zero markets.
+- **The content CALENDAR** (SocialPilot accounts, timezones, `CAL_MARKETS`) is a SEPARATE content-team module — NOT part of the SEO markets config; add calendar markets there.
+- Config layers: `_lib/brands-config.js` + `_lib/markets-config.js`; both BE & FE read via `/api/config`. Content brain = `_lib/content-pipeline.js`.
+- Delivery platform SEO — Talabat, Deliveroo, Noon Food keyword optimisation (backlog).
 
 ---
 

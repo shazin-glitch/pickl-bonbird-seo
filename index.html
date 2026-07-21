@@ -1711,29 +1711,79 @@ body { font-family: var(--font-sans); background: var(--bg-base); color: var(--t
           <p style="font-size:13px;color:var(--text-muted);margin-bottom:16px">Onboard a new brand here — it appears in every dropdown and every cron loop with no code change. Set the matching env vars in Netlify (WP_&lt;SLUG&gt;_BASE/_USER/_APP_PASS, GBP_&lt;SLUG&gt;_ACCOUNT_ID/_LOCATION_ID) for publishing + GBP.</p>
           <div id="brands-admin-list" style="margin-bottom:16px;font-size:13px"></div>
           <div style="border-top:1px solid var(--border);padding-top:16px">
-            <h4 style="font-size:14px;font-weight:600;margin-bottom:12px">Add / edit a brand</h4>
-            <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px">
-              <div class="form-group"><label class="form-label">Slug (lowercase, unique)</label><input id="bf-slug" class="form-input" placeholder="southpour" style="font-family:var(--font-sans)"></div>
-              <div class="form-group"><label class="form-label">Display name</label><input id="bf-name" class="form-input" placeholder="Southpour" style="font-family:var(--font-sans)"></div>
-              <div class="form-group"><label class="form-label">Vertical</label>
-                <select id="bf-vertical" class="form-input" style="font-family:var(--font-sans)">
-                  <option value="restaurant">Restaurant</option>
-                  <option value="cafe">Café / coffee</option>
-                  <option value="corporate">Corporate / group</option>
-                </select>
+            <button class="btn btn-primary" id="bw-open-btn" onclick="openBrandWizard()" style="font-size:13px">✨ Onboard a brand</button>
+
+            <div id="brand-wizard" style="display:none;margin-top:14px">
+              <!-- STEP 1 — one real input: the website -->
+              <div id="bw-step-1" class="bw-step">
+                <div style="font-size:14px;font-weight:700;margin-bottom:4px">Step 1 · Point us at the website</div>
+                <p style="font-size:12px;color:var(--text-muted);margin-bottom:12px">Enter the site — we read it and auto-discover the brand's identity, the keywords it already ranks for, and its competitors. You review everything before it saves. Nothing to type by hand.</p>
+                <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px">
+                  <div class="form-group"><label class="form-label">Website URL</label><input id="bw1-domain" class="form-input" placeholder="https://southpourcoffee.com" style="font-family:var(--font-sans)"></div>
+                  <div class="form-group"><label class="form-label">Brand name <span style="color:var(--text-muted)">(optional — we'll detect it)</span></label><input id="bw1-name" class="form-input" placeholder="Southpour" style="font-family:var(--font-sans)"></div>
+                  <div class="form-group"><label class="form-label">Vertical <span style="color:var(--text-muted)">(auto-detected; override if wrong)</span></label>
+                    <select id="bw1-vertical" class="form-input" style="font-family:var(--font-sans)">
+                      <option value="">Auto-detect</option>
+                      <option value="restaurant">Restaurant</option>
+                      <option value="cafe">Café / coffee</option>
+                      <option value="corporate">Corporate / group</option>
+                    </select>
+                  </div>
+                  <div class="form-group"><label class="form-label">GSC property <span style="color:var(--text-muted)">(optional now)</span></label><input id="bw1-gsc" class="form-input" placeholder="https://southpourcoffee.com/ or sc-domain:…" style="font-family:var(--font-sans)"></div>
+                </div>
+                <button class="btn btn-primary" onclick="onboardDiscover()" style="font-size:13px">🔍 Discover</button>
+                <button class="btn btn-outline" onclick="closeBrandWizard()" style="font-size:13px;margin-left:8px">Cancel</button>
               </div>
-              <div class="form-group"><label class="form-label">Domain</label><input id="bf-domain" class="form-input" placeholder="https://southpourcoffee.com" style="font-family:var(--font-sans)"></div>
-              <div class="form-group"><label class="form-label">GSC property</label><input id="bf-gsc" class="form-input" placeholder="https://southpourcoffee.com/ or sc-domain:southpourcoffee.com" style="font-family:var(--font-sans)"></div>
-              <div class="form-group"><label class="form-label">WP env prefix</label><input id="bf-wp" class="form-input" placeholder="WP_SOUTHPOUR" style="font-family:var(--font-sans)"></div>
-              <div class="form-group"><label class="form-label">Flag / emoji</label><input id="bf-flag" class="form-input" placeholder="☕" style="font-family:var(--font-sans)"></div>
-              <div class="form-group"><label class="form-label">Brand colour (hex)</label><input id="bf-color" class="form-input" placeholder="#6F4E37" style="font-family:var(--font-sans)"></div>
-              <div class="form-group" style="grid-column:1 / -1"><label class="form-label">Branded terms (comma-separated — Arabic/misspellings the name can't derive)</label><input id="bf-terms" class="form-input" placeholder="south pour, ساوثبور" style="font-family:var(--font-sans)"></div>
-              <div class="form-group" style="grid-column:1 / -1"><label class="form-label">Competitors (one per line — Name | domain.com)</label><textarea id="bf-competitors" class="form-input" rows="3" placeholder="% Arabica | arabica.com&#10;Starbucks | starbucks.com" style="font-family:var(--font-sans)"></textarea></div>
-              <div class="form-group" style="grid-column:1 / -1"><label class="form-label">Seed keywords (comma-separated)</label><input id="bf-seeds" class="form-input" placeholder="specialty coffee dubai, flat white dubai" style="font-family:var(--font-sans)"></div>
+
+              <!-- STEP 2 — the tool works -->
+              <div id="bw-step-2" class="bw-step" style="display:none">
+                <div style="font-size:14px;font-weight:700;margin-bottom:12px">Analyzing <span id="bw-analyzing"></span>…</div>
+                <div id="bw-progress" style="font-size:13px;line-height:2"></div>
+              </div>
+
+              <!-- STEP 3 — review & edit -->
+              <div id="bw-step-3" class="bw-step" style="display:none">
+                <div style="font-size:14px;font-weight:700;margin-bottom:4px">Here's what we found — review &amp; edit</div>
+                <p style="font-size:12px;color:var(--text-muted);margin-bottom:12px" id="bw-found-note"></p>
+                <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px">
+                  <div class="form-group"><label class="form-label">Slug (unique id)</label><input id="bf-slug" class="form-input" style="font-family:var(--font-sans)"></div>
+                  <div class="form-group"><label class="form-label">Display name</label><input id="bf-name" class="form-input" style="font-family:var(--font-sans)"></div>
+                  <div class="form-group"><label class="form-label">Vertical</label>
+                    <select id="bf-vertical" class="form-input" style="font-family:var(--font-sans)">
+                      <option value="restaurant">Restaurant</option>
+                      <option value="cafe">Café / coffee</option>
+                      <option value="corporate">Corporate / group</option>
+                    </select>
+                  </div>
+                  <div class="form-group"><label class="form-label">Domain</label><input id="bf-domain" class="form-input" style="font-family:var(--font-sans)"></div>
+                  <div class="form-group"><label class="form-label">GSC property</label><input id="bf-gsc" class="form-input" style="font-family:var(--font-sans)"></div>
+                  <div class="form-group"><label class="form-label">WP env prefix</label><input id="bf-wp" class="form-input" style="font-family:var(--font-sans)"></div>
+                  <div class="form-group"><label class="form-label">Flag / emoji</label><input id="bf-flag" class="form-input" style="font-family:var(--font-sans)"></div>
+                  <div class="form-group"><label class="form-label">Brand colour (hex)</label><input id="bf-color" class="form-input" style="font-family:var(--font-sans)"></div>
+                  <div class="form-group" style="grid-column:1 / -1"><label class="form-label">Positioning <span style="color:var(--text-muted)">(what the brand is / sells)</span></label><textarea id="bf-positioning" class="form-input" rows="2" style="font-family:var(--font-sans)"></textarea></div>
+                  <div class="form-group" style="grid-column:1 / -1"><label class="form-label">Brand voice sample</label><textarea id="bf-voice" class="form-input" rows="2" style="font-family:var(--font-sans)"></textarea></div>
+                  <div class="form-group" style="grid-column:1 / -1"><label class="form-label">Branded terms (comma-separated)</label><input id="bf-terms" class="form-input" style="font-family:var(--font-sans)"></div>
+                  <div class="form-group" style="grid-column:1 / -1"><label class="form-label">Competitors (one per line — Name | domain.com)</label><textarea id="bf-competitors" class="form-input" rows="4" style="font-family:var(--font-sans)"></textarea></div>
+                  <div class="form-group" style="grid-column:1 / -1"><label class="form-label">Seed keywords (comma-separated)</label><input id="bf-seeds" class="form-input" style="font-family:var(--font-sans)"></div>
+                </div>
+                <button class="btn btn-primary" onclick="onboardApprove()" style="font-size:13px">✓ Approve &amp; save brand</button>
+                <button class="btn btn-outline" onclick="closeBrandWizard()" style="font-size:13px;margin-left:8px">Cancel</button>
+                <div id="bf-status" style="font-size:12px;color:var(--text-muted);margin-top:8px"></div>
+              </div>
+
+              <!-- STEP 4 — connect & launch -->
+              <div id="bw-step-4" class="bw-step" style="display:none">
+                <div style="font-size:14px;font-weight:700;margin-bottom:4px">✓ <span id="bw-saved-name"></span> saved — connect &amp; launch</div>
+                <div id="bw-checklist" style="font-size:13px;line-height:2;margin:12px 0"></div>
+                <div style="background:var(--bg-base);border-radius:8px;padding:12px 14px;margin-bottom:14px;font-size:12px;color:var(--text-muted);line-height:1.6">
+                  <strong style="color:var(--text-main)">To publish + pull reviews</strong>, set these env vars in Netlify, then redeploy:<br>
+                  <code id="bw-envvars" style="font-size:11px;background:var(--bg-surface);padding:2px 6px;border-radius:4px;display:inline-block;margin-top:4px"></code>
+                </div>
+                <button class="btn btn-primary" onclick="onboardLaunch()" style="font-size:13px">🚀 Run first analysis</button>
+                <button class="btn btn-outline" onclick="closeBrandWizard()" style="font-size:13px;margin-left:8px">Done</button>
+                <div id="bw-launch-status" style="font-size:12px;color:var(--text-muted);margin-top:8px"></div>
+              </div>
             </div>
-            <button class="btn btn-primary" onclick="saveBrandFromForm()" style="font-size:13px">Save brand</button>
-            <button class="btn btn-outline" onclick="clearBrandForm()" style="font-size:13px;margin-left:8px">Clear</button>
-            <div id="bf-status" style="font-size:12px;color:var(--text-muted);margin-top:8px"></div>
           </div>
         </div>
         <!-- SEO Markets (config-driven — international expansion. NOT the content calendar.) -->
@@ -4679,41 +4729,106 @@ async function loadBrandsAdmin() {
   } catch (e) { listEl.innerHTML = '<div style="color:#ef4444">Failed to load brands: ' + esc(e.message) + '</div>'; }
 }
 
-function editBrand(b) {
-  document.getElementById('bf-slug').value = b.slug || '';
-  document.getElementById('bf-name').value = b.name || '';
-  document.getElementById('bf-vertical').value = b.vertical || 'restaurant';
-  document.getElementById('bf-domain').value = b.domain || '';
-  document.getElementById('bf-gsc').value = b.gscProperty || '';
-  document.getElementById('bf-wp').value = b.wpEnvPrefix || '';
-  document.getElementById('bf-flag').value = b.flag || '';
-  document.getElementById('bf-color').value = b.color || '';
-  document.getElementById('bf-terms').value = (b.brandedTerms || []).join(', ');
-  document.getElementById('bf-competitors').value = (b.competitors || []).map(c => `${c.name} | ${c.domain}`).join('\n');
-  document.getElementById('bf-seeds').value = (b.keywordSeeds || []).join(', ');
-  document.getElementById('bf-status').textContent = `Editing ${b.name}`;
+// ── Brand onboarding WIZARD (URL → discover → review → launch) ─────────────────
+let bwState = {};
+const bwSlugify = s => String(s || '').toLowerCase().replace(/[^a-z0-9]+/g, '').slice(0, 24);
+
+function bwShowStep(n) {
+  [1, 2, 3, 4].forEach(i => { const el = document.getElementById(`bw-step-${i}`); if (el) el.style.display = i === n ? '' : 'none'; });
+}
+function openBrandWizard() {
+  bwState = {};
+  document.getElementById('brand-wizard').style.display = '';
+  document.getElementById('bw-open-btn').style.display = 'none';
+  ['bw1-domain', 'bw1-name', 'bw1-gsc'].forEach(id => { const e = document.getElementById(id); if (e) e.value = ''; });
+  document.getElementById('bw1-vertical').value = '';
+  bwShowStep(1);
   document.getElementById('brands-admin-card').scrollIntoView({ behavior: 'smooth' });
 }
-
-function clearBrandForm() {
-  ['bf-slug','bf-name','bf-domain','bf-gsc','bf-wp','bf-flag','bf-color','bf-terms','bf-competitors','bf-seeds'].forEach(id => { document.getElementById(id).value = ''; });
-  document.getElementById('bf-vertical').value = 'restaurant';
-  document.getElementById('bf-status').textContent = '';
+function closeBrandWizard() {
+  document.getElementById('brand-wizard').style.display = 'none';
+  document.getElementById('bw-open-btn').style.display = '';
+  loadBrandsAdmin();
 }
 
-async function saveBrandFromForm() {
-  const slug = document.getElementById('bf-slug').value.trim().toLowerCase();
+// Edit an existing brand → jump straight to the review step, pre-filled (no re-discovery).
+function editBrand(b) {
+  openBrandWizard();
+  fillReview({
+    slug: b.slug, identity: { name: b.name, vertical: b.vertical, positioning: b.positioning || '', voiceSample: '', brandedTerms: b.brandedTerms || [] },
+    domain: b.domain, gscProperty: b.gscProperty, wpEnvPrefix: b.wpEnvPrefix, flag: b.flag, color: b.color,
+    seedKeywords: b.keywordSeeds || [], competitors: b.competitors || [],
+  }, `Editing ${b.name}.`);
+  bwShowStep(3);
+}
+
+// Populate the review step (step 3) from a discovery response (or an existing brand).
+function fillReview(d, note) {
+  const id = d.identity || {};
+  const slug = d.slug || bwSlugify(id.name || d.domain);
+  const set = (i, v) => { const e = document.getElementById(i); if (e) e.value = v == null ? '' : v; };
+  set('bf-slug', slug);
+  set('bf-name', id.name || '');
+  document.getElementById('bf-vertical').value = id.vertical || 'restaurant';
+  set('bf-domain', (d.domain || '').replace(/^https?:\/\//, '').replace(/\/$/, ''));
+  set('bf-gsc', d.gscProperty || (d.domain ? `https://${(d.domain||'').replace(/^https?:\/\//,'').replace(/\/$/,'')}/` : ''));
+  set('bf-wp', d.wpEnvPrefix || `WP_${slug.toUpperCase()}`);
+  set('bf-flag', d.flag || '');
+  set('bf-color', d.color || '');
+  set('bf-positioning', id.positioning || '');
+  set('bf-voice', id.voiceSample || '');
+  set('bf-terms', (id.brandedTerms || []).join(', '));
+  document.getElementById('bf-competitors').value = (d.competitors || []).map(c => `${c.name} | ${c.domain}`).join('\n');
+  set('bf-seeds', (d.seedKeywords || []).join(', '));
+  const noteEl = document.getElementById('bw-found-note');
+  if (noteEl) noteEl.textContent = note || `Auto-discovered from ${d.domain}. Edit anything, then approve — nothing saves until you do.`;
+  const st = document.getElementById('bf-status'); if (st) st.textContent = '';
+}
+
+async function onboardDiscover() {
+  const domain = document.getElementById('bw1-domain').value.trim();
+  if (!domain || !domain.includes('.')) { showToast('Enter a valid website URL', 'error'); return; }
+  const name = document.getElementById('bw1-name').value.trim();
+  const vertical = document.getElementById('bw1-vertical').value;
+  document.getElementById('bw-analyzing').textContent = domain.replace(/^https?:\/\//, '').replace(/\/$/, '');
+  bwShowStep(2);
+  // Animated progress (cosmetic) while the one request runs.
+  const steps = ['🕷️ Crawling the site', '📖 Reading homepage &amp; menu', '🔑 Finding keywords you rank for', '🥊 Finding competitors'];
+  const prog = document.getElementById('bw-progress');
+  prog.innerHTML = steps.map((s, i) => `<div id="bw-prog-${i}">⏳ ${s}…</div>`).join('');
+  let ti = 0;
+  const timer = setInterval(() => { const e = document.getElementById(`bw-prog-${ti}`); if (e) e.innerHTML = `✓ ${steps[ti]}`; ti++; if (ti >= steps.length) clearInterval(timer); }, 650);
+  try {
+    const r = await apiPost('/api/brand-discover', { domain, name });
+    clearInterval(timer);
+    steps.forEach((s, i) => { const e = document.getElementById(`bw-prog-${i}`); if (e) e.innerHTML = `✓ ${s}`; });
+    if (r.error) throw new Error(r.error);
+    if (vertical && r.identity) r.identity.vertical = vertical; // honour manual override
+    bwState.discovered = r;
+    fillReview(r);
+    bwShowStep(3);
+  } catch (e) {
+    clearInterval(timer);
+    showToast('Discovery failed: ' + e.message + ' — you can still fill it in manually.', 'error');
+    // Fall through to the review step with whatever we have (manual entry).
+    fillReview({ domain, identity: { name, vertical: vertical || 'restaurant' }, seedKeywords: [], competitors: [] }, 'Discovery failed — enter details manually.');
+    bwShowStep(3);
+  }
+}
+
+async function onboardApprove() {
+  const slug = bwSlugify(document.getElementById('bf-slug').value);
   const name = document.getElementById('bf-name').value.trim();
   const statusEl = document.getElementById('bf-status');
-  if (!slug || !name) { statusEl.textContent = 'Slug and name are required.'; statusEl.style.color = '#ef4444'; return; }
+  if (!slug || !name) { statusEl.style.color = '#ef4444'; statusEl.textContent = 'Slug and name are required.'; return; }
+  const vertical = document.getElementById('bf-vertical').value;
   const competitors = document.getElementById('bf-competitors').value.split('\n').map(l => l.trim()).filter(Boolean).map(l => {
     const [n, d] = l.split('|').map(x => (x || '').trim());
     return { name: n, domain: (d || '').replace(/^https?:\/\//, '').replace(/\/$/, '') };
   }).filter(c => c.name && c.domain);
   const brand = {
-    slug, name,
-    vertical: document.getElementById('bf-vertical').value,
-    domain: document.getElementById('bf-domain').value.trim().replace(/\/$/, ''),
+    slug, name, vertical,
+    domain: document.getElementById('bf-domain').value.trim().replace(/^https?:\/\//, '').replace(/\/$/, ''),
     gscProperty: document.getElementById('bf-gsc').value.trim(),
     wpEnvPrefix: document.getElementById('bf-wp').value.trim() || `WP_${slug.toUpperCase()}`,
     flag: document.getElementById('bf-flag').value.trim(),
@@ -4723,15 +4838,52 @@ async function saveBrandFromForm() {
     keywordSeeds: document.getElementById('bf-seeds').value.split(',').map(s => s.trim()).filter(Boolean),
     active: true,
   };
+  if (brand.domain && !brand.domain.startsWith('http')) brand.domain = 'https://' + brand.domain;
+  const positioning = document.getElementById('bf-positioning').value.trim();
+  const voice = document.getElementById('bf-voice').value.trim();
   statusEl.style.color = 'var(--text-muted)'; statusEl.textContent = 'Saving…';
   try {
     const r = await apiPost('/api/config', { action: 'save_brand', brand });
     if (r.error) throw new Error(r.error);
-    statusEl.style.color = '#059669'; statusEl.textContent = `✓ Saved ${name}. Reloading brand list…`;
-    await loadBrandsAdmin();
-    await bootstrapBrands(); // refresh dropdowns/pills immediately
-    showToast(`Brand "${name}" saved — it now appears in every dropdown.`, 'success');
+    // Save brand voice/identity → brandContext:<slug> (what the generator reads).
+    if (positioning || voice) {
+      const existing = await apiGet('/api/db/get').catch(() => ({}));
+      await apiPost('/api/db/save', { ...existing, [`brandContext_${slug}`]: {
+        brand: slug, name, vertical, positioning,
+        tone: voice ? [voice] : [], character: voice || '',
+      }}).catch(() => {});
+    }
+    bwState.slug = slug; bwState.brand = brand;
+    await bootstrapBrands();
+    // Build step-4 checklist.
+    document.getElementById('bw-saved-name').textContent = name;
+    const chk = (ok, label) => `<div>${ok ? '✓' : '⚠️'} ${label}</div>`;
+    document.getElementById('bw-checklist').innerHTML =
+      chk(true, `Brand saved — appears in every dropdown &amp; cron loop now`) +
+      chk(!!brand.gscProperty, brand.gscProperty ? 'GSC property set' : 'GSC property not set (add it to pull traffic/rankings)') +
+      chk(competitors.length, `${competitors.length} competitor(s) to track`) +
+      chk(brand.keywordSeeds.length, `${brand.keywordSeeds.length} seed keyword(s)`) +
+      chk(!!(positioning || voice), (positioning || voice) ? 'Brand voice captured' : 'No brand voice yet') +
+      chk(false, `WordPress creds — set env vars to publish`);
+    document.getElementById('bw-envvars').textContent = `WP_${slug.toUpperCase()}_BASE / _USER / _APP_PASS · GBP_${slug.toUpperCase()}_ACCOUNT_ID / _LOCATION_ID`;
+    showToast(`Brand "${name}" onboarded — it's in every dropdown now.`, 'success');
+    bwShowStep(4);
   } catch (e) { statusEl.style.color = '#ef4444'; statusEl.textContent = 'Failed: ' + e.message; }
+}
+
+async function onboardLaunch() {
+  const slug = bwState.slug;
+  const st = document.getElementById('bw-launch-status');
+  if (!slug) { closeBrandWizard(); return; }
+  st.style.color = 'var(--text-muted)'; st.textContent = 'Kicking off first analysis (discovery + crawler)…';
+  // Fire the DATA jobs (background, return 202). No await on completion — they run ~minutes.
+  const fire = (path) => fetch(path, { credentials: 'include' }).catch(() => {});
+  fire(`/.netlify/functions/keyword-discovery-background?brand=${encodeURIComponent(slug)}&force=true`);
+  fire(`/.netlify/functions/onpage-audit-background?brand=${encodeURIComponent(slug)}`);
+  st.style.color = '#059669';
+  st.textContent = '✓ First analysis started — keyword discovery + site crawl run in the background (~a few minutes). Results appear in Opportunities & Technical SEO.';
+  showToast(`First analysis started for ${bwState.brand?.name || slug}.`, 'success');
+  setTimeout(closeBrandWizard, 2500);
 }
 
 // ── SEO Market onboarding (config-driven — writes ONE marketsConfig record) ────
