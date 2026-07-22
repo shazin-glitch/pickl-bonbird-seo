@@ -326,6 +326,17 @@ From Google's official AI Optimization Guide (June 2026):
 
 ---
 
+## Session: July 2026 — v7.7.5 — GBP menus WITH photos: clone-seed + per-venue media + structured builder
+
+Photos now propagate (the point of cloning). GBP menu photos are per-location `mediaKeys`, so you can't copy a reference across venues — you must re-create the image on each. Verified the API: `media.create` (v4, `accounts.locations.media`) accepts a public `sourceUrl` (category `FOOD_AND_DRINK`) and returns a MediaItem whose `name` ends in the new `mediaKey`. Pipeline (all in `gbp-menu.js`, reuses the calendar's GCS hosting — no new infra):
+- **`seed_from_master`** — clone a master venue's menu (names/prices/desc) AND re-host each dish photo: resolve item `mediaKeys` → the master's media `googleUrl` (listLocationMedia) → download → re-upload to GCS via `/api/calendar-media` → store as the item's `imageUrl`. Photos that can't be resolved just come back blank (upload manually). Prices/photos are a **GBP-only** menu; SEO menu stays price-free.
+- **media-aware `push`** — per selected venue, each item's `imageUrl` → `media.create(sourceUrl)` on THAT venue → attach the returned key as the item's `mediaKeys` → `updateFoodMenus`. `imageUrl`/foreign keys stripped before send. **dry-run (default) makes ZERO writes** (no media.create, no PATCH — just counts photos); only `dryRun:false` writes. Sequential, per-venue ✓/photo-count/fail.
+- **Structured builder UI** (replaces the JSON box): Local SEO → GBP Menus → clone master loads sections/items into an editor with **per-item photo upload/replace** (📷 tile → `/api/calendar-media` → GCS), editable name/price, add/remove sections+items, cross-reference vs brand menu, currency-scoped venue checklist, Preview (dry-run) → Push.
+
+Verified headlessly (stubbed GBP+GCS): seed re-hosts + strips source keys; dry-run = 0 writes; real push = 1 media.create + 1 updateFoodMenus per venue with the new key attached; save/load; unauth blocked. Live click-through owed (real listings + confirm `googleUrl` is fetchable for auto-seed; fallback = manual per-item upload, which always works).
+
+---
+
 ## Session: July 2026 — v7.7.4 — GBP food-menu bulk create + push (clone / editor / cross-ref / per-venue)
 
 Full feature on top of the v7.7.3 probe. Live probe confirmed 17 Pickl venues, all eligible, across 3 GBP accounts (16 AED + 1 Jordan JOD). VERIFIED via docs: GBP requires a **price per item** — so menus carry prices, stored in a **GBP-ONLY** source (`gbpMenu:<brand>:<CUR>` Blobs), **never `brandContext.menu`** (SEO stays price-free, as Shazin set it).

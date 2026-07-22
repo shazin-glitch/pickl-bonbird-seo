@@ -16,7 +16,9 @@
 
 const { getStore } = require('@netlify/blobs');
 const { getBrands } = require('./_lib/brands-config');
-const { authorize, denied } = require('./_lib/auth');
+const { authorize, denied, internalHeaders } = require('./_lib/auth');
+
+const SITE = process.env.URL || process.env.NETLIFY_URL || 'https://yolkseo.netlify.app';
 
 const ACCOUNT_MGMT_BASE = 'https://mybusinessaccountmanagement.googleapis.com/v1';
 const BIZ_INFO_BASE     = 'https://mybusinessbusinessinformation.googleapis.com/v1';
@@ -146,17 +148,103 @@ async function listMenus(brand, auth) {
   return { brand, venues: out, mastersAvailable: out.filter(v => v.hasMenu).length };
 }
 
-// PATCH updateFoodMenus for ONE venue with a given `menus` array. dryRun returns
-// the payload without writing.
-async function pushToVenue(locationId, menus, auth, dryRun) {
-  const body = { name: `${locationId}/foodMenus`, menus };
-  if (dryRun) return { locationId, ok: true, dryRun: true };
-  const res = await fetch(`${FOOD_BASE}/${locationId}/foodMenus?updateMask=menus`, {
-    method: 'PATCH',
-    headers: { Authorization: auth, 'Content-Type': 'application/json' },
-    body: JSON.stringify(body),
+// Create a PHOTO on a location from a public image URL (Google fetches it). Returns
+// the new mediaKey (last segment of the returned MediaItem.name) or {error}.
+async function createMediaFromUrl(locationId, imageUrl, auth) {
+  const res = await fetch(`${FOOD_BASE}/${locationId}/media`, {
+    method: 'POST', headers: { Authorization: auth, 'Content-Type': 'application/json' },
+    body: JSON.stringify({ mediaFormat: 'PHOTO', locationAssociation: { category: 'FOOD_AND_DRINK' }, sourceUrl: imageUrl }),
   });
-  if (res.ok) return { locationId, ok: true };
+  const data = await res.json().catch(() => ({}));
+  if (!res.ok) return { error: data.error?.message || `media.create failed (${res.status})` };
+  const key = (data.name || '').split('/').pop();
+  return key ? { key } : { error: 'media.create returned no name' };
+}
+
+// List a location's media as { mediaKey → googleUrl } (for seeding photos off a master).
+async function listLocationMedia(locationId, auth) {
+  const map = {};
+  let pageToken = '';
+  do {
+    const url = `${FOOD_BASE}/${locationId}/media?pageSize=100${pageToken ? `&pageToken=${encodeURIComponent(pageToken)}` : ''}`;
+    const res = await fetch(url, { headers: { Authorization: auth } });
+    const data = await res.json().catch(() => ({}));
+    if (!res.ok) break;
+    for (const it of (data.mediaItems || data.items || [])) {
+      const key = (it.name || '').split('/').pop();
+      if (key && it.googleUrl) map[key] = it.googleUrl;
+    }
+    pageToken = data.nextPageToken || '';
+  } while (pageToken);
+  return map;
+}
+
+// Re-host a public image onto our GCS via the existing calendar-media pipeline.
+// Returns a stable public URL, or null (best-effort — caller falls back to manual upload).
+async function rehostToGcs(imageUrl, filename) {
+  try {
+    const imgRes = await fetch(imageUrl, { signal: AbortSignal.timeout(10000) });
+    if (!imgRes.ok) return null;
+    const buf = Buffer.from(await imgRes.arrayBuffer());
+    if (buf.length > 9 * 1024 * 1024) return null;
+    const mimeType = imgRes.headers.get('content-type') || 'image/jpeg';
+    const up = await fetch(`${SITE}/api/calendar-media`, {
+      method: 'POST', headers: internalHeaders({ 'Content-Type': 'application/json' }),
+      body: JSON.stringify({ filename, mimeType, data: buf.toString('base64') }),
+    });
+    const j = await up.json().catch(() => ({}));
+    return up.ok && j.url ? j.url : null;
+  } catch { return null; }
+}
+
+// Seed the canonical menu FROM a master venue: names/prices/descriptions (reliable) +
+// best-effort re-host of each dish photo to GCS → item.imageUrl. mediaKeys dropped
+// (recreated per venue on push). Photos that can't be resolved just come back without
+// an imageUrl — the editor lets you upload them.
+async function seedFromMaster(brand, masterLocationId, auth) {
+  const m = await getMenu(masterLocationId, auth);
+  if (m.error) return { error: m.error };
+  const menus = JSON.parse(JSON.stringify(m.menus || []));
+  const mediaMap = await listLocationMedia(masterLocationId, auth).catch(() => ({}));
+  let photos = 0, photoMiss = 0;
+  for (const mn of menus) for (const s of (mn.sections || [])) for (const it of (s.items || [])) {
+    const keys = it.attributes?.mediaKeys || [];
+    if (keys.length) {
+      const gurl = mediaMap[keys[0]];
+      if (gurl) { const hosted = await rehostToGcs(gurl, `gbpmenu-${brand}-${keys[0]}.jpg`); if (hosted) { it.imageUrl = hosted; photos++; } else photoMiss++; }
+      else photoMiss++;
+      delete it.attributes.mediaKeys;
+    }
+  }
+  return { menus, currency: m.currency, photosSeeded: photos, photosMissed: photoMiss };
+}
+
+// PATCH updateFoodMenus for ONE venue. Media-aware: any item carrying our non-GBP
+// `imageUrl` gets a fresh photo created ON THIS venue (media.create) and attached as
+// mediaKeys; imageUrl is stripped before sending (not a GBP field). Foreign mediaKeys
+// dropped. dryRun makes NO writes (no media.create, no PATCH) — just reports counts.
+async function pushToVenue(locationId, menusIn, auth, dryRun) {
+  const menus = JSON.parse(JSON.stringify(menusIn || []));
+  let photos = 0, photoFails = 0;
+  for (const m of menus) for (const s of (m.sections || [])) for (const it of (s.items || [])) {
+    const img = it.imageUrl;
+    if (it.attributes && it.attributes.mediaKeys) delete it.attributes.mediaKeys; // drop source/foreign keys
+    if (img) {
+      if (dryRun) { photos++; }
+      else {
+        const r = await createMediaFromUrl(locationId, img, auth);
+        if (r.key) { it.attributes = it.attributes || {}; it.attributes.mediaKeys = [r.key]; photos++; }
+        else photoFails++;
+      }
+    }
+    if ('imageUrl' in it) delete it.imageUrl; // never send our field to Google
+  }
+  if (dryRun) return { locationId, ok: true, dryRun: true, photos };
+  const res = await fetch(`${FOOD_BASE}/${locationId}/foodMenus?updateMask=menus`, {
+    method: 'PATCH', headers: { Authorization: auth, 'Content-Type': 'application/json' },
+    body: JSON.stringify({ name: `${locationId}/foodMenus`, menus }),
+  });
+  if (res.ok) return { locationId, ok: true, photos, photoFails };
   const err = await res.json().catch(() => ({}));
   return { locationId, ok: false, status: res.status, error: err.error?.message || `updateFoodMenus failed (${res.status})` };
 }
@@ -208,6 +296,12 @@ exports.handler = async (event) => {
       if (!locationId) return json(400, { error: 'locationId required' });
       const out = await getMenu(locationId, auth);
       return json(out.error ? 502 : 200, { brand, locationId, ...out });
+    }
+    if (isPost && action === 'seed_from_master') {
+      // Clone a master venue's menu incl. re-hosting its dish photos to GCS (writes to GCS).
+      if (!body.locationId) return json(400, { error: 'locationId (master) required' });
+      const out = await seedFromMaster(brand, body.locationId, auth);
+      return json(out.error ? 502 : 200, { brand, ...out });
     }
     if (isPost && action === 'push') {
       const locationIds = Array.isArray(body.locationIds) ? body.locationIds : [];

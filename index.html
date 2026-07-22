@@ -1601,12 +1601,15 @@ body { font-family: var(--font-sans); background: var(--bg-base); color: var(--t
             <button class="btn btn-outline" style="font-size:12px" onclick="gbpMenuCrossRef()">⇄ Cross-reference vs brand menu</button>
           </div>
           <div id="gm-crossref" style="font-size:12px;margin-bottom:12px"></div>
-          <label class="form-label">Menu <span style="color:var(--text-muted)">(loaded from the master — edit here; a visual builder comes next)</span></label>
-          <textarea id="gm-menu-json" class="form-input" rows="8" style="font-family:monospace;font-size:11px" placeholder="Pick a master above to load its menu, or paste a GBP FoodMenu here…"></textarea>
-          <div style="display:flex;gap:8px;align-items:center;margin:6px 0 14px">
+          <label class="form-label">Menu <span style="color:var(--text-muted)">(clone loads it here with photos — edit names/prices, upload or replace any dish photo)</span></label>
+          <div id="gm-editor" style="border:1px solid var(--border);border-radius:8px;padding:10px;margin-bottom:8px"></div>
+          <div style="display:flex;gap:8px;align-items:center;margin:6px 0 14px;flex-wrap:wrap">
+            <button class="btn btn-outline" style="font-size:12px" onclick="gmAddSection()">+ Section</button>
             <button class="btn btn-outline" style="font-size:12px" onclick="gbpMenuSave()">💾 Save menu</button>
             <span id="gm-menu-status" style="font-size:12px;color:var(--text-muted)"></span>
           </div>
+          <input type="file" id="gm-img-input" accept="image/*" style="display:none">
+          <div style="font-size:11px;color:var(--text-muted);margin-bottom:8px">Prices show only on your Google listings — never in SEO content. Photos upload to your GCS bucket, then attach to each venue on push.</div>
           <label class="form-label">Push to venues <span style="color:var(--text-muted)">(auto-ticked to match the menu's currency — toggle freely)</span></label>
           <div id="gm-venues" style="max-height:260px;overflow:auto;border:1px solid var(--border);border-radius:8px;padding:8px;margin:6px 0 12px"></div>
           <button class="btn btn-outline" style="font-size:13px" onclick="gbpMenuPush(true)">👁 Preview (dry-run)</button>
@@ -7564,29 +7567,125 @@ function gbpMenuRenderVenues() {
   }).join('') || '<div style="color:var(--text-muted)">No venues.</div>';
 }
 
+// Structured working menu: { currency, sections:[{ name, items:[{ name, desc, price, imageUrl }] }] }
+let gmModel = { currency: 'AED', sections: [] };
+
+// GBP FoodMenus[] → editor model
+function gmFromFoodMenus(menus) {
+  const model = { currency: gbpMenuState.currency || 'AED', sections: [] };
+  const menu = (menus || [])[0];
+  for (const s of (menu?.sections || [])) {
+    model.sections.push({
+      name: s.labels?.[0]?.displayName || '',
+      items: (s.items || []).map(it => {
+        const p = it.attributes?.price;
+        if (p?.currencyCode) model.currency = p.currencyCode;
+        const price = p ? (Number(p.units || 0) + Number(p.nanos || 0) / 1e9) : '';
+        return { name: it.labels?.[0]?.displayName || '', desc: it.labels?.[0]?.description || '', price: price === '' ? '' : String(price), imageUrl: it.imageUrl || '' };
+      }),
+    });
+  }
+  return model;
+}
+
+// editor model → GBP FoodMenus[] (single menu). Price → Money{units,nanos}.
+function gmToFoodMenus() {
+  gmSyncFromDom();
+  const cur = gmModel.currency || 'AED';
+  return [{
+    labels: [{ displayName: 'Menu', languageCode: 'en' }],
+    sections: gmModel.sections.map(s => ({
+      labels: [{ displayName: s.name || 'Section', languageCode: 'en' }],
+      items: s.items.map(it => {
+        const num = parseFloat(it.price) || 0;
+        const item = {
+          labels: [{ displayName: it.name || 'Item', languageCode: 'en', ...(it.desc ? { description: it.desc } : {}) }],
+          attributes: { price: { currencyCode: cur, units: String(Math.trunc(num)), nanos: Math.round((num % 1) * 1e9) } },
+        };
+        if (it.imageUrl) item.imageUrl = it.imageUrl; // our field — push converts to per-venue media
+        return item;
+      }),
+    })),
+  }];
+}
+
+function gmSyncFromDom() {
+  document.querySelectorAll('#gm-editor [data-gm]').forEach(inp => {
+    const [si, ii, field] = inp.dataset.gm.split('.');
+    if (ii === 's') { gmModel.sections[+si].name = inp.value; }
+    else { gmModel.sections[+si].items[+ii][field] = inp.value; }
+  });
+}
+
+function gmRenderEditor() {
+  const el = document.getElementById('gm-editor');
+  if (!gmModel.sections.length) { el.innerHTML = '<div style="color:var(--text-muted);font-size:12px">Empty — clone a master above, or “+ Section” to build one.</div>'; return; }
+  el.innerHTML = gmModel.sections.map((s, si) => `
+    <div style="border:1px solid var(--border);border-radius:6px;padding:8px;margin-bottom:8px">
+      <div style="display:flex;gap:6px;align-items:center;margin-bottom:6px">
+        <input class="form-input" data-gm="${si}..s" value="${esc(s.name)}" placeholder="Section (e.g. Burgers)" style="font-weight:600;font-size:13px;flex:1">
+        <button class="btn btn-outline" style="font-size:11px" onclick="gmAddItem(${si})">+ Item</button>
+        <button class="btn btn-outline" style="font-size:11px;color:#ef4444" onclick="gmRemoveSection(${si})">✕</button>
+      </div>
+      ${s.items.map((it, ii) => `
+        <div style="display:flex;gap:6px;align-items:center;margin:4px 0">
+          <div onclick="gmUploadImage(${si},${ii})" title="Upload / replace photo" style="width:40px;height:40px;border-radius:6px;border:1px dashed var(--border);flex-shrink:0;cursor:pointer;background:${it.imageUrl ? `center/cover url('${esc(it.imageUrl)}')` : 'var(--bg-base)'};display:flex;align-items:center;justify-content:center;font-size:14px;color:var(--text-muted)">${it.imageUrl ? '' : '📷'}</div>
+          <input class="form-input" data-gm="${si}.${ii}.name" value="${esc(it.name)}" placeholder="Item name" style="font-size:12px;flex:2">
+          <input class="form-input" data-gm="${si}.${ii}.price" value="${esc(it.price)}" placeholder="Price" style="font-size:12px;width:80px">
+          <button class="btn btn-outline" style="font-size:11px;color:#ef4444" onclick="gmRemoveItem(${si},${ii})">✕</button>
+        </div>`).join('')}
+    </div>`).join('');
+}
+
+function gmAddSection() { gmSyncFromDom(); gmModel.sections.push({ name: '', items: [{ name: '', desc: '', price: '', imageUrl: '' }] }); gmRenderEditor(); }
+function gmAddItem(si) { gmSyncFromDom(); gmModel.sections[si].items.push({ name: '', desc: '', price: '', imageUrl: '' }); gmRenderEditor(); }
+function gmRemoveItem(si, ii) { gmSyncFromDom(); gmModel.sections[si].items.splice(ii, 1); gmRenderEditor(); }
+function gmRemoveSection(si) { gmSyncFromDom(); gmModel.sections.splice(si, 1); gmRenderEditor(); }
+
+// Upload/replace one item's photo via the existing calendar-media GCS pipeline.
+function gmUploadImage(si, ii) {
+  gmSyncFromDom();
+  const inp = document.getElementById('gm-img-input');
+  inp.value = '';
+  inp.onchange = async () => {
+    const f = inp.files?.[0]; if (!f) return;
+    const st = document.getElementById('gm-menu-status');
+    st.style.color = 'var(--text-muted)'; st.textContent = `Uploading ${f.name}…`;
+    try {
+      const data = await new Promise((res, rej) => { const r = new FileReader(); r.onload = () => res(String(r.result).split(',')[1]); r.onerror = rej; r.readAsDataURL(f); });
+      const r = await apiPost('/api/calendar-media', { filename: f.name, mimeType: f.type, data });
+      if (!r.url) throw new Error(r.error || 'upload failed');
+      gmModel.sections[si].items[ii].imageUrl = r.url;
+      gmRenderEditor();
+      st.style.color = '#059669'; st.textContent = '✓ Photo set.';
+    } catch (e) { st.style.color = '#ef4444'; st.textContent = 'Upload failed: ' + e.message; }
+  };
+  inp.click();
+}
+
 async function gbpMenuPickMaster() {
   const sel = document.getElementById('gm-master'); const id = sel.value;
   const st = document.getElementById('gm-menu-status');
   if (!id) return;
-  st.style.color = 'var(--text-muted)'; st.textContent = 'Loading master menu…';
+  st.style.color = 'var(--text-muted)'; st.textContent = 'Cloning master menu + re-hosting its photos… (may take a moment)';
   try {
-    const r = await apiGet(`/api/gbp-menu?action=getmenu&brand=${encodeURIComponent(gbpMenuState.brand)}&locationId=${encodeURIComponent(id)}`);
+    const r = await apiPost('/api/gbp-menu', { action: 'seed_from_master', brand: gbpMenuState.brand, locationId: id });
     if (r.error) throw new Error(r.error);
-    document.getElementById('gm-menu-json').value = JSON.stringify(r.menus || [], null, 2);
     gbpMenuState.currency = r.currency || sel.selectedOptions[0]?.dataset.cur || gbpMenuState.currency;
+    gmModel = gmFromFoodMenus(r.menus);
+    gmModel.currency = gbpMenuState.currency;
+    gmRenderEditor();
     gbpMenuRenderVenues();
-    st.textContent = `Loaded ${r.itemCount || 0} items (${gbpMenuState.currency}) — venues re-ticked to that currency. Review, then push.`;
-  } catch (e) { st.style.color = '#ef4444'; st.textContent = 'Failed: ' + e.message; }
+    const miss = r.photosMissed ? ` (${r.photosMissed} photo(s) couldn't be pulled — upload those manually)` : '';
+    st.style.color = '#059669'; st.textContent = `Cloned: ${r.photosSeeded || 0} photo(s) re-hosted${miss}. Edit, then push. Venues re-ticked to ${gbpMenuState.currency}.`;
+  } catch (e) { st.style.color = '#ef4444'; st.textContent = 'Clone failed: ' + e.message; }
 }
 
-function gbpMenuParse() { try { const m = JSON.parse(document.getElementById('gm-menu-json').value || '[]'); return Array.isArray(m) ? m : null; } catch { return null; } }
-
 async function gbpMenuCrossRef() {
+  gmSyncFromDom();
   const el = document.getElementById('gm-crossref');
-  const menus = gbpMenuParse();
-  if (!menus) { el.innerHTML = '<span style="color:#ef4444">Menu JSON is invalid — fix it first.</span>'; return; }
   const gbpNames = new Set();
-  menus.forEach(mn => (mn.sections || []).forEach(s => (s.items || []).forEach(it => { const n = (it.labels?.[0]?.displayName || '').toLowerCase().trim(); if (n) gbpNames.add(n); })));
+  gmModel.sections.forEach(s => s.items.forEach(it => { const n = (it.name || '').toLowerCase().trim(); if (n) gbpNames.add(n); }));
   let brandNames = [];
   try { const d = await apiGet('/api/db/get'); const ctx = d[`brandContext_${gbpMenuState.brand}`]; brandNames = Object.values(ctx?.menu || {}).flat().map(x => String(x).toLowerCase()); } catch {}
   const gbpArr = [...gbpNames];
@@ -7595,28 +7694,28 @@ async function gbpMenuCrossRef() {
 }
 
 async function gbpMenuSave() {
-  const menus = gbpMenuParse(); const st = document.getElementById('gm-menu-status');
-  if (!menus) { st.style.color = '#ef4444'; st.textContent = 'Menu JSON is invalid.'; return; }
-  try { const r = await apiPost('/api/gbp-menu', { action: 'savemenu', brand: gbpMenuState.brand, currency: gbpMenuState.currency, menus }); if (r.error) throw new Error(r.error); st.style.color = '#059669'; st.textContent = '✓ Saved (GBP-only — not used in SEO).'; }
+  const st = document.getElementById('gm-menu-status');
+  try { const r = await apiPost('/api/gbp-menu', { action: 'savemenu', brand: gbpMenuState.brand, currency: gmModel.currency, menus: gmToFoodMenus() }); if (r.error) throw new Error(r.error); st.style.color = '#059669'; st.textContent = '✓ Saved (GBP-only — not used in SEO).'; }
   catch (e) { st.style.color = '#ef4444'; st.textContent = 'Save failed: ' + e.message; }
 }
 
 async function gbpMenuPush(dry) {
-  const menus = gbpMenuParse();
+  const menus = gmToFoodMenus();
   const st = document.getElementById('gm-push-status'); const res = document.getElementById('gm-push-results');
-  if (!menus) { st.style.color = '#ef4444'; st.textContent = 'Menu JSON is invalid — fix it first.'; return; }
+  const totalItems = gmModel.sections.reduce((n, s) => n + s.items.length, 0);
+  if (!totalItems) { st.style.color = '#ef4444'; st.textContent = 'Menu is empty — clone a master or add items first.'; return; }
   const checked = [...document.querySelectorAll('.gm-venue:checked')];
   const ids = checked.map(c => c.value);
   if (!ids.length) { st.style.color = '#ef4444'; st.textContent = 'Select at least one venue.'; return; }
-  const mixed = checked.filter(c => c.dataset.cur !== gbpMenuState.currency);
-  if (!dry && mixed.length && !confirm(`${mixed.length} selected venue(s) use a different currency than this menu (${gbpMenuState.currency}). Their prices would display in ${gbpMenuState.currency}. Push anyway?`)) return;
-  if (!dry && !confirm(`Push this menu LIVE to ${ids.length} venue(s)? It overwrites their current Google menu.`)) return;
-  st.style.color = 'var(--text-muted)'; st.textContent = dry ? 'Previewing (no changes made)…' : 'Pushing…'; res.innerHTML = '';
+  const mixed = checked.filter(c => c.dataset.cur !== gmModel.currency);
+  if (!dry && mixed.length && !confirm(`${mixed.length} selected venue(s) use a different currency than this menu (${gmModel.currency}). Their prices would display in ${gmModel.currency}. Push anyway?`)) return;
+  if (!dry && !confirm(`Push this menu LIVE to ${ids.length} venue(s)? It overwrites their current Google menu, and uploads each dish photo to every venue.`)) return;
+  st.style.color = 'var(--text-muted)'; st.textContent = dry ? 'Previewing (no changes made)…' : 'Pushing (uploading photos per venue — this can take a bit)…'; res.innerHTML = '';
   try {
     const r = await apiPost('/api/gbp-menu', { action: 'push', brand: gbpMenuState.brand, locationIds: ids, menus, dryRun: dry });
     if (r.error) throw new Error(r.error);
     const byId = {}; gbpMenuState.venues.forEach(v => byId[v.locationId] = v.title);
-    res.innerHTML = r.results.map(x => `<div>${x.ok ? (x.dryRun ? '👁' : '✓') : '✗'} ${esc(byId[x.locationId] || x.locationId)}${x.ok ? '' : ' — ' + esc(x.error || 'failed')}</div>`).join('');
+    res.innerHTML = r.results.map(x => `<div>${x.ok ? (x.dryRun ? '👁' : '✓') : '✗'} ${esc(byId[x.locationId] || x.locationId)}${x.photos != null ? ` · ${x.photos} photo(s)` : ''}${x.photoFails ? ` <span style="color:#d97706">(${x.photoFails} photo fail)</span>` : ''}${x.ok ? '' : ' — ' + esc(x.error || 'failed')}</div>`).join('');
     st.style.color = '#059669';
     st.textContent = dry ? `Dry-run OK for ${r.total} venue(s) — nothing changed. Uncheck any you don't want, then Push.` : `Pushed to ${r.pushed}/${r.total} venue(s).`;
     if (!dry) showToast(`Menu pushed to ${r.pushed} venue(s).`, 'success');
