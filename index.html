@@ -1776,8 +1776,10 @@ body { font-family: var(--font-sans); background: var(--bg-base); color: var(--t
                 <div style="font-size:14px;font-weight:700;margin-bottom:4px">✓ <span id="bw-saved-name"></span> saved — connect &amp; launch</div>
                 <div id="bw-checklist" style="font-size:13px;line-height:2;margin:12px 0"></div>
                 <div style="background:var(--bg-base);border-radius:8px;padding:12px 14px;margin-bottom:14px;font-size:12px;color:var(--text-muted);line-height:1.6">
-                  <strong style="color:var(--text-main)">To publish + pull reviews</strong>, set these env vars in Netlify, then redeploy:<br>
-                  <code id="bw-envvars" style="font-size:11px;background:var(--bg-surface);padding:2px 6px;border-radius:4px;display:inline-block;margin-top:4px"></code>
+                  <strong style="color:var(--text-main)">To publish + pull reviews</strong>, add these env vars in Netlify, then redeploy — the checklist above updates once they're live:<br>
+                  <code id="bw-envvars" style="font-size:11px;background:var(--bg-surface);padding:2px 6px;border-radius:4px;display:inline-block;margin:4px 0"></code><br>
+                  <a id="bw-netlify-link" href="https://app.netlify.com/sites/yolkseo/configuration/env" target="_blank" rel="noopener" class="btn btn-outline" style="font-size:12px;margin-top:4px">↗ Open Netlify env vars</a>
+                  <button class="btn btn-outline" style="font-size:12px;margin-top:4px;margin-left:6px" onclick="if(bwState.slug)refreshOnboardEnv(bwState.slug)">↻ Re-check</button>
                 </div>
                 <button class="btn btn-primary" onclick="onboardLaunch()" style="font-size:13px">🚀 Run first analysis</button>
                 <button class="btn btn-outline" onclick="closeBrandWizard()" style="font-size:13px;margin-left:8px">Done</button>
@@ -4869,9 +4871,9 @@ async function onboardApprove() {
       chk(!!brand.gscProperty, brand.gscProperty ? 'GSC property set' : 'GSC property not set (add it to pull traffic/rankings)') +
       chk(competitors.length, `${competitors.length} competitor(s) to track`) +
       chk(brand.keywordSeeds.length, `${brand.keywordSeeds.length} seed keyword(s)`) +
-      chk(!!(positioning || voice), (positioning || voice) ? 'Brand voice captured' : 'No brand voice yet') +
-      chk(false, `WordPress creds — set env vars to publish`);
+      chk(!!(positioning || voice), (positioning || voice) ? 'Brand voice captured' : 'No brand voice yet');
     document.getElementById('bw-envvars').textContent = `WP_${slug.toUpperCase()}_BASE / _USER / _APP_PASS · GBP_${slug.toUpperCase()}_ACCOUNT_ID / _LOCATION_ID`;
+    await refreshOnboardEnv(slug); // append live WP/GBP status
     showToast(`Brand "${name}" onboarded — it's in every dropdown now.`, 'success');
     bwShowStep(4);
   } catch (e) { statusEl.style.color = '#ef4444'; statusEl.textContent = 'Failed: ' + e.message; }
@@ -4890,6 +4892,23 @@ async function onboardLaunch() {
   st.textContent = '✓ First analysis started — keyword discovery + site crawl run in the background (~a few minutes). Results appear in Opportunities & Technical SEO.';
   showToast(`First analysis started for ${bwState.brand?.name || slug}.`, 'success');
   setTimeout(closeBrandWizard, 2500);
+}
+
+// Live WP/GBP env-var status for the onboarding checklist (booleans only — the
+// endpoint never returns credential values). Called after save + by the Re-check button.
+async function refreshOnboardEnv(slug) {
+  const el = document.getElementById('bw-checklist');
+  if (!el) return;
+  el.querySelectorAll('.bw-env-line').forEach(n => n.remove());
+  let wp = false, gbp = false, err = false;
+  try {
+    const r = await fetch(`/api/config?envcheck=${encodeURIComponent(slug)}`, { credentials: 'include' }).then(r => r.json());
+    wp = !!r.wp; gbp = !!r.gbp;
+  } catch { err = true; }
+  const line = (ok, label) => `<div class="bw-env-line">${ok ? '✓' : '⚠️'} ${label}</div>`;
+  el.insertAdjacentHTML('beforeend',
+    line(wp,  wp  ? 'WordPress credentials connected' : 'WordPress credentials — set env vars to publish' + (err ? ' (check failed)' : '')) +
+    line(gbp, gbp ? 'Google Business Profile connected' : 'Google Business Profile — optional; set env vars for reviews'));
 }
 
 // ── SEO Market onboarding (config-driven — writes ONE marketsConfig record) ────

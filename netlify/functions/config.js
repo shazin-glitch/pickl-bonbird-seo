@@ -30,6 +30,26 @@ exports.handler = async (event) => {
   const auth = await authorize(event);
   if (!auth.ok) return denied();
 
+  // ── Read: env-var status for a brand (onboarding checklist) ─────────────────
+  // Returns BOOLEANS ONLY — never the values. Reports whether the brand's WP + GBP
+  // credentials are present in the environment (the wizard uses this for live ✓/⚠).
+  if (event.httpMethod === 'GET' && event.queryStringParameters && event.queryStringParameters.envcheck) {
+    const slug = String(event.queryStringParameters.envcheck).toLowerCase().replace(/[^a-z0-9_]/g, '');
+    if (!slug) return json(400, { error: 'invalid slug' });
+    const b = await getBrand(slug);
+    const prefix = (b && b.wpEnvPrefix) || `WP_${slug.toUpperCase()}`;
+    const has = k => !!process.env[k];
+    const wpVars  = { base: has(`${prefix}_BASE`), user: has(`${prefix}_USER`), pass: has(`${prefix}_APP_PASS`) };
+    const gbpVars = { account: has((b && b.gbpAccountEnv) || `GBP_${slug.toUpperCase()}_ACCOUNT_ID`), location: has((b && b.gbpLocationEnv) || `GBP_${slug.toUpperCase()}_LOCATION_ID`) };
+    return json(200, {
+      slug,
+      wp:  wpVars.base && wpVars.user && wpVars.pass,
+      gbp: gbpVars.account && gbpVars.location,
+      wpVars, gbpVars,
+      names: { wp: [`${prefix}_BASE`, `${prefix}_USER`, `${prefix}_APP_PASS`], gbp: [`GBP_${slug.toUpperCase()}_ACCOUNT_ID`, `GBP_${slug.toUpperCase()}_LOCATION_ID`] },
+    });
+  }
+
   // ── Read: brand list for dropdowns ──────────────────────────────────────────
   if (event.httpMethod === 'GET') {
     const includeInactive = /(?:^|[?&])all=1/.test(event.rawQuery || event.rawUrl || '') ||

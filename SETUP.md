@@ -326,6 +326,12 @@ From Google's official AI Optimization Guide (June 2026):
 
 ---
 
+## Session: July 2026 — v7.7.2 — Onboarding: live env-var verification + Netlify deep-link
+
+The wizard's step 4 now VERIFIES creds instead of just naming them. New gated `GET /api/config?envcheck=<slug>` reads `process.env` for the brand's `WP_<SLUG>_*` + `GBP_<SLUG>_*` and returns **booleans only** (never the values — the leak class that bit db-get before). Step 4 checklist shows live ✓/⚠ for "WordPress credentials connected" / "Google Business Profile connected", plus a **↗ Open Netlify env vars** deep-link and a **↻ Re-check** button (re-runs after you add vars + redeploy). The tool does NOT create env vars (no Netlify API token held — deliberate) and WP creds stay in env, not Blobs (declined the paste-to-Blobs option on security grounds). Verified: envcheck returns correct booleans + leaks no values.
+
+---
+
 ## Session: July 2026 — v7.7.0 — ⭐ Auto-discovery onboarding wizard (URL → discover → review → launch)
 
 Onboarding is now an EXPERIENCE, not a form (Shazin: "give it a URL, it figures out the rest"). New `brand-discover.js` (`/api/brand-discover`, gated admin/manager): given a DOMAIN it runs 3 discoveries in parallel — (1) fetches homepage + /menu + /about and Claude infers IDENTITY (name, vertical, positioning, what-it-sells, brand-voice sample, tagline, branded terms, locations); (2) DataForSEO `ranked_keywords` on the domain → seed keywords it already ranks for (brand-navigational terms post-filtered out using the discovered name); (3) DataForSEO `competitors_domain` → competitor suggestions (social/aggregator domains filtered). All the capability already existed (crawler, ranked_keywords, competitors_domain) — this WIRES it into onboarding.
