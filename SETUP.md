@@ -326,6 +326,13 @@ From Google's official AI Optimization Guide (June 2026):
 
 ---
 
+## Session: July 2026 — v7.7.3 — GBP food-menu bulk-push: capability probe (step 1)
+
+Goal (Shazin): create a menu once and push it to ALL (or selected) venues for a brand, instead of editing each GBP listing by hand. Confirmed the API supports it — GBP v4 `accounts.locations.updateFoodMenus` (structured sections/items/prices/allergens/options); we already use GBP v4 (reviews) + already enumerate a brand's locations. **Step 1 shipped: capability probe** — `GET /api/gbp-menu?action=probe&brand=<slug>` (gbp-menu.js, gated) lists every venue for the brand with food-menu eligibility (`metadata.canHaveFoodMenus` → ✓/✗/? unknown) + the v4 resource name for each. Read-only, no spend. Reuses the proven gbpTokens refresh + accounts/locations listing; brand-filtered by title (config brandTerms). Verified headlessly (stubbed GBP): correct brand filter, per-venue ✓/✗/? and v4 ids.
+**Step 2 (next, after a live probe run):** `POST {action:'push', brand, locationIds:[...], menu}` → PATCH updateFoodMenus per SELECTED eligible venue, per-venue ✓/skip/fail + a preview/venue-checklist UI. **Prices for GBP menus will come from a GBP-ONLY source, never `brandContext.menu`** — Shazin deliberately removed menu prices from Blobs so SEO content wouldn't use them; that stays.
+
+---
+
 ## Session: July 2026 — v7.7.2 — Onboarding: live env-var verification + Netlify deep-link
 
 The wizard's step 4 now VERIFIES creds instead of just naming them. New gated `GET /api/config?envcheck=<slug>` reads `process.env` for the brand's `WP_<SLUG>_*` + `GBP_<SLUG>_*` and returns **booleans only** (never the values — the leak class that bit db-get before). Step 4 checklist shows live ✓/⚠ for "WordPress credentials connected" / "Google Business Profile connected", plus a **↗ Open Netlify env vars** deep-link and a **↻ Re-check** button (re-runs after you add vars + redeploy). The tool does NOT create env vars (no Netlify API token held — deliberate) and WP creds stay in env, not Blobs (declined the paste-to-Blobs option on security grounds). Verified: envcheck returns correct booleans + leaks no values.

@@ -9,6 +9,11 @@
   status = 200
 
 [[redirects]]
+  from = "/api/gbp-menu"
+  to = "/.netlify/functions/gbp-menu"
+  status = 200
+
+[[redirects]]
   from = "/api/claude"
   to = "/.netlify/functions/claude"
   status = 200
