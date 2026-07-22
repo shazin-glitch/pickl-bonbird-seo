@@ -1589,6 +1589,33 @@ body { font-family: var(--font-sans); background: var(--bg-base); color: var(--t
         </div>
       </div>
 
+      <!-- GBP Menus — bulk create & push (config-driven; prices GBP-only, never SEO) -->
+      <div class="card" id="gbp-menu-card" style="margin-top:20px;border-left:3px solid #1BBFA3">
+        <div style="font-weight:600;font-size:14px;margin-bottom:2px">🍔 GBP Menus — bulk create &amp; push</div>
+        <div style="font-size:12px;color:var(--text-muted);margin-bottom:14px">Build a menu once, or <strong>clone one you've already made on a listing</strong>, and push it to all — or selected — venues in one go. Google requires a price per item, so these prices live <strong>only here on your Google listings</strong>; your SEO content stays price-free.</div>
+        <button class="btn btn-primary" id="gm-load-btn" onclick="gbpMenuLoad()" style="font-size:13px">Load venues &amp; menus</button>
+        <div id="gm-body" style="display:none;margin-top:14px">
+          <div style="display:flex;gap:10px;align-items:flex-end;flex-wrap:wrap;margin-bottom:10px">
+            <div class="form-group" style="margin-bottom:0"><label class="form-label">Clone from a venue that already has a menu</label>
+              <select id="gm-master" class="form-input" style="font-family:var(--font-sans);min-width:260px" onchange="gbpMenuPickMaster()"></select></div>
+            <button class="btn btn-outline" style="font-size:12px" onclick="gbpMenuCrossRef()">⇄ Cross-reference vs brand menu</button>
+          </div>
+          <div id="gm-crossref" style="font-size:12px;margin-bottom:12px"></div>
+          <label class="form-label">Menu <span style="color:var(--text-muted)">(loaded from the master — edit here; a visual builder comes next)</span></label>
+          <textarea id="gm-menu-json" class="form-input" rows="8" style="font-family:monospace;font-size:11px" placeholder="Pick a master above to load its menu, or paste a GBP FoodMenu here…"></textarea>
+          <div style="display:flex;gap:8px;align-items:center;margin:6px 0 14px">
+            <button class="btn btn-outline" style="font-size:12px" onclick="gbpMenuSave()">💾 Save menu</button>
+            <span id="gm-menu-status" style="font-size:12px;color:var(--text-muted)"></span>
+          </div>
+          <label class="form-label">Push to venues <span style="color:var(--text-muted)">(auto-ticked to match the menu's currency — toggle freely)</span></label>
+          <div id="gm-venues" style="max-height:260px;overflow:auto;border:1px solid var(--border);border-radius:8px;padding:8px;margin:6px 0 12px"></div>
+          <button class="btn btn-outline" style="font-size:13px" onclick="gbpMenuPush(true)">👁 Preview (dry-run)</button>
+          <button class="btn btn-primary" style="font-size:13px;margin-left:8px" onclick="gbpMenuPush(false)">🚀 Push to selected venues</button>
+          <div id="gm-push-status" style="font-size:12px;color:var(--text-muted);margin-top:8px"></div>
+          <div id="gm-push-results" style="font-size:12px;margin-top:8px"></div>
+        </div>
+      </div>
+
     </div><!-- /view-localseo -->
 
     <!-- ═══ VIEW 4: AI CONTENT STUDIO ═══ -->
@@ -7496,6 +7523,104 @@ function switchLocalSeoBrand(brand) {
 
 function connectGbp() {
   window.location.href = '/api/auth/login?type=gbp';
+}
+
+// ── GBP Menus — bulk create & push (clone a master → select venues → preview → push) ──
+let gbpMenuState = { brand: null, venues: [], currency: 'AED' };
+
+async function gbpMenuLoad() {
+  const brand = (typeof localSeoState !== 'undefined' && localSeoState.brand) || 'pickl';
+  gbpMenuState.brand = brand;
+  const btn = document.getElementById('gm-load-btn');
+  btn.disabled = true; btn.textContent = 'Loading venues + menus…';
+  try {
+    const r = await apiGet(`/api/gbp-menu?action=menus&brand=${encodeURIComponent(brand)}`);
+    if (r.notConnected) { showToast('Connect Google Business Profile first (Settings).', 'error'); btn.disabled = false; btn.textContent = 'Load venues & menus'; return; }
+    if (r.error) throw new Error(r.error);
+    gbpMenuState.venues = r.venues || [];
+    const masters = gbpMenuState.venues.filter(v => v.hasMenu);
+    document.getElementById('gm-master').innerHTML =
+      '<option value="">— none (build/paste manually) —</option>' +
+      masters.map(v => `<option value="${esc(v.locationId)}" data-cur="${esc(v.menuCurrency || v.currency)}">${esc(v.title)} · ${v.itemCount} items · ${esc(v.menuCurrency || v.currency)}</option>`).join('');
+    gbpMenuRenderVenues();
+    document.getElementById('gm-body').style.display = '';
+    btn.textContent = '↻ Reload';
+  } catch (e) { showToast('Load failed: ' + e.message, 'error'); btn.textContent = 'Load venues & menus'; }
+  btn.disabled = false;
+}
+
+function gbpMenuRenderVenues() {
+  const cur = gbpMenuState.currency;
+  document.getElementById('gm-venues').innerHTML = gbpMenuState.venues.map(v => {
+    const eligible = v.canHaveFoodMenus !== false;
+    const match = v.currency === cur;
+    return `<label style="display:flex;gap:8px;align-items:center;padding:4px 2px;${eligible ? '' : 'opacity:.5'}">
+      <input type="checkbox" class="gm-venue" value="${esc(v.locationId)}" data-cur="${esc(v.currency)}" ${eligible && match ? 'checked' : ''} ${eligible ? '' : 'disabled'}>
+      <span style="flex:1">${esc(v.title)}</span>
+      <span style="font-size:11px;color:${match ? 'var(--text-muted)' : '#d97706'}">${esc(v.currency)}${match ? '' : ' ⚠ diff'}</span>
+      ${v.hasMenu ? '<span style="font-size:10px;background:#05996918;color:#059669;padding:1px 6px;border-radius:4px">has menu</span>' : ''}
+      ${eligible ? '' : '<span style="font-size:10px;color:#ef4444">not eligible</span>'}
+    </label>`;
+  }).join('') || '<div style="color:var(--text-muted)">No venues.</div>';
+}
+
+async function gbpMenuPickMaster() {
+  const sel = document.getElementById('gm-master'); const id = sel.value;
+  const st = document.getElementById('gm-menu-status');
+  if (!id) return;
+  st.style.color = 'var(--text-muted)'; st.textContent = 'Loading master menu…';
+  try {
+    const r = await apiGet(`/api/gbp-menu?action=getmenu&brand=${encodeURIComponent(gbpMenuState.brand)}&locationId=${encodeURIComponent(id)}`);
+    if (r.error) throw new Error(r.error);
+    document.getElementById('gm-menu-json').value = JSON.stringify(r.menus || [], null, 2);
+    gbpMenuState.currency = r.currency || sel.selectedOptions[0]?.dataset.cur || gbpMenuState.currency;
+    gbpMenuRenderVenues();
+    st.textContent = `Loaded ${r.itemCount || 0} items (${gbpMenuState.currency}) — venues re-ticked to that currency. Review, then push.`;
+  } catch (e) { st.style.color = '#ef4444'; st.textContent = 'Failed: ' + e.message; }
+}
+
+function gbpMenuParse() { try { const m = JSON.parse(document.getElementById('gm-menu-json').value || '[]'); return Array.isArray(m) ? m : null; } catch { return null; } }
+
+async function gbpMenuCrossRef() {
+  const el = document.getElementById('gm-crossref');
+  const menus = gbpMenuParse();
+  if (!menus) { el.innerHTML = '<span style="color:#ef4444">Menu JSON is invalid — fix it first.</span>'; return; }
+  const gbpNames = new Set();
+  menus.forEach(mn => (mn.sections || []).forEach(s => (s.items || []).forEach(it => { const n = (it.labels?.[0]?.displayName || '').toLowerCase().trim(); if (n) gbpNames.add(n); })));
+  let brandNames = [];
+  try { const d = await apiGet('/api/db/get'); const ctx = d[`brandContext_${gbpMenuState.brand}`]; brandNames = Object.values(ctx?.menu || {}).flat().map(x => String(x).toLowerCase()); } catch {}
+  const gbpArr = [...gbpNames];
+  const missing = brandNames.filter(bn => !gbpArr.some(gn => gn.includes(bn.split(' ')[0]) || bn.includes(gn.split(' ')[0]))).slice(0, 12);
+  el.innerHTML = `<div style="background:var(--bg-base);border-radius:6px;padding:8px 10px">GBP menu: <strong>${gbpNames.size}</strong> items · Brand (SEO) menu: <strong>${brandNames.length}</strong> items.${missing.length ? ` <span style="color:#d97706">In brand menu, maybe missing from GBP:</span> ${missing.map(esc).join(', ')}` : ' Structures look aligned.'}</div>`;
+}
+
+async function gbpMenuSave() {
+  const menus = gbpMenuParse(); const st = document.getElementById('gm-menu-status');
+  if (!menus) { st.style.color = '#ef4444'; st.textContent = 'Menu JSON is invalid.'; return; }
+  try { const r = await apiPost('/api/gbp-menu', { action: 'savemenu', brand: gbpMenuState.brand, currency: gbpMenuState.currency, menus }); if (r.error) throw new Error(r.error); st.style.color = '#059669'; st.textContent = '✓ Saved (GBP-only — not used in SEO).'; }
+  catch (e) { st.style.color = '#ef4444'; st.textContent = 'Save failed: ' + e.message; }
+}
+
+async function gbpMenuPush(dry) {
+  const menus = gbpMenuParse();
+  const st = document.getElementById('gm-push-status'); const res = document.getElementById('gm-push-results');
+  if (!menus) { st.style.color = '#ef4444'; st.textContent = 'Menu JSON is invalid — fix it first.'; return; }
+  const checked = [...document.querySelectorAll('.gm-venue:checked')];
+  const ids = checked.map(c => c.value);
+  if (!ids.length) { st.style.color = '#ef4444'; st.textContent = 'Select at least one venue.'; return; }
+  const mixed = checked.filter(c => c.dataset.cur !== gbpMenuState.currency);
+  if (!dry && mixed.length && !confirm(`${mixed.length} selected venue(s) use a different currency than this menu (${gbpMenuState.currency}). Their prices would display in ${gbpMenuState.currency}. Push anyway?`)) return;
+  if (!dry && !confirm(`Push this menu LIVE to ${ids.length} venue(s)? It overwrites their current Google menu.`)) return;
+  st.style.color = 'var(--text-muted)'; st.textContent = dry ? 'Previewing (no changes made)…' : 'Pushing…'; res.innerHTML = '';
+  try {
+    const r = await apiPost('/api/gbp-menu', { action: 'push', brand: gbpMenuState.brand, locationIds: ids, menus, dryRun: dry });
+    if (r.error) throw new Error(r.error);
+    const byId = {}; gbpMenuState.venues.forEach(v => byId[v.locationId] = v.title);
+    res.innerHTML = r.results.map(x => `<div>${x.ok ? (x.dryRun ? '👁' : '✓') : '✗'} ${esc(byId[x.locationId] || x.locationId)}${x.ok ? '' : ' — ' + esc(x.error || 'failed')}</div>`).join('');
+    st.style.color = '#059669';
+    st.textContent = dry ? `Dry-run OK for ${r.total} venue(s) — nothing changed. Uncheck any you don't want, then Push.` : `Pushed to ${r.pushed}/${r.total} venue(s).`;
+    if (!dry) showToast(`Menu pushed to ${r.pushed} venue(s).`, 'success');
+  } catch (e) { st.style.color = '#ef4444'; st.textContent = 'Failed: ' + e.message; }
 }
 
 async function loadLocalSeo() {

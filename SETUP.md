@@ -326,6 +326,22 @@ From Google's official AI Optimization Guide (June 2026):
 
 ---
 
+## Session: July 2026 — v7.7.4 — GBP food-menu bulk create + push (clone / editor / cross-ref / per-venue)
+
+Full feature on top of the v7.7.3 probe. Live probe confirmed 17 Pickl venues, all eligible, across 3 GBP accounts (16 AED + 1 Jordan JOD). VERIFIED via docs: GBP requires a **price per item** — so menus carry prices, stored in a **GBP-ONLY** source (`gbpMenu:<brand>:<CUR>` Blobs), **never `brandContext.menu`** (SEO stays price-free, as Shazin set it).
+
+`gbp-menu.js` (`/api/gbp-menu`, gated; writes = manager/admin) actions:
+- `menus` — venues + which already have a menu (clone masters) + detected currency.
+- `getmenu` — one venue's live FoodMenu (clone source + preview).
+- `push` `{locationIds[],menus,dryRun}` — PATCH v4 `updateFoodMenus?updateMask=menus` per SELECTED venue; **dry-run is the DEFAULT** (only `dryRun:false` writes); per-venue ✓/skip/fail; sequential.
+- `savemenu`/`loadmenu` — persist the GBP-only menu per brand+currency.
+
+UI: Local SEO → **🍔 GBP Menus** card — Load venues → pick a **clone master** (a listing you already built by hand) → menu loads into an editable view → **⇄ Cross-reference vs brand menu** (shows items in the SEO menu maybe missing from GBP, to lock structure) → **venue checklist** auto-ticked to the menu's currency but every venue toggleable (⚠ flags a different-currency pick) → **👁 Preview (dry-run)** then **🚀 Push** (double-confirm). Visual menu builder = next; editor is JSON-backed for now.
+
+Verified headlessly (stubbed GBP): menus/getmenu/clone, dry-run fires 0 writes, real push fires exactly 1 PATCH/venue, save/load, unauth push → 401. Live click-through owed (needs signed-in deploy + real listings).
+
+---
+
 ## Session: July 2026 — v7.7.3 — GBP food-menu bulk-push: capability probe (step 1)
 
 Goal (Shazin): create a menu once and push it to ALL (or selected) venues for a brand, instead of editing each GBP listing by hand. Confirmed the API supports it — GBP v4 `accounts.locations.updateFoodMenus` (structured sections/items/prices/allergens/options); we already use GBP v4 (reviews) + already enumerate a brand's locations. **Step 1 shipped: capability probe** — `GET /api/gbp-menu?action=probe&brand=<slug>` (gbp-menu.js, gated) lists every venue for the brand with food-menu eligibility (`metadata.canHaveFoodMenus` → ✓/✗/? unknown) + the v4 resource name for each. Read-only, no spend. Reuses the proven gbpTokens refresh + accounts/locations listing; brand-filtered by title (config brandTerms). Verified headlessly (stubbed GBP): correct brand filter, per-venue ✓/✗/? and v4 ids.

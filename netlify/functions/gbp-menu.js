@@ -20,6 +20,7 @@ const { authorize, denied } = require('./_lib/auth');
 
 const ACCOUNT_MGMT_BASE = 'https://mybusinessaccountmanagement.googleapis.com/v1';
 const BIZ_INFO_BASE     = 'https://mybusinessbusinessinformation.googleapis.com/v1';
+const FOOD_BASE         = 'https://mybusiness.googleapis.com/v4'; // food menus live on v4
 const CORS = { 'Access-Control-Allow-Origin': '*', 'Access-Control-Allow-Headers': 'Content-Type', 'Access-Control-Allow-Methods': 'GET, POST, OPTIONS' };
 const json = (s, b) => ({ statusCode: s, headers: { ...CORS, 'Content-Type': 'application/json' }, body: JSON.stringify(b) });
 
@@ -53,18 +54,33 @@ function titleMatchesBrand(title, b) {
   return terms.some(x => t.includes(String(x).toLowerCase()));
 }
 
-async function probe(brand, auth) {
-  const brands = await getBrands();
-  const b = brands.find(x => x.slug === brand);
-  if (!b) return { error: `Unknown brand: ${brand}` };
+// Infer a venue's currency from its address country (menus are priced per currency).
+// Keep it conservative + explicit; extend as brands enter new countries.
+function currencyForAddress(addr) {
+  const c = String(addr?.regionCode || '').toUpperCase();
+  const txt = [addr?.administrativeArea, addr?.locality, (addr?.addressLines || []).join(' ')].join(' ').toLowerCase();
+  const map = { AE: 'AED', JO: 'JOD', SA: 'SAR', QA: 'QAR', BH: 'BHD', EG: 'EGP', OM: 'OMR', PK: 'PKR', KW: 'KWD' };
+  if (map[c]) return map[c];
+  if (/jordan|amman/.test(txt)) return 'JOD';
+  if (/saudi|riyadh|jeddah/.test(txt)) return 'SAR';
+  if (/qatar|doha/.test(txt)) return 'QAR';
+  if (/bahrain|manama/.test(txt)) return 'BHD';
+  if (/egypt|cairo/.test(txt)) return 'EGP';
+  if (/\boman\b|muscat/.test(txt)) return 'OMR';
+  if (/pakistan|lahore|karachi/.test(txt)) return 'PKR';
+  return 'AED'; // UAE default (16 of 17 Pickl venues)
+}
 
+// List a brand's GBP venues (shared by probe + menus). Returns { venues, error? }.
+async function listVenues(brand, auth) {
+  const b = (await getBrands()).find(x => x.slug === brand);
+  if (!b) return { error: `Unknown brand: ${brand}` };
   const accRes = await fetch(`${ACCOUNT_MGMT_BASE}/accounts`, { headers: { Authorization: auth } });
   const accData = await accRes.json();
   if (!accRes.ok) return { error: accData.error?.message || `Accounts API failed (${accRes.status})`, scopeIssue: accRes.status === 401 || accRes.status === 403 };
   const accounts = accData.accounts || [];
-  if (!accounts.length) return { brand, connected: true, venues: [], note: 'No GBP accounts returned for the connected Google account.' };
+  if (!accounts.length) return { venues: [], note: 'No GBP accounts returned for the connected Google account.' };
 
-  // metadata carries canHaveFoodMenus (food-menu eligibility).
   const readMask = encodeURIComponent('name,title,storefrontAddress,metadata');
   const venues = [];
   let listErr = null;
@@ -84,7 +100,7 @@ async function probe(brand, auth) {
           title: loc.title || locId,
           locationId: `${account.name}/locations/${locId}`, // v4 resource name for updateFoodMenus
           address: addr ? [ (addr.addressLines || []).join(', '), addr.locality, addr.administrativeArea ].filter(Boolean).join(', ') : null,
-          // true / false / null(=unknown — metadata field absent on this location)
+          currency: currencyForAddress(addr),
           canHaveFoodMenus: canHave === undefined ? null : !!canHave,
         });
       }
@@ -92,39 +108,120 @@ async function probe(brand, auth) {
     } while (pageToken);
   }
   if (!venues.length && listErr) return { error: listErr };
+  return { venues };
+}
 
+async function probe(brand, auth) {
+  const r = await listVenues(brand, auth);
+  if (r.error) return r;
+  const venues = r.venues;
   const eligible = venues.filter(v => v.canHaveFoodMenus === true).length;
   const unknown  = venues.filter(v => v.canHaveFoodMenus === null).length;
-  return {
-    brand, connected: true, scopeOk: true,
-    total: venues.length, eligible, unknown,
-    venues,
-    note: unknown ? `${unknown} venue(s) didn't report the food-menu flag — a live push attempt will confirm eligibility for those.` : undefined,
-  };
+  return { brand, connected: true, scopeOk: true, total: venues.length, eligible, unknown, venues, note: r.note };
 }
+
+// GET one venue's current food menu (for cloning + cross-reference).
+async function getMenu(locationId, auth) {
+  const res = await fetch(`${FOOD_BASE}/${locationId}/foodMenus`, { headers: { Authorization: auth } });
+  const data = await res.json();
+  if (!res.ok) return { error: data.error?.message || `getFoodMenus failed (${res.status})`, status: res.status };
+  const menus = data.menus || [];
+  // Summarise + detect currency from the first priced item.
+  let itemCount = 0, currency = null;
+  for (const m of menus) for (const sec of (m.sections || [])) for (const it of (sec.items || [])) {
+    itemCount++;
+    if (!currency && it.attributes?.price?.currencyCode) currency = it.attributes.price.currencyCode;
+  }
+  return { hasMenu: menus.length > 0 && itemCount > 0, menus, itemCount, currency };
+}
+
+// List venues + whether each already has a menu (to pick a clone master).
+async function listMenus(brand, auth) {
+  const r = await listVenues(brand, auth);
+  if (r.error) return r;
+  const out = await Promise.all(r.venues.map(async v => {
+    const m = await getMenu(v.locationId, auth).catch(() => ({ hasMenu: false }));
+    return { ...v, hasMenu: !!m.hasMenu, itemCount: m.itemCount || 0, menuCurrency: m.currency || null };
+  }));
+  return { brand, venues: out, mastersAvailable: out.filter(v => v.hasMenu).length };
+}
+
+// PATCH updateFoodMenus for ONE venue with a given `menus` array. dryRun returns
+// the payload without writing.
+async function pushToVenue(locationId, menus, auth, dryRun) {
+  const body = { name: `${locationId}/foodMenus`, menus };
+  if (dryRun) return { locationId, ok: true, dryRun: true };
+  const res = await fetch(`${FOOD_BASE}/${locationId}/foodMenus?updateMask=menus`, {
+    method: 'PATCH',
+    headers: { Authorization: auth, 'Content-Type': 'application/json' },
+    body: JSON.stringify(body),
+  });
+  if (res.ok) return { locationId, ok: true };
+  const err = await res.json().catch(() => ({}));
+  return { locationId, ok: false, status: res.status, error: err.error?.message || `updateFoodMenus failed (${res.status})` };
+}
+
+function gbpMenuStore() { return gstore(); }
 
 exports.handler = async (event) => {
   if (event.httpMethod === 'OPTIONS') return { statusCode: 200, headers: CORS, body: '' };
   const authz = await authorize(event);
   if (!authz.ok) return denied();
-
   const q = event.queryStringParameters || {};
-  const action = q.action || 'probe';
-  const brand = q.brand;
+  const isPost = event.httpMethod === 'POST';
+  let body = {};
+  if (isPost) { try { body = JSON.parse(event.body || '{}'); } catch { return json(400, { error: 'Invalid JSON' }); } }
+  const action = (isPost ? body.action : q.action) || 'probe';
+  const brand = (isPost ? body.brand : q.brand);
   if (!brand) return json(400, { error: 'brand is required' });
+
+  // Writes (push) require manager/admin on a session; reads allow any valid session.
+  if (isPost && authz.via === 'session' && !['admin', 'manager'].includes(authz.user?.role)) {
+    return json(403, { error: 'Manager or admin only' });
+  }
+
+  // Stored GBP-only menu (NEVER brandContext — SEO stays price-free). Keyed per brand+currency.
+  const menuKey = (cur) => `gbpMenu:${brand}:${(cur || 'AED').toUpperCase()}`;
+
+  // loadmenu/savemenu don't need GBP auth.
+  if (!isPost && action === 'loadmenu') {
+    const cur = q.currency || 'AED';
+    const rec = await gbpMenuStore().get(menuKey(cur), { type: 'json' }).catch(() => null);
+    return json(200, { brand, currency: cur, menus: rec?.menus || null, savedAt: rec?.savedAt || null });
+  }
+  if (isPost && action === 'savemenu') {
+    if (!Array.isArray(body.menus)) return json(400, { error: 'menus[] required' });
+    const cur = body.currency || 'AED';
+    await gbpMenuStore().setJSON(menuKey(cur), { menus: body.menus, savedAt: Date.now() });
+    return json(200, { ok: true, brand, currency: cur });
+  }
 
   const token = await getAccessToken();
   if (!token) return json(200, { notConnected: true, note: 'Google Business Profile is not connected — connect it in Settings first.' });
   const auth = `Bearer ${token}`;
 
-  if (action === 'probe') {
-    try {
-      const out = await probe(brand, auth);
-      return json(out.error ? 502 : 200, out);
-    } catch (e) {
-      console.error('[gbp-menu] probe failed:', e.message);
-      return json(500, { error: e.message });
+  try {
+    if (action === 'probe')   { const out = await probe(brand, auth);   return json(out.error ? 502 : 200, out); }
+    if (action === 'menus')   { const out = await listMenus(brand, auth); return json(out.error ? 502 : 200, out); }
+    if (action === 'getmenu') {
+      const locationId = isPost ? body.locationId : q.locationId;
+      if (!locationId) return json(400, { error: 'locationId required' });
+      const out = await getMenu(locationId, auth);
+      return json(out.error ? 502 : 200, { brand, locationId, ...out });
     }
+    if (isPost && action === 'push') {
+      const locationIds = Array.isArray(body.locationIds) ? body.locationIds : [];
+      const menus = Array.isArray(body.menus) ? body.menus : null;
+      if (!locationIds.length) return json(400, { error: 'locationIds[] required (which venues to push to)' });
+      if (!menus) return json(400, { error: 'menus[] required (the FoodMenu to push)' });
+      const dryRun = body.dryRun !== false; // SAFE DEFAULT: dry-run unless explicitly {dryRun:false}
+      const results = [];
+      for (const id of locationIds) { results.push(await pushToVenue(id, menus, auth, dryRun)); } // sequential — gentle on the API
+      return json(200, { ok: true, dryRun, pushed: results.filter(r => r.ok && !r.dryRun).length, total: results.length, results });
+    }
+    return json(400, { error: `Unknown action: ${action}` });
+  } catch (e) {
+    console.error('[gbp-menu] action failed:', action, e.message);
+    return json(500, { error: e.message });
   }
-  return json(400, { error: `Unknown action: ${action} (push comes after the probe is validated)` });
 };
