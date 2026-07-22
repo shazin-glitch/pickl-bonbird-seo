@@ -5,6 +5,20 @@
 
 ---
 
+## ✅ DELIVERED v7.5.0–v7.7.5 (22 Jul 2026) — update to the phasing below
+
+**P2 (config layer + onboarding) — DONE, and expanded to the WHOLE tool.** Two Blobs config layers `brandsConfig` + `marketsConfig` (SEO markets; calendar/SocialPilot kept separate) behind one `/api/config`; every backend pipeline/cron + the entire frontend (dashboards, pills, reports, intl, citations, backlinks) render from config; vertical-aware keywords (café/corporate ≠ burger); `getBrandContext` Bonbird-inheritance landmine fixed. Adding a brand or SEO market = one record, zero code edits. (Absorbs WS7.)
+
+**P1 "one content brain" — DONE the reframed way (NOT the pipeline merge).** Autonomous content-gen retired; the single content path is on-demand ⚡Generate, and the intelligence (SERP/local-pack routing, cannibalization guard, competitor context) now lives in one shared `_lib/content-pipeline.js` that both generate-draft and the (off) intl file call. P1.4/1.5 "merge the two auto-gen pipelines" stays cancelled per §5 reframe.
+
+**ADD-ONS — not in the original phasing, built on Shazin's request; recorded here so the plan stays the source of truth:**
+- **A1 · Auto-discovery onboarding wizard** (v7.7.0) — Settings → Brands → paste a URL → Claude reads the site for identity/vertical/voice + DataForSEO `ranked_keywords`/`competitors_domain` → review → launch. Goes beyond P2's planned "add-brand form." Live env-var verify + Netlify deep-link (v7.7.2).
+- **A2 · GBP food-menu bulk create + push, WITH photos** (v7.7.3–7.7.5) — `gbp-menu.js`: probe eligibility → clone a master venue's menu (names/prices + re-host its dish photos to GCS) → structured builder (per-item photo upload/replace, reuses calendar-media GCS) → currency-scoped venue checklist → dry-run preview → push (per venue: `media.create` from the GCS URL → attach → `updateFoodMenus`). **This is an addition to P5 (Local SEO depth)** — GBP menu management wasn't in the original P5 scope. Prices/photos are a GBP-only source, never SEO.
+
+**STILL PENDING (unchanged):** P3 visibility (G1–G4), P4 CEO layer (monthly per-market report + Issues&Flags), **P5 remainder** (GBP Performance API, Q&A, local-pack rank — A2 above delivered the menu piece), P6 enrichment backlog. Live-verify pass owed on the v7.5.0–v7.7.5 work (auth+Blobs-gated → verified headlessly; browser/live run pending).
+
+---
+
 ## 1. Executive verdict
 
 The Nest today is **two good tools wearing one UI**:
