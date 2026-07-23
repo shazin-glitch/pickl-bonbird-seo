@@ -64,7 +64,7 @@ See SETUP.md → session log for the complete build history.
 
 **Next up:** P0 (signed-in live-verify pass — traffic/tracker/long-term + the Arabic Opportunities fail-open fix; do NOT run an intl regenerate until the Arabic fix is confirmed live) → P1 (unify the UAE + intl pipelines into one brand×market-parameterised module — also fixes BC3/BC5/BC6 queue-dup + voice-gate).
 
-**Deferred backlog (see memory):** Slack bot OAuth deep-link · GBP deeper dive · domain migration → thenest.yolkbrands.com (checklist in SETUP.md).
+**Deferred backlog (see memory):** ⚠️ **GBP menu photo uploads for large files + set GCS bucket CORS (never done — do next; see SETUP "⚠️ OPEN" note + memory `gbp-menu-photo-upload-todo`)** · Slack bot OAuth deep-link · GBP deeper dive · domain migration → thenest.yolkbrands.com (checklist in SETUP.md).
 
 **✅ Adding a brand or SEO market is now CONFIG-DRIVEN (v7.5.0–v7.7.0) — no code edits:**
 - **Brand:** Settings → 🏷️ Brands → "✨ Onboard a brand" (URL → auto-discover identity/keywords/competitors → review → save). Or POST `/api/config {action:'save_brand'}`. Writes one `brandsConfig:<slug>` record. Set env `WP_<SLUG>_*` + `GBP_<SLUG>_*` in Netlify for publish/reviews.

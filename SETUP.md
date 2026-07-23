@@ -326,6 +326,14 @@ From Google's official AI Optimization Guide (June 2026):
 
 ---
 
+## ⚠️ OPEN — pick up next session: GBP menu photo uploads (large files) + GCS CORS
+
+Not done. The GBP menu builder's photo upload (`gmUploadImage` in index.html + `rehostToGcs` in gbp-menu.js) uses ONLY the base64→function path → **large dish photos (>~4–5MB) fail** (Netlify function body cap ~6MB, base64 inflates ~33%).
+**PREREQUISITE — the GCS bucket CORS was NEVER configured** (Shazin held off previously in case the domain migrated to thenest.yolkbrands.com; that's NOT happening now, so proceed). The signed-URL direct-to-GCS upload — used by the content calendar and needed here — requires it. Set it: `gsutil cors set cors.json gs://<GCS_BUCKET_NAME>`, origin `https://yolkseo.netlify.app` (config in the "GCS Signed URL for Large Video Uploads" section below).
+**Next session:** (1) set the bucket CORS + test a >5MB calendar upload; (2) wire the existing `action:'signedUrl'` path into `gmUploadImage` (mirror the calendar uploader ~index.html:11348) for large files; (3) add client-side downscale (~1600px) so menu photos are small anyway; (4) fix seed re-host for large master photos; (5) test live. Full detail in memory `gbp-menu-photo-upload-todo`.
+
+---
+
 ## Session: July 2026 — v7.7.5 — GBP menus WITH photos: clone-seed + per-venue media + structured builder
 
 Photos now propagate (the point of cloning). GBP menu photos are per-location `mediaKeys`, so you can't copy a reference across venues — you must re-create the image on each. Verified the API: `media.create` (v4, `accounts.locations.media`) accepts a public `sourceUrl` (category `FOOD_AND_DRINK`) and returns a MediaItem whose `name` ends in the new `mediaKey`. Pipeline (all in `gbp-menu.js`, reuses the calendar's GCS hosting — no new infra):
