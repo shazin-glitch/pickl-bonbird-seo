@@ -5,6 +5,30 @@
 
 ---
 
+## NEW — Local-SEO / location-data findings (22 Jul 2026) ✅ all verified against code
+> Surfaced in a parallel session, each one re-verified by me (file:line read) before being recorded here. NOT fixed. Full detail + suggested order in memory `local-seo-pages-bugs-jul22`.
+
+### L1. `local-seo-pages-background.js:50` — `addressCountry: 'AE'` hardcoded ✅ HIGH (latent; harmful on first non-UAE use)
+`schema.address = { '@type':'PostalAddress', streetAddress: loc.address, addressCountry: 'AE' }`. Verified: it's the ONLY `addressCountry` in the repo, and **no ISO country code exists in any config** (market records carry `location_code` + `currency` only — grep of international-config / markets-config / brands-config = 0 hits). Bonbird has live Oman/Qatar/Pakistan markets, so running this pipeline for them publishes `Restaurant` JSON-LD asserting the venues are **in the UAE** → false NAP to Google, hard to unwind once indexed. Violates CLAUDE.md #12.
+🔧 Add an ISO-3166 `countryCode` to the **market config** (`marketsConfig` record) and resolve from brand/market context — NOT another hardcoded map. Preserve the existing intent: schema is built in code, never by Claude, so structured data can't fabricate fields.
+
+### L2. `local-seo-pages-background.js:46` — `'@type': 'Restaurant'` hardcoded ✅ HIGH (vertical bug; found while verifying L1)
+Wrong for the brands just onboarded: Southpour = **cafe** (`CafeOrCoffeeShop`), Yolk = **corporate** (`Organization`/`LocalBusiness`). Should derive from `brandsConfig.vertical` — add a `schemaType` to each entry in `VERTICALS` (`_lib/brands-config.js`). Fix with L1 (same function, one deploy).
+
+### L3. No city-hub page tier 🟡 GAP (not a bug)
+`local-seo-pages-background.js` loops `for (const loc of targets)` → one page per GBP location (**venue pages only**). The tier above (city hubs `/dubai/`, `/oman/muscat/`) isn't generated, and those capture head terms like "bonbird dubai" that venue pages can't. Newly relevant: the Bonbird rebuild is standing up `/{market}/{city}/{venue}/`.
+
+### L4. `_lib/international-config.js:370` — Qatar Bonbird locations unconfirmed 🟡 BLOCKS CONTENT
+`bonbird_qatar.culturalNotes` self-flags *"NOTE: Confirm Qatar Bonbird locations before publishing location content."* Needs human verification before any Qatar location content ships.
+
+### L5. Venue/city data diverges: The Nest vs WordPress 🟡 needs one source of truth
+Nest has richer city attribution + naming mismatches vs the WP Locations pages: Oman = Nest `Souq Al Madina, Muscat` + `Al Khoudh, Seeb` (**two cities**) vs WP `MUSCAT · AL KHOUDH` (obscures Seeb → changes city-page count); Qatar `District 1` vs WP `DISTRICT ONE`; Pakistan `Cue Cinemas` vs WP `CUE CINEMA` → inconsistent NAP. **Reconcile toward GBP** (`gbpCache:<brand>:v9` = authoritative NAP).
+
+### L6. `pickl_oman` config contradicts itself ✅ (found while verifying L5)
+`locations: ['Souq Al Madina, Muscat']` (ONE) but its `culturalNotes` (~line 256) say *"Two locations: Souq Al Madina and Al Hail, Muscat — mention both"* — the notes instruct Claude to mention an outlet absent from the confirmed list. Exactly the prompt/data mismatch that makes content invent a location. Pick one truth (GBP).
+
+---
+
 ## TIER 0 — Fix before anything else (unauthenticated / external exposure)
 
 ### S1. `slack-callback.js` — no Slack signature verification ✅ CRITICAL

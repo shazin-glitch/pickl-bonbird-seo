@@ -326,6 +326,17 @@ From Google's official AI Optimization Guide (June 2026):
 
 ---
 
+## 🔴 OPEN — Local-SEO page bugs (verified 22 Jul 2026, NOT fixed)
+
+Found in a parallel session, each re-verified against the code. Full detail: `/BUGS-AND-SECURITY.md` §L1–L6 + memory `local-seo-pages-bugs-jul22`.
+- **L1 HIGH `addressCountry:'AE'` hardcoded** (`local-seo-pages-background.js:50`) — there is **no ISO country code anywhere in config** (markets carry only `location_code`+`currency`). Running the location-page pipeline for Bonbird's Oman/Qatar/Pakistan publishes JSON-LD claiming the venues are in the UAE → false NAP. Fix = add `countryCode` to the **market config** + resolve from context (not another hardcoded map).
+- **L2 HIGH `'@type':'Restaurant'` hardcoded** (same file, line 46) — wrong for Southpour (cafe → `CafeOrCoffeeShop`) and Yolk (corporate → `Organization`). Derive from `brandsConfig.vertical`; add `schemaType` to `VERTICALS`. Fix together with L1 (one function, one deploy).
+- **L3 GAP** no city-hub page tier (venue pages only) — city hubs capture head terms like "bonbird dubai"; relevant to the Bonbird `/{market}/{city}/{venue}/` rebuild.
+- **L4** Qatar Bonbird locations self-flagged unconfirmed (`international-config.js:370`) — blocks Qatar location content until a human verifies.
+- **L5/L6** venue/city data diverges (Nest vs WordPress: Oman is really **two cities** Muscat+Seeb; "District 1"/"District One", "Cue Cinemas"/"Cue Cinema") and `pickl_oman` contradicts itself (1 location listed, notes say 2). **Reconcile toward GBP** (`gbpCache:<brand>:v9` = authoritative NAP).
+
+---
+
 ## ⚠️ OPEN — pick up next session: GBP menu photo uploads (large files) + GCS CORS
 
 Not done. The GBP menu builder's photo upload (`gmUploadImage` in index.html + `rehostToGcs` in gbp-menu.js) uses ONLY the base64→function path → **large dish photos (>~4–5MB) fail** (Netlify function body cap ~6MB, base64 inflates ~33%).
