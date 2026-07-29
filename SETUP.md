@@ -326,6 +326,19 @@ From Google's official AI Optimization Guide (June 2026):
 
 ---
 
+## Session: July 2026 — v7.7.6 — 🐛 FIX: empty-array-truthy killed seeds for new brands (Southpour "0 ideas ()")
+
+**Symptom (live, Southpour):** Keyword Opportunities showed all zeros with diag `langs[en] → 0 ideas ()` — blank reason.
+**Root cause (my bug, from the v7.5.0 vertical work):** `BRAND_SEEDS[brand] || brandCfg?.keywordSeeds || rel.seeds('UAE')` — **an empty array is TRUTHY in JS**, so a configured-but-empty `keywordSeeds: []` won the `||` chain and the café vertical seeds were never reached. `seedSet.length === 0` then hit `continue`, so the DataForSEO keyword_ideas call was **never made** (hence 0 ideas + empty reason). Same pattern silently left the competitor matrix with zero tracked keywords for a new brand.
+**Fixed:**
+- Added `firstNonEmpty(...lists)` helper (first NON-EMPTY array wins) and used it for the seed chain in `keyword-discovery-background.js` + `competitors`/`keywords` in `competitor-matrix-background.js`. Never use `||` for array fallbacks.
+- Home-market vertical seeds now also seed the **primary city** (`rel.seeds('Dubai')` + `rel.seeds('UAE')`) — "best coffee in Dubai" carries volume, "…in UAE" barely registers.
+- Diagnostic no longer lies: an empty seed set reports `en:no-seeds` instead of a blank `()`.
+**Verified:** Southpour w/ empty seeds → 12 café seeds; user-typed seeds still take priority; Pickl unchanged (regression-checked). `node --check` clean.
+**Still open for Southpour's empty worklist:** GSC likely a property-format mismatch (wizard auto-set `https://southpourcoffee.com/`; if GSC has a **Domain** property it must be `sc-domain:southpourcoffee.com`) → discovery logs the GSC error but doesn't surface it (next fix); DataForSEO Labs has no ranked_keywords/competitors data for this small domain.
+
+---
+
 ## 🔴 OPEN — Local-SEO page bugs (verified 22 Jul 2026, NOT fixed)
 
 Found in a parallel session, each re-verified against the code. Full detail: `/BUGS-AND-SECURITY.md` §L1–L6 + memory `local-seo-pages-bugs-jul22`.

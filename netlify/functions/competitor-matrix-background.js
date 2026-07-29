@@ -196,8 +196,12 @@ function estimatedCtr(position) {
 async function loadBrandConfig(store, brand, marketKey = null) {
   // Config fallback for brands with no built-in DEFAULT_* seed (Southpour, Yolk, …).
   const brandCfg = await getBrand(brand).catch(() => null);
-  let competitors = DEFAULT_COMPETITORS[brand] || brandCfg?.competitors || [];
-  let keywords    = DEFAULT_KEYWORDS[brand] || brandCfg?.keywordSeeds || [];
+  // firstNonEmpty, NOT `||` — an empty array is truthy in JS, so a configured-but-empty
+  // list would win and the fallback would never run (that bug left a newly onboarded
+  // brand with zero tracked keywords).
+  const firstNonEmpty = (...ls) => { for (const l of ls) if (Array.isArray(l) && l.length) return l; return []; };
+  let competitors = firstNonEmpty(DEFAULT_COMPETITORS[brand], brandCfg?.competitors);
+  let keywords    = firstNonEmpty(DEFAULT_KEYWORDS[brand], brandCfg?.keywordSeeds);
   let location_code = 21191; // Default: Dubai UAE
   let labsSupported = true;  // is this market in DataForSEO Labs? (ranked_keywords)
   let locationLanguages = ['en', 'ar']; // valid Labs languages (UAE accepts both)

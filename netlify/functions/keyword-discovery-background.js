@@ -32,6 +32,14 @@ function getAuth() {
   return 'Basic ' + Buffer.from(`${l}:${p}`).toString('base64');
 }
 
+// Returns the first argument that is a NON-EMPTY array (else []).
+// Use this instead of `a || b || c` for array fallbacks: `[]` is truthy in JS, so a
+// configured-but-empty list silently wins and later fallbacks never run.
+function firstNonEmpty(...lists) {
+  for (const l of lists) if (Array.isArray(l) && l.length) return l;
+  return [];
+}
+
 // ── Menu seeds per brand ──────────────────────────────────────────────────────
 const BRAND_SEEDS = {
   pickl: [
@@ -797,7 +805,12 @@ async function discoverKeywords(brand, store, authHeader, force = false, marketK
     const seedsFor = (lang) => {
       // UAE seeds: built-in BRAND_SEEDS, else the brand's configured keywordSeeds,
       // else the vertical's generic seeds — so a new brand seeds correctly.
-      if (!isIntl) return BRAND_SEEDS[brand] || brandCfg?.keywordSeeds || rel.seeds('UAE');
+      // NOTE: use firstNonEmpty, NOT `||` — an EMPTY ARRAY is truthy in JS, so
+      // `a || b || c` stops at a configured-but-empty keywordSeeds:[] and never reaches
+      // the vertical seeds (that bug made a new brand run with ZERO seeds → "0 ideas ()").
+      // Home market: seed on the primary city too ("best coffee in Dubai" has the volume;
+      // "…in UAE" barely registers).
+      if (!isIntl) return firstNonEmpty(BRAND_SEEDS[brand], brandCfg?.keywordSeeds, [...rel.seeds('Dubai'), ...rel.seeds('UAE')]);
       if (lang === 'ar') return (market.seedKeywords?.ar || []);
       return [...(market.seedKeywords?.en || []), ...brandGenericSeeds];
     };
@@ -805,7 +818,7 @@ async function discoverKeywords(brand, store, authHeader, force = false, marketK
     const perLang  = [];
     for (const lang of langs.slice(0, 2)) { // cap at 2 language passes
       const seedSet = seedsFor(lang).filter(Boolean);
-      if (!seedSet.length) continue;
+      if (!seedSet.length) { perLang.push(`${lang}:no-seeds`); continue; } // say WHY, don't fail silently
       const { ideas: li } = await getKeywordIdeas(seedSet, locationCode, authHeader, minVol, lang);
       perLang.push(`${lang}:${li.length}`);
       for (const k of li) {
