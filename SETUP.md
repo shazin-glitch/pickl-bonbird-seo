@@ -326,6 +326,18 @@ From Google's official AI Optimization Guide (June 2026):
 
 ---
 
+## Session: July 2026 — v7.7.7 — Competitor Matrix UI made config-driven (missed file: js/competitor-matrix-ui.js)
+
+**Miss found by Shazin:** "no southpour option in competitor matrix". My v7.5.0–v7.7.6 hardcode sweep covered `index.html` + `netlify/functions/` but **never audited `js/competitor-matrix-ui.js`** — a third JS file loaded separately at the bottom of index.html. It was fully hardcoded: `BRAND_COLORS` {pickl,bonbird} labels/colours, **7×** `["pickl","bonbird"]` fan-outs/loops, the brand filter buttons, and the 9-market dropdown.
+**Note the backend was already fine** — `competitor-matrix-background.js` iterates `getBrandSlugs()`, so the matrix already RAN for a new brand; only the UI couldn't select/display it.
+**Fixed (all config-driven from `window.NEST_BRANDS` / `NEST_MARKETS`, seed pair kept as pre-config fallback):**
+- `cmBrands()` + `cmBrandMeta(slug)` helpers; `BRAND_COLORS` kept as a **Proxy shim** so existing `BRAND_COLORS[x]` reads resolve through config with no call-site churn.
+- All 7 `["pickl","bonbird"]` sites → `cmBrands()`; brand filter buttons rendered from config; market dropdown built from `NEST_MARKETS` (UAE home first, brand suffix only when >1 brand).
+- Bumped the script cache-buster `?v=7.4.20` → `?v=7.7.7` so browsers actually load it (stale-cache trap).
+**LESSON for future sweeps:** the frontend is THREE surfaces — `index.html` (inline), `js/*.js` (separate files), and `login.html`. Grep all of them, not just index.html.
+
+---
+
 ## Session: July 2026 — v7.7.6 — 🐛 FIX: empty-array-truthy killed seeds for new brands (Southpour "0 ideas ()")
 
 **Symptom (live, Southpour):** Keyword Opportunities showed all zeros with diag `langs[en] → 0 ideas ()` — blank reason.

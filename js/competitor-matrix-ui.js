@@ -11,10 +11,21 @@
   const POLL_INTERVAL_MS      = 30000;
   const POLL_MAX_ATTEMPTS     = 20;
 
-  const BRAND_COLORS = {
-    pickl:   { primary: "#f59e0b", label: "Pickl" },
-    bonbird: { primary: "#ef4444", label: "Bonbird" },
-  };
+  // Config-driven (CLAUDE.md #12): brands come from /api/config via window.NEST_BRANDS
+  // (populated by bootstrapBrands in index.html). The literals below are only a
+  // pre-config fallback so first paint still works.
+  function cmBrands() {
+    const list = (window.NEST_BRANDS || []).map(b => b.slug);
+    return list.length ? list : ["pickl", "bonbird"];
+  }
+  function cmBrandMeta(slug) {
+    const b = (window.NEST_BRAND_MAP || {})[slug];
+    if (b) return { primary: b.color || "#64748b", label: b.name || slug };
+    const seed = { pickl: { primary: "#f59e0b", label: "Pickl" }, bonbird: { primary: "#ef4444", label: "Bonbird" } };
+    return seed[slug] || { primary: "#64748b", label: slug ? slug.charAt(0).toUpperCase() + slug.slice(1) : "" };
+  }
+  // Back-compat shim: existing BRAND_COLORS[x] reads resolve through config.
+  const BRAND_COLORS = new Proxy({}, { get: (_t, k) => cmBrandMeta(String(k)) });
 
   // ── SERP Occupier detection ────────────────────────────────────────────────
   // These are aggregators, review sites, media, delivery platforms.
@@ -213,13 +224,13 @@
   // ── Data helpers ───────────────────────────────────────────────────────────
   function getFilteredRows() {
     if (!matrixData) return [];
-    const brands = currentBrandFilter === "all" ? ["pickl","bonbird"] : [currentBrandFilter];
+    const brands = currentBrandFilter === "all" ? cmBrands() : [currentBrandFilter];
     return brands.flatMap(b => (matrixData[b]?.rows || []).map(r => ({ ...r, brand: b })));
   }
 
   function getCompetitorNames() {
     const names = new Set();
-    const brands = currentBrandFilter === "all" ? ["pickl","bonbird"] : [currentBrandFilter];
+    const brands = currentBrandFilter === "all" ? cmBrands() : [currentBrandFilter];
     for (const b of brands) {
       (matrixData?.[b]?.competitors || []).forEach(n => names.add(n));
     }
@@ -237,12 +248,12 @@
   }
 
   function getAutoDetectedAlerts() {
-    const brands = currentBrandFilter === "all" ? ["pickl","bonbird"] : [currentBrandFilter];
+    const brands = currentBrandFilter === "all" ? cmBrands() : [currentBrandFilter];
     return brands.flatMap(b => (matrixData?.[b]?.autoDetected || []).slice(0, 5).map(d => ({ ...d, brand: b })));
   }
 
   function getSovData() {
-    const brands = currentBrandFilter === "all" ? ["pickl","bonbird"] : [currentBrandFilter];
+    const brands = currentBrandFilter === "all" ? cmBrands() : [currentBrandFilter];
     if (brands.length === 1) {
       return matrixData?.[brands[0]]?.sovCurrent || {};
     }
@@ -291,18 +302,18 @@
   }
 
   function marketFilterHtml() {
-    const markets = [
-      { key:'uae',             label:'🇦🇪 UAE' },
-      { key:'pickl_bahrain',   label:'🇧🇭 Bahrain' },
-      { key:'pickl_ksa',       label:'🇸🇦 KSA' },
-      { key:'pickl_qatar',     label:'🇶🇦 Qatar (P)' },
-      { key:'pickl_egypt',     label:'🇪🇬 Egypt' },
-      { key:'pickl_jordan',    label:'🇯🇴 Jordan' },
-      { key:'pickl_oman',      label:'🇴🇲 Oman (P)' },
-      { key:'bonbird_oman',    label:'🇴🇲 Oman (B)' },
-      { key:'bonbird_pakistan',label:'🇵🇰 Pakistan' },
-      { key:'bonbird_qatar',   label:'🇶🇦 Qatar (B)' },
-    ];
+    // Config-driven: SEO markets from /api/config (window.NEST_MARKETS). UAE = home, always first.
+    const cfgMarkets = (window.NEST_MARKETS || []).map(m => ({
+      key: m.key,
+      label: `${m.flag || ''} ${m.label}${(window.NEST_BRANDS || []).length > 1 ? ` (${cmBrandMeta(m.brand).label})` : ''}`.trim(),
+    }));
+    const markets = [{ key: 'uae', label: '🇦🇪 UAE' }, ...(cfgMarkets.length ? cfgMarkets : [
+      { key:'pickl_bahrain', label:'🇧🇭 Bahrain' }, { key:'pickl_ksa', label:'🇸🇦 KSA' },
+      { key:'pickl_qatar', label:'🇶🇦 Qatar (P)' }, { key:'pickl_egypt', label:'🇪🇬 Egypt' },
+      { key:'pickl_jordan', label:'🇯🇴 Jordan' },  { key:'pickl_oman', label:'🇴🇲 Oman (P)' },
+      { key:'bonbird_oman', label:'🇴🇲 Oman (B)' }, { key:'bonbird_pakistan', label:'🇵🇰 Pakistan' },
+      { key:'bonbird_qatar', label:'🇶🇦 Qatar (B)' },
+    ])];
     return `<select id="cm-market-filter" style="padding:4px 8px;border-radius:6px;border:1px solid rgba(255,255,255,0.12);background:var(--bg-surface,#fff);color:var(--text-secondary,#475569);font-size:0.8rem;cursor:pointer" onchange="cmMarketChanged(this.value)">
       ${markets.map(m => `<option value="${m.key}" ${currentMarketFilter===m.key?'selected':''}>${m.label}</option>`).join('')}
     </select>`;
@@ -311,16 +322,15 @@
   function brandFilterHtml() {
     return `
       ${marketFilterHtml()}
-      <button class="cm-filter-btn ${currentBrandFilter === "all"     ? "active" : ""}" data-filter="all">All</button>
-      <button class="cm-filter-btn ${currentBrandFilter === "pickl"   ? "active" : ""}" data-filter="pickl">Pickl</button>
-      <button class="cm-filter-btn ${currentBrandFilter === "bonbird" ? "active" : ""}" data-filter="bonbird">Bonbird</button>`;
+      <button class="cm-filter-btn ${currentBrandFilter === "all" ? "active" : ""}" data-filter="all">All</button>
+      ${cmBrands().map(b => `<button class="cm-filter-btn ${currentBrandFilter === b ? "active" : ""}" data-filter="${b}">${cmBrandMeta(b).label}</button>`).join("")}`;
   }
 
   // ── Unknown competitor alert banner ───────────────────────────────────────
   function renderAlertBanner(container) {
     const alerts = getAutoDetectedAlerts();
     if (!alerts.length) return "";
-    const brands = currentBrandFilter === "all" ? ["pickl","bonbird"] : [currentBrandFilter];
+    const brands = currentBrandFilter === "all" ? cmBrands() : [currentBrandFilter];
     const items  = alerts.slice(0, 8);
     return `
       <div class="cm-alert-banner">
@@ -492,7 +502,7 @@
 
     // Domain → display name mapping
     const domainLabel = {};
-    for (const b of ["pickl","bonbird"]) {
+    for (const b of cmBrands()) {
       if (matrixData?.[b]) {
         const od = matrixData[b].ourDomain;
         if (od) domainLabel[od] = BRAND_COLORS[b]?.label + " (us)";
@@ -504,7 +514,7 @@
       "#8b5cf6","#06b6d4","#ec4899","#84cc16","#14b8a6",
     ];
 
-    const brands      = currentBrandFilter === "all" ? ["pickl","bonbird"] : [currentBrandFilter];
+    const brands      = currentBrandFilter === "all" ? cmBrands() : [currentBrandFilter];
     const historyData = brands.flatMap(b => (matrixData?.[b]?.sovHistory || []).map(h => ({ ...h, brand: b })));
 
     let html = renderHeader("sov", {
@@ -660,7 +670,7 @@
   // ── Gaps view ──────────────────────────────────────────────────────────────
   function renderGaps(container) {
     injectStyles();
-    const brands      = currentBrandFilter === "all" ? ["pickl","bonbird"] : [currentBrandFilter];
+    const brands      = currentBrandFilter === "all" ? cmBrands() : [currentBrandFilter];
     const competitors = getCompetitorNames();
 
     // ── Section A: Competitor-discovered keywords ─────────────────────────────
@@ -951,7 +961,7 @@
     }
     let html = renderHeader("keywords", { showBrandFilter: true }) + `<div style="padding:20px 0">`;
 
-    for (const brand of ["pickl","bonbird"]) {
+    for (const brand of cmBrands()) {
       const keywords = keywordData?.[brand]?.keywords || [];
       const color    = BRAND_COLORS[brand].primary;
       html += `<div class="cm-kw-section" data-brand="${brand}">
@@ -1002,7 +1012,7 @@
           <div id="cm-discover-results" style="margin-top:8px"></div>
         </div>`;
 
-    for (const brand of ["pickl","bonbird"]) {
+    for (const brand of cmBrands()) {
       const competitors = competitorData?.[brand]?.competitors || [];
       html += `<div class="cm-kw-section" data-brand="${brand}" style="margin-bottom:24px">
         <div class="cm-kw-section-title">
@@ -1320,7 +1330,7 @@
       }));
     });
 
-    for (const brand of ["pickl","bonbird"]) {
+    for (const brand of cmBrands()) {
       const input   = container.querySelector(`#cm-kw-input-${brand}`);
       const addBtn  = container.querySelector(`#cm-kw-add-${brand}`);
       const saveBtn = container.querySelector(`#cm-kw-save-${brand}`);
@@ -1390,7 +1400,7 @@
       }));
     });
 
-    for (const brand of ["pickl","bonbird"]) {
+    for (const brand of cmBrands()) {
       const nameInput   = container.querySelector(`#cm-comp-name-${brand}`);
       const domainInput = container.querySelector(`#cm-comp-domain-${brand}`);
       const addBtn      = container.querySelector(`#cm-comp-add-${brand}`);
