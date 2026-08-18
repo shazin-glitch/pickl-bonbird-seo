@@ -326,6 +326,16 @@ From Google's official AI Optimization Guide (June 2026):
 
 ---
 
+## Session: July 2026 — v7.7.8 — 🐛 FIX: Reports tab blank for Pickl + Bonbird (TDZ crash from the v7.6.0 bulk rename)
+
+**Symptom:** Reports tab showed no data for BOTH Pickl and Bonbird. GSC ruled out first — a direct `/api/gsc-data` call returned **200 with full rows** for both properties (`https://eatpickl.com/` and `sc-domain:bonbirdchicken.com`), and `gsc-data.js` hasn't been touched since v7.4.71. So: frontend bug, not data/credentials.
+**Root cause (my bug, v7.6.0/WS4):** the bulk ternary→helper replacement produced **self-referential declarations** — `const brandName = brandName(brand);`. That's a TDZ `ReferenceError: Cannot access 'brandName' before initialization`, thrown the instant the function runs. `renderReports` died on its 5th line → the tab rendered nothing. I'd caught and fixed this exact pattern for `brandColor` (3 sites) in the same sweep but never checked `brandName`.
+**Fixed 3 sites** (local var renamed to `bName`, helper call preserved): `renderReports` (index.html:6607 — the Reports bug), `loadLlmMentions` (:7125 — AI mentions card), `generateYouTibeBrief` (:12674 — YouTube brief tool). 9 local references renamed in total.
+**Swept exhaustively:** a regex pass for `const X = X(` across index.html, login.html, js/*.js and all functions now reports **zero** self-referential declarations. (First attempt used a grep backreference that errored and silently reported "clean" — re-ran in Python. Don't trust a check whose exit code you didn't verify.)
+**LESSON:** bulk find/replace that swaps an expression for a same-named helper call silently creates TDZ bombs; `node --check` does NOT catch them (syntactically valid). Grep for `const X = X(` after any such sweep.
+
+---
+
 ## Session: July 2026 — v7.7.7 — Competitor Matrix UI made config-driven (missed file: js/competitor-matrix-ui.js)
 
 **Miss found by Shazin:** "no southpour option in competitor matrix". My v7.5.0–v7.7.6 hardcode sweep covered `index.html` + `netlify/functions/` but **never audited `js/competitor-matrix-ui.js`** — a third JS file loaded separately at the bottom of index.html. It was fully hardcoded: `BRAND_COLORS` {pickl,bonbird} labels/colours, **7×** `["pickl","bonbird"]` fan-outs/loops, the brand filter buttons, and the 9-market dropdown.

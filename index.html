@@ -6604,7 +6604,7 @@ function renderReports(brand, rows, techData, queue, matrixData, perfSummary) {
   document.getElementById('report-loading').style.display = 'none';
   document.getElementById('report-content').style.display = '';
 
-  const brandName = brandName(brand);
+  const bName = brandName(brand);
   document.getElementById('report-last-updated').textContent = 'Generated: ' + new Date().toLocaleDateString('en-GB', { day:'numeric', month:'long', year:'numeric' });
 
   // ── Compute core metrics ─────────────────────────────────────
@@ -6901,10 +6901,10 @@ function renderReports(brand, rows, techData, queue, matrixData, perfSummary) {
   } else {
     if (summaryMetaEl) summaryMetaEl.textContent = 'Runs after next Monday pipeline';
     const talkingPoints = [
-      `<strong>What's running:</strong> Every Monday at 8am Dubai, The Nest identifies keyword opportunities, writes ${brandName}-branded content, and queues it for approval. Zero manual effort on content research.`,
+      `<strong>What's running:</strong> Every Monday at 8am Dubai, The Nest identifies keyword opportunities, writes ${bName}-branded content, and queues it for approval. Zero manual effort on content research.`,
       `<strong>Current performance:</strong> ${top10.toLocaleString()} keywords in the top 10 (${top10NonBranded} non-branded · ${top10Branded} branded), generating ${totalClicks.toLocaleString()} organic clicks in the last 90 days. Estimated non-branded traffic value: <strong>AED ${trafficValue.toLocaleString()}/month</strong> in paid ad equivalent (${hasCpcData ? 'real Google Ads CPC via DataForSEO' : 'AED 5/click UAE restaurant estimate'}, branded keywords excluded).`,
       quickWins > 0 ? `<strong>Immediate opportunity:</strong> ${quickWins} keywords at position 11-20 right now — one content update away from page 1. The tool targets these every Monday automatically.` : '',
-      avgMobile && avgMobile < 70 ? `<strong>⚠️ Critical blocker:</strong> ${brandName}'s mobile page speed scores ${avgMobile}/100. Google's threshold is 70+ for AI Overview eligibility — this is actively blocking us from appearing in AI-generated search results. Developer fix required urgently.` : '',
+      avgMobile && avgMobile < 70 ? `<strong>⚠️ Critical blocker:</strong> ${bName}'s mobile page speed scores ${avgMobile}/100. Google's threshold is 70+ for AI Overview eligibility — this is actively blocking us from appearing in AI-generated search results. Developer fix required urgently.` : '',
     ].filter(Boolean);
     talkingPointsEl.innerHTML = talkingPoints.map(p => `<div style="margin-bottom:12px;padding-left:12px;border-left:2px solid #475569">• ${p}</div>`).join('');
   }
@@ -7122,7 +7122,7 @@ async function loadLlmMentions(brand) {
     const llmLabels  = { claude:'Claude (Anthropic)', openai:'ChatGPT (OpenAI)', perplexity:'Perplexity', gemini:'Gemini (Google)' };
     const llmEmoji   = { claude:'🤖', openai:'💬', perplexity:'🔍', gemini:'✨' };
     const summary    = latest.summary || {};
-    const brandName  = brandName(brand);
+    const bName  = brandName(brand);
     const dateStr    = latest.date ? new Date(latest.date).toLocaleDateString('en-GB', { day:'numeric', month:'short', year:'numeric' }) : '';
 
     el.innerHTML = `
@@ -7152,15 +7152,15 @@ async function loadLlmMentions(brand) {
           return `<div style="background:rgba(255,255,255,0.03);border:1px solid rgba(255,255,255,0.07);border-radius:8px;padding:12px">
             <div style="font-size:11px;font-weight:600;color:var(--text-muted);margin-bottom:6px">${llmEmoji[llm]} ${llmLabels[llm]}</div>
             <div style="font-size:1.6rem;font-weight:700;color:${color}">${pct}%</div>
-            <div style="font-size:11px;color:var(--text-muted)">${d.mentioned}/${d.total} queries mentioned ${brandName}</div>
+            <div style="font-size:11px;color:var(--text-muted)">${d.mentioned}/${d.total} queries mentioned ${bName}</div>
             <div style="margin-top:6px;height:4px;border-radius:2px;background:rgba(255,255,255,0.06)">
               <div style="height:100%;border-radius:2px;background:${color};width:${pct}%"></div>
             </div>
           </div>`;
         }).join('')}
       </div>
-      ${renderLlmHistory(bData.history || [], brandName)}
-      ${renderLlmQueryDetails(latest.results || [], brandName)}`;
+      ${renderLlmHistory(bData.history || [], bName)}
+      ${renderLlmQueryDetails(latest.results || [], bName)}`;
 
   } catch (err) {
     el.innerHTML = `<div style="font-size:13px;color:var(--text-muted)">Failed to load: ${esc(err.message)}</div>`;
@@ -12671,9 +12671,9 @@ async function generateYouTubeBrief() {
     behind: 'Behind the Scenes',
     food: 'Food Showcase / ASMR',
   };
-  const brandName = brandName(brand) + ' (' + ((window.NEST_BRAND_MAP||{})[brand]?.cuisine || '') + ', UAE)';
+  const bName = brandName(brand) + ' (' + ((window.NEST_BRAND_MAP||{})[brand]?.cuisine || '') + ', UAE)';
 
-  const prompt = `You are a YouTube SEO expert. Generate a complete YouTube SEO package for a ${typeLabels[type]} video for ${brandName} targeting the keyword "${keyword}".
+  const prompt = `You are a YouTube SEO expert. Generate a complete YouTube SEO package for a ${typeLabels[type]} video for ${bName} targeting the keyword "${keyword}".
 
 Return ONLY the following sections, each starting with the exact header shown:
 
