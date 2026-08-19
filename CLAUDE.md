@@ -51,7 +51,6 @@
 - Always check `/posts` then `/pages`
 - Env vars: `WP_PICKL_BASE` / `WP_BONBIRD_BASE`
 - Jordan posts use parent page `/pickl-jordan/` with journal child slug
-- **🔴 BONBIRD REBUILT (live 2026-08-18) — read `/BONBIRD-SITE-ARCHITECTURE.md` before generating/publishing ANY Bonbird content.** ISO market URLs `/ae/ /om/ /qa/ /pk/`; the 13 legacy landing pages render from static Twig so their BODY is NOT writable (Yoast meta is); journal posts + the new Location/Product template pages ARE writable. Never invent a venue.
 - **🔴 BONBIRD REBUILT (live 2026-08-18) — read `/BONBIRD-SITE-ARCHITECTURE.md` before generating/publishing ANY Bonbird content.** Key facts: ISO market URLs now `/ae/ /om/ /qa/ /pk/` (UAE moved off root; 136 redirects); page type decides writability — **journal posts = fully writable**; the **13 legacy product/location landing pages render from static Twig so their BODY is NOT writable** (Yoast meta is); new **"Bonbird Location/Product" template pages are hybrid** — Nest writes `post_content` (prose + an `<h2>FAQs</h2>` block → template builds accordion + schema), a human owns ACF images/NAP. 12 om/qa/pk product scaffolds sit as drafts ready for bodies. Never invent venues; city-hub content pages are the Nest opportunity; hold the anti-doorway/thin-content bar.
 
 ---
