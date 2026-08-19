@@ -339,7 +339,7 @@ Bonbird-only focus (Pickl's site is still being fixed — left untouched).
 
 **2.2 Scaffold discovery.** New `list_scaffolds` action (`wordpress.js`): draft/pending pages whose body is empty/near-empty (`maxWords`, default 30), optionally filtered by market tokens and template substring, returning id/slug/link/title/template/parent/words. That's how the **12 waiting product scaffolds** (IDs 47005–47016, om/qa/pk × chicken/wraps/chicken-burger/chicken-tenders) get found — `list_market_pages` couldn't, it only lists *published* pages.
 
-**Remaining for Phase 2:** a UI surface for scaffolds (list → ⚡Generate → review → push). Backend is complete and drivable via `/api/wordpress {action:'list_scaffolds'}` + `/api/generate-draft {pageKind, postId}` in the meantime.
+**Phase 2 UI shipped (v7.8.2):** Analytics → Markets → **📄 Page scaffolds awaiting content** — pick brand + page type, *Find scaffolds* lists every empty draft page (path, market, word count), and **⚡ Generate body** writes the prose + FAQ block for that scaffold by `postId` (never creates a duplicate) and queues it for review. Reports the FAQ-pair count on success; a malformed body is rejected before queueing.
 **Then Phase 1.5** (schema `countryCode` — already added to all 9 market records — + `schemaType` per vertical) and **Phase 3** (city-hub tier). **1.6 Qatar venue confirmation is a human task.**
 
 ---

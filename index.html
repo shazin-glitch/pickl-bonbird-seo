@@ -1199,6 +1199,23 @@ body { font-family: var(--font-sans); background: var(--bg-base); color: var(--t
             Loading market status…
           </div>
         </div>
+        <!-- Page scaffolds awaiting content (empty draft template pages) -->
+        <div class="card" id="scaffolds-card" style="margin-top:24px;border-left:3px solid #1BBFA3">
+          <div style="font-weight:600;font-size:14px;margin-bottom:2px">📄 Page scaffolds awaiting content</div>
+          <div style="font-size:12px;color:var(--text-muted);margin-bottom:12px">Draft pages that already have their template, parent and slug set but an <strong>empty body</strong> — ready for Nest to write. Generation writes the prose + FAQ block only; images and address/hours stay human-owned (ACF).</div>
+          <div style="display:flex;gap:10px;align-items:flex-end;flex-wrap:wrap;margin-bottom:10px">
+            <div class="form-group" style="margin-bottom:0"><label class="form-label">Brand</label>
+              <select id="sc-brand" class="form-input" style="font-family:var(--font-sans);width:150px"></select></div>
+            <div class="form-group" style="margin-bottom:0"><label class="form-label">Page type</label>
+              <select id="sc-kind" class="form-input" style="font-family:var(--font-sans);width:190px">
+                <option value="template_product">Product page</option>
+                <option value="template_location">Location page</option>
+              </select></div>
+            <button class="btn btn-primary" id="sc-find-btn" onclick="findScaffolds()" style="font-size:13px">Find scaffolds</button>
+          </div>
+          <div id="sc-results" style="font-size:13px"></div>
+        </div>
+
         <div id="intl-run-log" style="margin-top:24px;display:none">
           <div class="card">
             <h3 style="font-size:14px;font-weight:600;margin-bottom:12px">Run Log</h3>
@@ -2637,6 +2654,8 @@ async function bootstrapBrands() {
   renderBrandPillNavs();
   renderBacklinksButtons();
   renderIntlPills();
+  const scB = document.getElementById('sc-brand');
+  if (scB) scB.innerHTML = (window.NEST_BRANDS || []).map(b => `<option value="${esc(b.slug)}">${esc(b.name)}</option>`).join('');
 }
 
 // International view brand + market pills — from config (SEO markets). Each market
@@ -4947,6 +4966,57 @@ async function refreshOnboardEnv(slug) {
   el.insertAdjacentHTML('beforeend',
     line(wp,  wp  ? 'WordPress credentials connected' : 'WordPress credentials — set env vars to publish' + (err ? ' (check failed)' : '')) +
     line(gbp, gbp ? 'Google Business Profile connected' : 'Google Business Profile — optional; set env vars for reviews'));
+}
+
+// ── Page scaffolds (empty draft template pages) → generate their body ──────────
+async function findScaffolds() {
+  const brand = document.getElementById('sc-brand').value;
+  const btn = document.getElementById('sc-find-btn'), out = document.getElementById('sc-results');
+  btn.disabled = true; btn.textContent = 'Searching…'; out.innerHTML = '<div style="color:var(--text-muted)">Looking for empty draft pages…</div>';
+  try {
+    // Market tokens for this brand, so scaffolds can be labelled by market.
+    const tokens = (window.NEST_MARKETS || []).filter(m => m.brand === brand).map(m => m.marketSlug).filter(Boolean);
+    const r = await apiPost('/api/wordpress', { action: 'list_scaffolds', brand, payload: { maxWords: 30 } });
+    if (r.error) throw new Error(r.error);
+    const list = r.scaffolds || [];
+    if (!list.length) { out.innerHTML = '<div style="color:var(--text-muted)">No empty draft pages found — nothing waiting for content.</div>'; }
+    else {
+      out.innerHTML = list.map(sc => {
+        const path = String(sc.link || '').replace(/^https?:\/\/[^/]+/, '');
+        const mk = tokens.find(t => path.split('/').filter(Boolean).includes(t)) || '—';
+        return `<div style="display:flex;gap:10px;align-items:center;padding:7px 10px;border:1px solid var(--border);border-radius:8px;margin-bottom:6px">
+          <span style="font-weight:600;flex:1">${esc(sc.title || sc.slug)}</span>
+          <span style="font-size:11px;color:var(--text-muted)"><code>${esc(path)}</code></span>
+          <span style="font-size:10px;background:var(--bg-base);padding:1px 7px;border-radius:4px">${esc(mk)}</span>
+          <span style="font-size:10px;color:var(--text-muted)">${sc.words}w</span>
+          <button class="btn btn-primary" style="font-size:11px" onclick="generateScaffold(${sc.id}, '${esc(String(sc.link||''))}', '${esc(sc.title||sc.slug)}', this)">⚡ Generate body</button>
+        </div>`;
+      }).join('') + `<div style="font-size:11px;color:var(--text-muted);margin-top:6px">${list.length} scaffold(s). After pushing, a human adds images + NAP via ACF, then publishes.</div>`;
+    }
+    btn.textContent = '↻ Re-scan';
+  } catch (e) { out.innerHTML = `<div style="color:#ef4444">Failed: ${esc(e.message)}</div>`; btn.textContent = 'Find scaffolds'; }
+  btn.disabled = false;
+}
+
+async function generateScaffold(postId, link, title, btn) {
+  const brand = document.getElementById('sc-brand').value;
+  const pageKind = document.getElementById('sc-kind').value;
+  // Keyword seed = the page's own topic (slug words); the generator refines from there.
+  const path = String(link).replace(/^https?:\/\/[^/]+/, '').replace(/\/+$/, '');
+  const segs = path.split('/').filter(Boolean);
+  const keyword = (segs[segs.length - 1] || title).replace(/-/g, ' ');
+  const marketSlug = segs[0] || '';
+  const mkt = (window.NEST_MARKETS || []).find(m => m.brand === brand && m.marketSlug === marketSlug);
+  const orig = btn.textContent; btn.disabled = true; btn.textContent = '⏳ Writing…';
+  try {
+    const r = await apiPost('/api/generate-draft', { brand, keyword, url: link, postId, pageKind, market: mkt ? mkt.key : 'uae', actionType: 'page_creation' });
+    if (r.error) throw new Error(r.error);
+    if (r.skipped) { btn.textContent = '✓ Skipped'; showToast(`Skipped: ${r.reason || 'not a good candidate'}`, ''); }
+    else { btn.textContent = `✓ Queued (${r.faqPairs || 0} FAQs)`; btn.style.color = '#059669'; showToast(`Body for "${keyword}" queued — review it in the Approvals Queue.`, 'success'); }
+  } catch (e) {
+    btn.textContent = '✗ Failed'; showToast('Generate failed: ' + e.message, 'error');
+  }
+  setTimeout(() => { btn.textContent = orig; btn.disabled = false; btn.style.color = ''; }, 6000);
 }
 
 // ── Connection health — per brand: WordPress (which site?) + GSC + env vars ────
