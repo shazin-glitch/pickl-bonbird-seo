@@ -328,6 +328,22 @@ From Google's official AI Optimization Guide (June 2026):
 
 ---
 
+## Session: Aug 2026 — v7.8.1 — Bonbird PHASE 2 backend: template contract + scaffold discovery + market-aware menu
+
+Bonbird-only focus (Pickl's site is still being fixed — left untouched).
+
+**1.4 Market-aware menu (stops promoting discontinued products).** Brief §3: UAE discontinued Rice Bowls + Snack-A-Wraps; Angry Fries is PK-only. Nest's Bonbird menu still listed them. Added config-driven `menuExcludeByMarket` + `menuOnlyInMarkets` (brandsConfig) and `menuForMarket()` in generate-draft — the excluded items are BOTH withheld from the menu summary AND named in a hard "NEVER mention these" prompt rule, injected into all three generators. Verified: UAE drops riceBowls + bans rice bowl/snack-a-wrap/angry fries; **Oman keeps riceBowls** (only UAE discontinued them) and bans angry fries; PK allows everything.
+
+**2.1 Location/Product template contract — the generator now knows it.** New `pageKind` param (`journal` | `template_location` | `template_product`) → `generateTemplatePage()` writes ONLY `post_content` in the shape the theme parses: intro answering intent → 2-3 `<h2>` prose sections → **`<h2>FAQs</h2>` + ≥4 `<h3>Q</h3><p>A</p>` pairs** (theme builds the accordion + FAQPage JSON-LD). Hard prompt rules: never write images/hours/phone/address (ACF = human), never invent a venue/branch, must be genuinely market-specific ("if a sentence would read identically for another market, rewrite it" — the anti-doorway bar). Queues as `page_update` with `wpAction:'update_content'` + `postId` so it fills an existing scaffold instead of creating a duplicate, carries the market taxonomy term, and records `humanTodo: add images + NAP via ACF`.
+**`validateFaqBlock()` gates it before queueing** — a malformed block would render as flat text with no schema. Verified it blocks: missing FAQ heading · <3 questions · questions without answers · any `<img>` (ACF-owned); accepts a valid block and the `FAQ`/`FAQs` heading variants.
+
+**2.2 Scaffold discovery.** New `list_scaffolds` action (`wordpress.js`): draft/pending pages whose body is empty/near-empty (`maxWords`, default 30), optionally filtered by market tokens and template substring, returning id/slug/link/title/template/parent/words. That's how the **12 waiting product scaffolds** (IDs 47005–47016, om/qa/pk × chicken/wraps/chicken-burger/chicken-tenders) get found — `list_market_pages` couldn't, it only lists *published* pages.
+
+**Remaining for Phase 2:** a UI surface for scaffolds (list → ⚡Generate → review → push). Backend is complete and drivable via `/api/wordpress {action:'list_scaffolds'}` + `/api/generate-draft {pageKind, postId}` in the meantime.
+**Then Phase 1.5** (schema `countryCode` — already added to all 9 market records — + `schemaType` per vertical) and **Phase 3** (city-hub tier). **1.6 Qatar venue confirmation is a human task.**
+
+---
+
 ## Session: Aug 2026 — v7.8.0 — Bonbird enablement PHASE 1 (market taxonomy · legacy-page guard · hreflang from config)
 
 Per `/BONBIRD-NEST-PLAN.md` Phase 1. Each step verified with a mocked-WP harness (no live writes).

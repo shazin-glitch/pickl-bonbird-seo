@@ -37,6 +37,28 @@ const SITE = process.env.NETLIFY_URL || process.env.URL || 'https://yolkseo.netl
 const json = (status, body) => ({ statusCode: status, headers: { ...CORS, 'Content-Type': 'application/json' }, body: JSON.stringify(body) });
 
 const VALID_ACTIONS = ['meta_update', 'page_creation', 'blog_draft'];
+// pageKind tells the generator what SHAPE the body must take (see
+// /BONBIRD-SITE-ARCHITECTURE.md §4-5). Template pages are hybrids: ACF fields
+// (hero images, venue NAP/hours/map, product cards) are HUMAN-owned and must never
+// be attempted; post_content carries prose + an FAQ block that the theme turns into
+// a styled accordion AND FAQPage JSON-LD.
+const VALID_PAGE_KINDS = ['journal', 'template_location', 'template_product'];
+const isTemplateKind = k => k === 'template_location' || k === 'template_product';
+
+// The FAQ contract the theme parses. Validated before queueing so a malformed block
+// never reaches WordPress (it would render as flat text with no schema).
+function validateFaqBlock(html) {
+  const issues = [];
+  if (!/<h2[^>]*>\s*FAQs?\s*<\/h2>/i.test(html)) issues.push('missing an <h2>FAQs</h2> heading');
+  const after = html.split(/<h2[^>]*>\s*FAQs?\s*<\/h2>/i)[1] || '';
+  const qs = (after.match(/<h3[^>]*>[\s\S]*?<\/h3>/gi) || []).length;
+  const as = (after.match(/<p[^>]*>[\s\S]*?<\/p>/gi) || []).length;
+  if (qs < 3) issues.push(`only ${qs} <h3> question(s) after the FAQs heading (need at least 3)`);
+  if (as < qs) issues.push(`${qs} questions but ${as} <p> answer(s) — each question needs an answer`);
+  // ACF-owned things must not be authored into the body.
+  if (/<img\b/i.test(html)) issues.push('contains an <img> — images are ACF/human-owned');
+  return { ok: issues.length === 0, issues };
+}
 
 exports.handler = async (event) => {
   if (event.httpMethod === 'OPTIONS') return { statusCode: 200, headers: CORS, body: '' };
@@ -50,7 +72,8 @@ exports.handler = async (event) => {
 
   let body = {};
   try { body = JSON.parse(event.body || '{}'); } catch { return json(400, { error: 'Invalid JSON' }); }
-  const { brand, keyword, url, market, competitorPage } = body;
+  const { brand, keyword, url, market, competitorPage, postId } = body;
+  const pageKind = VALID_PAGE_KINDS.includes(body.pageKind) ? body.pageKind : null;
   const actionType = VALID_ACTIONS.includes(body.actionType) ? body.actionType : 'meta_update';
   const confidence = (body.confidence || '').toLowerCase();
 
@@ -72,11 +95,10 @@ exports.handler = async (event) => {
     const examples  = await getBrandExamples(brand).catch(() => '');
     const feedback  = await getBrandFeedback(brand).catch(() => []); // past human rejections — never repeat
     const systemPrompt = buildBrandPrompt(brandCtx, examples);
-    const menuItems = Array.isArray(brandCtx?.menu)
-      ? brandCtx.menu.map(m => m.name || m).filter(x => typeof x === 'string').slice(0, 20).join(', ')
-      : (brandCtx?.menu ? Object.keys(brandCtx.menu).slice(0, 20).join(', ') : '');
+    const mktEarly = market && market !== 'uae' ? INTERNATIONAL_MARKETS[market] : null;
+    const { menuItems, menuDirective } = menuForMarket(brandCtx, brandCfg, mktEarly?.marketSlug);
     const isArabic = /[؀-ۿ]/.test(keyword);
-    const mkt = market && market !== 'uae' ? INTERNATIONAL_MARKETS[market] : null;
+    const mkt = mktEarly;
     const brandName = brandCfg?.name || (brand.charAt(0).toUpperCase() + brand.slice(1));
 
     // ── Intelligence (WS6, shared _lib/content-pipeline) — for ALL brands/markets ──
@@ -104,7 +126,7 @@ exports.handler = async (event) => {
         reason: `A dedicated page already ranks for "${keyword}" (${intel.cannibalPage}). Creating another would split authority — optimise that page's meta instead.` });
     }
 
-    const ctx = { brand, keyword, url, market, competitorPage, brandCtx, brandCfg, vertical, examples, feedback, systemPrompt, menuItems, isArabic, mkt, brandName, auth, intel };
+    const ctx = { brand, keyword, url, market, competitorPage, brandCtx, brandCfg, vertical, examples, feedback, systemPrompt, menuItems, menuDirective, isArabic, mkt, brandName, auth, intel, pageKind, postId };
 
     if (effectiveAction === 'meta_update')   return await generateMeta(ctx);
     if (effectiveAction === 'page_creation') return await generatePage(ctx);
@@ -115,6 +137,39 @@ exports.handler = async (event) => {
     return json(500, { error: e.message });
   }
 };
+
+// Market-aware menu filtering (brief §3): an item discontinued in a market must not
+// be generated for it. Returns the menu summary with excluded things stripped, plus a
+// hard prompt rule naming them. Config-driven (brandsConfig.menuExcludeByMarket /
+// .menuOnlyInMarkets) — brands without those keys behave exactly as before.
+function menuForMarket(brandCtx, brandCfg, marketSlug) {
+  const slug = String(marketSlug || brandCfg?.homeMarketSlug || '').toLowerCase();
+  const excl = ((brandCfg?.menuExcludeByMarket || {})[slug] || []).map(x => String(x).toLowerCase());
+  // Items restricted to other markets are excluded here too.
+  for (const [item, markets] of Object.entries(brandCfg?.menuOnlyInMarkets || {})) {
+    if (!markets.map(m => String(m).toLowerCase()).includes(slug)) excl.push(String(item).toLowerCase());
+  }
+  const blocked = (txt) => excl.some(e => String(txt).toLowerCase().includes(e));
+
+  let summary;
+  if (Array.isArray(brandCtx?.menu)) {
+    summary = brandCtx.menu.map(m => m.name || m).filter(x => typeof x === 'string' && !blocked(x)).slice(0, 20).join(', ');
+  } else if (brandCtx?.menu) {
+    // Object form: drop whole categories that are excluded, and any excluded items in them.
+    const parts = [];
+    for (const [cat, items] of Object.entries(brandCtx.menu)) {
+      if (blocked(cat)) continue;
+      const kept = Array.isArray(items) ? items.filter(i => !blocked(i)) : (blocked(items) ? [] : [items]);
+      if (kept.length) parts.push(cat);
+    }
+    summary = parts.slice(0, 20).join(', ');
+  } else summary = '';
+
+  const directive = excl.length
+    ? `\n- NEVER mention these — not available in this market: ${excl.join(', ')}. Do not reference, imply, or substitute them.`
+    : '';
+  return { menuItems: summary, menuDirective: directive };
+}
 
 // Market taxonomy term for the target market, when the brand's site uses one
 // (config-driven: brandsConfig.marketTaxonomy / .homeMarketSlug). Returns {} otherwise,
@@ -137,7 +192,7 @@ function tags(ctx) {
 
 // ── meta_update ────────────────────────────────────────────────────────────────
 async function generateMeta(ctx) {
-  const { brand, keyword, url, competitorPage, brandCtx, feedback, systemPrompt, menuItems, isArabic, mkt, brandName, intel } = ctx;
+  const { brand, keyword, url, competitorPage, brandCtx, feedback, systemPrompt, menuItems, menuDirective, isArabic, mkt, brandName, intel } = ctx;
   const intelDirective = intel?.promptDirective || '';
 
   // 1) current live meta (proven path — reuse the wordpress function)
@@ -155,7 +210,7 @@ async function generateMeta(ctx) {
 
 RULES — non-negotiable:
 ${metaLengthRule}
-- Only reference REAL menu items: ${menuItems || 'use items from the brand context'}
+- Only reference REAL menu items: ${menuItems || 'use items from the brand context'}${menuDirective || ''}
 - Lead with the keyword; end with a reason to click. No generic phrases ("great food", "delicious", "best in Dubai").
 - Write specifically about what the PAGE is about (the URL tells you the topic).${isArabic ? '\n- Write the title AND description in ARABIC (the keyword is Arabic).' : ''}${competitorPage ? `\n- A competitor ranks here with ${competitorPage} — make ours more specific and compelling than a generic competitor page.` : ''}${intelDirective}${feedback.length ? `\n\nHUMAN FEEDBACK — past rejections, never repeat these:\n${feedback.slice(0, 10).map(n => `- ${n}`).join('\n')}` : ''}
 
@@ -199,8 +254,9 @@ Return ONLY JSON:
 
 // ── page_creation ───────────────────────────────────────────────────────────────
 async function generatePage(ctx) {
-  const { brand, keyword, url, brandCtx, feedback, systemPrompt, menuItems, isArabic, mkt, brandName, vertical, intel } = ctx;
+  const { brand, keyword, url, brandCtx, feedback, systemPrompt, menuItems, menuDirective, isArabic, mkt, brandName, vertical, intel, pageKind, postId } = ctx;
   const intelDirective = intel?.promptDirective || '';
+  if (isTemplateKind(pageKind)) return await generateTemplatePage(ctx);
 
   const userPrompt = `You are creating a NEW ${vertical.promptNoun} landing/location page for ${brandName} to rank for a keyword it currently has no dedicated page for. Write the full page.
 
@@ -210,7 +266,7 @@ WHAT ${brandName.toUpperCase()} IS ABOUT: ${menuItems || vertical.menuSummary}
 RULES — non-negotiable:
 - This is a real, publishable page — write substantive, on-brand body copy (350–600 words) in ${brandName}'s voice.
 - Structure with clear H2/H3 headings. Lead with the search intent behind "${keyword}".
-- Only reference REAL offerings: ${menuItems || vertical.menuSummary}. Invent nothing (no fake locations, awards, or menu items).
+- Only reference REAL offerings: ${menuItems || vertical.menuSummary}. Invent nothing (no fake locations, awards, or menu items).${menuDirective || ''}
 - ${metaLengthRule}${isArabic ? '\n- Write EVERYTHING (title, headings, body, meta) in ARABIC.' : ''}${intelDirective}${feedback.length ? `\n\nHUMAN FEEDBACK — never repeat these past rejections:\n${feedback.slice(0, 10).map(n => `- ${n}`).join('\n')}` : ''}
 
 Return ONLY JSON:
@@ -247,9 +303,82 @@ Return ONLY JSON:
   return json(200, { ok: true, item, routeNote: intel?.routeNote || null });
 }
 
+// ── template_location / template_product ──────────────────────────────────────
+// Writes ONLY post_content for a page already assigned a data-driven template.
+// The theme owns presentation: our FAQ block becomes an accordion + FAQPage schema.
+// ACF (images, NAP, hours, product cards) is human-owned — never authored here.
+async function generateTemplatePage(ctx) {
+  const { brand, keyword, url, brandCtx, feedback, systemPrompt, menuItems, menuDirective,
+          isArabic, mkt, brandName, vertical, intel, pageKind, postId } = ctx;
+  const isLocation = pageKind === 'template_location';
+  const marketLabel = mkt ? mkt.label : 'UAE';
+
+  const userPrompt = `You are writing the CONTENT BODY for an existing ${brandName} ${isLocation ? 'location' : 'product'} page in ${marketLabel}. The page's images, address, hours and product cards are managed separately by a human — you write ONLY the prose and FAQs.
+
+TARGET KEYWORD: "${keyword}"${url ? `\nPAGE: ${url}` : ''}
+WHAT ${brandName.toUpperCase()} OFFERS: ${menuItems || vertical.menuSummary}
+
+REQUIRED STRUCTURE — follow exactly, the theme parses it:
+1. An opening paragraph answering the intent behind "${keyword}" directly (no preamble, no "welcome to").
+2. Two or three <h2> sections of genuinely useful, specific prose${isLocation ? ' — neighbourhood context, what the area is like, why someone here would come' : ' — what the product is, how it is made, how it differs'}.
+3. Then EXACTLY this FAQ block, which the page turns into an accordion and FAQ schema:
+   <h2>FAQs</h2>
+   <h3>Question?</h3><p>Answer.</p>
+   …at least 4 question/answer pairs, each a real question someone in ${marketLabel} would ask.
+
+HARD RULES:
+- NEVER write image tags, photo captions, opening hours, phone numbers or a street address — those are human/ACF-owned. Do not invent them.${isLocation ? '\n- Do NOT invent a venue, branch or address. Write about the AREA and the offer, not a specific street.' : ''}
+- Only reference REAL offerings: ${menuItems || vertical.menuSummary}. Invent nothing.${menuDirective || ''}
+- Genuinely specific to ${marketLabel} — no interchangeable city-name filler. If a sentence would read identically for another market, rewrite it.
+- ${metaLengthRule}${isArabic ? '\n- Write EVERYTHING in ARABIC.' : ''}${intelDirective}${feedback.length ? `\n\nHUMAN FEEDBACK — never repeat these past rejections:\n${feedback.slice(0, 10).map(n => `- ${n}`).join('\n')}` : ''}
+
+Return ONLY JSON:
+{"skip": false, "skipReason": "", "title": "SEO title", "metaDescription": "...", "contentHtml": "<p>intro…</p><h2>…</h2><p>…</p><h2>FAQs</h2><h3>Q?</h3><p>A.</p>…", "rationale": "one sentence — why this wins the keyword"}`;
+
+  const { text } = await callClaude(userPrompt, { max_tokens: 3200, system: systemPrompt });
+  const parsed = extractJson(text) || {};
+  if (parsed.skip) return json(200, { ok: true, skipped: true, reason: parsed.skipReason || 'not a good candidate' });
+  const title = (parsed.title || '').trim();
+  let contentHtml = (parsed.contentHtml || '').trim();
+  if (!title || !contentHtml) return json(502, { error: 'generation returned no title/content' });
+  contentHtml = hardStripBannedTokens(contentHtml);
+
+  // The FAQ block must be well-formed or the accordion + schema silently won't build.
+  const faq = validateFaqBlock(contentHtml);
+  if (!faq.ok) {
+    return json(422, { error: `Generated body does not meet the template contract: ${faq.issues.join('; ')}`, issues: faq.issues, retryable: true });
+  }
+
+  let voiceScore = null, voiceIssues = [];
+  try { const v = await runBrandVoiceCheck(contentHtml.replace(/<[^>]+>/g, ' '), brandCtx, callClaude); voiceScore = v?.score ?? null; voiceIssues = v?.issues || []; } catch {}
+
+  const t = tags(ctx);
+  const item = await createApproval({
+    type: 'page_update', brand,
+    title: `${isLocation ? 'Location' : 'Product'} page: ${keyword}`,
+    reason: parsed.rationale || `Write the content body for the ${marketLabel} ${isLocation ? 'location' : 'product'} page targeting "${keyword}"`,
+    ...t,
+    payload: {
+      // Existing scaffold → update its body by postId (never create a duplicate).
+      postId: postId || undefined, url: url || null, postType: 'pages',
+      title, description: parsed.metaDescription || '',
+      content: contentHtml, targetKeyword: keyword,
+      wpAction: 'update_content',
+      ...marketTaxonomyFor(ctx),
+      voiceScore, voiceIssues,
+      faqPairs: (contentHtml.match(/<h3[^>]*>/gi) || []).length,
+      serpFeatureTag: intel?.serpTag || null, competitors: intel?.competitors || null,
+      generatedType: pageKind, label: isLocation ? 'Location page body' : 'Product page body',
+      humanTodo: 'Add hero/product images + NAP via ACF, then publish.',
+      source: 'worklist-generate',
+    },
+  });
+  return json(200, { ok: true, item, faqPairs: (contentHtml.match(/<h3[^>]*>/gi) || []).length });
+}
+
 // ── blog_draft ────────────────────────────────────────────────────────────────
 async function generateBlog(ctx) {
-  const { brand, keyword, brandCtx, feedback, systemPrompt, menuItems, isArabic, mkt, brandName, vertical, intel } = ctx;
+  const { brand, keyword, brandCtx, feedback, systemPrompt, menuItems, menuDirective, isArabic, mkt, brandName, vertical, intel } = ctx;
   const intelDirective = intel?.promptDirective || '';
 
   const userPrompt = `You are writing a NEW blog/journal post for ${brandName} to build topical authority and rank for an informational keyword. Write the full post.
@@ -260,7 +389,7 @@ WHAT ${brandName.toUpperCase()} IS ABOUT: ${menuItems || vertical.menuSummary}
 RULES — non-negotiable:
 - Write a genuinely useful, on-brand post (500–800 words) in ${brandName}'s voice — not SEO filler.
 - Structure with H2/H3 headings. Answer the intent behind "${keyword}" first.
-- Reference only REAL offerings: ${menuItems || vertical.menuSummary}. Invent nothing.
+- Reference only REAL offerings: ${menuItems || vertical.menuSummary}. Invent nothing.${menuDirective || ''}
 - ${metaLengthRule}${isArabic ? '\n- Write EVERYTHING in ARABIC.' : ''}${intelDirective}${feedback.length ? `\n\nHUMAN FEEDBACK — never repeat these past rejections:\n${feedback.slice(0, 10).map(n => `- ${n}`).join('\n')}` : ''}
 
 Return ONLY JSON:

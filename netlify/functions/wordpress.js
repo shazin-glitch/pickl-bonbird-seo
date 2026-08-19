@@ -14,6 +14,7 @@
 //   update_meta     update SEO title/description only
 //   publish         flip draft → published  ← new: triggered by "Approve & Publish"
 //   list_posts      search posts + pages
+//   list_scaffolds  draft pages with empty/near-empty bodies (template scaffolds awaiting content)
 //   get_post        get single item by ID
 
 const { authorize } = require('./_lib/auth');
@@ -90,6 +91,7 @@ exports.handler = async (event) => {
       case 'publish':          return await handlePublish(creds, body.payload || {});
       case 'list_posts':       return await handleListPosts(creds, body);
       case 'list_market_pages': return await handleListMarketPages(creds, body.payload || {});
+      case 'list_scaffolds':    return await handleListScaffolds(creds, body.payload || {});
       case 'get_post':         return await handleGetPost(creds, body);
       default:               return fail(400, `unknown action: ${action}`);
     }
@@ -410,6 +412,45 @@ async function handleListPosts(creds, body) {
 // Used by the intl meta sweep to discover ALL of a market's pages (root +
 // sub-pages like /bahrain-events/, /franchise-bahrain/). Matches a token against
 // whole hyphen/slash slug segments; hyphenated tokens match as substrings.
+
+// ── list scaffolds ───────────────────────────────────────────────
+// Draft pages whose body is empty/near-empty — i.e. template scaffolds waiting for
+// content. Bonbird's rebuild left 12 product scaffolds as drafts (parent + template +
+// slug set, empty bodies) ready for Nest to write; this is how we find them.
+// payload: { tokens?: ['om','qa','pk'], template?: 'substring', maxWords?: 30 }
+async function handleListScaffolds(creds, payload) {
+  const tokens   = (payload.tokens || []).map(t => String(t || '').toLowerCase().trim()).filter(Boolean);
+  const tplMatch = payload.template ? String(payload.template).toLowerCase() : null;
+  const maxWords = Number.isFinite(payload.maxWords) ? payload.maxWords : 30;
+
+  const found = [];
+  for (let page = 1; page <= 3; page++) {
+    const params = new URLSearchParams({
+      per_page: '100', page: String(page), status: 'draft,pending,future,private',
+      context: 'edit', _fields: 'id,slug,link,title,content,template,parent',
+    });
+    const res = await wpFetch(creds, `/wp/v2/pages?${params}`);
+    if (!res.ok) break;
+    const items = Array.isArray(res.data) ? res.data : [];
+    for (const p of items) {
+      const raw   = p.content?.raw ?? p.content?.rendered ?? '';
+      const words = String(raw).replace(/<[^>]*>/g, ' ').trim().split(/\s+/).filter(Boolean).length;
+      if (words > maxWords) continue;                                  // already has a body
+      const tpl = String(p.template || '');
+      if (tplMatch && !tpl.toLowerCase().includes(tplMatch)) continue;
+      const link = String(p.link || '');
+      if (tokens.length) {
+        const path = link.replace(/^https?:\/\/[^/]+/, '').toLowerCase();
+        const segs = path.split('/').filter(Boolean);
+        if (!tokens.some(t => segs.includes(t))) continue;             // wrong market
+      }
+      found.push({ id: p.id, slug: p.slug || '', link, title: p.title?.raw || p.title?.rendered || '', template: tpl, parent: p.parent || 0, words });
+    }
+    if (items.length < 100) break;
+  }
+  return win({ count: found.length, scaffolds: found, filters: { tokens, template: tplMatch, maxWords } });
+}
+
 async function handleListMarketPages(creds, payload) {
   const tokens = (payload.tokens || []).map(t => String(t || '').toLowerCase().trim()).filter(Boolean);
   if (!tokens.length) return fail(400, 'tokens required');

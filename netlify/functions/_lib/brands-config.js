@@ -152,6 +152,13 @@ const BRAND_SEED = {
     homeCountryCode: 'AE',
     marketTaxonomy:  'market',
     homeMarketSlug:  'ae',
+    // Menu availability differs by market (brief §3). Keys = market slug; values =
+    // substrings matched case-insensitively against menu categories/items, which are
+    // then withheld from generation AND added to a hard "never mention" prompt rule.
+    // UAE discontinued Rice Bowls (46793) + Snack-A-Wraps (46792).
+    menuExcludeByMarket: { ae: ['rice bowl', 'snack-a-wrap', 'snack a wrap'] },
+    // Items sold in SOME markets only — withheld everywhere else. Angry Fries = PK-only.
+    menuOnlyInMarkets:   { 'angry fries': ['pk'] },
     // Legacy landing pages that render from static Twig (`views/page-{slug}.twig`),
     // NOT from post_content — a body write returns 200 and changes NOTHING visible.
     // Yoast meta DOES render, so meta updates stay allowed. Remove entries here as
