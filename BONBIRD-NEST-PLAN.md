@@ -6,7 +6,7 @@
 
 > ## 📍 STATUS — updated 2026-08-19 (end of session)
 > **Phase 1: 1.1–1.4 ✅ DONE · 1.5 ⬜ NEXT · 1.6 ⬜ human task**  |  **Phase 2: ✅ COMPLETE**  |  **Phase 3: ⬜ not started**
-> Shipped this session: **v7.7.9 → v7.8.3** — ✅ **PUSHED** (`ef9e8ad`, 19 Aug). Netlify auto-deploys; confirm it says *Published*.
+> Shipped this session: **v7.7.9 → v7.8.4** — ✅ **PUSHED** (`ef9e8ad`, 19 Aug). Netlify auto-deploys; confirm it says *Published*.
 > **Scope decision (Shazin):** *Bonbird only* — Pickl's website is still being fixed, so leave Pickl alone. Pickl's one behaviour change (`ar-jo` hreflang tag now derived from config) is dormant: hreflang is generated on demand and nothing auto-publishes it.
 > **Everything below was verified with mocked harnesses — NO live writes.** Live behaviour still needs Shazin signed in. (Deploys are healthy again — Shazin trimmed the GCS key and the 4KB env-var issue is resolved.)
 
@@ -119,3 +119,21 @@ Doc §6: city/area hub pages (e.g. "Fried Chicken in Sharjah", "Best Chicken Bur
 **Verification honesty:** all of the above was proven with **mocked WP/GSC harnesses — zero live writes**. Per-case assertions covered: taxonomy resolve + unresolvable-term degrade + Pickl no-op; legacy guard (url path AND postId path) with meta still passing; hreflang output for both brands; per-market menu filtering; FAQ validation across 6 malformed/valid cases; module-load; full `node --check` + inline JS + `const X = X(` TDZ sweep. **Nothing has been confirmed against the live site.**
 
 **FIRST THING NEXT SESSION:** confirm the deploy Published, then run the acceptance checks (nothing below has been verified against the live site): a Bonbird journal draft for `om` gets its market term; a body write to `/ae/dubai/` is refused; one of the 12 scaffolds generates a valid FAQ body.
+
+---
+
+## Addendum — v7.8.4: post-rebuild staleness sweep (unplanned, found by asking "are we still hitting old URLs?")
+
+The plan's Phase 1 fixed *publishing* and *attribution* paths. It did **not** cover the **audit/reporting** paths, which had their own hardcoded URL lists. Findings (full detail in SETUP.md v7.8.4):
+
+| # | Where | Fault | Status |
+|---|---|---|---|
+| 1 | `technical-seo-background.js getCorePages()` | `brandCfg` out of scope → ReferenceError swallowed by `try` → **WP page discovery dead for every brand** | ✅ fixed (param) |
+| 2 | `PRIORITY_PAGES.bonbird` | 5 pre-rebuild URLs (all 301, verified) | ✅ → `brandsConfig.priorityPaths`, 12 URLs all verified 200 |
+| 3 | `scheduler-background.js getLocationTag()` | Bonbird matched only word slugs → all new intl URLs mis-attributed to UAE | ✅ → `marketForUrl()`, 10-URL test |
+| 4 | `index.html` INTL_MARKETS seed | stale Bonbird slugs in pre-bootstrap fallback | ✅ → `om`/`pk`/`qa` |
+| — | `ga4-data.js MARKET_PATHS` | looks stale but **inert** (only `Object.keys()` read) | ⬜ dead config, left as-is |
+
+**Lesson for the remaining phases:** a site restructure invalidates *four* classes of code, not one — publish targets, attribution tokens, **audit page lists**, and **frontend seeds**. Grep all four before declaring a market migration done.
+
+**Rule-12 debt still open** (hardcoded per-brand literals, not stale but won't scale): `competitor-matrix-background.js:183`, `scheduler.js:17`, `competitor-audit.js:21`, `international-config.js:420` domain ternary.

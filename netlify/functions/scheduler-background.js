@@ -20,6 +20,7 @@ const { getBrands, getBrandSlugs, getBrand, wpCredentialsFor } = require('./_lib
 const { internalHeaders, authorizeJob } = require('./_lib/auth');
 const { metaLengthRule } = require('./_lib/seo-meta');
 const { updateRankHistory } = require('./_lib/rank-tracker');
+const { marketForUrl, INTERNATIONAL_MARKETS } = require('./_lib/international-config');
 const { getStore } = require('@netlify/blobs');
 
 // ── Brand feedback helper ─────────────────────────────────────────
@@ -62,9 +63,13 @@ function getLocationTag(url, brand) {
   }
 
   if (brand === 'bonbird' || lower.includes('bonbird')) {
-    if (lower.includes('/oman/') || lower.endsWith('/oman') || lower.includes('oman.bonbird'))         return '🇴🇲 Oman';
-    if (lower.includes('/pakistan/') || lower.endsWith('/pakistan') || lower.includes('pak.bonbird'))  return '🇵🇰 Pakistan';
-    if (lower.includes('/qatar/') || lower.endsWith('/qatar') || lower.includes('qatar.bonbird'))      return '🇶🇦 Qatar';
+    // Derived from market config, NOT hardcoded slugs (CLAUDE.md #12). The site was
+    // rebuilt 2026-08-18 onto ISO market slugs (/om/ /pk/ /qa/); MARKET_PAGE_TOKENS
+    // holds BOTH the new ISO slug and the legacy word slug, so historical GSC rows
+    // (/oman/ …) still attribute correctly. A new market needs no code edit here.
+    const mKey = marketForUrl(url, 'bonbird');
+    const m    = INTERNATIONAL_MARKETS[mKey];
+    if (m) return `${m.flag} ${m.label}`;
   }
 
   return '🇦🇪 UAE';

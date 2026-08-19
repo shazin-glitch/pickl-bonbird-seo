@@ -39,7 +39,7 @@ exports.handler = async (event) => {
   await setSetting(`technicalSeo:${brand}`, audit);
 
   // ── PART 1: Full PSI on core pages from WordPress ────────────────────────
-  const corePages = await getCorePages(brand, domain);
+  const corePages = await getCorePages(brand, domain, brandCfg);
   console.log(`[tech-seo] ${brand}: ${corePages.length} core pages to audit`);
 
   for (const page of corePages) {
@@ -106,7 +106,9 @@ exports.handler = async (event) => {
 
 // ── Get core pages from WordPress ─────────────────────────────────────────────
 
-// Priority pages — confirmed from site nav (June 2026)
+// Legacy seed only — the real list is brandsConfig.priorityPaths (see getCorePages).
+// Bonbird is deliberately absent: its 2026-08-18 rebuild moved every page to ISO
+// market paths (/ae/… ), so any literal here would go stale again. Config, not code.
 const PRIORITY_PAGES = {
   pickl: [
     { url: 'https://eatpickl.com',          label: 'Homepage' },
@@ -116,22 +118,23 @@ const PRIORITY_PAGES = {
     { url: 'https://eatpickl.com/about',     label: 'About' },
     { url: 'https://eatpickl.com/events',    label: 'Events' },
   ],
-  bonbird: [
-    { url: 'https://bonbirdchicken.com',                  label: 'Homepage' },
-    { url: 'https://bonbirdchicken.com/uae-menu/',        label: 'Menu' },
-    { url: 'https://bonbirdchicken.com/locations',        label: 'Locations' },
-    { url: 'https://bonbirdchicken.com/franchise',        label: 'Franchise' },
-    { url: 'https://bonbirdchicken.com/philosophy',       label: 'Philosophy' },
-  ],
 };
 const SKIP_SLUGS = ['sample-page','privacy-policy','cookie-policy','terms','thank-you',
   'cart','checkout','my-account','games','pickl-games','burger-generator',
   'pickl-burger-muncher','pickl-munch','seoul-catcher',
   'taco-bird','tacobird','taco-bird-game','menu-test','test-menu','menu-2','menu-old'];
 
-async function getCorePages(brand, domain) {
-  // Priority pages always come first — these are always audited
-  const priorityPages = PRIORITY_PAGES[brand] || [{ url: domain, label: 'Homepage' }];
+async function getCorePages(brand, domain, brandCfg) {
+  // Priority pages always come first — these are always audited.
+  // Config-driven (brandsConfig.priorityPaths) so a site restructure is a config edit,
+  // not a code edit — Bonbird's rebuild to ISO URLs (/ae/…) is exactly why: the old
+  // hardcoded list below pointed at pre-rebuild URLs that now only 301-redirect.
+  const cfg = brandCfg || await getBrand(brand).catch(() => null);
+  const fromConfig = (cfg?.priorityPaths || []).map(p => ({
+    url: `${String(domain).replace(/\/$/, '')}${p.path}`, label: p.label || p.path,
+  }));
+  const priorityPages = fromConfig.length ? fromConfig
+    : (PRIORITY_PAGES[brand] || [{ url: domain, label: 'Homepage' }]);
   const priorityUrls  = new Set(priorityPages.map(p => p.url));
   const pages         = [...priorityPages];
 
@@ -146,7 +149,7 @@ async function getCorePages(brand, domain) {
       );
       const wpPages = await res.json();
       if (Array.isArray(wpPages)) {
-        const gscSiteUrl = brandCfg.gscProperty;
+        const gscSiteUrl = cfg?.gscProperty;
         const gscCache   = await getSetting('gscPageCache:' + gscSiteUrl).catch(() => null);
         const impMap     = {};
         for (const row of (gscCache?.rows || [])) {

@@ -164,6 +164,22 @@ const BRAND_SEED = {
     // Yoast meta DOES render, so meta updates stay allowed. Remove entries here as
     // they're migrated to the data-driven Location/Product templates.
     // (Brief §4 says "13"; it enumerates these 12 — verify the 13th and add it.)
+    // Technical-audit priority pages, as PATHS (domain comes from config). Post-rebuild
+    // ISO structure — only URLs confirmed by /BONBIRD-SITE-ARCHITECTURE.md are listed;
+    // the audit also auto-discovers published pages via the WP REST API, so this list
+    // just guarantees the key pages are always checked. Update here, not in code.
+    priorityPaths: [
+      // Root '/' is a 301 → /ae/, so audit /ae/ directly (verified live 19 Aug 2026).
+      { path: '/ae/',              label: 'UAE home' },
+      { path: '/ae/menu/',         label: 'UAE menu' },
+      { path: '/ae/locations/',    label: 'Locations' },
+      { path: '/ae/franchise/',    label: 'Franchise' },
+      { path: '/ae/philosophy/',   label: 'Philosophy' },
+      { path: '/ae/dubai/',        label: 'Dubai' },
+      { path: '/ae/sharjah/',      label: 'Sharjah' },
+      { path: '/ae/abu-dhabi/',    label: 'Abu Dhabi' },
+      { path: '/ae/chicken/',      label: 'Chicken (product)' },
+    ],
     bodyNotWritablePaths: [
       '/ae/chicken', '/ae/wraps', '/ae/chicken-burger', '/ae/chicken-tenders',
       '/ae/dubai', '/ae/dubai/city-walk', '/ae/dubai/mirdif', '/ae/dubai/motor-city',

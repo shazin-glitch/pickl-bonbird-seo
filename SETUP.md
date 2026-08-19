@@ -4458,3 +4458,23 @@ Bonbird was confirmed mentioned in an AI Overview for: "where can i find the bes
 | GCS CORS setup | IT/Dev | Required for video > 10MB. CMD: `gsutil cors set cors.json gs://BUCKET_NAME` |
 | GA4 tracking install on WP sites | Developer | Prerequisite for any GA4 data |
 | Slack Bot OAuth setup | Shazin | Optional, ~20 min — enables DMs instead of channel notify |
+
+### v7.8.4 — Technical audit was auditing the OLD Bonbird site (+ market attribution)
+
+**Trigger:** "why is the technical audit for bonbird not returning results? are we still hitting old urls?" — yes, we were. Two distinct faults, both found by reading code and then verified against the live site with `curl`.
+
+**1. WP page discovery was dead for EVERY brand (regression, `technical-seo-background.js`).**
+`getCorePages()` referenced `brandCfg.gscProperty`, but `brandCfg` is declared inside `exports.handler` — not in that function's scope. The ReferenceError was swallowed by the enclosing `try`, which logged *"WP pages fetch failed, using priority pages only"*. Net effect: the audit never discovered any WordPress page and fell back to the hardcoded priority list alone. Introduced during the `getBrand()` migration. Fixed by passing `brandCfg` in as a parameter.
+
+**2. The priority list held pre-rebuild Bonbird URLs — now config-driven.**
+`PRIORITY_PAGES.bonbird` was `/uae-menu/`, `/locations`, `/franchise`, `/philosophy` and the bare root. Verified live: all five **301** (they don't 404) — so PSI still returned data, just for a redirect chain against the wrong page set. The 301 targets revealed the real paths. Replaced with `brandsConfig.priorityPaths` (paths, not full URLs — the domain comes from config), so the next site restructure is a config edit. The stale Bonbird literal is deleted; Pickl's stays as a seed (its site is still being fixed — left alone deliberately).
+
+Audit now hits 12 pages, **every one verified `200` live**: `/ae/`, `/ae/menu/`, `/ae/locations/`, `/ae/franchise/`, `/ae/philosophy/`, `/ae/dubai/`, `/ae/sharjah/`, `/ae/abu-dhabi/`, `/ae/chicken/` + `/om/ /pk/ /qa/` from market config. (The intl half was already correct — `getInternationalPages()` derives from `INTERNATIONAL_MARKETS` and filters by brand, so it picked up the v7.7.9 ISO fix for free.)
+
+**3. `scheduler-background.js getLocationTag()` still attributed by word slug.** Its Bonbird branch matched only `/oman/ /pakistan/ /qatar/`, so every post-rebuild URL fell through to the UAE default — silently mis-attributing all new intl content. Now delegates to `marketForUrl()`, which reads `MARKET_PAGE_TOKENS` (holds BOTH the ISO slug and the legacy word, so historical GSC rows still attribute). Verified with a 10-URL table: new ISO, legacy, and `/ae/` sub-paths all resolve correctly. **Pickl's branch left untouched on purpose** — `urlMatchesTokens` would not match `/pickl-jordan/` for token `jordan` (the code comment claiming it does is wrong), so delegating Pickl would have regressed Jordan.
+
+**4. `index.html` INTL_MARKETS seed** — Bonbird rows carried the old word slugs. `bootstrapBrands()` overwrites this from `/api/config`, so it was only the pre-bootstrap fallback, but a wrong fallback is a trap. Now `om`/`pk`/`qa`.
+
+**Checked and deliberately NOT changed:** `ga4-data.js MARKET_PATHS` looks stale (`/oman/` etc.) but is **inert** — only `Object.keys()` is read and the frontend never consumes `marketPaths`, so it's dead config, not a live bug. `international-seo-background.js:1419` matches market words inside *keywords*, not URLs — correct as-is. The audit's trigger path was already correct (direct `/.netlify/functions/` + `internalHeaders()`, per rule 7).
+
+**Still unverified live:** whether a *completed* `technicalSeo:bonbird` record exists. Both faults above degrade the audit's page set rather than emptying it, so if the panel is still blank after a fresh run, the next thing to check is whether the run completes at all (Netlify function log for `[tech-seo]`).
