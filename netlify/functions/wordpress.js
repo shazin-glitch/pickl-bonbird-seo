@@ -17,6 +17,7 @@
 //   get_post        get single item by ID
 
 const { authorize } = require('./_lib/auth');
+const { getBrand } = require('./_lib/brands-config');
 
 const CORS = {
   'Access-Control-Allow-Origin': '*',
@@ -83,7 +84,7 @@ exports.handler = async (event) => {
       case 'test':           return await handleTest(creds);
       case 'create_draft':   return await handleCreateDraft(creds, body.payload || {});
       case 'create_page':    return await handleCreatePage(creds, body.payload || {});
-      case 'update_content': return await handleUpdateContent(creds, body.payload || {});
+      case 'update_content': return await handleUpdateContent(creds, body.payload || {}, brand);
       case 'update_meta':      return await handleUpdateMeta(creds, body.payload || {});
       case 'get_current_meta': return await handleGetCurrentMeta(creds, body.payload || {});
       case 'publish':          return await handlePublish(creds, body.payload || {});
@@ -121,15 +122,86 @@ async function handleTest(creds) {
   });
 }
 
+
+// ── Custom taxonomy terms (e.g. Bonbird's `market` taxonomy) ──────────────────
+// WP's REST API accepts custom taxonomies as `{ <taxonomy>: [termId, …] }` on the
+// post body, but only ACCEPTS IDs — so slugs/names must be resolved first.
+// Bonbird journal posts derive their market from a `market` term (see
+// /BONBIRD-SITE-ARCHITECTURE.md §4); without it a Nest-created post is market-less.
+// payload.taxonomies = { market: ['om'] }  →  { market: [12] }
+const _termCache = new Map(); // `${tax}:${slug}` → id (per invocation)
+
+async function resolveTermIds(creds, taxonomy, values) {
+  const out = [];
+  for (const v of (Array.isArray(values) ? values : [values])) {
+    if (v == null || v === '') continue;
+    if (typeof v === 'number') { out.push(v); continue; }        // already an id
+    const key = `${taxonomy}:${String(v).toLowerCase()}`;
+    if (_termCache.has(key)) { out.push(_termCache.get(key)); continue; }
+    // try slug first, then name — custom taxonomies expose /wp/v2/<taxonomy>
+    let id = null;
+    for (const q of [`slug=${encodeURIComponent(v)}`, `search=${encodeURIComponent(v)}`]) {
+      const r = await wpFetch(creds, `/wp/v2/${encodeURIComponent(taxonomy)}?${q}&_fields=id,slug,name&per_page=10`);
+      if (r.ok && Array.isArray(r.data) && r.data.length) {
+        const exact = r.data.find(t => String(t.slug).toLowerCase() === String(v).toLowerCase()
+                                    || String(t.name).toLowerCase() === String(v).toLowerCase());
+        id = (exact || r.data[0]).id;
+        if (id) break;
+      }
+    }
+    if (id) { _termCache.set(key, id); out.push(id); }
+    else console.warn(`[resolveTermIds] taxonomy "${taxonomy}" has no term matching "${v}" — skipping (post will lack that term)`);
+  }
+  return out;
+}
+
+// Build the taxonomy fields to merge into a post body. Returns {} when nothing
+// resolves, and reports what failed so the caller can surface it.
+async function buildTaxonomies(creds, payload) {
+  const spec = payload.taxonomies;
+  if (!spec || typeof spec !== 'object') return { fields: {}, unresolved: [] };
+  const fields = {}, unresolved = [];
+  for (const [tax, vals] of Object.entries(spec)) {
+    if (tax === 'categories' || tax === 'tags') continue;         // handled natively
+    const ids = await resolveTermIds(creds, tax, vals);
+    if (ids.length) fields[tax] = ids;
+    else unresolved.push(`${tax}=${[].concat(vals).join(',')}`);
+  }
+  return { fields, unresolved };
+}
+
+
+// ── Body-writability guard (static-template pages) ────────────────────────────
+// Some pages render from a static theme template, not `post_content` — writing a
+// body there returns 200 and changes nothing visible, so Nest would report success
+// on content that never shipped. The list is config-driven per brand
+// (brandsConfig.bodyNotWritablePaths). Meta updates are still allowed (they render).
+function _pathOf(u) {
+  try { return String(u).replace(/^https?:\/\/[^/]+/, '').split('?')[0].split('#')[0].replace(/\/+$/, '').toLowerCase() || '/'; }
+  catch { return ''; }
+}
+async function bodyWritable(brand, url) {
+  if (!url) return { ok: true };                       // nothing to check against
+  let list = [];
+  try { list = (await getBrand(brand))?.bodyNotWritablePaths || []; } catch { return { ok: true }; }
+  if (!list.length) return { ok: true };
+  const p = _pathOf(url);
+  const hit = list.map(_pathOf).find(x => x === p);
+  return hit ? { ok: false, path: p } : { ok: true };
+}
+
 // ── create blog POST draft ───────────────────────────────────────
 async function handleCreateDraft(creds, payload) {
   if (!payload.title || !payload.body) return fail(400, 'title and body are required');
   const meta = buildSeoMeta(payload);
+  // Custom taxonomies (e.g. { market:['om'] }) — required for Bonbird journal posts.
+  const { fields: taxFields, unresolved } = await buildTaxonomies(creds, payload);
   const post = {
     title: payload.title, content: payload.body, excerpt: payload.excerpt || '',
     slug: sanitizeSlug(payload.slug), status: 'draft', meta,
     categories: payload.categoryIds || undefined,
     tags: payload.tagIds || undefined,
+    ...taxFields,
   };
   const res = await wpFetch(creds, '/wp/v2/posts', { method: 'POST', body: post });
   if (!res.ok) return fail(res.status, `WP create post draft failed: ${describeError(res)}`);
@@ -138,8 +210,10 @@ async function handleCreateDraft(creds, payload) {
   }
   return win({
     ok: true, id: res.data.id, postType: 'post', ref: res.data.link,
+    taxonomies: taxFields, unresolvedTaxonomies: unresolved.length ? unresolved : undefined,
     editUrl: `${creds.base}/wp-admin/post.php?post=${res.data.id}&action=edit`,
-    message: `Blog post draft #${res.data.id} created — add images then publish`,
+    message: `Blog post draft #${res.data.id} created${Object.keys(taxFields).length ? ` (${Object.entries(taxFields).map(([k,v])=>k+':'+v.join('/')).join(', ')})` : ''} — add images then publish`
+      + (unresolved.length ? ` ⚠ unresolved taxonomy: ${unresolved.join('; ')}` : ''),
   });
 }
 
@@ -182,7 +256,7 @@ async function handleCreatePage(creds, payload) {
 // ── update existing post/page content → saves as draft ──────────
 // Claude rewrites the content, it lands as a pending draft for review.
 // The existing published version stays live until you hit Publish.
-async function handleUpdateContent(creds, payload) {
+async function handleUpdateContent(creds, payload, brand) {
   let { postId, postType } = payload;
   if (!postId && payload.url) {
     const found = await findPostByUrl(creds, normalizeUrl(payload.url));
@@ -191,6 +265,15 @@ async function handleUpdateContent(creds, payload) {
   }
   if (!postId) return fail(400, 'postId or url required');
   if (!payload.title && !payload.body) return fail(400, 'title or body required to update content');
+
+  // Refuse a BODY write to a static-template page — it would silently do nothing.
+  if (payload.body) {
+    const target = payload.url || (await wpFetch(creds, `/wp/v2/pages/${postId}?_fields=link`).then(r => r.ok ? r.data?.link : null).catch(() => null));
+    const w = await bodyWritable(brand, target);
+    if (!w.ok) {
+      return fail(409, `Body not writable: ${w.path} renders from a static theme template, not post_content — a write here would report success but change nothing. Update its SEO title/meta instead (those DO render), or migrate the page to a data-driven template first.`);
+    }
+  }
 
   const endpoint = postType === 'pages' ? 'pages' : 'posts';
   // Do NOT force status here. update_content targets an EXISTING page; forcing
@@ -204,13 +287,18 @@ async function handleUpdateContent(creds, payload) {
   if (payload.excerpt) updates.excerpt  = payload.excerpt;
   const meta = buildSeoMeta(payload);
   if (Object.keys(meta).length) updates.meta = meta;
+  // Custom taxonomies (e.g. set/repair a post's `market` term).
+  const { fields: taxFields, unresolved: taxUnresolved } = await buildTaxonomies(creds, payload);
+  Object.assign(updates, taxFields);
 
   const res = await wpFetch(creds, `/wp/v2/${endpoint}/${postId}`, { method: 'POST', body: updates });
   if (!res.ok) return fail(res.status, `WP update content failed: ${describeError(res)}`);
   return win({
     ok: true, id: postId, postType: endpoint, ref: res.data.link,
     editUrl: `${creds.base}/wp-admin/post.php?post=${postId}&action=edit`,
-    message: `Content updated on ${endpoint.slice(0,-1)} #${postId} — status preserved (live pages stay live)`,
+    taxonomies: taxFields, unresolvedTaxonomies: taxUnresolved.length ? taxUnresolved : undefined,
+    message: `Content updated on ${endpoint.slice(0,-1)} #${postId} — status preserved (live pages stay live)`
+      + (taxUnresolved.length ? ` ⚠ unresolved taxonomy: ${taxUnresolved.join('; ')}` : ''),
   });
 }
 

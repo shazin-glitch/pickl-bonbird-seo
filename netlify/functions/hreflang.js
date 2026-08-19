@@ -9,53 +9,50 @@
 //   Bonbird (3): Oman, Pakistan, Qatar
 
 const { createApproval, ok, bad, preflight, parseBody } = require('./_lib/store');
+const { getBrand, getBrandSlugs } = require('./_lib/brands-config');
+const { getMarketsForBrandAsync } = require('./_lib/international-config');
 
 const CORS = { 'Content-Type': 'application/json', 'Access-Control-Allow-Origin': '*' };
 
-// Hreflang config per brand
-const HREFLANG_CONFIG = {
-  pickl: {
-    name:    'Pickl',
-    baseUrl: 'https://eatpickl.com',
-    markets: [
-      { slug: '',              locale: 'en-ae', label: 'UAE (default)', xDefault: true },
-      { slug: '/bh/',          locale: 'en-bh', label: 'Bahrain EN' },
-      { slug: '/bh-arabic/',   locale: 'ar-bh', label: 'Bahrain AR' },
-      { slug: '/ksa/',         locale: 'en-sa', label: 'Saudi Arabia EN' },
-      { slug: '/ksa-arabic/',  locale: 'ar-sa', label: 'Saudi Arabia AR' },
-      { slug: '/qatar/',       locale: 'en-qa', label: 'Qatar EN' },
-      { slug: '/qatar-arabic/',locale: 'ar-qa', label: 'Qatar AR' },
-      { slug: '/egypt/',       locale: 'en-eg', label: 'Egypt EN' },
-      { slug: '/egypt-arabic/',locale: 'ar-eg', label: 'Egypt AR' },
-      { slug: '/pickl-jordan/', locale: 'en-jo', label: 'Jordan EN' },  // NEVER change this slug
-      { slug: '/oman/',        locale: 'en-om', label: 'Oman EN' },
-    ],
-  },
-  bonbird: {
-    name:    'Bonbird',
-    baseUrl: 'https://bonbirdchicken.com',
-    markets: [
-      { slug: '',              locale: 'en-ae', label: 'UAE (default)', xDefault: true },
-      { slug: '/oman/',        locale: 'en-om', label: 'Oman EN' },
-      { slug: '/pakistan/',    locale: 'en-pk', label: 'Pakistan EN' },
-      { slug: '/qatar/',       locale: 'en-qa', label: 'Qatar EN' },
-    ],
-  },
-};
+// Hreflang config is DERIVED from the brand + SEO-market config (CLAUDE.md #12) —
+// it used to be a hardcoded per-brand slug list, which silently went stale when
+// Bonbird's site was rebuilt to ISO market URLs (/ae/ /om/ /qa/ /pk/) on 2026-08-18
+// and would have emitted wrong hreflang right after the site's own was fixed.
+// Locale = <language>-<ISO countryCode from the market record>.
+// Home market: brandsConfig.homeMarketSlug (Bonbird '/ae/'; Pickl = site root).
+async function buildHreflangConfig(brand) {
+  const b       = await getBrand(brand);
+  if (!b) return null;
+  const baseUrl = String(b.domain || '').replace(/\/$/, '');
+  const homeCc  = String(b.homeCountryCode || 'AE').toLowerCase();
+  const homeSlug = b.homeMarketSlug ? `/${b.homeMarketSlug}/` : '/';   // root brands → '/'
+  const markets = [{ slug: homeSlug, locale: `en-${homeCc}`, label: 'Home (default)', xDefault: true }];
+
+  const mkts = await getMarketsForBrandAsync(brand);
+  for (const m of Object.values(mkts)) {
+    const cc = String(m.countryCode || '').toLowerCase();
+    if (!cc) { console.warn(`[hreflang] ${m.key || m.marketKey} has no countryCode — skipped`); continue; }
+    markets.push({ slug: `/${m.marketSlug}/`, locale: `en-${cc}`, label: `${m.label} EN` });
+    // Only claim an Arabic alternate when the config says that URL exists.
+    if (m.arabicSlug) markets.push({ slug: `/${m.arabicSlug}/`, locale: `ar-${cc}`, label: `${m.label} AR` });
+  }
+  return { name: b.name || brand, baseUrl, markets };
+}
 
 const { authorize, denied } = require('./_lib/auth');
 exports.handler = async (event) => {
   if (event.httpMethod === 'OPTIONS') return preflight();
   { const _a = await authorize(event); if (!_a.ok) return denied(); }
 
-  const brand  = event.queryStringParameters?.brand;
-  const brands = brand ? [brand].filter(b => HREFLANG_CONFIG[b]) : Object.keys(HREFLANG_CONFIG);
+  const brand    = event.queryStringParameters?.brand;
+  const allSlugs = await getBrandSlugs();
+  const brands   = brand ? [brand].filter(b => allSlugs.includes(b)) : allSlugs;
 
   // GET — return markup only
   if (event.httpMethod === 'GET') {
     const result = {};
     for (const b of brands) {
-      result[b] = generateHreflangBlock(b);
+      result[b] = await generateHreflangBlock(b);
     }
     return ok({ brands: result });
   }
@@ -69,8 +66,9 @@ exports.handler = async (event) => {
     const items = [];
 
     for (const b of brands) {
-      const config = HREFLANG_CONFIG[b];
-      const block  = generateHreflangBlock(b);
+      const config = await buildHreflangConfig(b);
+      if (!config) continue;
+      const block  = await generateHreflangBlock(b, config);
       const marketCount = config.markets.length;
 
       if (shouldQueue) {
@@ -101,8 +99,8 @@ exports.handler = async (event) => {
   return bad(405, 'Method not allowed');
 };
 
-function generateHreflangBlock(brand) {
-  const config  = HREFLANG_CONFIG[brand];
+async function generateHreflangBlock(brand, prebuilt) {
+  const config = prebuilt || await buildHreflangConfig(brand);
   if (!config) return { html: '', json: [] };
 
   const { baseUrl, markets } = config;

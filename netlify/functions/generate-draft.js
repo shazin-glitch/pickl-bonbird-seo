@@ -116,6 +116,16 @@ exports.handler = async (event) => {
   }
 };
 
+// Market taxonomy term for the target market, when the brand's site uses one
+// (config-driven: brandsConfig.marketTaxonomy / .homeMarketSlug). Returns {} otherwise,
+// so brands without a market taxonomy are unaffected. Bonbird: { market: ['om'] }.
+function marketTaxonomyFor(ctx) {
+  const tax = ctx.brandCfg?.marketTaxonomy;
+  if (!tax) return {};
+  const term = ctx.mkt?.marketSlug || ctx.brandCfg?.homeMarketSlug; // intl market, else home
+  return term ? { taxonomies: { [tax]: [term] } } : {};
+}
+
 // Shared: labelled locationTag / languageTag for a queued item.
 function tags(ctx) {
   return {
@@ -227,6 +237,7 @@ Return ONLY JSON:
       url: url || null, slug: parsed.slug || '', title,
       description: parsed.metaDescription || '', h1: parsed.h1 || title,
       content: contentHtml, targetKeyword: keyword, wpAction: 'create_page',
+      ...marketTaxonomyFor(ctx),
       voiceScore, voiceIssues,
       serpFeatureTag: intel?.serpTag || null, competitors: intel?.competitors || null,
       routedFrom: intel?.routeNote || null,
@@ -275,6 +286,7 @@ Return ONLY JSON:
     payload: {
       slug: parsed.slug || '', title, description: parsed.metaDescription || '',
       content: contentHtml, targetKeyword: keyword, wpAction: 'create_draft',
+      ...marketTaxonomyFor(ctx),
       voiceScore, voiceIssues,
       serpFeatureTag: intel?.serpTag || null, competitors: intel?.competitors || null,
       generatedType: 'blog', label: 'New blog post', source: 'worklist-generate',

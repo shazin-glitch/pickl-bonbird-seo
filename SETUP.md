@@ -328,6 +328,21 @@ From Google's official AI Optimization Guide (June 2026):
 
 ---
 
+## Session: Aug 2026 — v7.8.0 — Bonbird enablement PHASE 1 (market taxonomy · legacy-page guard · hreflang from config)
+
+Per `/BONBIRD-NEST-PLAN.md` Phase 1. Each step verified with a mocked-WP harness (no live writes).
+
+**1.1 `market` taxonomy — Nest could NOT set it (journal posts were market-less).** Brief §4: journal posts derive their market from a `market` term, but `wordpress.js` only supported `categories`/`tags`. Added generic custom-taxonomy support: `payload.taxonomies = { market:['om'] }` → `resolveTermIds()` looks the slug/name up via `/wp/v2/<taxonomy>` (cached per invocation, exact slug/name match preferred) and sends term IDs; wired into `create_draft` **and** `update_content` (so an existing post's market can be repaired). Unresolvable terms warn + are reported in `unresolvedTaxonomies` — the post still creates rather than failing. Config-driven per brand: `brandsConfig.marketTaxonomy` + `.homeMarketSlug` (Bonbird `market`/`ae`; Pickl omits → **completely unaffected**). generate-draft attaches it for blog + page creation; `approvals.js` already forwards the payload verbatim. Verified: om/qa/pk → `{market:[om|qa|pk]}`, UAE → `{market:['ae']}`, Pickl → `{}`.
+
+**1.2 Legacy static pages — body writes were SILENT NO-OPS.** The 13 legacy landing pages render from `views/page-{slug}.twig`, so a `post_content` write returned 200 and changed nothing — Nest reported success on content that never shipped. Added a config-driven guard (`brandsConfig.bodyNotWritablePaths`, 12 paths enumerated — brief says 13, the 13th needs identifying): `update_content` now refuses a BODY write to those paths with a 409 explaining why and pointing at meta instead. Resolves the target from `payload.url`, or fetches the post's `link` when only a postId is given. Verified: legacy body write → **409 with ZERO writes to WP** (both url and postId paths); **meta update on the same page still succeeds**; non-legacy page unaffected; Pickl unaffected.
+
+**1.3 hreflang generator was stale AND duplicated the market config.** `hreflang.js` held its own hardcoded slug list — still `/oman/ /pakistan/ /qatar/` with no `/ae/`, so it would have emitted wrong hreflang right after the site's own hreflang was fixed. Now **derived** from brand + market config (rule 12): locale = `<lang>-<ISO countryCode>`, home market from `brandsConfig.homeMarketSlug`, Arabic alternates only when `arabicSlug` exists. Added **`countryCode` (ISO-3166) to all 9 market records** — one source now feeding hreflang **and** the pending schema fix (1.5/L1). Verified output — Bonbird: `en-ae /ae/ · en-om /om/ · en-pk /pk/ · en-qa /qa/ · x-default`. Pickl: all 12 prior tags preserved.
+**⚠️ ONE CHANGE TO VERIFY:** Pickl now also emits `ar-jo → /pickl-jordan-arabic/` (from config's `arabicSlug`), which the old hardcoded list omitted. **Confirm that page exists before pasting the block**, or clear `pickl_jordan.arabicSlug`.
+
+**Next (Phase 2):** teach the generator the Location/Product template contract (`<h2>FAQs</h2>` + `<h3>Q</h3><p>A</p>` → template builds accordion + FAQPage JSON-LD; never attempt ACF/media), then target the 12 waiting scaffolds (IDs 47005–47016). Phase 1.4/1.5/1.6 (discontinued menu items · schema countryCode+schemaType · Qatar venue confirmation) fold in with Phase 2.
+
+---
+
 ## Session: Aug 2026 — v7.7.9 — 🔴 Bonbird ISO market slugs + Connections health panel
 
 **Trigger:** `/BONBIRD-SITE-ARCHITECTURE.md` (Bonbird rebuilt off Elementor → WP+Timber, live 2026-08-18). Cross-checked every claim against Nest's code; found a live mismatch.

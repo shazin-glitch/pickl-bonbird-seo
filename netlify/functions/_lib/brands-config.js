@@ -113,6 +113,7 @@ const BRAND_SEED = {
     color:         '#185FA5',
     flag:          '🟡',
     cuisine:       'smash burgers',
+    homeCountryCode: 'AE',          // ISO — home-market hreflang locale + schema
     tone:          'bold, casual-premium, Dubai-cool',
     brandedTerms:  ['pickle', 'pickles', 'بيكل', 'بكل', 'بيكلز', 'بيك'],
     // for LLM-mention / AI-overview / digest branded-query detection (broad on purpose)
@@ -144,6 +145,24 @@ const BRAND_SEED = {
     flag:          '🔴',
     cuisine:       'halal fried chicken',
     tone:          'warm, family-friendly, UAE-local',
+    // Site rebuilt 2026-08-18 (see /BONBIRD-SITE-ARCHITECTURE.md §4): journal posts
+    // derive their market from a `market` taxonomy term. Without it a Nest-created
+    // post is market-less. homeMarketSlug = the term for the home market (UAE moved
+    // off the root to /ae/). Brands without a market taxonomy simply omit these.
+    homeCountryCode: 'AE',
+    marketTaxonomy:  'market',
+    homeMarketSlug:  'ae',
+    // Legacy landing pages that render from static Twig (`views/page-{slug}.twig`),
+    // NOT from post_content — a body write returns 200 and changes NOTHING visible.
+    // Yoast meta DOES render, so meta updates stay allowed. Remove entries here as
+    // they're migrated to the data-driven Location/Product templates.
+    // (Brief §4 says "13"; it enumerates these 12 — verify the 13th and add it.)
+    bodyNotWritablePaths: [
+      '/ae/chicken', '/ae/wraps', '/ae/chicken-burger', '/ae/chicken-tenders',
+      '/ae/dubai', '/ae/dubai/city-walk', '/ae/dubai/mirdif', '/ae/dubai/motor-city',
+      '/ae/sharjah', '/ae/sharjah/aljada',
+      '/ae/abu-dhabi', '/ae/abu-dhabi/khalifa-city',
+    ],
     brandedTerms:  ['bon bird', 'بونبيرد', 'بون بيرد'],
     brandTerms:    ['bonbird', 'bon bird'],
     competitors: [

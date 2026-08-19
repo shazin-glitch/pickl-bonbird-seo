@@ -43,6 +43,7 @@ const INTERNATIONAL_MARKETS = {
     // Bahrain = 2048 (was 17000, which is not Bahrain). Labs lang = ar only.
     location_code:   2048,
     currency:        'BHD',
+    countryCode:    'BH',      // ISO-3166 — hreflang locale + schema addressCountry
     // Confirmed locations
     locations:       ['Al Aali Mall', 'Riffa'],
     seedKeywords: {
@@ -81,6 +82,7 @@ const INTERNATIONAL_MARKETS = {
     languages:       ['en', 'ar'],
     location_code:   2682,
     currency:        'SAR',
+    countryCode:    'SA',      // ISO-3166 — hreflang locale + schema addressCountry
     locations:       ['Al Nakheel Mall Riyadh', 'U Walk Riyadh', 'La Palma Riyadh'],
     seedKeywords: {
       en: [
@@ -121,6 +123,7 @@ const INTERNATIONAL_MARKETS = {
     languages:       ['en', 'ar'],
     location_code:   179,
     currency:        'QAR',
+    countryCode:    'QA',      // ISO-3166 — hreflang locale + schema addressCountry
     locations:       ['West Walk, Doha', 'District 1, Doha'],
     seedKeywords: {
       en: [
@@ -160,6 +163,7 @@ const INTERNATIONAL_MARKETS = {
     languages:       ['en', 'ar'],
     location_code:   2818,
     currency:        'EGP',
+    countryCode:    'EG',      // ISO-3166 — hreflang locale + schema addressCountry
     locations:       ['Urban Lanes', 'Madinaty', 'Park Street East', 'Park Street West'],
     seedKeywords: {
       en: [
@@ -202,6 +206,7 @@ const INTERNATIONAL_MARKETS = {
     // Jordan SEO calls to Sri Lanka). Labs lang = ar only. Fallback must be real.
     location_code:   2400,
     currency:        'JOD',
+    countryCode:    'JO',      // ISO-3166 — hreflang locale + schema addressCountry
     locations:       ['Vista 4, Amman'],
     seedKeywords: {
       en: [
@@ -241,6 +246,7 @@ const INTERNATIONAL_MARKETS = {
     languages:       ['en'],             // Add Arabic in Phase 3
     location_code:   2114,
     currency:        'OMR',
+    countryCode:    'OM',      // ISO-3166 — hreflang locale + schema addressCountry
     isNew:           true,               // Opened May 2026
     locations:       ['Souq Al Madina, Muscat'],
     seedKeywords: {
@@ -278,6 +284,7 @@ const INTERNATIONAL_MARKETS = {
     languages:       ['en'],
     location_code:   2114,
     currency:        'OMR',
+    countryCode:    'OM',      // ISO-3166 — hreflang locale + schema addressCountry
     locations:       ['Souq Al Madina, Muscat', 'Al Khoudh, Seeb'],
     seedKeywords: {
       en: [
@@ -310,6 +317,7 @@ const INTERNATIONAL_MARKETS = {
     languages:       ['en'],             // English only — confirmed
     location_code:   2586,
     currency:        'PKR',
+    countryCode:    'PK',      // ISO-3166 — hreflang locale + schema addressCountry
     locations:       ['Cue Cinemas, Gulberg Lahore', 'Dolmen Mall, DHA Lahore', 'Johar Town, Lahore'],
     seedKeywords: {
       en: [
@@ -346,6 +354,7 @@ const INTERNATIONAL_MARKETS = {
     languages:       ['en', 'ar'],
     location_code:   179,
     currency:        'QAR',
+    countryCode:    'QA',      // ISO-3166 — hreflang locale + schema addressCountry
     locations:       ['West Walk, Doha', 'District 1, Doha'],
     seedKeywords: {
       en: [
