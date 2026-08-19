@@ -237,11 +237,15 @@ async function handleCreatePage(creds, payload) {
   if (!payload.title || !payload.body) return fail(400, 'title and body are required');
   const meta     = buildSeoMeta(payload);
   const parentId = payload.parentId || await resolveParentId(creds, payload.wpParent) || 0;
+  // Custom taxonomies (e.g. { market:['om'] }) — a NEW page needs its market term too,
+  // otherwise the site can't attribute it (same requirement as create_draft).
+  const { fields: taxFields, unresolved } = await buildTaxonomies(creds, payload);
   const page = {
     title: payload.title, content: payload.body, excerpt: payload.excerpt || '',
     slug: sanitizeSlug(payload.slug), status: 'draft', meta,
     parent: parentId,
     template: payload.template || '',
+    ...taxFields,
   };
   const res = await wpFetch(creds, '/wp/v2/pages', { method: 'POST', body: page });
   if (!res.ok) return fail(res.status, `WP create page draft failed: ${describeError(res)}`);
@@ -250,8 +254,12 @@ async function handleCreatePage(creds, payload) {
   }
   return win({
     ok: true, id: res.data.id, postType: 'page', ref: res.data.link,
+    taxonomies: taxFields, unresolvedTaxonomies: unresolved.length ? unresolved : undefined,
     editUrl: `${creds.base}/wp-admin/post.php?post=${res.data.id}&action=edit`,
-    message: `Page draft #${res.data.id} created under parent "${payload.wpParent || 'root'}" — add images then publish when ready`,
+    message: `Page draft #${res.data.id} created under parent "${payload.wpParent || 'root'}"`
+      + (Object.keys(taxFields).length ? ` (${Object.entries(taxFields).map(([k,v])=>k+':'+v.join('/')).join(', ')})` : '')
+      + ' — add images then publish when ready'
+      + (unresolved.length ? ` ⚠ unresolved taxonomy: ${unresolved.join('; ')}` : ''),
   });
 }
 

@@ -8,7 +8,7 @@
 > **Phase 1: 1.1–1.4 ✅ DONE · 1.5 ⬜ NEXT · 1.6 ⬜ human task**  |  **Phase 2: ✅ COMPLETE**  |  **Phase 3: ⬜ not started**
 > Shipped this session: **v7.7.9 → v7.8.2** (4 commits, all COMMITTED but **NOT YET PUSHED** — awaiting Shazin's approval).
 > **Scope decision (Shazin):** *Bonbird only* — Pickl's website is still being fixed, so leave Pickl alone. Pickl's one behaviour change (`ar-jo` hreflang tag now derived from config) is dormant: hreflang is generated on demand and nothing auto-publishes it.
-> **Everything below was verified with mocked harnesses — NO live writes.** Live behaviour still needs Shazin signed in, and the deploy must actually Publish (watch the 4KB env-var ceiling).
+> **Everything below was verified with mocked harnesses — NO live writes.** Live behaviour still needs Shazin signed in. (Deploys are healthy again — Shazin trimmed the GCS key and the 4KB env-var issue is resolved.)
 
 
 ---
@@ -118,4 +118,4 @@ Doc §6: city/area hub pages (e.g. "Fried Chicken in Sharjah", "Best Chicken Bur
 
 **Verification honesty:** all of the above was proven with **mocked WP/GSC harnesses — zero live writes**. Per-case assertions covered: taxonomy resolve + unresolvable-term degrade + Pickl no-op; legacy guard (url path AND postId path) with meta still passing; hreflang output for both brands; per-market menu filtering; FAQ validation across 6 malformed/valid cases; module-load; full `node --check` + inline JS + `const X = X(` TDZ sweep. **Nothing has been confirmed against the live site.**
 
-**FIRST THING NEXT SESSION:** these 4 commits are **committed but NOT pushed**. Push, confirm the Netlify deploy says **Published** (4KB env-var ceiling has been breaking deploys — see memory `netlify-4kb-envvar-ceiling`), then run the acceptance checks: a Bonbird journal draft for `om` gets its market term; a body write to `/ae/dubai/` is refused; one of the 12 scaffolds generates a valid FAQ body.
+**FIRST THING NEXT SESSION:** push the pending commits, confirm the Netlify deploy says **Published**, then run the acceptance checks: a Bonbird journal draft for `om` gets its market term; a body write to `/ae/dubai/` is refused; one of the 12 scaffolds generates a valid FAQ body.

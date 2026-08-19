@@ -4989,7 +4989,7 @@ async function findScaffolds() {
           <span style="font-size:11px;color:var(--text-muted)"><code>${esc(path)}</code></span>
           <span style="font-size:10px;background:var(--bg-base);padding:1px 7px;border-radius:4px">${esc(mk)}</span>
           <span style="font-size:10px;color:var(--text-muted)">${sc.words}w</span>
-          <button class="btn btn-primary" style="font-size:11px" onclick="generateScaffold(${sc.id}, '${esc(String(sc.link||''))}', '${esc(sc.title||sc.slug)}', this)">⚡ Generate body</button>
+          <button class="btn btn-primary" style="font-size:11px" onclick="generateScaffold(${sc.id}, '${escJs(String(sc.link||''))}', '${escJs(String(sc.title||sc.slug))}', this)">⚡ Generate body</button>
         </div>`;
       }).join('') + `<div style="font-size:11px;color:var(--text-muted);margin-top:6px">${list.length} scaffold(s). After pushing, a human adds images + NAP via ACF, then publishes.</div>`;
     }
