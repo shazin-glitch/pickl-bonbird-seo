@@ -102,7 +102,23 @@ exports.handler = async (event) => {
 async function handleTest(creds) {
   const res = await wpFetch(creds, '/wp/v2/users/me?context=edit');
   if (!res.ok) return fail(res.status, `WP credential test failed: ${describeError(res)}`);
-  return win({ ok: true, user: { id: res.data.id, name: res.data.name }, message: `Connected as ${res.data.name}` });
+  // Also report WHICH site we actually reached — the configured base can silently point
+  // at a dev/staging host (e.g. bonbirddev) after a site rebuild, and the credential test
+  // alone would still pass. `/wp-json` root returns the site's own name + home URL.
+  let site = null;
+  try {
+    const root = await wpFetch(creds, '');
+    if (root.ok && root.data) site = { name: root.data.name || null, url: root.data.url || root.data.home || null };
+  } catch { /* non-critical */ }
+  const isDevHost = /dev|staging|test|localhost|\.local/i.test(creds.base);
+  return win({
+    ok: true,
+    user: { id: res.data.id, name: res.data.name },
+    base: creds.base,          // the configured WP_<BRAND>_BASE — not a secret
+    site,                      // what WordPress says it is
+    devHostWarning: isDevHost, // flag an obvious non-production target
+    message: `Connected as ${res.data.name}`,
+  });
 }
 
 // ── create blog POST draft ───────────────────────────────────────

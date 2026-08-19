@@ -1,0 +1,68 @@
+# Bonbird Site Architecture — brief for The Nest
+
+_Last updated: 2026-08-19. **Read this before generating or publishing ANY Bonbird content.** The Bonbird website was rebuilt off Elementor into a WordPress + Timber (Twig) theme and went live at **bonbirdchicken.com** on 2026-08-18. The old assumptions ("just post to /posts or /pages") no longer hold — page type now decides whether Nest can write to something._
+
+---
+
+## 1. TL;DR — what changed
+- Rebuilt off Elementor → **WP + Timber** theme; **live at `https://bonbirdchicken.com`**.
+- **ISO market URL structure**: every market is now prefixed — **`/ae/` (UAE), `/om/` (Oman), `/qa/` (Qatar), `/pk/` (Pakistan)**. UAE moved from the root to `/ae/`. **136 redirects** map every old URL → its new `/xx/` path.
+- **Never target the root or old (pre-ISO) URLs.** Always publish under `/ae/`, `/om/`, `/qa/`, `/pk/`.
+
+## 2. WP connection (Nest's access)
+| Netlify env | Value |
+|---|---|
+| `WP_BONBIRD_BASE` | `https://bonbirdchicken.com` (NOT `bonbirddev…`) |
+| `WP_BONBIRD_USER` | `shazin@eatpickl.com` (admin) |
+| `WP_BONBIRD_APP_PASS` | the **"Claude SEO Bot Bonbird"** application password |
+
+The app password survived the go-live DB copy (it came from the dev DB). If Nest 401s, either `WP_BONBIRD_BASE` still points at `bonbirddev` (fix it to the live domain) or the app password needs recreating (wp-admin → Users → `shazin@eatpickl.com` → Application Passwords). Redeploy Nest after any env-var change.
+
+## 3. Markets & shared config
+- Markets: **ae / om / qa / pk** (ISO). A page's market is derived from its **top-ancestor page slug** (`/om/…` = Oman). Each market home = `/{market}/`.
+- **Menu categories are a SINGLE shared set** (`ssm_menu_category` CPT) — every market's menu renders the same anchors. Deep-link with `/{market}/menu/#ssm-category-<id>`:
+  Bone-In `46781` · Tenders `46782` · Just Chicken `46783` · Burgers `46784` · The Melts `46785` · Wraps `46786` · Sides `46788` (also: Messy Bowls 46787, Sauces&Dips 46789, Drinks 46790, Desserts 46791). *UAE discontinued Rice Bowls (46793) & Snack-A-Wraps (46792); Angry Fries is PK-only.*
+- **Social accounts per market** (for schema `sameAs` / any social references): UAE + regional default = **`bonbird.mena`**; Oman = **`bonbird.oman`** (TikTok falls back to mena); Qatar = **`bonbird.qatar`**; Pakistan = **`bonbird.pk`**.
+
+## 4. Page types — WHERE NEST CAN AND CAN'T WRITE  ⚠️ most important section
+| Page type | Rendered from | Nest can write? |
+|---|---|---|
+| **Journal / blog posts** (`/{market}/journal/…`) | `post_content` | ✅ **Fully** — body + Yoast meta. Primary content surface. Market set via the `market` taxonomy term on the post. |
+| **13 legacy landing pages** (see below) | **static generated Twig** (NOT post_content) | ⚠️ **Body NOT writable** — editing `post_content` has *no visible effect*. **Yoast meta (title/description) IS writable and does render.** |
+| **Phase-2 data-driven pages** ("Bonbird Location" / "Bonbird Product" templates) | ACF fields + `post_content` | ✅ **Body writable** (prose + FAQ). Media/NAP are ACF = human. |
+
+**The 13 legacy static pages** (UAE only): products `/ae/chicken/`, `/ae/wraps/`, `/ae/chicken-burger/`, `/ae/chicken-tenders/`; locations `/ae/dubai/` (+ `/city-walk/`, `/mirdif/`, `/motor-city/`), `/ae/sharjah/` (+ `/aljada/`), `/ae/abu-dhabi/` (+ `/khalifa-city/`). These render from `views/page-{slug}.twig`, so their **body copy is dev-edit-only** until they're migrated to the data-driven templates. Nest can still optimise their **Yoast title/meta description**.
+
+**Phase-2 data-driven pages** (the scalable system): a page assigned the **Bonbird Location** or **Bonbird Product** template is a **hybrid**:
+- **ACF fields = human/data** (hero images, venue NAP/hours/phone/map, product cards). Nest cannot set these (no ACF write, no media upload).
+- **`post_content` = Nest/content** — write the **intro + SEO prose + an `<h2>FAQs</h2>` block** (`<h3>Question?</h3><p>Answer.</p>` pairs). The template automatically turns that FAQ block into the styled accordion **and** emits FAQPage JSON-LD. Title + Yoast meta also writable.
+- **12 product scaffolds already exist as DRAFTS** for om/qa/pk (`chicken`, `wraps`, `chicken-burger`, `chicken-tenders`) — parent + template + slug set, empty bodies **ready for Nest to write** (post IDs 47005–47016). Filling one = write its `post_content` body (prose + FAQ), a human adds images, then publish.
+
+## 5. Nest's WP capability (recap) & how to author for these pages
+- **CAN**: create/update `post_content` (HTML body), `title`, `excerpt`, and SEO-plugin meta (Yoast) — by URL/slug or postId, via Application Password (`netlify/functions/wordpress.js`).
+- **CANNOT**: write ACF fields, upload media/images.
+- Generation today = one HTML body blob → fits `post_content` directly. For a data-driven location/product page, author the body as **intro prose → SEO sections → `<h2>FAQs</h2>` + Q/A pairs**, and the template handles accordion + schema. Don't try to write hero images or NAP — those are ACF (human).
+
+## 6. Where Nest should focus (SEO opportunity)
+- **City / area hub pages** (e.g. "Fried Chicken in Sharjah", "Best Chicken Burger Doha") — content-driven, **NOT tied to a physical store** — are the surface Nest should **generate** to rank per market. This "city-hub tier" **does not exist yet** and is the clearest Nest-owned win.
+- **Venue pages are tied to REAL stores.** Nest must **never invent a venue** (fake NAP = Google penalty). Nest's role for a venue = write its copy once a real store exists + a human has entered the NAP.
+- **⚠️ Anti-doorway / thin-content bar (hard rule):** mass-generated location/city pages that are near-duplicate "city-name mad-libs" get deindexed as a cluster. Every page must be **genuinely differentiated per market** — real neighbourhood context, distinct local keywords, distinct FAQ. Done well = a local-SEO moat; done lazily = the exact "lazy agency copy-paste" this rebuild removed.
+
+## 7. Data-vs-content ownership (the core principle)
+| | Owner |
+|---|---|
+| Structured **data** — venue NAP/hours/map, hero images, product cards | **Human / GBP** (ACF) |
+| **Content** — intro, SEO prose, FAQ, title, meta description | **Nest** (post_content + Yoast meta) |
+
+## 8. Gotchas
+- **Don't test on `bonbirddev`** — it's noindexed, so PageSpeed/behaviour checks error or mislead. Use `bonbirdchicken.com`.
+- **No copy-env dev→prod post-launch** — it overwrites the live DB (wipes form leads / content added since launch). Content changes go directly to prod.
+- Deep-links + Order/Menu CTAs are **market-aware**; reuse `/{market}/…` — don't hardcode `/ae/`.
+- Attachment `guid`s still contain `localhost:8890` (not domain-rewritten) — never use a guid for a URL; the rendered URLs are correct.
+
+## 9. Deferred (not yet wired — future Nest builds)
+1. **Nest's keyword→content pipeline for location/product pages** — the WP side (templates + ACF + FAQ transform) is done and Nest CAN write their bodies by URL; wiring the generation for these page types is a future build.
+2. **Migrating the 13 legacy static pages** onto the data-driven templates — until then their bodies are dev-edit-only.
+3. **City-hub tier** generation (§6).
+
+_Full build history + the WP-side detail lives in the `bonbird-website-rebuild` repo (`PROJECT-STATUS.md`, `tools/`). This brief is the Nest-facing summary._

@@ -269,12 +269,12 @@ const INTERNATIONAL_MARKETS = {
     marketKey:       'oman',
     label:           'Oman',
     flag:            '🇴🇲',
-    marketSlug:      'oman',
-    journalSlug:     'oman/journal',
+    marketSlug:      'om',            // ISO — site rebuilt 2026-08-18 (was 'oman')
+    journalSlug:     'om/journal',
     arabicSlug:      null,
     arabicJournalSlug: null,
     wpBrand:         'bonbird',           // use WP_BONBIRD_* env vars
-    wpMarketParent:  'oman',
+    wpMarketParent:  'om',
     languages:       ['en'],
     location_code:   2114,
     currency:        'OMR',
@@ -301,12 +301,12 @@ const INTERNATIONAL_MARKETS = {
     marketKey:       'pakistan',
     label:           'Pakistan',
     flag:            '🇵🇰',
-    marketSlug:      'pakistan',
-    journalSlug:     'pakistan/journal',
+    marketSlug:      'pk',            // ISO — site rebuilt 2026-08-18 (was 'pakistan')
+    journalSlug:     'pk/journal',
     arabicSlug:      null,
     arabicJournalSlug: null,
     wpBrand:         'bonbird',
-    wpMarketParent:  'pakistan',
+    wpMarketParent:  'pk',
     languages:       ['en'],             // English only — confirmed
     location_code:   2586,
     currency:        'PKR',
@@ -337,12 +337,12 @@ const INTERNATIONAL_MARKETS = {
     marketKey:       'qatar',
     label:           'Qatar',
     flag:            '🇶🇦',
-    marketSlug:      'qatar',
-    journalSlug:     'qatar/journal',
+    marketSlug:      'qa',            // ISO — site rebuilt 2026-08-18 (was 'qatar')
+    journalSlug:     'qa/journal',
     arabicSlug:      null,
     arabicJournalSlug: null,
     wpBrand:         'bonbird',
-    wpMarketParent:  'qatar',
+    wpMarketParent:  'qa',
     languages:       ['en', 'ar'],
     location_code:   179,
     currency:        'QAR',
@@ -482,9 +482,9 @@ const MARKET_PAGE_TOKENS = {
   pickl_egypt:      ['egypt'],
   pickl_jordan:     ['jordan'],          // also matches /pickl-jordan/ (segment "jordan")
   pickl_oman:       ['oman'],
-  bonbird_oman:     ['oman'],
-  bonbird_pakistan: ['pakistan'],
-  bonbird_qatar:    ['qatar'],
+  bonbird_oman:     ['om', 'oman'],          // 'oman' kept: pre-2026-08-18 URLs in historical GSC
+  bonbird_pakistan: ['pk', 'pakistan'],
+  bonbird_qatar:    ['qa', 'qatar'],
 };
 
 // Slug substrings that disqualify a page from the meta sweep, even if it matches

@@ -1818,6 +1818,14 @@ body { font-family: var(--font-sans); background: var(--bg-base); color: var(--t
             </div>
           </div>
         </div>
+        <!-- Connection health — which site/property is each brand actually wired to? -->
+        <div class="card" id="connections-card" style="grid-column:1 / -1">
+          <h3 style="font-size:16px;font-weight:600;margin-bottom:6px">🔌 Connections</h3>
+          <p style="font-size:13px;color:var(--text-muted);margin-bottom:14px">Verify each brand is talking to the <strong>live</strong> site. A site rebuild or a changed domain can leave Nest pointed at a dev/staging host — credentials still pass, but content publishes to the wrong place.</p>
+          <button class="btn btn-primary" id="conn-check-btn" onclick="checkConnections()" style="font-size:13px">Check connections</button>
+          <div id="conn-results" style="margin-top:14px;font-size:13px"></div>
+        </div>
+
         <!-- SEO Markets (config-driven — international expansion. NOT the content calendar.) -->
         <div class="card" id="markets-admin-card" style="grid-column:1 / -1">
           <h3 style="font-size:16px;font-weight:600;margin-bottom:6px">🌍 SEO Markets</h3>
@@ -4939,6 +4947,43 @@ async function refreshOnboardEnv(slug) {
   el.insertAdjacentHTML('beforeend',
     line(wp,  wp  ? 'WordPress credentials connected' : 'WordPress credentials — set env vars to publish' + (err ? ' (check failed)' : '')) +
     line(gbp, gbp ? 'Google Business Profile connected' : 'Google Business Profile — optional; set env vars for reviews'));
+}
+
+// ── Connection health — per brand: WordPress (which site?) + GSC + env vars ────
+async function checkConnections() {
+  const btn = document.getElementById('conn-check-btn');
+  const out = document.getElementById('conn-results');
+  btn.disabled = true; btn.textContent = 'Checking…';
+  out.innerHTML = '<div style="color:var(--text-muted)">Testing each brand…</div>';
+  const brands = window.NEST_BRANDS || [];
+  const rows = [];
+  for (const b of brands) {
+    const r = { brand: b.name, slug: b.slug, gscProperty: b.gscProperty || '—' };
+    // WordPress — does it connect, and WHICH site did we reach?
+    try {
+      const wp = await apiPost('/api/wordpress', { action: 'test', brand: b.slug });
+      r.wpOk = !!wp.ok; r.wpBase = wp.base || null; r.wpSite = wp.site || null;
+      r.wpUser = wp.user?.name || null; r.wpDev = !!wp.devHostWarning; r.wpErr = wp.ok ? null : (wp.error || 'failed');
+    } catch (e) { r.wpOk = false; r.wpErr = e.message; }
+    // GSC — does the brand's configured property actually return data?
+    try {
+      const g = await fetch('/api/gsc-data', { method: 'POST', credentials: 'include', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ site_url: b.gscProperty }) });
+      const gj = await g.json();
+      r.gscOk = g.ok && Array.isArray(gj.rows); r.gscRows = gj.rows?.length ?? 0; r.gscErr = g.ok ? null : (gj.error || `HTTP ${g.status}`);
+    } catch (e) { r.gscOk = false; r.gscErr = e.message; }
+    rows.push(r);
+  }
+  out.innerHTML = rows.map(r => `
+    <div style="border:1px solid var(--border);border-radius:8px;padding:10px 12px;margin-bottom:8px">
+      <div style="font-weight:700;margin-bottom:6px">${esc(r.brand)}</div>
+      <div>${r.wpOk ? '✓' : '⚠️'} <strong>WordPress</strong> — ${r.wpOk
+        ? `connected as ${esc(r.wpUser || '?')} · <code style="font-size:11px">${esc(r.wpBase || '?')}</code>${r.wpSite && r.wpSite.url && r.wpBase && String(r.wpSite.url).replace(/\/+$/,'') !== String(r.wpBase).replace(/\/+$/,'') ? ` <span style="color:#d97706">⚠ WP reports its home as ${esc(r.wpSite.url)}</span>` : ''}${r.wpDev ? ' <span style="color:#ef4444;font-weight:700">⚠ looks like a DEV/STAGING host — content would publish to the wrong site</span>' : ''}`
+        : `<span style="color:#ef4444">${esc(r.wpErr || 'not connected')}</span> <span style="color:var(--text-muted)">(set WP_${esc(r.slug.toUpperCase())}_BASE / _USER / _APP_PASS)</span>`}</div>
+      <div>${r.gscOk ? '✓' : '⚠️'} <strong>Search Console</strong> — <code style="font-size:11px">${esc(r.gscProperty)}</code> ${r.gscOk
+        ? `· ${r.gscRows} keyword rows`
+        : `<span style="color:#ef4444">${esc(r.gscErr || 'no data')}</span>`}</div>
+    </div>`).join('');
+  btn.disabled = false; btn.textContent = '↻ Re-check';
 }
 
 // ── SEO Market onboarding (config-driven — writes ONE marketsConfig record) ────

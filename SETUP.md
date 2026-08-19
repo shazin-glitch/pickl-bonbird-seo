@@ -41,6 +41,8 @@ The Nest is Yolk Brands' central marketing operations platform. It started as an
 
 **Dark kitchen visibility rule:** Pickl team sees Pickl + Shadowburg. Bonbird team sees Bonbird + Shadowbird.
 
+> 🔴 **Bonbird site was REBUILT (live 2026-08-18)** — new WP/Timber theme, ISO market URLs (`/ae/ /om/ /qa/ /pk/`), and page-type-dependent writability. **Read `/BONBIRD-SITE-ARCHITECTURE.md` before generating or publishing any Bonbird content.** (Journal posts = fully writable; the 13 legacy product/location landing pages render from static Twig so their body is NOT writable via post_content; the new Location/Product template pages take Nest-written `post_content` prose + FAQ while a human owns the ACF images/NAP.)
+
 ---
 
 ## Navigation (locked)
@@ -323,6 +325,21 @@ From Google's official AI Optimization Guide (June 2026):
 4. **RAG means ranking still matters** — AI Overviews are grounded in search rankings. SEO fundamentals still apply.
 5. **Things to ignore** — llms.txt files, content chunking, rewriting for AI, inauthentic mentions.
 6. **Agentic experiences** — emerging. Semantic HTML and accessibility help browser agents use your site.
+
+---
+
+## Session: Aug 2026 — v7.7.9 — 🔴 Bonbird ISO market slugs + Connections health panel
+
+**Trigger:** `/BONBIRD-SITE-ARCHITECTURE.md` (Bonbird rebuilt off Elementor → WP+Timber, live 2026-08-18). Cross-checked every claim against Nest's code; found a live mismatch.
+
+**B1/B2 FIXED — Nest was configured for the OLD site.** The rebuild moved to ISO market URLs (`/ae/ /om/ /qa/ /pk/`; UAE off the root, 136 redirects). Nest still had `marketSlug`/`journalSlug`/`wpMarketParent` = `oman`/`pakistan`/`qatar`, so:
+- **Publishing** would have targeted `/oman/journal/…` etc. — URLs that no longer exist (and `wpMarketParent` lookups would fail to find the parent page).
+- **Attribution was silently wrong in production.** Proven by simulation: `/om/`, `/qa/menu/`, `/pk/chicken/` ALL attributed to `uae` (the home-market fallback), because `MARKET_PAGE_TOKENS` still held the old words. That corrupted per-market traffic, rank tracker, keyword-discovery attribution and the crawler's page inventory for all of Bonbird. **Site was fine — purely Nest-side stale config.**
+- Fix: ISO slugs for the 3 Bonbird intl markets + tokens now `['om','oman']`, `['pk','pakistan']`, `['qa','qatar']` — **old words kept deliberately** so historical (pre-18 Aug) GSC rows still attribute. Verified: new URLs → correct market; old URLs → correct market; `/ae/` → `uae` (correct, home market); Pickl unchanged.
+
+**NEW — 🔌 Connections panel (Settings).** There was no way to see which site Nest was actually wired to. `wordpress.js handleTest` now also returns `base` (configured `WP_<BRAND>_BASE`), `site` (what `/wp-json` says the site's name/home URL is) and `devHostWarning` (base matches dev/staging/localhost). Settings → 🔌 Connections runs, per brand: WP connect + which host + a red flag if it looks like a dev host or if WP's self-reported home ≠ the configured base, plus a live GSC check (property + row count). This is the "is Nest connected to the new site?" answer.
+
+**Still open from the brief (not fixed):** the 13 legacy static pages render from Twig, so **`post_content` writes are silent no-ops** (Yoast meta DOES work) — Nest needs a per-page "body not writable" guard; Nest's Bonbird menu still lists **Rice Bowls + Snack-A-Wraps** which the doc says UAE discontinued (content could promote dead products); city-hub tier still absent (= register finding L3); 12 product scaffolds (IDs 47005–47016) sit as drafts awaiting Nest bodies.
 
 ---
 
