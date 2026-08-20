@@ -33,7 +33,8 @@ exports.handler = async (event) => {
   if (existing?.status === 'running') {
     const ageMs = Date.now() - (existing.startedAt || 0);
     if (ageMs < 5 * 60 * 1000) {
-      // Running and less than 5 min old — don't double-trigger
+      // Running and less than 5 min old — don't double-trigger.
+      console.log(`[technical-seo] SKIP trigger for ${brand}: a run started ${Math.round(ageMs/1000)}s ago is still marked running (guard: 5 min). This is why re-clicking may do "nothing".`);
       return { statusCode: 200, headers: { 'Content-Type': 'application/json', 'Access-Control-Allow-Origin': '*' },
                body: JSON.stringify({ status: 'running', message: 'Audit already in progress', startedAt: existing.startedAt }) };
     }
@@ -55,11 +56,18 @@ exports.handler = async (event) => {
   // background function's fast 202, so it does not block the user. Same pattern as
   // backlinks.js / ai-overview.js.
   const siteUrl = process.env.URL || 'https://yolkseo.netlify.app';
-  await fetch(`${siteUrl}/.netlify/functions/technical-seo-background`, {
-    method:  'POST',
-    headers: internalHeaders({ 'Content-Type': 'application/json' }),
-    body:    JSON.stringify({ brand }),
-  }).catch(e => console.warn('[technical-seo] Background trigger failed:', e.message));
+  const bgUrl = `${siteUrl}/.netlify/functions/technical-seo-background`;
+  console.log(`[technical-seo] firing background for ${brand} -> ${bgUrl}`);
+  try {
+    const r = await fetch(bgUrl, {
+      method:  'POST',
+      headers: internalHeaders({ 'Content-Type': 'application/json' }),
+      body:    JSON.stringify({ brand }),
+    });
+    console.log(`[technical-seo] background responded ${r.status} for ${brand}`);
+  } catch (e) {
+    console.warn('[technical-seo] Background trigger failed:', e.message);
+  }
 
   return {
     statusCode: 202,

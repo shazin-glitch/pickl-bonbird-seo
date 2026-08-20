@@ -18,14 +18,26 @@ const { getBrand, wpCredentialsFor } = require('./_lib/brands-config');
 const { INTERNATIONAL_MARKETS } = require('./_lib/international-config');
 
 exports.handler = async (event) => {
+  // Log invocation IMMEDIATELY, before any guard — so "no logs at all" can never
+  // again be ambiguous between "never invoked" and "invoked then returned early".
   const _job = await authorizeJob(event);
-  if (!_job.ok) return { statusCode: 401, headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ error: 'Not authenticated' }) };
-  let brand;
-  try { brand = JSON.parse(event.body || '{}').brand; } catch { brand = null; }
+  // brand from POST body (wrapper) OR ?brand= query (manual browser/dashboard run)
+  let brand = (event.queryStringParameters && event.queryStringParameters.brand) || null;
+  if (!brand) { try { brand = JSON.parse(event.body || '{}').brand; } catch { brand = null; } }
+  console.log(`[tech-seo] INVOKED method=${event.httpMethod} auth=${_job.ok} via=${_job.via || '-'} brand=${brand || '(none)'}`);
+
+  if (!_job.ok) {
+    console.warn('[tech-seo] ABORT: not authenticated');
+    return { statusCode: 401, headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ error: 'Not authenticated' }) };
+  }
   const brandCfg = brand ? await getBrand(brand) : null;
-  if (!brandCfg) return;
+  if (!brandCfg) {
+    console.warn(`[tech-seo] ABORT: no brand config (brand=${brand || '(none)'}). Pass ?brand=bonbird for a manual run.`);
+    return;
+  }
 
   const domain = brandCfg.domain;
+  console.log(`[tech-seo] START ${brand} @ ${domain}`);
 
   const audit = {
     brand,

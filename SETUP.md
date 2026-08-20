@@ -4527,3 +4527,16 @@ Audit now hits 12 pages, **every one verified `200` live**: `/ae/`, `/ae/menu/`,
 **Same bug found by sweep and also fixed:** `onpage-audit.js:46` (the full-site "Site Audit" crawler) had the identical un-awaited fire-and-forget → its background crawl never fired either. Now awaited. Swept all `-background` triggers; no un-awaited ones remain.
 
 **Lesson:** "returns nothing" + "no logs in the background function" = invocation problem, not audit-logic problem. Check the *trigger* (await + direct `/.netlify/functions/<name>` path per rule 7) before touching the audit. v7.8.6's crash-hardening still stands — it just addressed a failure mode that could only occur *once the function actually runs*, which it now will.
+
+### v7.8.8 — instrument the tech audit so invocation is never ambiguous
+
+**Trigger:** after v7.8.7 the background function STILL showed no `[tech-seo]` logs. A manual run logged only `Duration: 4.83 ms, Memory 85 MB` — i.e. it WAS invoked but returned instantly at an early `return`, before the first log line (a manual GET carries no body → `brand` undefined → `if (!brandCfg) return;` fires silently).
+
+**Changes (pure instrumentation + testability — no logic change to the audit itself):**
+- `technical-seo-background.js`: logs `[tech-seo] INVOKED method=… auth=… via=… brand=…` **before any guard**, so "no logs at all" can never again be ambiguous between *never invoked* and *invoked-then-early-returned*. Both early returns now log their reason (`ABORT: not authenticated` / `ABORT: no brand config`). Also accepts `?brand=bonbird` from the query string, so a manual dashboard/browser run can actually reach the audit (previously only a POST body worked).
+- `technical-seo.js` (wrapper): logs `firing background for <brand>` + the background's response status, and logs `SKIP trigger … still marked running (guard: 5 min)` when the anti-double-trigger guard blocks a re-click — a common reason re-clicking Run Audit appears to do nothing.
+
+**How to read the next run:**
+- Click Run Audit, then check BOTH function logs.
+- `technical-seo` (wrapper) should log `firing background … -> …/technical-seo-background` then `background responded 202`. If instead it logs `SKIP trigger`, a stale `running` record is blocking — wait 5 min or it self-clears now that v7.8.6 writes a terminal status.
+- `technical-seo-background` should log `INVOKED … brand=bonbird` then `START bonbird @ https://bonbirdchicken.com` then per-page `PSI:` lines. Whichever line is the LAST one printed pins the exact failure point.
