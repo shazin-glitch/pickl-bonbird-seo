@@ -278,6 +278,12 @@ async function handleCreatePage(creds, payload, brand) {
   }
 
   const meta     = buildSeoMeta(payload);
+  // page_type (Bonbird Location template): a REGISTERED postmeta, REST-writable via the
+  // `meta` object — NOT `acf` (the ACF field group stays show_in_rest:0 so NAP/images
+  // remain un-writable — the anti-fake-NAP guardrail). Values venue|city_hub; anything
+  // else is omitted (the site defaults to venue). Confirmed with the site team 20 Aug.
+  const pageType = ['venue', 'city_hub'].includes(payload.pageType) ? payload.pageType : null;
+  if (pageType) meta.page_type = pageType;
   const parentId = payload.parentId || await resolveParentId(creds, payload.wpParent) || 0;
   // Custom taxonomies (e.g. { market:['om'] }) — a NEW page needs its market term too,
   // otherwise the site can't attribute it (same requirement as create_draft).

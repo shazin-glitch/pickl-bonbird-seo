@@ -4717,3 +4717,13 @@ Confirmed with the Bonbird site team (relayed by Shazin) + verified in code:
 - UAE `/ae/dubai|sharjah|abu-dhabi/` already exist as legacy static Twig pages — slugs are taken. Either (a) a DEV migrates a legacy page onto the Location template (not a Nest blind template-flip — the body is baked into the twig), or (b) city hubs are NEW cities only. om/qa/pk city slugs are not pre-decided — Shazin supplies the per-market city list (real venue/demand-driven, anti-doorway bar). Nest must never invent slugs.
 
 **Net:** the create_page PLUMBING for city hubs is now complete + safe. Generating them still needs (1) Claude credits, (2) Shazin's per-market city list, (3) a human ACF pass after creation.
+
+### v7.9.9 — Nest can now set city-hub `page_type` on create (site team registered it in REST)
+
+Site team registered `page_type` as REST-writable **registered postmeta** (chose meta over ACF-in-REST so `address`/`hours`/`phone`/`map`/hero stay `show_in_rest:0` = un-writable — the anti-fake-NAP guardrail holds). Confirmed live on prod + verified end-to-end their side (REST-set `city_hub` → `get_fields()` returns `city_hub`).
+
+Nest side (`wordpress.js handleCreatePage`): if `payload.pageType` ∈ {`venue`,`city_hub`}, it's merged into the create `meta` object as `meta.page_type` — sent as **meta, never acf** (acf silently no-ops per the site team). Invalid/absent → omitted (site defaults to `venue`). So the city-hub create payload is now: `create_page { template:'template-location.php', wpParent:<market slug>, pageType:'city_hub', title, body(prose+FAQ) }` → `POST /wp/v2/pages { template, parent:<id>, status:draft, meta:{page_type:'city_hub'}, ... }`. Market-home parents: ae=912, om=544, qa=542, pk=517. Removes the previous human "pick City hub" step; a human still creates + fills the child `venue` pages' NAP (ACF).
+
+⚠️ Site-team note: if a first REST write no-ops right after their deploy, a WP Engine "Clear all caches" clears PHP-FPM opcache and it takes.
+
+**Still Shazin's content call (Q3, unchanged):** which city slugs per market + migrate-vs-new for the UAE legacy `/ae/dubai|sharjah|abu-dhabi/` pages. Nest never invents slugs.

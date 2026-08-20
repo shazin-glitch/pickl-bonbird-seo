@@ -43,6 +43,16 @@ The app password survived the go-live DB copy (it came from the dev DB). If Nest
 - **`post_content` = Nest/content** — write the **intro + SEO prose + an `<h2>FAQs</h2>` block** (`<h3>Question?</h3><p>Answer.</p>` pairs). The template automatically turns that FAQ block into the styled accordion **and** emits FAQPage JSON-LD. Title + Yoast meta also writable.
 - **12 product scaffolds already exist as DRAFTS** for om/qa/pk (`chicken`, `wraps`, `chicken-burger`, `chicken-tenders`) — parent + template + slug set, empty bodies **ready for Nest to write** (post IDs 47005–47016). Filling one = write its `post_content` body (prose + FAQ), a human adds images, then publish.
 
+**City-hub creation (`page_type`) — REST contract (live + verified 2026-08-20):** the Location template's `page_type` (`venue` | `city_hub`) is now REST-writable so Nest can create a city hub without a human clicking the ACF dropdown. Set it as **post meta** on create/update — NOT via `acf`:
+```
+POST /wp/v2/pages  { "template":"template-location.php", "parent":<market-home id>, "status":"draft", "meta":{ "page_type":"city_hub" } }
+```
+- Meta key `page_type`; values `venue` / `city_hub` (anything else sanitises to `venue`). `venue` is the default, so omit it for a normal venue page.
+- Sending `{"acf":{...}}` silently no-ops — the Location field group stays `show_in_rest:0` on purpose, so **NAP/address/hours/phone/map remain un-writable via REST** (anti-fake-NAP guardrail). Only `page_type` is exposed.
+- Auth = `edit_post` cap (App Password inherits it — same gate as the Yoast meta writes). A theme hook keeps ACF's `_page_type` reference in sync so the template's `get_fields()` sees a REST-set value. *(Impl: `inc/_nest-integration.php`.)*
+- Still human: a city hub renders its **child `venue` pages** as cards, so a person must create + fill those child venues' ACF NAP. `page_type` is the only part this contract automates.
+- ⚠️ After a fresh deploy, a WPE "Clear all caches" may be needed before the first REST write takes (PHP-FPM opcache).
+
 ## 5. Nest's WP capability (recap) & how to author for these pages
 - **CAN**: create/update `post_content` (HTML body), `title`, `excerpt`, and SEO-plugin meta (Yoast) — by URL/slug or postId, via Application Password (`netlify/functions/wordpress.js`).
 - **CANNOT**: write ACF fields, upload media/images.
