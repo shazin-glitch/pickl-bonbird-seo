@@ -4540,3 +4540,18 @@ Audit now hits 12 pages, **every one verified `200` live**: `/ae/`, `/ae/menu/`,
 - Click Run Audit, then check BOTH function logs.
 - `technical-seo` (wrapper) should log `firing background … -> …/technical-seo-background` then `background responded 202`. If instead it logs `SKIP trigger`, a stale `running` record is blocking — wait 5 min or it self-clears now that v7.8.6 writes a terminal status.
 - `technical-seo-background` should log `INVOKED … brand=bonbird` then `START bonbird @ https://bonbirdchicken.com` then per-page `PSI:` lines. Whichever line is the LAST one printed pins the exact failure point.
+
+### v7.8.9 — THE root cause: brand was sent in the POST body to a SCHEDULED function
+
+**Decisive log (manual dashboard invoke):** `[tech-seo] INVOKED method=POST auth=true via=scheduled brand=(none)`. Two facts in one line: (a) the function IS reachable and auth works; (b) `via=scheduled` + `brand=(none)` means Netlify delivered a **synthetic scheduled-event body** (`isScheduledInvoke` matches `"next_run"`) and the caller's payload was gone.
+
+**Root cause:** `technical-seo-background` has `schedule = "0 4 * * 1"` in netlify.toml → Netlify treats it as a scheduled function. `technical-seo.js` was firing it with `brand` in the **POST body**. The proven-working siblings do NOT: `backlinks.js` and `ai-overview.js` pass `?brand=` in the **query string** via GET, precisely because the body isn't reliably delivered here. So Bonbird's brand never arrived → `if (!brandCfg) return` → the audit did nothing, every time.
+
+**Second bug exposed by the same root cause:** the **Monday 4am cron** invokes this function with a scheduled event and *no brand at all* → it hit the same early return → **the weekly audit has been silently auditing nothing for every brand.**
+
+**Fixes:**
+- `technical-seo.js`: fire the background via **GET + `?brand=`** with `internalHeaders()` (matches backlinks.js/ai-overview.js exactly), instead of a POST body.
+- `technical-seo-background.js`: refactored the per-brand work into `runAuditForBrand(brand, brandCfg)`. The handler now: with a brand → audit that one; **with no brand (the cron) → iterate `getBrandSlugs()` and audit every brand.** So the scheduled run finally does real work.
+- (v7.8.8 instrumentation retained: `INVOKED`/`START`/`ABORT` logs, `?brand=` accepted from the query.)
+
+**Confidence + honest caveat:** the query-string change matches code that is known to work for the identical scheduled-function setup, so I'm confident in the mechanism. The one thing only a live run confirms is that an HTTP GET to this function surfaces `queryStringParameters.brand` (the dashboard "Run" simulates a *cron* event, which is why that path shows `via=scheduled`; a real HTTP GET from the wrapper should be `via=internal` with the brand present). The v7.8.8 logs will show it plainly.

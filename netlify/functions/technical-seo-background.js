@@ -14,7 +14,7 @@
 
 const { getSetting, setSetting, newId, logAudit } = require('./_lib/store');
 const { authorizeJob } = require('./_lib/auth');
-const { getBrand, wpCredentialsFor } = require('./_lib/brands-config');
+const { getBrand, getBrandSlugs, wpCredentialsFor } = require('./_lib/brands-config');
 const { INTERNATIONAL_MARKETS } = require('./_lib/international-config');
 
 exports.handler = async (event) => {
@@ -30,12 +30,29 @@ exports.handler = async (event) => {
     console.warn('[tech-seo] ABORT: not authenticated');
     return { statusCode: 401, headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ error: 'Not authenticated' }) };
   }
-  const brandCfg = brand ? await getBrand(brand) : null;
-  if (!brandCfg) {
-    console.warn(`[tech-seo] ABORT: no brand config (brand=${brand || '(none)'}). Pass ?brand=bonbird for a manual run.`);
+  // No brand = the scheduled Monday cron (or a dashboard invoke): audit EVERY brand.
+  // Previously this hit `if (!brandCfg) return` and the weekly audit silently did
+  // nothing. On-demand runs pass ?brand= and audit just that one.
+  if (!brand) {
+    const slugs = await getBrandSlugs().catch(() => []);
+    console.log(`[tech-seo] no brand given (${_job.via}) — auditing all: ${slugs.join(', ') || '(none configured)'}`);
+    for (const slug of slugs) {
+      const cfg = await getBrand(slug).catch(() => null);
+      if (cfg) { try { await runAuditForBrand(slug, cfg); } catch (e) { console.error(`[tech-seo] FATAL ${slug}:`, e.message); } }
+    }
     return;
   }
 
+  const brandCfg = await getBrand(brand);
+  if (!brandCfg) {
+    console.warn(`[tech-seo] ABORT: unknown brand "${brand}"`);
+    return;
+  }
+  await runAuditForBrand(brand, brandCfg);
+};
+
+// Audit one brand: core PSI + intl health/PSI + site checks. Writes technicalSeo:<brand>.
+async function runAuditForBrand(brand, brandCfg) {
   const domain = brandCfg.domain;
   console.log(`[tech-seo] START ${brand} @ ${domain}`);
 

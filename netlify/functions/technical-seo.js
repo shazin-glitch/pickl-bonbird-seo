@@ -55,15 +55,15 @@ exports.handler = async (event) => {
   // exactly why technical-seo-background had ZERO logs). Awaiting resolves on the
   // background function's fast 202, so it does not block the user. Same pattern as
   // backlinks.js / ai-overview.js.
+  // Pass brand in the QUERY STRING, GET — NOT the POST body. technical-seo-background
+  // is a scheduled function (netlify.toml schedule), so Netlify delivers a synthetic
+  // scheduled-event body and DISCARDS the caller's body — a POSTed {brand} arrives as
+  // (none). The query string survives. Same proven pattern as backlinks.js / ai-overview.js.
   const siteUrl = process.env.URL || 'https://yolkseo.netlify.app';
-  const bgUrl = `${siteUrl}/.netlify/functions/technical-seo-background`;
+  const bgUrl = `${siteUrl}/.netlify/functions/technical-seo-background?brand=${encodeURIComponent(brand)}`;
   console.log(`[technical-seo] firing background for ${brand} -> ${bgUrl}`);
   try {
-    const r = await fetch(bgUrl, {
-      method:  'POST',
-      headers: internalHeaders({ 'Content-Type': 'application/json' }),
-      body:    JSON.stringify({ brand }),
-    });
+    const r = await fetch(bgUrl, { headers: internalHeaders() });
     console.log(`[technical-seo] background responded ${r.status} for ${brand}`);
   } catch (e) {
     console.warn('[technical-seo] Background trigger failed:', e.message);
