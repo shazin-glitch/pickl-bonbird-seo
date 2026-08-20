@@ -5,6 +5,13 @@
 
 ## Mandatory Rules — Never Break These
 
+> # ⭐ RULE #1 — OVERRIDES EVERYTHING BELOW
+> **Never act on an unverified assumption.** VERIFY FIRST — especially before any write, live/production touch, or irreversible action. State the assumption, confirm it with a **read-only** check (config/code/current stored state), then act. Can't verify → STOP and ask; never "just try it."
+> - **Never use a live/production resource as a test fixture.** Verify read-only, or against a **throwaway draft you create and then delete** — never a real page/post/record.
+> - **Every write is irreversible until a clean rollback is confirmed.** READ + save current state first (`get_post`/`get_revisions`).
+> - **Don't infer behaviour from a name or pattern** — check the actual page type / config / code path.
+> - If this and any rule below ever conflict, **this wins.** Full text + the incident that created it = **rule 13**. (This is the highest-priority rule; it keeps the number 13 only so existing references stay valid.)
+
 1. **Read SETUP.md first**, every session, before touching any file.
 2. **Update SETUP.md before committing** any changes. No exceptions.
 3. **Repo layout (v7.5.0 restructure):** functions at `netlify/functions/`, frontend `index.html` at repo ROOT. (The old `output/` root is gone — ignore any "output/" references below.)
