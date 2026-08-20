@@ -2645,8 +2645,10 @@ async function bootstrapBrands() {
   for (const b of window.NEST_BRANDS) {
     window.NEST_BRAND_MAP[b.slug] = b;
     // Feed the display-name/colour maps so labels/pills resolve for new brands too.
+    // (No BRAND_COLORS here: it is not a global — competitor-matrix-ui.js resolves
+    //  colours through its cmBrandMeta proxy, and renderPerch derives its own from
+    //  NEST_BRANDS. The old line was dead code behind a typeof guard.)
     if (typeof BRAND_LABELS === 'object') BRAND_LABELS[b.slug] = b.name;
-    if (typeof BRAND_COLORS === 'object' && b.color) BRAND_COLORS[b.slug] = b.color;
     if (typeof BRAND_CONFIG === 'object') BRAND_CONFIG[b.slug] = { label: b.name, color: b.color, bg: (b.color || '#64748b') + '22' };
   }
   syncBrandDropdowns();
@@ -9053,7 +9055,7 @@ function renderIntlDashboard() {
     const summary  = kwData.summary || kwData; // backward compat if old shape
     const opps     = kwData.opportunities || [];
     const bgCol    = brandColor(m.brand);
-    const brandLbl = m.brandName(brand);
+    const brandLbl = brandName(m.brand);
     const langs    = m.languages.map(l => l === 'ar' ? 'Arabic' : 'English').join(' + ');
     const gaps     = (summary.content_gap || 0) + (summary.push || 0) + (summary.quick_win || 0);
     const topOpp   = opps.find(o => o.tier === 'quick_win') || opps[0];
@@ -9124,7 +9126,7 @@ function renderMarketDetail(key, m) {
   const summary     = kwData.summary || {};
   const opps        = (kwData.opportunities || []).slice(0, 10);
   const count       = intlState.runStatus[key] || 0;
-  const brandLbl    = m.brandName(brand);
+  const brandLbl    = brandName(m.brand);
   const langs       = m.languages.map(l => l === 'ar' ? 'Arabic' : 'English').join(' + ');
   const bgCol       = brandColor(m.brand);
   const marketKeyPart = key.split('_').slice(1).join('_'); // 'pickl_bahrain' → 'bahrain'

@@ -312,6 +312,7 @@ async function generateTemplatePage(ctx) {
           isArabic, mkt, brandName, vertical, intel, pageKind, postId } = ctx;
   const isLocation = pageKind === 'template_location';
   const marketLabel = mkt ? mkt.label : 'UAE';
+  const intelDirective = intel?.promptDirective || '';
 
   const userPrompt = `You are writing the CONTENT BODY for an existing ${brandName} ${isLocation ? 'location' : 'product'} page in ${marketLabel}. The page's images, address, hours and product cards are managed separately by a human — you write ONLY the prose and FAQs.
 

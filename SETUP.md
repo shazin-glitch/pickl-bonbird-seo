@@ -4478,3 +4478,23 @@ Audit now hits 12 pages, **every one verified `200` live**: `/ae/`, `/ae/menu/`,
 **Checked and deliberately NOT changed:** `ga4-data.js MARKET_PATHS` looks stale (`/oman/` etc.) but is **inert** — only `Object.keys()` is read and the frontend never consumes `marketPaths`, so it's dead config, not a live bug. `international-seo-background.js:1419` matches market words inside *keywords*, not URLs — correct as-is. The audit's trigger path was already correct (direct `/.netlify/functions/` + `internalHeaders()`, per rule 7).
 
 **Still unverified live:** whether a *completed* `technicalSeo:bonbird` record exists. Both faults above degrade the audit's page set rather than emptying it, so if the panel is still blank after a fresh run, the next thing to check is whether the run completes at all (Netlify function log for `[tech-seo]`).
+
+### v7.8.5 — Markets tab dead + 3 more ReferenceErrors + a checker that actually catches them
+
+**Trigger:** "the markets tab is also giving error: brand is not defined ... how did you mess this one up?" Fair. Root cause and, more importantly, the reason my checks kept missing this class of bug.
+
+**The Markets tab.** `index.html` had `const brandLbl = m.brandName(brand);` in **two** places — [9056](index.html:9056) (market cards) and [9127](index.html:9127) (`renderMarketDetail`, i.e. clicking into a market). Both should be `brandName(m.brand)`; the adjacent line already read `brandColor(m.brand)` correctly. Corruption from the WS4 bulk brand-migration replace. JS evaluates call arguments before the property lookup, so the bare `brand` threw `ReferenceError: brand is not defined` before `m.brandName` was ever found — hence the exact message.
+
+**Why my v7.7.8 sweep missed it:** that sweep regexed for `const X = X(` (self-referential declarations). This corruption is `obj.helper(arg)` — a different shape, invisible to that regex. Hand-rolled regexes only catch the shape you already thought of.
+
+**So: a real static check.** `tools/check.sh` (`npm run check`) = `node --check` **plus** an ESLint `no-undef` pass over `netlify/functions`, `js/*.js`, and the extracted `index.html` inline JS (extraction preserves original line numbers, so hits map 1:1 to index.html). Runs via `npx eslint@9` — **no new repo dependency**, and with no `[build]` command in netlify.toml the Netlify build never runs it. Proof it works: re-introducing the v7.8.4 `brandCfg` bug into a scratch copy → `node --check` **passes**, `no-undef` flags it in one second.
+
+**Two further real bugs it found immediately, both previously invisible:**
+- 🔴 `generate-draft.js generateTemplatePage()` interpolated `${intelDirective}` but never declared it (the other three generators each declare it). **This is the Phase 2 "⚡ Generate body" path shipped in v7.8.2 — it would have thrown ReferenceError on the very first click.** Fixed by declaring it from the in-scope `intel`.
+- 🔴 `scheduler-background.js generatePerformanceSummary()` called `store()`, which is not in scope → the **Monday performance narrative** for the Reports tab has been throwing. Now `getStore({name:'seo-tool', …})`, matching the other five call sites in the file.
+
+**Also removed:** a dead `if (typeof BRAND_COLORS === 'object')` line in `bootstrapBrands()` — `BRAND_COLORS` is not a global anywhere, so the branch never ran; `competitor-matrix-ui.js` resolves colours via its `cmBrandMeta` proxy and `renderPerch` derives its own from `NEST_BRANDS`.
+
+**CLAUDE.md rule 10 rewritten** from "syntax check" to "run `npm run check`", with these three failures recorded as the reason.
+
+**Honest scope note:** `no-undef` catches unbound identifiers. It does **not** catch wrong-but-defined values (e.g. a stale hardcoded URL, or `esc()` where `escJs()` was meant). Those still need reading and live verification.

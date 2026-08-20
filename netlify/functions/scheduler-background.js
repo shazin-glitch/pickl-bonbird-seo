@@ -547,7 +547,7 @@ function seedKeywordsToRows(keywords) {
 // Generates a Monday performance narrative from GSC data + job results.
 // Stores as performanceSummary:<brand> in Blobs for the Reports tab.
 async function generatePerformanceSummary(brand, gscRows, jobResults, brandCtx) {
-  const s = store();
+  const s = getStore({ name: 'seo-tool', siteID: process.env.NETLIFY_SITE_ID, token: process.env.NETLIFY_AUTH_TOKEN });
   const brandName = brandCtx?.name || BRANDS[brand]?.name || brand;
 
   // Load last week's snapshot for position deltas

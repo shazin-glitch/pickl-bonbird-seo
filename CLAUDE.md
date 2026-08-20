@@ -14,7 +14,7 @@
 7. **Background functions** must be called at `/.netlify/functions/<name>` directly — redirects in netlify.toml do NOT work for them.
 8. **Bootstrap admins** (always Admin regardless of Blobs): `shazin@yolkbrands.com`, `steve@yolkbrands.com`
 9. **Claude model:** `claude-sonnet-4-6` (set in `_lib/store.js` callClaude function)
-10. **Syntax check** all JS before committing: `node --check` on every function file + extract and check index.html JS.
+10. **Run `npm run check` before committing — not just `node --check`.** `node --check` only validates SYNTAX; it CANNOT see an out-of-scope variable, and a `try/catch` will happily swallow the resulting ReferenceError so the bug looks like a graceful fallback. Three real bugs shipped this way (19-20 Aug): `technical-seo-background.js` referenced `brandCfg` outside its scope → **WP page discovery silently dead for every brand**; `index.html` had `m.brandName(brand)` → **Markets tab dead** ("brand is not defined"); `generate-draft.js generateTemplatePage` used `intelDirective` without declaring it → the ⚡Generate-body button would have thrown on first click. `tools/check.sh` (= `npm run check`) runs `node --check` **plus** an ESLint `no-undef` pass over `netlify/functions`, `js/*.js` and the extracted `index.html` inline JS. It uses `npx` — **no repo dependency, and the Netlify build never runs it.** If you add a genuine cross-file global, register it in `tools/eslint.browser.mjs`.
 11. **Security is a build requirement, not an afterthought.** EVERY function/endpoint must gate with `_lib/auth` before it ships: `authorize(event)` (valid session OR `x-nest-internal` header) for on-demand endpoints; `authorizeJob(event)` for `-background`/cron jobs (allows the scheduled invoke + internal header + session). NEVER expose secrets, spend money (Anthropic/DataForSEO), publish externally, or mutate state on an unauthenticated handler. Any internal function→function `fetch` to a gated endpoint MUST send `internalHeaders()`. When building/reviewing a feature, ask "what's the auth + abuse surface?" first. Reads that return anything non-public get gated too.
 
 12. **Scalability is a build requirement — everything new is config-driven, never hardcoded.** New code must scale to a new brand/market/site WITHOUT code edits. NEVER hardcode brand or market lists inline (`["pickl","bonbird"]`, static `<option>` market dropdowns, duplicated `INTL_MARKETS`-style mirrors). Derive brands×markets from the SINGLE source of truth — backend: `getMarketsForBrand()` / `INTERNATIONAL_MARKETS`; frontend: fetch that list from one endpoint and render dynamically, filtered by brand (a brand not in a market must not appear in the UI). Each market record carries its `brand`; onboarding a brand/market should touch ONE config record, not ~10 files. When building/reviewing, ask "does this scale to a new brand/market with no code change?" (The competitor-matrix `["pickl","bonbird"]` bug and the triple-hardcoded UI market lists are what this rule exists to prevent. Target end-state: config in Blobs + a Settings onboarding form + one brand×market-parameterised pipeline — see WS7 in `/NEST-ROADMAP.md`.)
@@ -55,7 +55,7 @@
 
 ---
 
-## Current Version: v7.8.4
+## Current Version: v7.8.5
 
 See SETUP.md → session log for the complete build history.
 
