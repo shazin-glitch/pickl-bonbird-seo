@@ -42,8 +42,11 @@ exports.handler = async (event) => {
     try { body = JSON.parse(event.body || '{}'); } catch { /* ignore */ }
     const b  = body.brand || 'pickl';
     const mp = body.maxPages ? `&maxPages=${parseInt(body.maxPages, 10)}` : '';
-    // fire-and-forget the background crawl (background fns must be hit at their direct path)
-    fetch(`${SITE_URL}/.netlify/functions/onpage-audit-background?brand=${b}${mp}`, { headers: internalHeaders() }).catch(() => {});
+    // MUST await — an un-awaited fetch is frozen when this handler returns, so the
+    // background crawl never actually fires (same Lambda gotcha as technical-seo).
+    // Awaiting resolves on the background function's fast 202. Direct path required
+    // (netlify.toml redirects do not apply to background functions).
+    await fetch(`${SITE_URL}/.netlify/functions/onpage-audit-background?brand=${b}${mp}`, { headers: internalHeaders() }).catch(e => console.warn('[onpage-audit] bg trigger failed:', e.message));
     return { statusCode: 202, headers: { ...CORS, 'Content-Type': 'application/json' }, body: JSON.stringify({ ok: true, message: 'Crawl started', brand: b }) };
   }
 

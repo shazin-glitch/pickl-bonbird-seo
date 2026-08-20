@@ -4515,3 +4515,15 @@ Audit now hits 12 pages, **every one verified `200` live**: `/ae/`, `/ae/menu/`,
 **Why this is the right move regardless of the underlying error:** the audit was failing *invisibly*. Now it fails *loudly* — the next run will either succeed or tell us exactly which call threw (most likely candidate: PageSpeed rate-limiting if `GOOGLE_PAGESPEED_KEY` is unset, which would surface as `PSI 429` rows). Precise fix to follow once the real error is visible.
 
 **Still owed:** one live reading to confirm the underlying throw (see session notes). `no-undef`/`npm run check` pass.
+
+### v7.8.7 — THE actual cause: the background audit was never invoked (un-awaited trigger)
+
+**Trigger:** "nothing is happening, nothing is showing in technical seo background logs." That was the decisive clue — zero logs in `technical-seo-background` means the function is **never invoked**, so every earlier fix (v7.8.4 URLs, v7.8.6 crash-hardening) was downstream of the real fault. (Also confirmed: Claude API balance is irrelevant — this audit uses PageSpeed + WordPress, never Claude.)
+
+**Root cause:** `technical-seo.js` fired the background function with an **un-awaited** `fetch()` (commented "non-blocking — we don't await it"). On AWS Lambda / Netlify Functions the execution context is frozen the instant the handler returns — so a fire-and-forget fetch that hasn't completed **never actually sends**. The wrapper returned its 202 immediately and the background invocation was dropped every time. The sibling triggers `backlinks.js` and `ai-overview.js` already carry the fix as a comment: *"MUST await — an un-awaited fetch is frozen when the function returns, so the background invocation never fires. Awaiting resolves on the fast 202."* technical-seo.js simply hadn't followed it.
+
+**Fix:** added `await` to the trigger fetch in `technical-seo.js`. Background functions return 202 immediately then run up to 15 min, so awaiting resolves fast and does not block the user.
+
+**Same bug found by sweep and also fixed:** `onpage-audit.js:46` (the full-site "Site Audit" crawler) had the identical un-awaited fire-and-forget → its background crawl never fired either. Now awaited. Swept all `-background` triggers; no un-awaited ones remain.
+
+**Lesson:** "returns nothing" + "no logs in the background function" = invocation problem, not audit-logic problem. Check the *trigger* (await + direct `/.netlify/functions/<name>` path per rule 7) before touching the audit. v7.8.6's crash-hardening still stands — it just addressed a failure mode that could only occur *once the function actually runs*, which it now will.

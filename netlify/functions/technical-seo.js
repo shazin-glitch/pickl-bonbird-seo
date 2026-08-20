@@ -49,9 +49,13 @@ exports.handler = async (event) => {
     summary:   null,
   });
 
-  // Fire background function (non-blocking — we don't await it)
+  // Fire background function. MUST await — an un-awaited fetch is frozen when this
+  // handler returns, so on Lambda the background invocation never fires (this is
+  // exactly why technical-seo-background had ZERO logs). Awaiting resolves on the
+  // background function's fast 202, so it does not block the user. Same pattern as
+  // backlinks.js / ai-overview.js.
   const siteUrl = process.env.URL || 'https://yolkseo.netlify.app';
-  fetch(`${siteUrl}/.netlify/functions/technical-seo-background`, {
+  await fetch(`${siteUrl}/.netlify/functions/technical-seo-background`, {
     method:  'POST',
     headers: internalHeaders({ 'Content-Type': 'application/json' }),
     body:    JSON.stringify({ brand }),
