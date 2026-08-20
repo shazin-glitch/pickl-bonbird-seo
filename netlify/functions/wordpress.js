@@ -84,7 +84,7 @@ exports.handler = async (event) => {
     switch (action) {
       case 'test':           return await handleTest(creds);
       case 'create_draft':   return await handleCreateDraft(creds, body.payload || {});
-      case 'create_page':    return await handleCreatePage(creds, body.payload || {});
+      case 'create_page':    return await handleCreatePage(creds, body.payload || {}, brand);
       case 'update_content': return await handleUpdateContent(creds, body.payload || {}, brand);
       case 'update_meta':      return await handleUpdateMeta(creds, body.payload || {});
       case 'get_current_meta': return await handleGetCurrentMeta(creds, body.payload || {});
@@ -263,8 +263,20 @@ async function resolveParentId(creds, parentSlug) {
 // Creates under /wp/v2/pages — appears in Pages menu, not Posts.
 // Used for landing pages, location pages, new content pages.
 // Images left as [IMAGE_PLACEHOLDER] comments for you to swap in WP.
-async function handleCreatePage(creds, payload) {
+async function handleCreatePage(creds, payload, brand) {
   if (!payload.title || !payload.body) return fail(400, 'title and body are required');
+
+  // A brand with a template allow-list (e.g. Bonbird) may only CREATE a body-bearing
+  // page on an allowed template — otherwise the new page's body renders from the
+  // default/block theme template and the post_content is invisible (same failure class
+  // as the /ae/ clobber). Journal posts must use create_draft, not create_page.
+  // City hubs / location pages pass template:'template-location.php'.
+  const cfg   = await getBrand(brand).catch(() => null);
+  const allow = cfg?.writableTemplates;
+  if (Array.isArray(allow) && allow.length && !allow.includes(payload.template)) {
+    return fail(409, `Cannot create a body-bearing ${brand} page on template "${payload.template || 'default'}" — its body would not render. Use one of: ${allow.join(', ')} (a city hub / location page uses template-location.php), or create_draft for a journal post.`);
+  }
+
   const meta     = buildSeoMeta(payload);
   const parentId = payload.parentId || await resolveParentId(creds, payload.wpParent) || 0;
   // Custom taxonomies (e.g. { market:['om'] }) — a NEW page needs its market term too,

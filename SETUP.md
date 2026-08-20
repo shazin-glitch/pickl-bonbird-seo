@@ -4701,3 +4701,19 @@ matching **FAQ / FAQs / Frequently Asked Questions** (case-insensitive). The Nes
 the matcher into one shared `FAQ_HEADING_RE` (used by both the presence check and the
 split, so they can't drift) and added the variant. Unit-tested: all three headings pass;
 missing-heading / <3 questions / stray `<img>` still fail.
+
+### v7.9.8 — create_page hardened for the city-hub path (site-team answers)
+
+Confirmed with the Bonbird site team (relayed by Shazin) + verified in code:
+- **Template + parent already pass through** `create_page` (`template: payload.template||''`, `parent: parentId` via `resolveParentId`). Q1/Q4 need no change — a caller just includes `template:'template-location.php'` + `wpParent` (market-home slug; ae=912, om=544, qa=542, pk=517).
+- **Added a create guard** (the real gap): for a brand with `writableTemplates` (Bonbird), `create_page` now REFUSES to create a body-bearing page unless `payload.template` is in the allow-list — otherwise a new page on the default/block template renders its body invisibly (same class as the /ae/ clobber; the router's local-intent `blog_draft→page_creation` path could have hit this). Journal posts must use `create_draft`. Passed `brand` into `handleCreatePage` to enable the check. Mirrors the `update_content` body guard.
+
+**Confirmed constraints (NOT code — flow/human):**
+- **Q2 `page_type=city_hub` is ACF, NOT REST-writable** (`show_in_rest:0`). Nest creates the page (title/slug/parent/template/body); a HUMAN sets "City hub" + fills venue ACF in wp-admin. (If we later want Nest to set it, the site team can register that one meta in REST — flag it.)
+- **Q5 venue NAP is 100% ACF** (`bonbird_venue_data()`); a `city_hub` auto-renders its CHILD `venue` pages as cards. Generator writes ONLY prose + FAQ into `post_content`, never venue/NAP. Individual venues = `venue`-type Location pages parented under the hub.
+- **Q6** a fresh Location-template draft renders cleanly (guarded hero/venue/FAQ; only market-derived menu tiles always show) — safe to stage.
+
+**Still a Shazin decision before any city-hub is generated (Q3 — do NOT assume):**
+- UAE `/ae/dubai|sharjah|abu-dhabi/` already exist as legacy static Twig pages — slugs are taken. Either (a) a DEV migrates a legacy page onto the Location template (not a Nest blind template-flip — the body is baked into the twig), or (b) city hubs are NEW cities only. om/qa/pk city slugs are not pre-decided — Shazin supplies the per-market city list (real venue/demand-driven, anti-doorway bar). Nest must never invent slugs.
+
+**Net:** the create_page PLUMBING for city hubs is now complete + safe. Generating them still needs (1) Claude credits, (2) Shazin's per-market city list, (3) a human ACF pass after creation.
