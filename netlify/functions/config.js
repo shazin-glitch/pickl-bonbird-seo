@@ -15,6 +15,7 @@
 
 const { getBrands, getBrand, setBrand, deleteBrand, VERTICALS } = require('./_lib/brands-config');
 const { getMarkets, setMarket, deleteMarket } = require('./_lib/markets-config');
+const { citiesFromMarketRecord } = require('./_lib/international-config');
 const { authorize, denied } = require('./_lib/auth');
 
 const CORS = {
@@ -56,9 +57,12 @@ exports.handler = async (event) => {
                             (event.queryStringParameters && event.queryStringParameters.all === '1');
     const brands = await getBrands({ activeOnly: !includeInactive });
     const markets = await getMarkets({ activeOnly: !includeInactive });
+    // Attach the grouped city-hub list per market from the single source (rule 12),
+    // so the frontend doesn't re-implement venue→city grouping.
+    const marketsWithCities = markets.map(m => ({ ...m, cities: citiesFromMarketRecord(m) }));
     return json(200, {
       brands,
-      markets,
+      markets: marketsWithCities,
       verticals: Object.keys(VERTICALS).map(k => ({ key: k, promptNoun: VERTICALS[k].promptNoun })),
     });
   }

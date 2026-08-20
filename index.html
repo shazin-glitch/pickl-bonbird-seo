@@ -1216,6 +1216,18 @@ body { font-family: var(--font-sans); background: var(--bg-base); color: var(--t
           <div id="sc-results" style="font-size:13px"></div>
         </div>
 
+        <!-- City hubs — generate a market/city landing page (config-driven, from venues) -->
+        <div class="card" id="cityhubs-card" style="margin-top:24px;border-left:3px solid #D85A30">
+          <div style="font-weight:600;font-size:14px;margin-bottom:2px">🏙️ City hubs</div>
+          <div style="font-size:12px;color:var(--text-muted);margin-bottom:12px">Generate a NEW city landing page (<code>template-location.php</code>, page_type=city_hub) for each city where the brand has venues — configured in <strong>Settings → SEO Markets</strong>. Nest writes prose + an FAQ block; a human creates + fills each child venue page's NAP (ACF). Cities come from config — Nest never invents one.</div>
+          <div style="display:flex;gap:10px;align-items:flex-end;flex-wrap:wrap;margin-bottom:10px">
+            <div class="form-group" style="margin-bottom:0"><label class="form-label">Brand</label>
+              <select id="ch-brand" class="form-input" style="font-family:var(--font-sans);width:150px"></select></div>
+            <button class="btn btn-primary" id="ch-find-btn" onclick="findCityHubs()" style="font-size:13px">Find city hubs</button>
+          </div>
+          <div id="ch-results" style="font-size:13px"></div>
+        </div>
+
         <div id="intl-run-log" style="margin-top:24px;display:none">
           <div class="card">
             <h3 style="font-size:14px;font-weight:600;margin-bottom:12px">Run Log</h3>
@@ -2660,6 +2672,8 @@ async function bootstrapBrands() {
   renderIntlPills();
   const scB = document.getElementById('sc-brand');
   if (scB) scB.innerHTML = (window.NEST_BRANDS || []).map(b => `<option value="${esc(b.slug)}">${esc(b.name)}</option>`).join('');
+  const chB = document.getElementById('ch-brand');
+  if (chB) chB.innerHTML = (window.NEST_BRANDS || []).map(b => `<option value="${esc(b.slug)}">${esc(b.name)}</option>`).join('');
 }
 
 // International view brand + market pills — from config (SEO markets). Each market
@@ -5017,6 +5031,53 @@ async function generateScaffold(postId, link, title, btn) {
     if (r.error) throw new Error(r.error);
     if (r.skipped) { btn.textContent = '✓ Skipped'; showToast(`Skipped: ${r.reason || 'not a good candidate'}`, ''); }
     else { btn.textContent = `✓ Queued (${r.faqPairs || 0} FAQs)`; btn.style.color = '#059669'; showToast(`Body for "${keyword}" queued — review it in the Approvals Queue.`, 'success'); }
+  } catch (e) {
+    btn.textContent = '✗ Failed'; showToast('Generate failed: ' + e.message, 'error');
+  }
+  setTimeout(() => { btn.textContent = orig; btn.disabled = false; btn.style.color = ''; }, 6000);
+}
+
+// ── City hubs — list config-derived cities per market, generate a hub per city ──
+async function findCityHubs() {
+  const brand = document.getElementById('ch-brand').value;
+  const out = document.getElementById('ch-results');
+  const btn = document.getElementById('ch-find-btn');
+  btn.disabled = true; btn.textContent = 'Finding…';
+  out.innerHTML = '';
+  try {
+    // Cities come from /api/config markets[].cities (single source — rule 12).
+    const cfg = await apiGet('/api/config');
+    const markets = (cfg.markets || []).filter(m => m.brand === brand && (m.cities || []).length);
+    if (!markets.length) {
+      out.innerHTML = `<div style="color:var(--text-muted)">No cities with venues configured for this brand. Add venues in <strong>Settings → SEO Markets</strong> — Nest never invents a city.</div>`;
+    } else {
+      out.innerHTML = markets.map(m => `
+        <div style="margin:10px 0 4px;font-weight:600">${esc(m.flag || '')} ${esc(m.label)}</div>
+        ${(m.cities || []).map(c => {
+          const venueBadges = c.venues.map(v => `${esc(v.name)}${v.type === 'dark_kitchen' ? ' <span style="color:#D85A30;font-size:11px">[dark kitchen — no dine-in]</span>' : ''}`).join(' · ');
+          return `<div style="display:flex;justify-content:space-between;align-items:center;gap:12px;padding:8px 10px;border:1px solid var(--border);border-radius:8px;margin-bottom:6px">
+            <div><strong>/${esc(m.marketSlug)}/${esc(c.slug)}/</strong> — ${esc(c.city)}
+              <div style="font-size:11px;color:var(--text-muted);margin-top:2px">${venueBadges}</div></div>
+            <button class="btn btn-primary" style="font-size:11px;white-space:nowrap"
+              onclick="generateCityHubFromPanel('${escJs(m.key)}','${escJs(c.slug)}','${escJs(c.city)}','${escJs(brand)}', this)">⚡ Generate hub</button>
+          </div>`;
+        }).join('')}
+      `).join('');
+    }
+  } catch (e) { out.innerHTML = `<div style="color:#ef4444">Failed: ${esc(e.message)}</div>`; }
+  btn.disabled = false; btn.textContent = 'Find city hubs';
+}
+
+async function generateCityHubFromPanel(marketKey, citySlug, cityName, brand, btn) {
+  const cuisine = ((window.NEST_BRAND_MAP || {})[brand] || {}).cuisine || 'food';
+  const keyword = `${cuisine} ${cityName}`;
+  const orig = btn.textContent; btn.disabled = true; btn.textContent = '⏳ Writing…';
+  try {
+    const r = await apiPost('/api/generate-draft', { brand, keyword, market: marketKey, city: citySlug, pageKind: 'city_hub', actionType: 'page_creation' });
+    if (r.error) throw new Error(r.error);
+    if (r.paused) { btn.textContent = '⏸ Paused'; showToast(r.reason || 'Content generation is paused for this brand.', ''); }
+    else if (r.skipped) { btn.textContent = '✓ Skipped'; showToast(`Skipped: ${r.reason || 'not a good candidate'}`, ''); }
+    else { btn.textContent = `✓ Queued (${r.faqPairs || 0} FAQs)`; btn.style.color = '#059669'; showToast(`${cityName} city hub queued — review it in the Approvals Queue.`, 'success'); }
   } catch (e) {
     btn.textContent = '✗ Failed'; showToast('Generate failed: ' + e.message, 'error');
   }

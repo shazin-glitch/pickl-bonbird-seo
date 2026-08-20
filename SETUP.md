@@ -4757,3 +4757,11 @@ The engine that turns the scalable venue/city config into a publishable city hub
 Verified with a stubbed-Claude mock-invoke of the handler (bonbird_oman / muscat): payload = create_page · template-location.php · page_type=city_hub · parent `om` · slug `muscat` · 4 FAQ pairs. Only the live Claude prose is unverified (credits-gated).
 
 **Remaining for a fully clickable feature:** a frontend trigger (list `citiesForMarket` per brand/market + a "Generate hub" button → `generate-draft {pageKind:'city_hub', market, city}`) — mechanical, mirrors the scaffold panel; next. Then the human creates/fills child `venue` pages' ACF NAP.
+
+### v7.9.13 — city-hub frontend trigger (feature now clickable end-to-end)
+
+- `/api/config` GET now attaches **`cities`** to each market (grouped from `venues` via `citiesFromMarketRecord` — single source, rule 12), so the UI doesn't re-group.
+- New **🏙️ City hubs** panel (Analytics → Markets, under Page scaffolds): pick a brand → **Find city hubs** lists every config-derived city (`/{market}/{city}/`) with its venues (a `dark_kitchen` badged), and **⚡ Generate hub** calls `generate-draft {pageKind:'city_hub', market, city}` → queues the city-hub page for review. Keyword seed = `<brand cuisine> <city>`.
+- The generate button surfaces paused/skipped/queued states (Pickl is content-paused → shows ⏸). Cities are config-only — the UI never lets you invent one.
+
+Verified: `npm run check` green; config `cities` payload verified (Bonbird → /om/muscat, /om/seeb, /qa/doha, /pk/lahore). The **listing** is live-testable; the **generate** action is credits-gated (no Claude), so its live run is still owed. City-hub feature is now complete + clickable — pending only Claude credits + the human ACF pass on child venue pages.

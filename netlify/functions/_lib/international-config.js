@@ -632,10 +632,17 @@ async function citiesForMarketAsync(marketKey) {
   return _groupCities(m || INTERNATIONAL_MARKETS[marketKey], marketKey);
 }
 
+// Group cities from an ALREADY-LOADED market record (e.g. one /api/config already has),
+// so callers don't re-fetch or re-implement the grouping. Single source (rule 12).
+function citiesFromMarketRecord(m) {
+  return _groupCities(m, (m && (m.key || m.marketKey)) || '');
+}
+
 module.exports = {
   INTERNATIONAL_MARKETS,
   citiesForMarket,
   citiesForMarketAsync,
+  citiesFromMarketRecord,
   MARKET_LOCATION_CODES,
   getMarketsForBrand,
   getAllMarketKeys,
