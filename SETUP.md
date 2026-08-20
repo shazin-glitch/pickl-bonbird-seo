@@ -4735,3 +4735,13 @@ Captures the confirmed Bonbird venue data as the config-driven source for city-h
 New `citiesForMarket(marketKey)` (exported) groups `venues` by city → the city-hub target list. Verified (mocked): **4 hubs** — `/om/muscat/` (Souq Al Madina), `/om/seeb/` (Al Khoudh), `/qa/doha/` (West Walk · District 1), `/pk/lahore/` (Cue Cinemas · Dolmen Mall · Johar Town[dark_kitchen]).
 
 **City-hub readiness now:** plumbing ✅ (create_page template+parent+page_type, verified v7.9.9), city source ✅ (this), venue types ✅. Remaining to actually generate: (1) the generation path (`create_page` payload + prose/FAQ prompt driven by `citiesForMarket` — buildable no-Claude, RUNS only with credits), (2) Claude credits, (3) a human ACF pass on child venue pages, (4) site-team confirm: does the Location template render a `dark_kitchen` differently (hide dine-in / order-only)? Pre-existing note: `pickl_qatar` carries the same Doha location strings as bonbird_qatar (config smell — left alone, Pickl is paused).
+
+### v7.9.11 — venue/city config layer made truly scalable + Scalability promoted to RULE #2
+
+**Rule:** promoted "scalability is a build requirement" to a **prime-directive banner (RULE #2)** at the top of CLAUDE.md — same treatment as RULE #1, pointing to the full text at rule 12 (numbers/refs unchanged). Shazin has asked for this repeatedly; it's now a headline, not buried.
+
+**Build — closed two gaps that broke "add a new country/city with no code":**
+1. `citiesForMarket()` read the static seed literal (`INTERNATIONAL_MARKETS`) → a Settings-onboarded market or any UI venue edit was invisible. Added **`citiesForMarketAsync(marketKey)`** (exported) that reads the **Blobs-merged** market config via `_mc().getMarket()` (falls back to seed). Verified: a Blobs-only `bonbird_kuwait` (not in any literal) yields `/kw/kuwait-city/` + `/kw/salmiya/[dark_kitchen]` with zero code; the sync seed-only version returns 0 (the gap).
+2. The Settings SEO-Markets form captured none of the city-hub inputs. Added **`countryCode`** (ISO) + a **`venues`** editor (textarea, one per line `Name | City | type`; type = `dine_in`|`dark_kitchen`) to the form, `saveMarketFromForm` payload, and the edit-populate path. `config.js save_market` already passes the whole record through (no whitelist); `markets-config._normalize` now normalises `venues` shape/type + defaults to `[]`.
+
+**Net:** launch a new market → add it + its `countryCode` + cities/venues in Settings → city hubs (`citiesForMarketAsync`) and schema (`countryCode`) work with ZERO code edits. This is the scalable end-state, and it's the config source the (still-to-build, credits-gated) city-hub generator will read.

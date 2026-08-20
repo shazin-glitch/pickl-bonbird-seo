@@ -75,6 +75,11 @@ function _normalize(rec) {
   if (!Array.isArray(m.languages)) m.languages = ['en'];
   if (!Array.isArray(m.keywordTerms)) m.keywordTerms = KEYWORD_TERMS[m.marketKey] || [];
   if (!m.marketSlug) m.marketSlug = m.marketKey;
+  // Structured venue records (city-hub source). Normalise shape + type.
+  m.venues = Array.isArray(m.venues) ? m.venues
+    .filter(v => v && v.name && v.city)
+    .map(v => ({ name: String(v.name).trim(), city: String(v.city).trim(), type: v.type === 'dark_kitchen' ? 'dark_kitchen' : 'dine_in' }))
+    : [];
   return m;
 }
 

@@ -606,22 +606,36 @@ MARKET_LOCATION_CODES['uae_country'] = 2784;
 // the single source for city-hub generation — a hub is created per city, listing its
 // venues (a `dark_kitchen` venue is pickup/delivery only → prose must not imply dine-in).
 // Empty when a market has no `venues` (don't invent cities — rule 12 / anti-doorway).
-function citiesForMarket(marketKey) {
-  const m  = INTERNATIONAL_MARKETS[marketKey];
+function _groupCities(m, marketKey) {
   const vs = Array.isArray(m && m.venues) ? m.venues : [];
   const byCity = {};
   for (const v of vs) {
     if (!v || !v.city) continue;
     const slug = String(v.city).toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '');
-    if (!byCity[slug]) byCity[slug] = { city: v.city, slug, marketKey, marketSlug: m.marketSlug, venues: [] };
+    if (!byCity[slug]) byCity[slug] = { city: v.city, slug, marketKey, marketSlug: m && m.marketSlug, venues: [] };
     byCity[slug].venues.push({ name: v.name, city: v.city, type: v.type || 'dine_in' });
   }
   return Object.values(byCity);
 }
 
+// SYNC — seed literal only (built-in markets). For a config-onboarded market or to
+// see venue edits made in Settings, use citiesForMarketAsync (reads Blobs-merged).
+function citiesForMarket(marketKey) {
+  return _groupCities(INTERNATIONAL_MARKETS[marketKey], marketKey);
+}
+
+// ASYNC — reads the Blobs-MERGED market config (rule 12), so markets/venues added or
+// edited via Settings are picked up with no code edit. Falls back to the seed literal.
+async function citiesForMarketAsync(marketKey) {
+  let m = null;
+  try { m = await _mc().getMarket(marketKey); } catch { /* fall back to seed */ }
+  return _groupCities(m || INTERNATIONAL_MARKETS[marketKey], marketKey);
+}
+
 module.exports = {
   INTERNATIONAL_MARKETS,
   citiesForMarket,
+  citiesForMarketAsync,
   MARKET_LOCATION_CODES,
   getMarketsForBrand,
   getAllMarketKeys,

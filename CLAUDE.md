@@ -12,6 +12,12 @@
 > - **Don't infer behaviour from a name or pattern** — check the actual page type / config / code path.
 > - If this and any rule below ever conflict, **this wins.** Full text + the incident that created it = **rule 13**. (This is the highest-priority rule; it keeps the number 13 only so existing references stay valid.)
 
+> # ⭐ RULE #2 — SCALABILITY IS A BUILD REQUIREMENT (non-negotiable)
+> **Everything new must be CONFIG-DRIVEN and scale to a new brand / market / city / venue with ZERO code edits.** Before building anything, ask "does this work for the next brand/market with no code change?" — if adding one would need a code edit, it's not done.
+> - Derive from the SINGLE source (config records / accessors), never a hardcoded list, inline `?:` brand ternary, static `<option>`, or a mirrored literal.
+> - New per-brand/market/venue DATA goes in the **config record + the Settings form that writes it** — not a code literal. A reader must load the **Blobs-merged config**, never a static seed literal, or onboarded records are invisible.
+> - Full text + rationale + the bugs it exists to prevent = **rule 12** below.
+
 1. **Read SETUP.md first**, every session, before touching any file.
 2. **Update SETUP.md before committing** any changes. No exceptions.
 3. **Repo layout (v7.5.0 restructure):** functions at `netlify/functions/`, frontend `index.html` at repo ROOT. (The old `output/` root is gone — ignore any "output/" references below.)
@@ -68,7 +74,7 @@
 
 ---
 
-## Current Version: v7.9.10
+## Current Version: v7.9.11
 
 See SETUP.md → session log for the complete build history.
 

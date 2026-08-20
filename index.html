@@ -1859,7 +1859,9 @@ body { font-family: var(--font-sans); background: var(--bg-base); color: var(--t
               <div class="form-group"><label class="form-label">DataForSEO location_code</label><input id="mf-loccode" class="form-input" placeholder="2682" style="font-family:var(--font-sans)"></div>
               <div class="form-group"><label class="form-label">Languages (comma)</label><input id="mf-langs" class="form-input" placeholder="en, ar" style="font-family:var(--font-sans)"></div>
               <div class="form-group"><label class="form-label">Currency</label><input id="mf-currency" class="form-input" placeholder="SAR" style="font-family:var(--font-sans)"></div>
+              <div class="form-group"><label class="form-label">Country code (ISO-3166, e.g. SA)</label><input id="mf-country" class="form-input" placeholder="SA" maxlength="2" style="font-family:var(--font-sans);text-transform:uppercase"></div>
               <div class="form-group" style="grid-column:1 / -1"><label class="form-label">City/disambiguation terms (comma — for keyword filtering)</label><input id="mf-terms" class="form-input" placeholder="saudi, riyadh, jeddah, ksa" style="font-family:var(--font-sans)"></div>
+              <div class="form-group" style="grid-column:1 / -1"><label class="form-label">Venues (one per line: <code>Name | City | type</code> — type = dine_in or dark_kitchen; drives city hubs &amp; schema)</label><textarea id="mf-venues" class="form-input" rows="4" placeholder="Al Nakheel Mall | Riyadh | dine_in&#10;Cloud Kitchen JLT | Dubai | dark_kitchen" style="font-family:var(--font-mono,monospace);font-size:12px"></textarea></div>
             </div>
             <button class="btn btn-primary" onclick="saveMarketFromForm()" style="font-size:13px">Save market</button>
             <button class="btn btn-outline" onclick="clearMarketForm()" style="font-size:13px;margin-left:8px">Clear</button>
@@ -5087,6 +5089,8 @@ function editMarket(m) {
   document.getElementById('mf-loccode').value = m.location_code || '';
   document.getElementById('mf-langs').value = (m.languages || []).join(', ');
   document.getElementById('mf-currency').value = m.currency || '';
+  document.getElementById('mf-country').value = m.countryCode || '';
+  document.getElementById('mf-venues').value = (m.venues || []).map(v => `${v.name} | ${v.city} | ${v.type || 'dine_in'}`).join('\n');
   document.getElementById('mf-terms').value = (m.keywordTerms || []).join(', ');
   document.getElementById('mf-status').textContent = `Editing ${m.label}`;
   document.getElementById('markets-admin-card').scrollIntoView({ behavior: 'smooth' });
@@ -5110,6 +5114,14 @@ async function saveMarketFromForm() {
     location_code: parseInt(document.getElementById('mf-loccode').value, 10) || null,
     languages: document.getElementById('mf-langs').value.split(',').map(s => s.trim()).filter(Boolean),
     currency: document.getElementById('mf-currency').value.trim(),
+    countryCode: (document.getElementById('mf-country').value.trim().toUpperCase() || null),
+    // Structured venue records — one per line "Name | City | type". Drives city hubs
+    // (citiesForMarket) + schema. type: dine_in (default) | dark_kitchen (no dine-in).
+    venues: document.getElementById('mf-venues').value.split('\n').map(line => {
+      const [name, city, type] = line.split('|').map(s => (s || '').trim());
+      if (!name || !city) return null;
+      return { name, city, type: (type === 'dark_kitchen' ? 'dark_kitchen' : 'dine_in') };
+    }).filter(Boolean),
     keywordTerms: document.getElementById('mf-terms').value.split(',').map(s => s.trim()).filter(Boolean),
     seo: true, active: true,
   };
