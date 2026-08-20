@@ -94,6 +94,7 @@ exports.handler = async (event) => {
       case 'list_scaffolds':    return await handleListScaffolds(creds, body.payload || {});
       case 'get_post':         return await handleGetPost(creds, body);
       case 'get_revisions':    return await handleGetRevisions(creds, body.payload || {});
+      case 'delete_post':      return await handleDeletePost(creds, body.payload || {});
       default:               return fail(400, `unknown action: ${action}`);
     }
   } catch (e) {
@@ -522,6 +523,19 @@ async function handleGetPost(creds, body) {
   if (!res.ok) res = await wpFetch(creds, `/wp/v2/pages/${body.postId}?context=edit`);
   if (!res.ok) return fail(res.status, `WP get failed: ${describeError(res)}`);
   return win({ post: res.data });
+}
+
+// Delete a post/page by ID. Defaults to TRASH (recoverable); force:true = permanent.
+// Requires an explicit postId — never a URL lookup — so a mistyped/ambiguous target
+// can't delete the wrong thing.
+async function handleDeletePost(creds, payload) {
+  const { postId } = payload;
+  if (!postId) return fail(400, 'postId required');
+  const type  = payload.postType === 'page' || payload.postType === 'pages' ? 'pages' : 'posts';
+  const force = payload.force === true;
+  const res = await wpFetch(creds, `/wp/v2/${type}/${postId}?force=${force}`, { method: 'DELETE' });
+  if (!res.ok) return fail(res.status, `WP delete failed: ${describeError(res)}`);
+  return win({ ok: true, id: postId, deleted: force ? 'permanent' : 'trashed', previousStatus: res.data?.status || res.data?.previous?.status });
 }
 
 // Read a post/page's revision history (authed, server-side). Read-only recovery aid.

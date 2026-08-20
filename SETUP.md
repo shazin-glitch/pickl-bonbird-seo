@@ -4681,3 +4681,7 @@ Two real bugs, both surfaced by asking the website-side chat instead of testing 
 - **FAQ contract confirmed** (`bonbird_split_faq`): `<h2>FAQs</h2>` (or "FAQ"/"Frequently Asked Questions", case-insensitive) then `<h3>Q</h3><p>A</p>` pairs; template builds accordion + FAQPage schema verbatim. Matches `generate-draft.js generateTemplatePage`. (TODO: relax `validateFaqBlock` to accept the heading variants.)
 
 **Still owed (Bonbird verification):** 1.1 end-to-end (draft journal post → confirm `markets` term lands → delete) and the 1.2 "meta still allowed" half — both against a **throwaway draft**, with explicit approval, never a live page.
+
+### v7.9.6 — wordpress.js `delete_post` action (throwaway-draft cleanup)
+
+Adds a gated `delete_post` action so a verification draft can be cleaned up (no orphaned test artifacts — rule 13). Requires an explicit `postId` (never a URL lookup, so it can't delete the wrong target); defaults to TRASH (recoverable), `force:true` = permanent. Used to run the 1.1 end-to-end check: create a DRAFT journal post → confirm the `markets` term attaches + `/{market}/journal/` permalink → delete.
