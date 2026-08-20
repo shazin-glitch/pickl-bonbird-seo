@@ -4584,3 +4584,17 @@ Audit now hits 12 pages, **every one verified `200` live**: `/ae/`, `/ae/menu/`,
 **Second issue observed (not yet changed):** the wrapper's 5-minute "already running" guard means that once a run leaves a stale `running` record (as every 403'd run did), the button returns "Audit already in progress" for 5 min. Harmless once invocation works (runs now reach a terminal status), so left as-is.
 
 **Process note:** this is what the earlier v7.8.7/v7.8.9 guesses *should* have been — a live request against production, not a theory. Reverting to v7.8.6 first (v7.9.0) was correct; this is the real fix on top of it.
+
+### v7.9.2 — Queue cleared + Pickl SEO content generation HARD-PAUSED
+
+**Queue cleanup (done live):** deleted all 77 pending approval items (59 Pickl + 18 Bonbird) via `action:'delete'` (no Claude spend). Pushed/published history preserved. Queue now empty. These were stale pre-rebuild drafts (old `/menu` `/locations` links etc.) plus the 15 I accidentally generated — all cleared.
+
+**Pickl content generation paused (config-driven):** Shazin — do NOT generate/publish any SEO content for Pickl until its website is fixed.
+- `brands-config.js`: `contentPaused: true` on the Pickl seed record + `isContentPaused(brandOrCfg)` helper (exported). `_normalize` merges it through, so it always applies. Re-enable = delete the one line (deliberate).
+- Guards added at every Claude-spending content generator:
+  - `generate-draft.js` (on-demand ⚡Generate): returns `{paused:true}` before any Claude call.
+  - `international-seo-background.js`: skips every market whose brand is paused (this is the job my probe accidentally fired).
+  - `scheduler-background.js`: skips the content-jobs loop AND the AI performance narrative for a paused brand; data/monitoring jobs (rank history, tech audit) still run.
+- NOT affected (intentionally): reporting, analytics, rank tracking, technical audit, GSC/keyword DATA — Pickl monitoring continues; only content generation is gated.
+
+**Also noted (not yet fixed) — generated internal links bug:** generated page/blog content emits guessed relative links (`/menu`, `/locations`, `/order`) that (a) render against yolkseo.netlify.app in the queue *preview* only (cosmetic — a relative href resolves against the Nest origin; on publish to WordPress it resolves to the brand domain), and (b) more importantly use PRE-REBUILD paths — Bonbird should be `/ae/menu/` `/ae/locations/`, and `/order` may not exist. Root cause: `generate-draft.js` never passes Claude the site's real internal URL list, so it invents paths. Fix (deferred): feed the generator the brand's actual internal URLs (sitemap/markets config) + instruct link-only-to-those; and set the preview modal's base to the brand domain.

@@ -104,6 +104,11 @@ const BRAND_SEED = {
     name:          'Pickl',
     vertical:      'restaurant',
     active:        true,
+    // 🔴 SEO CONTENT GENERATION PAUSED (2026-08-20). The Pickl website is being
+    // rebuilt/fixed; do NOT generate or publish any SEO content for Pickl until it
+    // is ready. Reporting/analytics/monitoring still work — this only gates the
+    // Claude-spending content generators. To re-enable: delete this line (deliberate).
+    contentPaused: true,
     domain:        'https://eatpickl.com',
     ownDomain:     'eatpickl.com',
     gscProperty:   'https://eatpickl.com/',        // canonical GSC siteUrl (API + cache key)
@@ -275,6 +280,14 @@ async function _load() {
 
 function _bustCache() { _cache = null; _cacheAt = 0; }
 
+// True when SEO content generation is paused for a brand (e.g. site under repair).
+// Accepts a brand slug or an already-loaded brand record. Content generators MUST
+// check this before spending Claude / queueing drafts; data/monitoring jobs ignore it.
+async function isContentPaused(brandOrCfg) {
+  const cfg = (brandOrCfg && typeof brandOrCfg === 'object') ? brandOrCfg : await getBrand(brandOrCfg);
+  return !!(cfg && cfg.contentPaused);
+}
+
 // ── Public accessors ──────────────────────────────────────────────────────────
 
 // All brand records (array). opts.activeOnly (default true) hides deactivated brands.
@@ -364,5 +377,6 @@ module.exports = {
   BRAND_SEED, VERTICALS, getVertical,
   getBrands, getBrand, getBrandSlugs, setBrand, deleteBrand,
   gscPropertyFor, ownDomainFor, wpCredentialsFor, gbpIdsFor, relevanceConfigFor,
+  isContentPaused,
   _bustCache,
 };

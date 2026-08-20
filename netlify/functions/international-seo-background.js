@@ -14,7 +14,7 @@
 const { getStore } = require('@netlify/blobs');
 const { INTERNATIONAL_MARKETS, getMarketsForBrand, buildMarketPrompt, getWpCredentials, buildPostUrl, getMarketPageTokens, isExcludedPageSlug, getMarketsMapAsync, getMarketAsync, getMarketsForBrandAsync } = require('./_lib/international-config');
 const { getBrandContext, getBrandExamples, buildBrandPrompt, runBrandVoiceCheck, fixBrandVoice, hardStripBannedTokens } = require('./_lib/brand');
-const { gscPropertyFor, ownDomainFor } = require('./_lib/brands-config');
+const { gscPropertyFor, ownDomainFor, isContentPaused } = require('./_lib/brands-config');
 const CP = require('./_lib/content-pipeline'); // WS6: single content-intelligence brain
 const { fetchGscDirect, fetchGscWithPages, listApprovals, createApproval, updateApproval, extractJson } = require('./_lib/store');
 const { internalHeaders, authorizeJob } = require('./_lib/auth');
@@ -1608,8 +1608,19 @@ exports.handler = async (event) => {
   const summary = { total: 0, queued: 0, skipped: 0, errors: 0 };
 
   // Process each market sequentially to avoid Claude rate limits
+  const _pausedBrands = {};
   for (const [marketKey, market] of Object.entries(marketsToRun)) {
     results[marketKey] = {};
+
+    // 🔴 Hard stop: skip every market whose brand has content generation paused
+    // (e.g. Pickl while its site is being fixed) — no Claude spend, no drafts.
+    if (_pausedBrands[market.brand] === undefined) _pausedBrands[market.brand] = await isContentPaused(market.brand);
+    if (_pausedBrands[market.brand]) {
+      console.log(`[intl-seo] ${marketKey}: brand ${market.brand} is content-paused — skipped`);
+      results[marketKey] = { paused: true };
+      summary.skipped++;
+      continue;
+    }
 
     const languagesToRun = langParam === 'all'
       ? market.languages

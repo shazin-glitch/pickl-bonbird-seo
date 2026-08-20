@@ -91,6 +91,12 @@ exports.handler = async (event) => {
   try {
     const brandCtx  = await getBrandContext(brand);
     const brandCfg  = await getBrand(brand);
+    // 🔴 Hard stop: no content generation for a paused brand (e.g. Pickl while its
+    // site is being fixed). Blocks the ⚡Generate button before any Claude spend.
+    if (brandCfg?.contentPaused) {
+      return json(200, { ok: false, paused: true,
+        reason: `SEO content generation is paused for ${brandCfg.name || brand} while its site is being fixed. No draft was generated.` });
+    }
     const vertical  = getVertical(brandCfg?.vertical);
     const examples  = await getBrandExamples(brand).catch(() => '');
     const feedback  = await getBrandFeedback(brand).catch(() => []); // past human rejections — never repeat

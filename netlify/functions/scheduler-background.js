@@ -232,6 +232,16 @@ exports.handler = async (event) => {
         console.warn(`[scheduler] technical audit trigger failed for ${brand} (non-critical):`, e.message);
       }
 
+      // 🔴 Hard stop: skip content generation for a paused brand (e.g. Pickl while
+      // its site is being fixed). Data jobs above (rank tracking, tech audit) still
+      // run — this only gates the Claude-spending content generators below.
+      const _bcfg = await getBrand(brand).catch(() => null);
+      if (_bcfg?.contentPaused) {
+        console.log(`[scheduler] ${brand} content generation PAUSED — skipping content jobs`);
+        summary.brands[brand].contentPaused = true;
+        continue;
+      }
+
       // Background mode: run ALL requested jobs, no timeout concern
       // Priority: keyword opportunities first, then GSC-based jobs
       for (const jobName of jobs) {
