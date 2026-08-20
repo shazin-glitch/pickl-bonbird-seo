@@ -19,6 +19,12 @@
 
 12. **Scalability is a build requirement — everything new is config-driven, never hardcoded.** New code must scale to a new brand/market/site WITHOUT code edits. NEVER hardcode brand or market lists inline (`["pickl","bonbird"]`, static `<option>` market dropdowns, duplicated `INTL_MARKETS`-style mirrors). Derive brands×markets from the SINGLE source of truth — backend: `getMarketsForBrand()` / `INTERNATIONAL_MARKETS`; frontend: fetch that list from one endpoint and render dynamically, filtered by brand (a brand not in a market must not appear in the UI). Each market record carries its `brand`; onboarding a brand/market should touch ONE config record, not ~10 files. When building/reviewing, ask "does this scale to a new brand/market with no code change?" (The competitor-matrix `["pickl","bonbird"]` bug and the triple-hardcoded UI market lists are what this rule exists to prevent. Target end-state: config in Blobs + a Settings onboarding form + one brand×market-parameterised pipeline — see WS7 in `/NEST-ROADMAP.md`.)
 
+13. **Never act on an unverified assumption — VERIFY FIRST, especially before any write, live/production touch, or irreversible action.** State the assumption, confirm it with a **read-only** check (read the config/code/current stored state), and only then act. If you cannot verify it, STOP and ask — do not "just try it."
+    - **NEVER use a live/production resource as a test fixture.** Verification must be **read-only**, or run against a **throwaway draft you create and then delete** — never a real page/post/record. A "control" test to prove something does NOT happen must be read-only (read the guard's config), never a real mutating call.
+    - **Any write is assumed irreversible** unless you have already confirmed a clean rollback. Before writing to a WP page/post, first READ and save its current content (`get_post` / `get_revisions`), so a mistake is recoverable.
+    - **Do not infer behaviour from a name or a pattern** ("`/ae/` is probably a template no-op like the legacy pages"). Check the actual page type / config / code path before touching it.
+    - This rule exists because a `/ae/` "control" write during verification **overwrote the live Bonbird homepage body** — an unverified assumption (that `/ae/` was a non-`post_content` no-op) applied via a mutating call to production. See SETUP.md v7.9.4 + memory [[feedback-verify-before-claiming-done]].
+
 ---
 
 ## Stack
@@ -55,7 +61,7 @@
 
 ---
 
-## Current Version: v7.9.3
+## Current Version: v7.9.4
 
 See SETUP.md → session log for the complete build history.
 

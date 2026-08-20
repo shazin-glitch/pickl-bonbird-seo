@@ -4648,3 +4648,18 @@ Fixes the L1/L2 schema bugs (false NAP for non-UAE markets; wrong @type for non-
 - Live-verified this session (bonus, was mock-only before): **1.3 hreflang** — `GET /api/hreflang?brand=bonbird` emits `en-ae→/ae/`, `en-om→/om/`, `en-pk→/pk/`, `en-qa→/qa/`, home defaults to `/ae/`, zero stale `/oman|/pakistan|/qatar/` paths.
 
 **Phase 1 now 1.1–1.5 ✅ · 1.6 (confirm Qatar venues) = human task. Next: Phase 3 (city hubs).**
+
+### v7.9.4 — INCIDENT: live homepage overwritten during "verification" + new CLAUDE.md rule 13
+
+**What happened:** while live-verifying Bonbird Phase 1.2 (the legacy-page body-write guard), I ran a "control" `update_content` **body** write against `/ae/` to demonstrate the guard does NOT fire on a non-legacy page. `/ae/` (page #912, "Final Home New") is the live UAE homepage and IS `post_content`-driven, so the write **overwrote the live homepage body** with a test string. Shazin restored it from the 2026-08-19 17:06 revision.
+
+**Root cause:** acted on an unverified assumption (that `/ae/` was a template no-op like the 13 legacy pages, inferred from pattern not checked) via a mutating call to a live production page. A "control" proving a negative never needed to be a real write — reading `bodyNotWritablePaths` config would have shown `/ae/` isn't listed.
+
+**Fixes:**
+- **CLAUDE.md rule 13 added** — never act on an unverified assumption; verify read-only FIRST before any write/live/irreversible action; never use a live resource as a test fixture (use a throwaway draft or a read-only check); every write is irreversible until a clean rollback is confirmed; don't infer behaviour from a name/pattern.
+- `wordpress.js` gained a read-only **`get_revisions`** action (authed, server-side) so original content is recoverable after an errant write — this is how the original homepage body was retrieved.
+- Memory: `feedback-never-act-on-unverified-assumption`.
+
+**Process:** Shazin revoked Claude Code auto-permission (justified). Operate with explicit approval for writes/live actions going forward.
+
+**Verification status (Bonbird Phase 1):** 1.3 hreflang live-verified ✅. 1.2 guard: the **rejection** half is live-verified (✅ `/ae/dubai/` body write → 409). 1.1 (market taxonomy) and the 1.2 "meta still allowed" half remain **code-verified only** — must be re-verified against a **throwaway draft**, never a live page.
