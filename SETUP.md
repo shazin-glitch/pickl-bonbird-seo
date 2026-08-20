@@ -4745,3 +4745,15 @@ New `citiesForMarket(marketKey)` (exported) groups `venues` by city → the city
 2. The Settings SEO-Markets form captured none of the city-hub inputs. Added **`countryCode`** (ISO) + a **`venues`** editor (textarea, one per line `Name | City | type`; type = `dine_in`|`dark_kitchen`) to the form, `saveMarketFromForm` payload, and the edit-populate path. `config.js save_market` already passes the whole record through (no whitelist); `markets-config._normalize` now normalises `venues` shape/type + defaults to `[]`.
 
 **Net:** launch a new market → add it + its `countryCode` + cities/venues in Settings → city hubs (`citiesForMarketAsync`) and schema (`countryCode`) work with ZERO code edits. This is the scalable end-state, and it's the config source the (still-to-build, credits-gated) city-hub generator will read.
+
+### v7.9.12 — city-hub GENERATOR built (generate-draft `city_hub` pageKind)
+
+The engine that turns the scalable venue/city config into a publishable city hub. New `pageKind: 'city_hub'` in `generate-draft.js` → `generateCityHub(ctx)`:
+- Resolves the city + its REAL venues from **`citiesForMarketAsync(market)`** (Blobs-merged config — rule 12; a config-onboarded market works with no code). Errors if the city isn't configured (never invents one).
+- Prompt = intro + 2–3 city-specific `<h2>` prose sections + the `<h2>FAQs</h2>` contract; references venues by NAME only, tells the model a `dark_kitchen` venue is pickup/delivery-only (no dine-in), forbids images/NAP/addresses (ACF/human), anti-doorway ("if it'd read identically for another city, rewrite").
+- Validates the FAQ block, runs the voice check, queues a **`page_creation`** approval whose payload carries `wpAction:create_page, template:'template-location.php', pageType:'city_hub', wpParent:<marketSlug>, slug:<citySlug>`, market taxonomy, and a `humanTodo` to create+fill the child venue pages.
+- On publish → `pushItem` (page_creation → create_page) → the v7.9.8/9 guarded create sets template + parent + `meta.page_type=city_hub`. All downstream pieces already verified.
+
+Verified with a stubbed-Claude mock-invoke of the handler (bonbird_oman / muscat): payload = create_page · template-location.php · page_type=city_hub · parent `om` · slug `muscat` · 4 FAQ pairs. Only the live Claude prose is unverified (credits-gated).
+
+**Remaining for a fully clickable feature:** a frontend trigger (list `citiesForMarket` per brand/market + a "Generate hub" button → `generate-draft {pageKind:'city_hub', market, city}`) — mechanical, mirrors the scaffold panel; next. Then the human creates/fills child `venue` pages' ACF NAP.

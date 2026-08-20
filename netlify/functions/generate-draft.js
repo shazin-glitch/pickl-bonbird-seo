@@ -25,7 +25,7 @@ const { callClaude, extractJson, createApproval, fetchGscWithPages } = require('
 const { getBrand, getVertical, gscPropertyFor } = require('./_lib/brands-config');
 const { gatherIntelligence, routeAction } = require('./_lib/content-pipeline');
 const { metaLengthRule, metaLenIssues } = require('./_lib/seo-meta');
-const { INTERNATIONAL_MARKETS } = require('./_lib/international-config');
+const { INTERNATIONAL_MARKETS, citiesForMarketAsync } = require('./_lib/international-config');
 const { authorize, denied, internalHeaders } = require('./_lib/auth');
 
 const CORS = {
@@ -42,7 +42,7 @@ const VALID_ACTIONS = ['meta_update', 'page_creation', 'blog_draft'];
 // (hero images, venue NAP/hours/map, product cards) are HUMAN-owned and must never
 // be attempted; post_content carries prose + an FAQ block that the theme turns into
 // a styled accordion AND FAQPage JSON-LD.
-const VALID_PAGE_KINDS = ['journal', 'template_location', 'template_product'];
+const VALID_PAGE_KINDS = ['journal', 'template_location', 'template_product', 'city_hub'];
 const isTemplateKind = k => k === 'template_location' || k === 'template_product';
 
 // The FAQ contract the theme parses. Validated before queueing so a malformed block
@@ -77,7 +77,7 @@ exports.handler = async (event) => {
 
   let body = {};
   try { body = JSON.parse(event.body || '{}'); } catch { return json(400, { error: 'Invalid JSON' }); }
-  const { brand, keyword, url, market, competitorPage, postId } = body;
+  const { brand, keyword, url, market, competitorPage, postId, city } = body;
   const pageKind = VALID_PAGE_KINDS.includes(body.pageKind) ? body.pageKind : null;
   const actionType = VALID_ACTIONS.includes(body.actionType) ? body.actionType : 'meta_update';
   const confidence = (body.confidence || '').toLowerCase();
@@ -137,7 +137,7 @@ exports.handler = async (event) => {
         reason: `A dedicated page already ranks for "${keyword}" (${intel.cannibalPage}). Creating another would split authority — optimise that page's meta instead.` });
     }
 
-    const ctx = { brand, keyword, url, market, competitorPage, brandCtx, brandCfg, vertical, examples, feedback, systemPrompt, menuItems, menuDirective, isArabic, mkt, brandName, auth, intel, pageKind, postId };
+    const ctx = { brand, keyword, url, market, competitorPage, brandCtx, brandCfg, vertical, examples, feedback, systemPrompt, menuItems, menuDirective, isArabic, mkt, brandName, auth, intel, pageKind, postId, city };
 
     if (effectiveAction === 'meta_update')   return await generateMeta(ctx);
     if (effectiveAction === 'page_creation') return await generatePage(ctx);
@@ -267,6 +267,7 @@ Return ONLY JSON:
 async function generatePage(ctx) {
   const { brand, keyword, url, brandCtx, feedback, systemPrompt, menuItems, menuDirective, isArabic, mkt, brandName, vertical, intel, pageKind, postId } = ctx;
   const intelDirective = intel?.promptDirective || '';
+  if (pageKind === 'city_hub') return await generateCityHub(ctx);
   if (isTemplateKind(pageKind)) return await generateTemplatePage(ctx);
 
   const userPrompt = `You are creating a NEW ${vertical.promptNoun} landing/location page for ${brandName} to rank for a keyword it currently has no dedicated page for. Write the full page.
@@ -382,6 +383,88 @@ Return ONLY JSON:
       serpFeatureTag: intel?.serpTag || null, competitors: intel?.competitors || null,
       generatedType: pageKind, label: isLocation ? 'Location page body' : 'Product page body',
       humanTodo: 'Add hero/product images + NAP via ACF, then publish.',
+      source: 'worklist-generate',
+    },
+  });
+  return json(200, { ok: true, item, faqPairs: (contentHtml.match(/<h3[^>]*>/gi) || []).length });
+}
+
+// ── city_hub ────────────────────────────────────────────────────────────────
+// Creates a NEW city-hub PAGE (template-location.php, page_type=city_hub) under the
+// market home. The theme loops the hub's CHILD venue pages as cards; we write ONLY the
+// prose + FAQ body. City + its REAL venues come from the config (citiesForMarketAsync —
+// rule 12, Blobs-merged so onboarded markets work), never invented. A dark_kitchen
+// venue is pickup/delivery only (no dine-in) and the prompt is told so.
+async function generateCityHub(ctx) {
+  const { brand, keyword, market, brandCtx, feedback, systemPrompt, menuItems, menuDirective,
+          isArabic, brandName, vertical, intel, city } = ctx;
+  const intelDirective = intel?.promptDirective || '';
+
+  const cities = await citiesForMarketAsync(market).catch(() => []);
+  const hub = cities.find(c => c.slug === String(city || '').toLowerCase()) || null;
+  if (!hub) return json(400, { error: `No city "${city}" with venues configured for market "${market}". Add it in Settings → SEO Markets (venues) — never invent a city/venue.` });
+  const cityName = hub.city;
+  const venueLines = hub.venues.map(v => `- ${v.name}${v.type === 'dark_kitchen' ? ' (PICKUP/DELIVERY ONLY — no dine-in)' : ' (dine-in + pickup + delivery)'}`).join('\n');
+
+  const userPrompt = `You are writing the CONTENT BODY for a NEW ${brandName} city hub page for ${cityName}. Each venue's images/address/hours/phone/map are managed by a human (ACF) and the theme renders them as venue cards — you write ONLY the prose and FAQs.
+
+TARGET KEYWORD: "${keyword}"
+CITY: ${cityName}
+WHAT ${brandName.toUpperCase()} OFFERS: ${menuItems || vertical.menuSummary}
+REAL ${cityName.toUpperCase()} VENUES (reference by NAME only — never invent addresses; respect the dine-in/pickup note):
+${venueLines}
+
+REQUIRED STRUCTURE — follow exactly, the theme parses it:
+1. An opening paragraph answering the intent behind "${keyword}" directly (no preamble, no "welcome to").
+2. Two or three <h2> sections of genuinely useful, ${cityName}-specific prose — what ${brandName} offers in ${cityName}, the areas it serves, why a local would choose it.
+3. Then EXACTLY this FAQ block, which the page turns into an accordion and FAQ schema:
+   <h2>FAQs</h2>
+   <h3>Question?</h3><p>Answer.</p>
+   …at least 4 question/answer pairs, each a real question someone in ${cityName} would ask.
+
+HARD RULES:
+- NEVER write image tags, opening hours, phone numbers or street addresses — human/ACF-owned. Reference venues by NAME only.
+- A venue marked PICKUP/DELIVERY ONLY has NO dine-in — never imply dining in there.
+- Only reference REAL offerings: ${menuItems || vertical.menuSummary}, and the real venues above. Invent nothing (no fake venues, awards, or menu items).${menuDirective || ''}
+- Genuinely specific to ${cityName} — no interchangeable city-name filler. If a sentence would read identically for another city, rewrite it.
+- ${metaLengthRule}${isArabic ? '\n- Write EVERYTHING in ARABIC.' : ''}${intelDirective}${feedback.length ? `\n\nHUMAN FEEDBACK — never repeat these past rejections:\n${feedback.slice(0, 10).map(n => `- ${n}`).join('\n')}` : ''}
+
+Return ONLY JSON:
+{"skip": false, "skipReason": "", "title": "SEO title", "metaDescription": "...", "contentHtml": "<p>intro…</p><h2>…</h2><p>…</p><h2>FAQs</h2><h3>Q?</h3><p>A.</p>…", "rationale": "one sentence — why this hub wins the keyword"}`;
+
+  const { text } = await callClaude(userPrompt, { max_tokens: 3200, system: systemPrompt });
+  const parsed = extractJson(text) || {};
+  if (parsed.skip) return json(200, { ok: true, skipped: true, reason: parsed.skipReason || 'not a good candidate' });
+  const title = (parsed.title || '').trim();
+  let contentHtml = (parsed.contentHtml || '').trim();
+  if (!title || !contentHtml) return json(502, { error: 'generation returned no title/content' });
+  contentHtml = hardStripBannedTokens(contentHtml);
+
+  const faq = validateFaqBlock(contentHtml);
+  if (!faq.ok) return json(422, { error: `Generated body does not meet the template contract: ${faq.issues.join('; ')}`, issues: faq.issues, retryable: true });
+
+  let voiceScore = null, voiceIssues = [];
+  try { const v = await runBrandVoiceCheck(contentHtml.replace(/<[^>]+>/g, ' '), brandCtx, callClaude); voiceScore = v?.score ?? null; voiceIssues = v?.issues || []; } catch {}
+
+  const t = tags(ctx);
+  const item = await createApproval({
+    type: 'page_creation', brand,
+    title: `City hub: ${cityName}`,
+    reason: parsed.rationale || `Create the ${cityName} city hub targeting "${keyword}"`,
+    ...t,
+    payload: {
+      title, slug: hub.slug, description: parsed.metaDescription || '',
+      content: contentHtml, targetKeyword: keyword,
+      wpAction: 'create_page',
+      template: 'template-location.php',   // guard-allowed writable template
+      pageType: 'city_hub',                // set via meta on create (site team, v7.9.9)
+      wpParent: hub.marketSlug,            // market home (e.g. 'om' → /om/) — page market = ancestry
+      ...marketTaxonomyFor(ctx),
+      voiceScore, voiceIssues,
+      faqPairs: (contentHtml.match(/<h3[^>]*>/gi) || []).length,
+      serpFeatureTag: intel?.serpTag || null, competitors: intel?.competitors || null,
+      generatedType: 'city_hub', label: `City hub — ${cityName}`,
+      humanTodo: `Create + fill each ${cityName} venue as a child 'venue' page (ACF NAP) so the hub renders cards: ${hub.venues.map(v => v.name).join(', ')}.`,
       source: 'worklist-generate',
     },
   });

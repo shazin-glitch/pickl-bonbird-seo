@@ -138,3 +138,8 @@ The plan's Phase 1 fixed *publishing* and *attribution* paths. It did **not** co
 **Lesson for the remaining phases:** a site restructure invalidates *four* classes of code, not one — publish targets, attribution tokens, **audit page lists**, and **frontend seeds**. Grep all four before declaring a market migration done.
 
 **Rule-12 debt still open** (hardcoded per-brand literals, not stale but won't scale): `competitor-matrix-background.js:183`, `scheduler.js:17`, `competitor-audit.js:21`, `international-config.js:420` domain ternary.
+
+## Addendum — v7.9.11–12: city-hub layer built (config-driven, scalable)
+- Scalability RULE #2 added (CLAUDE.md banner). Venue/city layer made config-driven: `venues` [{name,city,type}] + `countryCode` now in the Settings SEO-Markets form; `citiesForMarketAsync()` reads Blobs-merged config (onboarded markets work, no code). Verified with a Blobs-only bonbird_kuwait.
+- City-hub GENERATOR built: `generate-draft` `pageKind:'city_hub'` → `generateCityHub` → create_page (template-location.php, page_type=city_hub, parent=market home, prose+FAQ). Mock-verified. Bonbird city hubs (from config): /om/muscat/, /om/seeb/, /qa/doha/, /pk/lahore/ (Johar Town=dark_kitchen).
+- REMAINING: frontend trigger (next), Claude credits to run, human ACF pass on child venue pages. UAE legacy `/ae/dubai|sharjah|abu-dhabi/` migrate-vs-new = still Shazin's call.
