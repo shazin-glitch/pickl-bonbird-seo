@@ -215,6 +215,23 @@ exports.handler = async (event) => {
         console.warn(`[scheduler] Rank history update failed for ${brand} (non-critical):`, e.message);
       }
 
+      // Weekly technical audit (PageSpeed + health). technical-seo-background has NO
+      // schedule of its own — Netlify 403s HTTP calls to scheduled fns, which would
+      // (and did) break the on-demand button — so its weekly run is driven from here
+      // over HTTP with internalHeaders. Fire-and-forget + non-critical. Self-contained
+      // base URL: `siteUrl` is not yet in scope at this point in the function.
+      try {
+        const techBase = process.env.URL || 'https://yolkseo.netlify.app';
+        await fetch(`${techBase}/.netlify/functions/technical-seo-background`, {
+          method: 'POST',
+          headers: internalHeaders({ 'Content-Type': 'application/json' }),
+          body: JSON.stringify({ brand }),
+        });
+        console.log(`[scheduler] technical audit triggered for ${brand}`);
+      } catch (e) {
+        console.warn(`[scheduler] technical audit trigger failed for ${brand} (non-critical):`, e.message);
+      }
+
       // Background mode: run ALL requested jobs, no timeout concern
       // Priority: keyword opportunities first, then GSC-based jobs
       for (const jobName of jobs) {

@@ -4567,3 +4567,20 @@ Audit now hits 12 pages, **every one verified `200` live**: `/ae/`, `/ae/menu/`,
 **Net state now = what worked before + the correct URL fix.** The button should invoke the background and audit the live `/ae/…` + `/om//pk//qa/` URLs.
 
 **Lesson (hard):** when a feature "returns wrong results", fix the results path only — do NOT also re-architect the invocation path on theory. Every trigger change I made was unverifiable locally and reverted a pattern that was already working in production. Verify a hypothesis against git history + the user's lived experience BEFORE changing working infrastructure. `npm run check` can't catch a "correct code, wrong theory" regression — only reverting to the known-good commit could.
+
+### v7.9.1 — THE real root cause (found by live-debugging in Chrome): scheduled fns 403 on HTTP
+
+**Debugged live in Shazin's Chrome against production.** Findings, each proven with a real request:
+- The stored record was stuck `status:'running', results:0` across triggers. v7.8.6's crash-hardening would have written `status:'error'` if the background had *run and thrown* — it wrote nothing, so the background was **never executing**.
+- A direct `POST /.netlify/functions/technical-seo-background` returned **403 with an empty body**. The function's own auth returns **401 with JSON** — so the 403 is Netlify's platform layer, before the function.
+- Proof by comparison (live): `technical-seo-background` (scheduled) → **403**; `backlinks-background` (scheduled) → **403**; `international-seo-background` (schedule commented off) → **202**; `onpage-audit-background` (no schedule) → **202**.
+
+**Root cause:** **Netlify returns 403 for any HTTP invocation of a function that has a `schedule`.** `technical-seo-background`'s schedule was added 2026-06-01 (`39cede6`); ever since, the wrapper's HTTP fetch to it was 403'd and swallowed → the audit never ran and the record froze on `running`. This predates and is unrelated to this session — the button last worked before June. (Also means the same on-demand break affects `backlinks-background` and every other scheduled bg fn — logged for follow-up.)
+
+**Fix:**
+- `netlify.toml`: commented out `technical-seo-background`'s schedule (same manual-only pattern already used for `international-seo-background`). It's now HTTP-invocable → the Run Audit button works.
+- `scheduler-background.js`: the working Monday 4am cron now fires `technical-seo-background` per-brand over HTTP with `internalHeaders` (fire-and-forget, non-critical try/catch), so the weekly audit is preserved — and actually runs per-brand, which the old scheduled invoke never did (it arrived with no brand and early-returned).
+
+**Second issue observed (not yet changed):** the wrapper's 5-minute "already running" guard means that once a run leaves a stale `running` record (as every 403'd run did), the button returns "Audit already in progress" for 5 min. Harmless once invocation works (runs now reach a terminal status), so left as-is.
+
+**Process note:** this is what the earlier v7.8.7/v7.8.9 guesses *should* have been — a live request against production, not a theory. Reverting to v7.8.6 first (v7.9.0) was correct; this is the real fix on top of it.

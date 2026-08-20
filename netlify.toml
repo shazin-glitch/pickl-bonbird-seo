@@ -240,8 +240,15 @@
 [functions."international-seo-background"]
   # schedule = "0 4 * * 1"
 
+# technical-seo-background — schedule DISABLED 2026-08-20.
+# Netlify returns HTTP 403 for ANY call to a function that has a `schedule` — so
+# with the schedule on, the on-demand "Run Audit" button (wrapper -> HTTP fetch)
+# was 403'd and the audit never ran (broken since the schedule was added 2026-06-01).
+# The weekly run is now driven from scheduler-background (the Monday 4am cron),
+# which fires this fn per-brand over HTTP with internalHeaders. Same manual-only
+# pattern as international-seo-background above. Do NOT re-add a schedule here.
 [functions."technical-seo-background"]
-  schedule = "0 4 * * 1"
+  # schedule = "0 4 * * 1"
 
 [functions."llm-mentions-background"]
   schedule = "0 4 * * 1"
