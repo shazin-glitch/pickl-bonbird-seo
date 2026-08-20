@@ -4597,4 +4597,41 @@ Audit now hits 12 pages, **every one verified `200` live**: `/ae/`, `/ae/menu/`,
   - `scheduler-background.js`: skips the content-jobs loop AND the AI performance narrative for a paused brand; data/monitoring jobs (rank history, tech audit) still run.
 - NOT affected (intentionally): reporting, analytics, rank tracking, technical audit, GSC/keyword DATA — Pickl monitoring continues; only content generation is gated.
 
+---
+
+#### ▶ RE-ENABLING Pickl SEO content generation (do this once the Pickl website is fixed)
+
+**One edit re-enables everything.** All three guards read the single `contentPaused`
+flag via `isContentPaused()`, so removing the flag opens all of them at once.
+
+1. **Delete the flag** — in `netlify/functions/_lib/brands-config.js`, in the `BRAND_SEED.pickl`
+   record (~line 111), remove the line:
+   ```js
+   contentPaused: true,
+   ```
+   (and, optionally, the 4-line explanatory comment directly above it).
+
+2. **Check for a Settings/Blobs override (usually none).** The flag currently lives ONLY
+   in the code seed — nothing writes it to the `brandsConfig:pickl` Blobs record. But if
+   Pickl was ever re-saved via Settings → 🏷️ Brands, that Blobs record could carry its own
+   `contentPaused`. To be safe, after step 1 confirm the live config (step 4). If it still
+   shows paused, clear it via `POST /api/config {action:'save_brand', brand:{slug:'pickl', …, contentPaused:false}}`
+   or re-save Pickl in Settings.
+
+3. **Commit + deploy** — `npm run check`, then push (Netlify auto-deploys).
+
+4. **Verify live** (all read-only / zero Claude spend):
+   - `GET /api/config` → the `pickl` brand no longer has `contentPaused:true`.
+   - `POST /api/generate-draft {brand:'pickl', keyword:'…', actionType:'blog_draft'}` → now
+     actually generates (no `{paused:true}`). NOTE: this one DOES spend Claude — only run it
+     after the deploy is confirmed live, and expect a real draft.
+
+**The three guards the flag controls** (all key off `contentPaused`, no separate toggles):
+- `generate-draft.js` — the on-demand ⚡Generate button.
+- `international-seo-background.js` — the international content pipeline (per-market skip).
+- `scheduler-background.js` — the weekly content-jobs loop + AI performance narrative.
+
+To PAUSE another brand later (same mechanism): add `contentPaused: true` to that brand's
+seed record (or its `brandsConfig:<slug>` Blobs record) — no other code changes needed.
+
 **Also noted (not yet fixed) — generated internal links bug:** generated page/blog content emits guessed relative links (`/menu`, `/locations`, `/order`) that (a) render against yolkseo.netlify.app in the queue *preview* only (cosmetic — a relative href resolves against the Nest origin; on publish to WordPress it resolves to the brand domain), and (b) more importantly use PRE-REBUILD paths — Bonbird should be `/ae/menu/` `/ae/locations/`, and `/order` may not exist. Root cause: `generate-draft.js` never passes Claude the site's real internal URL list, so it invents paths. Fix (deferred): feed the generator the brand's actual internal URLs (sitemap/markets config) + instruct link-only-to-those; and set the preview modal's base to the brand domain.

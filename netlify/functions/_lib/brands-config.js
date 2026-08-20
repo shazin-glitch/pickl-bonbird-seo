@@ -107,7 +107,8 @@ const BRAND_SEED = {
     // 🔴 SEO CONTENT GENERATION PAUSED (2026-08-20). The Pickl website is being
     // rebuilt/fixed; do NOT generate or publish any SEO content for Pickl until it
     // is ready. Reporting/analytics/monitoring still work — this only gates the
-    // Claude-spending content generators. To re-enable: delete this line (deliberate).
+    // Claude-spending content generators. To re-enable: delete this line (deliberate)
+    // — full runbook in SETUP.md “RE-ENABLING Pickl SEO content generation”.
     contentPaused: true,
     domain:        'https://eatpickl.com',
     ownDomain:     'eatpickl.com',
