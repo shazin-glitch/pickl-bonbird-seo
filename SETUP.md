@@ -4555,3 +4555,15 @@ Audit now hits 12 pages, **every one verified `200` live**: `/ae/`, `/ae/menu/`,
 - (v7.8.8 instrumentation retained: `INVOKED`/`START`/`ABORT` logs, `?brand=` accepted from the query.)
 
 **Confidence + honest caveat:** the query-string change matches code that is known to work for the identical scheduled-function setup, so I'm confident in the mechanism. The one thing only a live run confirms is that an HTTP GET to this function surfaces `queryStringParameters.brand` (the dashboard "Run" simulates a *cron* event, which is why that path shows `via=scheduled`; a real HTTP GET from the wrapper should be `via=internal` with the brand present). The v7.8.8 logs will show it plainly.
+
+### v7.9.0 — REVERT the tech-audit trigger churn (v7.8.7/v7.8.8/v7.8.9 broke a working button)
+
+**What happened:** Shazin confirmed the audit **button worked before this session** — it invoked the background function fine; the only real defect was stale pre-rebuild URLs (correctly fixed in v7.8.4). I then "fixed" the trigger three more times on wrong theories:
+- v7.8.7 "un-awaited fetch is frozen" — FALSE here: the original fire-and-forget POST worked.
+- v7.8.9 "POST body stripped by a scheduled fn / scheduled fns 403 on HTTP" — FALSE: the `schedule` predates this session (added in `39cede6`) and the button worked with it present. The 403 I saw was my own **browser-direct GET** to the background function (no internal header) — a bad test, never the button's path.
+
+**Fix:** reverted `technical-seo.js` and `technical-seo-background.js` to their v7.8.6 state (`34d607b`). That keeps the genuine fixes — v7.8.4 config-driven `priorityPaths` + the `getCorePages(brand,domain,brandCfg)` scope fix, and v7.8.6 crash-hardening — and restores the **original working trigger** (fire-and-forget POST with `{brand}` body + `internalHeaders`). Dropped: the await change, the POST→GET query switch, the `runAuditForBrand`/multi-brand-cron refactor, and the INVOKED logging (all tangled with the churn).
+
+**Net state now = what worked before + the correct URL fix.** The button should invoke the background and audit the live `/ae/…` + `/om//pk//qa/` URLs.
+
+**Lesson (hard):** when a feature "returns wrong results", fix the results path only — do NOT also re-architect the invocation path on theory. Every trigger change I made was unverifiable locally and reverted a pattern that was already working in production. Verify a hypothesis against git history + the user's lived experience BEFORE changing working infrastructure. `npm run check` can't catch a "correct code, wrong theory" regression — only reverting to the known-good commit could.

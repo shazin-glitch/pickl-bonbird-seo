@@ -14,47 +14,18 @@
 
 const { getSetting, setSetting, newId, logAudit } = require('./_lib/store');
 const { authorizeJob } = require('./_lib/auth');
-const { getBrand, getBrandSlugs, wpCredentialsFor } = require('./_lib/brands-config');
+const { getBrand, wpCredentialsFor } = require('./_lib/brands-config');
 const { INTERNATIONAL_MARKETS } = require('./_lib/international-config');
 
 exports.handler = async (event) => {
-  // Log invocation IMMEDIATELY, before any guard — so "no logs at all" can never
-  // again be ambiguous between "never invoked" and "invoked then returned early".
   const _job = await authorizeJob(event);
-  // brand from POST body (wrapper) OR ?brand= query (manual browser/dashboard run)
-  let brand = (event.queryStringParameters && event.queryStringParameters.brand) || null;
-  if (!brand) { try { brand = JSON.parse(event.body || '{}').brand; } catch { brand = null; } }
-  console.log(`[tech-seo] INVOKED method=${event.httpMethod} auth=${_job.ok} via=${_job.via || '-'} brand=${brand || '(none)'}`);
+  if (!_job.ok) return { statusCode: 401, headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ error: 'Not authenticated' }) };
+  let brand;
+  try { brand = JSON.parse(event.body || '{}').brand; } catch { brand = null; }
+  const brandCfg = brand ? await getBrand(brand) : null;
+  if (!brandCfg) return;
 
-  if (!_job.ok) {
-    console.warn('[tech-seo] ABORT: not authenticated');
-    return { statusCode: 401, headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ error: 'Not authenticated' }) };
-  }
-  // No brand = the scheduled Monday cron (or a dashboard invoke): audit EVERY brand.
-  // Previously this hit `if (!brandCfg) return` and the weekly audit silently did
-  // nothing. On-demand runs pass ?brand= and audit just that one.
-  if (!brand) {
-    const slugs = await getBrandSlugs().catch(() => []);
-    console.log(`[tech-seo] no brand given (${_job.via}) — auditing all: ${slugs.join(', ') || '(none configured)'}`);
-    for (const slug of slugs) {
-      const cfg = await getBrand(slug).catch(() => null);
-      if (cfg) { try { await runAuditForBrand(slug, cfg); } catch (e) { console.error(`[tech-seo] FATAL ${slug}:`, e.message); } }
-    }
-    return;
-  }
-
-  const brandCfg = await getBrand(brand);
-  if (!brandCfg) {
-    console.warn(`[tech-seo] ABORT: unknown brand "${brand}"`);
-    return;
-  }
-  await runAuditForBrand(brand, brandCfg);
-};
-
-// Audit one brand: core PSI + intl health/PSI + site checks. Writes technicalSeo:<brand>.
-async function runAuditForBrand(brand, brandCfg) {
   const domain = brandCfg.domain;
-  console.log(`[tech-seo] START ${brand} @ ${domain}`);
 
   const audit = {
     brand,
