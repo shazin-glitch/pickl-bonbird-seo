@@ -5,7 +5,7 @@
 > Every claim below was **verified against the code** (file:line where it matters), not inferred. Status legend: ✅ done · 🔴 blocker · 🟡 should-fix · 🟢 opportunity · ⛔ ruled out (no action).
 
 > ## 📍 STATUS — updated 2026-08-19 (end of session)
-> **Phase 1: 1.1–1.5 ✅ DONE · 1.6 ⬜ human task**  |  **Phase 2: ✅ COMPLETE**  |  **Phase 3: ⬜ not started**
+> **Phase 1: 1.1–1.5 ✅ DONE (1.1 + guard live-verified v7.9.5–6) · 1.6 ⬜ human task**  |  **Phase 2: ✅ COMPLETE**  |  **Phase 3: ⬜ not started**
 > Shipped this session: **v7.7.9 → v7.8.4** — ✅ **PUSHED** (`ef9e8ad`, 19 Aug). Netlify auto-deploys; confirm it says *Published*.
 > **Scope decision (Shazin):** *Bonbird only* — Pickl's website is still being fixed, so leave Pickl alone. Pickl's one behaviour change (`ar-jo` hreflang tag now derived from config) is dormant: hreflang is generated on demand and nothing auto-publishes it.
 > **Everything below was verified with mocked harnesses — NO live writes.** Live behaviour still needs Shazin signed in. (Deploys are healthy again — Shazin trimmed the GCS key and the 4KB env-var issue is resolved.)
