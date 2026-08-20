@@ -4498,3 +4498,20 @@ Audit now hits 12 pages, **every one verified `200` live**: `/ae/`, `/ae/menu/`,
 **CLAUDE.md rule 10 rewritten** from "syntax check" to "run `npm run check`", with these three failures recorded as the reason.
 
 **Honest scope note:** `no-undef` catches unbound identifiers. It does **not** catch wrong-but-defined values (e.g. a stale hardcoded URL, or `esc()` where `escJs()` was meant). Those still need reading and live verification.
+
+### v7.8.6 — Tech audit "returns nothing" was a SILENT mid-run crash (now self-diagnosing)
+
+**Trigger:** after v7.8.4/v7.8.5 deployed (confirmed live — `?v=7.7.7` marker matches, background fn gated 403), the Bonbird technical audit still showed nothing.
+
+**Ruled out by testing, not assumption:** deploy is current (live markers match local); `technical-seo-background.js` module loads with no require-time crash; `getBrand('bonbird')` always resolves (falls back to the seed record, never null → the `if (!brandCfg) return` guard can't fire); `authorizeJob` accepts the wrapper's `internalHeaders()`; `runPageSpeed` has a 45s timeout and its throws are caught **per page**, so every audited page writes either a score or an `{error}` row. Net: **if the audit runs at all, `results` is non-empty.** So "nothing" means the background handler dies mid-run.
+
+**The mechanism:** the handler body had **no top-level try/catch**. PART 3 (`runSiteChecks`) and `buildSummary` are unwrapped — a throw there (or anywhere after the loops) kills the function *after* the initial `status:'running'` write but *before* `status:'complete'`. The record stays frozen on `running`. The frontend shows that as a spinner forever, and the `/api/technical-seo` POST guard then refuses to re-trigger for 5 minutes ("already in progress") — so re-clicking Run Audit does nothing. That is the "returns nothing" symptom.
+
+**Fix (safe — cannot affect the happy path):**
+- Wrapped the whole PART 1/2/3 body in try/catch. Any unhandled failure now writes `status:'error'` + `error:<message>` + `completedAt`, so the record never stays stuck on `running` and the **next run shows the actual error**.
+- PART 3 `runSiteChecks` and `buildSummary` made individually non-fatal (try/catch → null) so a site-check failure can no longer discard the PSI results that already succeeded.
+- Frontend `renderTechSeoResults`: added a `status:'error'` branch that shows the failure reason in the panel (⚠️ + message) and re-enables the Run button, instead of rendering a blank card.
+
+**Why this is the right move regardless of the underlying error:** the audit was failing *invisibly*. Now it fails *loudly* — the next run will either succeed or tell us exactly which call threw (most likely candidate: PageSpeed rate-limiting if `GOOGLE_PAGESPEED_KEY` is unset, which would surface as `PSI 429` rows). Precise fix to follow once the real error is visible.
+
+**Still owed:** one live reading to confirm the underlying throw (see session notes). `no-undef`/`npm run check` pass.

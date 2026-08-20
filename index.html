@@ -8535,6 +8535,23 @@ function renderSiteAuditPages() {
 
 function renderTechSeoResults(data) {
   if (data.status === 'no_data') { showTechSeoEmpty(); return; }
+  if (data.status === 'error' && !data.results?.length) {
+    // Surface the real failure instead of an empty panel (see technical-seo-background
+    // top-level catch). Without this, a mid-run crash looked like "returns nothing".
+    document.getElementById('techseo-loading').style.display = 'none';
+    document.getElementById('techseo-results').style.display = 'none';
+    const empty = document.getElementById('techseo-empty');
+    empty.style.display = '';
+    empty.innerHTML = `<div class="card" style="text-align:center;padding:48px 24px">
+      <div style="font-size:48px;margin-bottom:12px">⚠️</div>
+      <div style="font-weight:600;font-size:16px;margin-bottom:8px">Audit failed</div>
+      <div style="color:var(--danger);font-size:13px;max-width:520px;margin:0 auto 8px;word-break:break-word">${esc(data.error || 'Unknown error')}</div>
+      <div style="color:var(--text-muted);font-size:13px">Click <strong>Run Audit</strong> to try again.</div>
+    </div>`;
+    const btn = document.getElementById('techseo-run-btn');
+    if (btn) { btn.disabled = false; btn.textContent = '🔍 Run Audit'; }
+    return;
+  }
 
   document.getElementById('techseo-loading').style.display = data.status === 'running' ? '' : 'none';
   document.getElementById('techseo-empty').style.display   = 'none';

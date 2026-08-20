@@ -38,6 +38,7 @@ exports.handler = async (event) => {
   };
   await setSetting(`technicalSeo:${brand}`, audit);
 
+  try {
   // ── PART 1: Full PSI on core pages from WordPress ────────────────────────
   const corePages = await getCorePages(brand, domain, brandCfg);
   console.log(`[tech-seo] ${brand}: ${corePages.length} core pages to audit`);
@@ -93,15 +94,29 @@ exports.handler = async (event) => {
     }
   }
 
-  // ── PART 3: Site-level checks ────────────────────────────────────────────
-  audit.technicalChecks = await runSiteChecks(domain);
+  // ── PART 3: Site-level checks (non-fatal — never discard the PSI results) ──
+  try { audit.technicalChecks = await runSiteChecks(domain); }
+  catch (e) { console.warn('[tech-seo] site checks failed:', e.message); audit.technicalChecks = null; }
 
   // ── Final save ───────────────────────────────────────────────────────────
   audit.status      = 'complete';
   audit.completedAt = Date.now();
-  audit.summary     = buildSummary(audit.results, audit.intlResults, audit.technicalChecks);
+  try { audit.summary = buildSummary(audit.results, audit.intlResults, audit.technicalChecks); }
+  catch (e) { console.warn('[tech-seo] summary build failed:', e.message); audit.summary = null; }
   await setSetting(`technicalSeo:${brand}`, audit);
   console.log(`[tech-seo] Audit complete for ${brand}. Core: ${audit.results.length}, Intl: ${audit.intlResults.length}`);
+  } catch (err) {
+    // Any unhandled failure MUST surface in the record, never leave it stuck on
+    // 'running' (which the frontend shows as a spinner forever and the /api guard
+    // then refuses to re-trigger for 5 min). This is why the audit could look like
+    // it "returns nothing" — a silent mid-run crash. Record it so the next run
+    // shows the actual error instead of a blank panel.
+    console.error(`[tech-seo] FATAL for ${brand}:`, err && err.stack || err);
+    audit.status      = 'error';
+    audit.error       = (err && err.message) || String(err);
+    audit.completedAt = Date.now();
+    try { await setSetting(`technicalSeo:${brand}`, audit); } catch {}
+  }
 };
 
 // ── Get core pages from WordPress ─────────────────────────────────────────────
