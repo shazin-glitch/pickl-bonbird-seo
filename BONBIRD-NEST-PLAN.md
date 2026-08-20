@@ -5,7 +5,7 @@
 > Every claim below was **verified against the code** (file:line where it matters), not inferred. Status legend: ✅ done · 🔴 blocker · 🟡 should-fix · 🟢 opportunity · ⛔ ruled out (no action).
 
 > ## 📍 STATUS — updated 2026-08-19 (end of session)
-> **Phase 1: 1.1–1.4 ✅ DONE · 1.5 ⬜ NEXT · 1.6 ⬜ human task**  |  **Phase 2: ✅ COMPLETE**  |  **Phase 3: ⬜ not started**
+> **Phase 1: 1.1–1.5 ✅ DONE · 1.6 ⬜ human task**  |  **Phase 2: ✅ COMPLETE**  |  **Phase 3: ⬜ not started**
 > Shipped this session: **v7.7.9 → v7.8.4** — ✅ **PUSHED** (`ef9e8ad`, 19 Aug). Netlify auto-deploys; confirm it says *Published*.
 > **Scope decision (Shazin):** *Bonbird only* — Pickl's website is still being fixed, so leave Pickl alone. Pickl's one behaviour change (`ar-jo` hreflang tag now derived from config) is dormant: hreflang is generated on demand and nothing auto-publishes it.
 > **Everything below was verified with mocked harnesses — NO live writes.** Live behaviour still needs Shazin signed in. (Deploys are healthy again — Shazin trimmed the GCS key and the 4KB env-var issue is resolved.)
@@ -47,10 +47,11 @@ Doc §3: UAE discontinued **Rice Bowls** (46793) and **Snack-A-Wraps** (46792); 
 **Fix:** make the menu **market-aware** (or at minimum remove the UAE-discontinued items and note PK-only items). Cleanest: `menu` + optional `menuByMarket` overrides in brand config.
 **Accept:** generated UAE content never mentions Rice Bowls/Snack-A-Wraps; PK content may mention Angry Fries.
 
-### 1.5 ⬜ NEXT — Schema bugs (L1/L2). `countryCode` groundwork DONE (all 9 markets); still to do: use it in local-seo-pages + add `schemaType` per vertical
+### 1.5 ✅ DONE (v7.9.3) — Schema bugs (L1/L2): `addressCountry` now resolved from market config, `@type` from vertical
 `local-seo-pages-background.js:50` hardcodes `addressCountry:'AE'` → publishing location pages for Bonbird's Oman/Qatar/Pakistan asserts the venues are **in the UAE** (false NAP). `:46` hardcodes `'@type':'Restaurant'`.
 **Fix:** add ISO `countryCode` to the **market config**, resolve from brand/market context; add `schemaType` per vertical in `VERTICALS`. Keep schema built in code (never by Claude) so fields can't be fabricated.
 **Accept:** an Oman location page emits `addressCountry:'OM'`; a café brand emits `CafeOrCoffeeShop`.
+**DONE (v7.9.3):** `VERTICALS` gained `schemaType` (restaurant→`Restaurant`, cafe→`CafeOrCoffeeShop`, corporate→`Organization`). `local-seo-pages-background.js buildLocationSchema` now takes `@type` from the brand's vertical and resolves `addressCountry` via `resolveCountryCode(loc, markets, brandRec)` — matches the GBP location's name/address against each market's `label`+`locations` (city) tokens, falls back to the brand's `homeCountryCode`, and **OMITS `addressCountry` when unknown rather than defaulting to AE** (a wrong country is false NAP). Verified (mocked, exact plan cases): Muscat/Seeb→`OM`, City Walk/Sharjah→`AE`, café→`CafeOrCoffeeShop`, unknown→omitted. Schema still built in code, never by Claude.
 
 ### 1.6 ⬜ HUMAN TASK — Qatar venues still unconfirmed; blocks Qatar location content
 Doc §3 + `international-config.js:370` self-flag: *"Confirm Qatar Bonbird locations before publishing location content."* **Human action, not code.** Reconcile against GBP (`gbpCache:bonbird:v9` = authoritative NAP) and update the market record. Until then: no Qatar venue content.

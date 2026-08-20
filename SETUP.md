@@ -4635,3 +4635,16 @@ To PAUSE another brand later (same mechanism): add `contentPaused: true` to that
 seed record (or its `brandsConfig:<slug>` Blobs record) — no other code changes needed.
 
 **Also noted (not yet fixed) — generated internal links bug:** generated page/blog content emits guessed relative links (`/menu`, `/locations`, `/order`) that (a) render against yolkseo.netlify.app in the queue *preview* only (cosmetic — a relative href resolves against the Nest origin; on publish to WordPress it resolves to the brand domain), and (b) more importantly use PRE-REBUILD paths — Bonbird should be `/ae/menu/` `/ae/locations/`, and `/order` may not exist. Root cause: `generate-draft.js` never passes Claude the site's real internal URL list, so it invents paths. Fix (deferred): feed the generator the brand's actual internal URLs (sitemap/markets config) + instruct link-only-to-those; and set the preview modal's base to the brand domain.
+
+### v7.9.3 — Bonbird Phase 1.5: location-page schema no longer hardcodes AE / Restaurant
+
+Fixes the L1/L2 schema bugs (false NAP for non-UAE markets; wrong @type for non-restaurant verticals).
+- `_lib/brands-config.js` `VERTICALS`: added `schemaType` — restaurant→`Restaurant`, cafe→`CafeOrCoffeeShop`, corporate→`Organization`.
+- `local-seo-pages-background.js buildLocationSchema(loc, brandCtx, brandRec, geo)`:
+  - `@type` now comes from the brand's vertical (was hardcoded `Restaurant`).
+  - `addressCountry` resolved by `resolveCountryCode(loc, markets, brandRec)`: matches the GBP location's name+address against each market's `label` + `locations` (city) tokens → that market's `countryCode`; falls back to the brand's `homeCountryCode`; **returns null → addressCountry OMITTED** when genuinely unknown (never defaults to AE — a wrong country is false NAP, worse than an absent field).
+  - `servesCuisine` dropped for `Organization` (corporate); `url` set from brandCtx.
+- Verified with mocked harness on the exact plan cases: Muscat/Seeb → `OM`, Dubai City Walk/Sharjah → `AE`, café vertical → `CafeOrCoffeeShop`, corporate → `Organization`, unknown-country venue → `addressCountry` omitted. Schema still built deterministically in code, never by Claude.
+- Live-verified this session (bonus, was mock-only before): **1.3 hreflang** — `GET /api/hreflang?brand=bonbird` emits `en-ae→/ae/`, `en-om→/om/`, `en-pk→/pk/`, `en-qa→/qa/`, home defaults to `/ae/`, zero stale `/oman|/pakistan|/qatar/` paths.
+
+**Phase 1 now 1.1–1.5 ✅ · 1.6 (confirm Qatar venues) = human task. Next: Phase 3 (city hubs).**

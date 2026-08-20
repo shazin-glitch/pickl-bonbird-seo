@@ -35,6 +35,7 @@ const { getStore } = require('@netlify/blobs');
 const VERTICALS = {
   restaurant: {
     promptNoun: 'restaurant',
+    schemaType: 'Restaurant',            // schema.org @type for local/location pages
     menuSummary: 'burgers, fried chicken and fast food',
     relevantRoots: [
       'burger', 'cheeseburger', 'hamburger', 'smash', 'patty', 'beef',
@@ -60,6 +61,7 @@ const VERTICALS = {
   },
   cafe: {
     promptNoun: 'café / coffee shop',
+    schemaType: 'CafeOrCoffeeShop',
     menuSummary: 'specialty coffee, espresso drinks, pastries and brunch',
     relevantRoots: [
       'coffee', 'cafe', 'café', 'espresso', 'latte', 'cappuccino', 'flat white',
@@ -81,6 +83,7 @@ const VERTICALS = {
   },
   corporate: {
     promptNoun: 'corporate brand / restaurant group',
+    schemaType: 'Organization',
     menuSummary: 'a hospitality group and its portfolio of brands',
     // No hard category gate — corporate visibility is brand/company + intent
     // driven (careers, franchise, investors, about). Rely on brand terms + Claude.

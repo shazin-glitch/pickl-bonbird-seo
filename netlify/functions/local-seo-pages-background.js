@@ -19,7 +19,8 @@ const { getStore } = require('@netlify/blobs');
 const { authorizeJob } = require('./_lib/auth');
 const { getBrandContext, getBrandExamples, buildBrandPrompt, runBrandVoiceCheck, fixBrandVoice, hardStripBannedTokens } = require('./_lib/brand');
 const { callClaude, createApproval, listApprovals, extractJson } = require('./_lib/store');
-const { getBrand } = require('./_lib/brands-config');
+const { getBrand, getVertical } = require('./_lib/brands-config');
+const { getMarketsForBrandAsync } = require('./_lib/international-config');
 
 const GBP_CACHE_VERSION = 'v9'; // keep in sync with gbp-data.js cacheKey
 const DEFAULT_LIMIT     = 6;
@@ -38,18 +39,42 @@ function sanitizeSlug(s) {
     .replace(/[^a-z0-9\s-]/g, '').replace(/\s+/g, '-').replace(/-+/g, '-').replace(/^-|-$/g, '');
 }
 
-// Deterministic, accurate LocalBusiness/Restaurant JSON-LD from real GBP data.
-// Built in code (not by Claude) so the structured data never fabricates fields.
-function buildLocationSchema(loc, brandCtx, brandRec) {
+// Resolve a location's ISO country from the market config (never assert a wrong one).
+// Matches the GBP location's name/address against each market's label + city list;
+// falls back to the brand's home country; returns null if genuinely unknown (then we
+// OMIT addressCountry rather than fabricate — a wrong country is false NAP).
+function resolveCountryCode(loc, markets, brandRec) {
+  const hay = `${loc.name || ''} ${loc.address || ''}`.toLowerCase();
+  for (const m of Object.values(markets || {})) {
+    if (!m.countryCode) continue;
+    const toks = [m.label, ...(m.locations || [])]
+      .filter(Boolean)
+      .flatMap(x => String(x).toLowerCase().split(',').map(t => t.trim()))
+      .filter(t => t.length > 2);
+    if (toks.some(t => hay.includes(t))) return m.countryCode;
+  }
+  return brandRec?.homeCountryCode || null;
+}
+
+// Deterministic LocalBusiness JSON-LD from real GBP data. Built in code (not by
+// Claude) so structured data never fabricates fields. @type comes from the brand's
+// vertical (Restaurant / CafeOrCoffeeShop / Organization); addressCountry is resolved
+// from market config, and OMITTED when unknown rather than defaulted to AE.
+function buildLocationSchema(loc, brandCtx, brandRec, geo) {
+  const schemaType  = geo?.schemaType || 'LocalBusiness';
+  const countryCode = geo?.countryCode || null;
   const schema = {
     '@context': 'https://schema.org',
-    '@type':    'Restaurant',
+    '@type':    schemaType,
     name:       loc.name,
-    servesCuisine: brandCtx?.cuisine || brandRec?.cuisine || 'Food',
   };
-  if (loc.address)       schema.address = { '@type': 'PostalAddress', streetAddress: loc.address, addressCountry: 'AE' };
+  if (schemaType !== 'Organization') schema.servesCuisine = brandCtx?.cuisine || brandRec?.cuisine || 'Food';
+  if (loc.address) {
+    schema.address = { '@type': 'PostalAddress', streetAddress: loc.address };
+    if (countryCode) schema.address.addressCountry = countryCode;
+  }
   if (loc.googleMapsUri) schema.hasMap = loc.googleMapsUri;
-  if (brandCtx?.website) schema.servesCuisine && (schema.url = brandCtx.website);
+  if (brandCtx?.website) schema.url = brandCtx.website;
   return `<script type="application/ld+json">${JSON.stringify(schema)}</script>`;
 }
 
@@ -67,7 +92,7 @@ async function getQueuedLocationIds(brand) {
   return ids;
 }
 
-async function generateLocationPage(loc, brand, brandCtx, brandPrompt, brandExamples, feedbackNotes, brandRec) {
+async function generateLocationPage(loc, brand, brandCtx, brandPrompt, brandExamples, feedbackNotes, brandRec, geo) {
   const brandName = brandCtx?.name || brandRec?.name || brand;
   const userPrompt = `Write a complete, conversion-focused LOCATION PAGE for the ${brandName} branch below. This is a standalone page (not a blog post).
 
@@ -104,7 +129,7 @@ Return ONLY JSON:
   if (voiceCheck.score < 8) return { rejected: true, score: voiceCheck.score };
 
   // Append deterministic schema to the page body.
-  parsed.body += '\n' + buildLocationSchema(loc, brandCtx, brandRec);
+  parsed.body += '\n' + buildLocationSchema(loc, brandCtx, brandRec, geo);
   parsed.voiceScore = voiceCheck.score;
   parsed.voiceIssues = voiceCheck.issues;
   return parsed;
@@ -142,6 +167,10 @@ exports.handler = async (event) => {
   const feedbackNotes = await getBrandFeedback(brand).catch(() => []);
   const alreadyQueued = force ? new Set() : await getQueuedLocationIds(brand);
 
+  // 1.5 schema context: @type from vertical, country resolved per-location from market config.
+  const schemaType = getVertical(brandRec.vertical).schemaType || 'LocalBusiness';
+  const markets    = await getMarketsForBrandAsync(brand).catch(() => ({}));
+
   const flag = brandRec.flag || '📍';
   const targets = locations.filter(l => !alreadyQueued.has(l.id)).slice(0, limit);
 
@@ -150,7 +179,8 @@ exports.handler = async (event) => {
 
   for (const loc of targets) {
     try {
-      const page = await generateLocationPage(loc, brand, brandCtx, brandPrompt, brandExamples, feedbackNotes, brandRec);
+      const geo  = { schemaType, countryCode: resolveCountryCode(loc, markets, brandRec) };
+      const page = await generateLocationPage(loc, brand, brandCtx, brandPrompt, brandExamples, feedbackNotes, brandRec, geo);
       if (!page) { results.push({ location: loc.name, status: 'parse_error' }); continue; }
       if (page.rejected) { rejected++; results.push({ location: loc.name, status: `voice_reject_${page.score}` }); continue; }
 
