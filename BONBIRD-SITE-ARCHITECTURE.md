@@ -27,9 +27,14 @@ The app password survived the go-live DB copy (it came from the dev DB). If Nest
 ## 4. Page types — WHERE NEST CAN AND CAN'T WRITE  ⚠️ most important section
 | Page type | Rendered from | Nest can write? |
 |---|---|---|
-| **Journal / blog posts** (`/{market}/journal/…`) | `post_content` | ✅ **Fully** — body + Yoast meta. Primary content surface. Market set via the `market` taxonomy term on the post. |
-| **13 legacy landing pages** (see below) | **static generated Twig** (NOT post_content) | ⚠️ **Body NOT writable** — editing `post_content` has *no visible effect*. **Yoast meta (title/description) IS writable and does render.** |
+| **Journal / blog posts** (`/{market}/journal/…`) | `post_content` | ✅ **Fully** — body + Yoast meta. Primary content surface. Attribute via the `markets` REST field (see below). |
 | **Phase-2 data-driven pages** ("Bonbird Location" / "Bonbird Product" templates) | ACF fields + `post_content` | ✅ **Body writable** (prose + FAQ). Media/NAP are ACF = human. |
+| **13 legacy landing pages** (see below) | **static generated Twig** (NOT post_content) | ⚠️ **Body NOT writable** — editing `post_content` has *no visible effect*. Yoast meta IS writable. |
+| **Market homes** `/ae/ /om/ /qa/ /pk/` **+ every other block-built page** (philosophy, franchise, games, menu, contact…) | `post_content` = **Gutenberg/ACF blocks** | 🔴 **DO NOT write the body — a raw write CLOBBERS the live page** (this caused the `/ae/` incident). Yoast meta only. |
+
+**✅ Definitive rule — Nest may write the BODY to ONLY:** (a) **journal posts**, and (b) pages whose template is **"Bonbird Location"** or **"Bonbird Product"** (`_wp_page_template` = `template-location.php`/`template-product.php`). **Everything else = never write the body** — it's either static Twig (silent no-op) or block markup (destructive clobber). **Yoast meta (title/description) is safe to write on any page.** When unsure, check the page's `_wp_page_template`; only the two Bonbird templates are body-safe.
+
+**Journal-post market attribution (REST):** the taxonomy's `rest_base` is **`markets`** (PLURAL) — `/wp/v2/markets`; `/wp/v2/market` 404s. On a post, set the **`markets`** field to an **array of TERM IDs**: `ae=42, om=43, qa=44, pk=45` (slugs are ae/om/qa/pk but REST assigns by id). Setting `markets` is the **only** thing needed — it drives both attribution AND the `/{market}/journal/{slug}/` URL (permalink filter). Posts are flat — no parent/path to set. ⚠️ Using `market` (singular) is silently ignored.
 
 **The 13 legacy static pages** (UAE only): products `/ae/chicken/`, `/ae/wraps/`, `/ae/chicken-burger/`, `/ae/chicken-tenders/`; locations `/ae/dubai/` (+ `/city-walk/`, `/mirdif/`, `/motor-city/`), `/ae/sharjah/` (+ `/aljada/`), `/ae/abu-dhabi/` (+ `/khalifa-city/`). These render from `views/page-{slug}.twig`, so their **body copy is dev-edit-only** until they're migrated to the data-driven templates. Nest can still optimise their **Yoast title/meta description**.
 

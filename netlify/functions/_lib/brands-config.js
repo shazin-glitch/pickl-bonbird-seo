@@ -155,12 +155,21 @@ const BRAND_SEED = {
     cuisine:       'halal fried chicken',
     tone:          'warm, family-friendly, UAE-local',
     // Site rebuilt 2026-08-18 (see /BONBIRD-SITE-ARCHITECTURE.md §4): journal posts
-    // derive their market from a `market` taxonomy term. Without it a Nest-created
-    // post is market-less. homeMarketSlug = the term for the home market (UAE moved
-    // off the root to /ae/). Brands without a market taxonomy simply omit these.
+    // derive their market from the `markets` taxonomy. Without it a Nest-created post
+    // is market-less. homeMarketSlug = the term for the home market (UAE moved off the
+    // root to /ae/). Brands without a market taxonomy simply omit these.
+    // ⚠ Taxonomy REST base is `markets` (PLURAL) — `/wp/v2/markets`, and the post
+    // field is `markets`. `market` (singular) 404s / is silently ignored (verified
+    // with the site team 20 Aug). Term slugs ae/om/qa/pk resolve to IDs 42/43/44/45.
     homeCountryCode: 'AE',
-    marketTaxonomy:  'market',
+    marketTaxonomy:  'markets',
     homeMarketSlug:  'ae',
+    // Body is writable ONLY on these page templates (or on journal POSTs, which are
+    // always writable). Everything else — market homes `/ae/ /om/ /qa/ /pk/`
+    // (template=default, block markup) and all block-built pages — a raw body write
+    // CLOBBERS the live page. This template allow-list is authoritative over the
+    // path deny-list below. (The /ae/ homepage incident on 20 Aug is exactly this.)
+    writableTemplates: ['template-location.php', 'template-product.php'],
     // Menu availability differs by market (brief §3). Keys = market slug; values =
     // substrings matched case-insensitively against menu categories/items, which are
     // then withheld from generation AND added to a hard "never mention" prompt rule.

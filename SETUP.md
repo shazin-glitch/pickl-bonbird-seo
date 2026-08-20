@@ -4663,3 +4663,21 @@ Fixes the L1/L2 schema bugs (false NAP for non-UAE markets; wrong @type for non-
 **Process:** Shazin revoked Claude Code auto-permission (justified). Operate with explicit approval for writes/live actions going forward.
 
 **Verification status (Bonbird Phase 1):** 1.3 hreflang live-verified ✅. 1.2 guard: the **rejection** half is live-verified (✅ `/ae/dubai/` body write → 409). 1.1 (market taxonomy) and the 1.2 "meta still allowed" half remain **code-verified only** — must be re-verified against a **throwaway draft**, never a live page.
+
+### v7.9.5 — Bonbird fixes from the site team's answers: `markets` taxonomy + template-based write guard
+
+Two real bugs, both surfaced by asking the website-side chat instead of testing against live (per rule 13):
+
+**1. Market taxonomy was silently ignored (1.1 was broken).** The REST base is `/wp/v2/markets` (PLURAL) and the post field is `markets`; `market` (singular) 404s / is silently dropped — so every Nest-created Bonbird journal post was getting NO market attribution. Fixed: `brandsConfig.bonbird.marketTaxonomy` `'market'` → `'markets'` (drives `resolveTermIds` URL + the post field via `marketTaxonomyFor`). Term slugs ae/om/qa/pk → IDs 42/43/44/45 (resolved by slug, so no hardcoded IDs needed).
+
+**2. Body-write guard was a path deny-list; the correct rule is a template allow-list.** Authoritative rule: body is writable ONLY on a journal POST, or a PAGE whose `_wp_page_template` ∈ {`template-location.php`, `template-product.php`}. Every other page — the market homes `/ae/ /om/ /qa/ /pk/` (verified `type=page, template=""` i.e. default, block markup) and all block-built pages — renders its body from blocks/ACF, so a raw `post_content` write CLOBBERS the live page. The old deny-list only listed the 13 legacy slugs and **missed the market homes entirely — that gap is what the /ae/ homepage incident hit.**
+- `brandsConfig.bonbird.writableTemplates = ['template-location.php','template-product.php']`.
+- `wordpress.js bodyWritable(brand, url, creds, postId, postType)` rewritten: journal posts (`postType==='posts'`) always allowed; for pages it resolves the template and allows only allow-listed templates; brands without `writableTemplates` keep the legacy path deny-list (unchanged behaviour). `handleUpdateContent` passes creds/postId/postType and returns a clear 409.
+- Verified: read-only `get_post` confirmed `/ae/`(912)=default and scaffold 47005=`template-product.php`; mocked guard test passes all cases (journal→allow, /ae/ + /ae/dubai/→block, location/product templates→allow).
+
+**Also learned (for later, from the site team):**
+- **City hubs (Phase 3):** a Page on the **Bonbird Location** template with `page_type=city_hub`, parented `/{market}/{city}/`; Nest writes prose+FAQ body, template does venue cards/schema. Existing `/ae/dubai|sharjah|abu-dhabi/` are legacy twigs (body dev-edit-only). Confirm design with Shazin before coding.
+- **Safe test surface:** create a DRAFT journal post on live → verify → delete. NOT `bonbirddev` (stale DB, Nest creds point at prod). The 12 product scaffolds (47005–47016) are earmarked for real bodies — not throwaways.
+- **FAQ contract confirmed** (`bonbird_split_faq`): `<h2>FAQs</h2>` (or "FAQ"/"Frequently Asked Questions", case-insensitive) then `<h3>Q</h3><p>A</p>` pairs; template builds accordion + FAQPage schema verbatim. Matches `generate-draft.js generateTemplatePage`. (TODO: relax `validateFaqBlock` to accept the heading variants.)
+
+**Still owed (Bonbird verification):** 1.1 end-to-end (draft journal post → confirm `markets` term lands → delete) and the 1.2 "meta still allowed" half — both against a **throwaway draft**, with explicit approval, never a live page.

@@ -183,14 +183,42 @@ function _pathOf(u) {
   try { return String(u).replace(/^https?:\/\/[^/]+/, '').split('?')[0].split('#')[0].replace(/\/+$/, '').toLowerCase() || '/'; }
   catch { return ''; }
 }
-async function bodyWritable(brand, url) {
-  if (!url) return { ok: true };                       // nothing to check against
-  let list = [];
-  try { list = (await getBrand(brand))?.bodyNotWritablePaths || []; } catch { return { ok: true }; }
+// Decide whether a BODY (post_content) write is safe for this target.
+// AUTHORITATIVE rule (site team, 20 Aug): body is writable ONLY when the target is
+// a journal POST, or a PAGE whose template is in the brand's `writableTemplates`
+// allow-list (template-location.php / template-product.php). Every other page —
+// market homes (template=default) and all block-built pages — renders its body from
+// Gutenberg/ACF blocks, so a raw post_content write CLOBBERS the live page. The old
+// path deny-list missed the market homes entirely (the /ae/ homepage incident).
+// Brands without `writableTemplates` fall back to the legacy path deny-list so their
+// behaviour is unchanged.
+async function bodyWritable(brand, url, creds, postId, postType) {
+  const cfg = await getBrand(brand).catch(() => null);
+
+  // Journal posts are always body-writable.
+  if (postType === 'posts' || postType === 'post') return { ok: true };
+
+  const allow = cfg?.writableTemplates;
+  if (Array.isArray(allow) && allow.length) {
+    // Template allow-list model (e.g. Bonbird). Resolve the page's template.
+    let template = null;
+    if (postId && creds) {
+      try {
+        const r = await wpFetch(creds, `/wp/v2/pages/${postId}?context=edit&_fields=template`);
+        if (r.ok) template = r.data?.template ?? '';
+        else return { ok: true }; // not a page (likely a post) → journal, writable
+      } catch { return { ok: true }; }
+    }
+    if (template === null) return { ok: false, path: _pathOf(url), reason: 'could not resolve page template' };
+    if (allow.includes(template)) return { ok: true };
+    return { ok: false, path: _pathOf(url), template: template || 'default' };
+  }
+
+  // Fallback: legacy path deny-list (brands without the template model).
+  const list = (cfg?.bodyNotWritablePaths || []).map(_pathOf);
   if (!list.length) return { ok: true };
   const p = _pathOf(url);
-  const hit = list.map(_pathOf).find(x => x === p);
-  return hit ? { ok: false, path: p } : { ok: true };
+  return list.includes(p) ? { ok: false, path: p } : { ok: true };
 }
 
 // ── create blog POST draft ───────────────────────────────────────
@@ -277,12 +305,14 @@ async function handleUpdateContent(creds, payload, brand) {
   if (!postId) return fail(400, 'postId or url required');
   if (!payload.title && !payload.body) return fail(400, 'title or body required to update content');
 
-  // Refuse a BODY write to a static-template page — it would silently do nothing.
+  // Refuse a BODY write to a non-writable page. For pages, body is writable ONLY on an
+  // allowed template (journal posts are always fine); everything else renders its body
+  // from blocks/ACF, so a write would CLOBBER a live page (the /ae/ homepage incident).
   if (payload.body) {
     const target = payload.url || (await wpFetch(creds, `/wp/v2/pages/${postId}?_fields=link`).then(r => r.ok ? r.data?.link : null).catch(() => null));
-    const w = await bodyWritable(brand, target);
+    const w = await bodyWritable(brand, target, creds, postId, postType);
     if (!w.ok) {
-      return fail(409, `Body not writable: ${w.path} renders from a static theme template, not post_content — a write here would report success but change nothing. Update its SEO title/meta instead (those DO render), or migrate the page to a data-driven template first.`);
+      return fail(409, `Body not writable: ${w.path || target} is a page on template "${w.template || '(unknown)'}" — its body renders from blocks/ACF, not post_content, so a write here would CLOBBER the live page (or silently do nothing on a static template). Only journal posts and template-location.php / template-product.php pages accept a body write. Update its SEO title/meta instead (those DO render).`);
     }
   }
 
