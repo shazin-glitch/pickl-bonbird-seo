@@ -93,6 +93,7 @@ exports.handler = async (event) => {
       case 'list_market_pages': return await handleListMarketPages(creds, body.payload || {});
       case 'list_scaffolds':    return await handleListScaffolds(creds, body.payload || {});
       case 'get_post':         return await handleGetPost(creds, body);
+      case 'get_revisions':    return await handleGetRevisions(creds, body.payload || {});
       default:               return fail(400, `unknown action: ${action}`);
     }
   } catch (e) {
@@ -491,6 +492,21 @@ async function handleGetPost(creds, body) {
   if (!res.ok) res = await wpFetch(creds, `/wp/v2/pages/${body.postId}?context=edit`);
   if (!res.ok) return fail(res.status, `WP get failed: ${describeError(res)}`);
   return win({ post: res.data });
+}
+
+// Read a post/page's revision history (authed, server-side). Read-only recovery aid.
+async function handleGetRevisions(creds, payload) {
+  const { postId } = payload;
+  if (!postId) return fail(400, 'postId required');
+  const type = payload.postType === 'post' ? 'posts' : 'pages';
+  const res = await wpFetch(creds, `/wp/v2/${type}/${postId}/revisions?per_page=10&context=edit&_fields=id,modified,content,title`);
+  if (!res.ok) return fail(res.status, `WP revisions get failed: ${describeError(res)}`);
+  const revs = (Array.isArray(res.data) ? res.data : []).map(r => ({
+    id: r.id, modified: r.modified,
+    contentLen: (r.content?.raw ?? r.content?.rendered ?? '').length,
+    content: r.content?.raw ?? r.content?.rendered ?? '',
+  }));
+  return win({ postId, count: revs.length, revisions: revs });
 }
 
 // ── shared helpers ───────────────────────────────────────────────
