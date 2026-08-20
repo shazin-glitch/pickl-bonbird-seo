@@ -68,7 +68,7 @@
 
 ---
 
-## Current Version: v7.9.9
+## Current Version: v7.9.10
 
 See SETUP.md → session log for the complete build history.
 

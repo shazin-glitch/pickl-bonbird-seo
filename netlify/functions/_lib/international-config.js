@@ -286,6 +286,14 @@ const INTERNATIONAL_MARKETS = {
     currency:        'OMR',
     countryCode:    'OM',      // ISO-3166 — hreflang locale + schema addressCountry
     locations:       ['Souq Al Madina, Muscat', 'Al Khoudh, Seeb'],
+    // Structured venue records — the city-hub source of truth (rule 12). `locations`
+    // strings are kept as-is for existing prompt/consumer code (join/split/interp).
+    // type: 'dine_in' (dine-in + pickup + delivery) | 'dark_kitchen' (pickup/delivery
+    // only, NO dine-in — content must not imply dining in). Confirmed w/ Shazin 20 Aug.
+    venues: [
+      { name: 'Souq Al Madina', city: 'Muscat', type: 'dine_in' },
+      { name: 'Al Khoudh',      city: 'Seeb',   type: 'dine_in' },
+    ],
     seedKeywords: {
       en: [
         'fried chicken muscat', 'best fried chicken oman', 'crispy chicken muscat',
@@ -319,6 +327,11 @@ const INTERNATIONAL_MARKETS = {
     currency:        'PKR',
     countryCode:    'PK',      // ISO-3166 — hreflang locale + schema addressCountry
     locations:       ['Cue Cinemas, Gulberg Lahore', 'Dolmen Mall, DHA Lahore', 'Johar Town, Lahore'],
+    venues: [
+      { name: 'Cue Cinemas, Gulberg', city: 'Lahore', type: 'dine_in' },
+      { name: 'Dolmen Mall, DHA',      city: 'Lahore', type: 'dine_in' },
+      { name: 'Johar Town',            city: 'Lahore', type: 'dark_kitchen' }, // pickup/delivery only — no dine-in
+    ],
     seedKeywords: {
       en: [
         'fried chicken lahore', 'best fried chicken lahore', 'crispy chicken lahore',
@@ -356,6 +369,10 @@ const INTERNATIONAL_MARKETS = {
     currency:        'QAR',
     countryCode:    'QA',      // ISO-3166 — hreflang locale + schema addressCountry
     locations:       ['West Walk, Doha', 'District 1, Doha'],
+    venues: [
+      { name: 'West Walk',  city: 'Doha', type: 'dine_in' },
+      { name: 'District 1', city: 'Doha', type: 'dine_in' },
+    ],
     seedKeywords: {
       en: [
         'fried chicken doha', 'best fried chicken qatar', 'crispy chicken doha',
@@ -584,8 +601,27 @@ const MARKET_LOCATION_CODES = Object.fromEntries(
 MARKET_LOCATION_CODES['uae'] = 21191;
 MARKET_LOCATION_CODES['uae_country'] = 2784;
 
+// City-hub targets for a market: groups the structured `venues` records by city.
+// Returns [{ city, slug, marketKey, marketSlug, venues:[{name,city,type}] }]. This is
+// the single source for city-hub generation — a hub is created per city, listing its
+// venues (a `dark_kitchen` venue is pickup/delivery only → prose must not imply dine-in).
+// Empty when a market has no `venues` (don't invent cities — rule 12 / anti-doorway).
+function citiesForMarket(marketKey) {
+  const m  = INTERNATIONAL_MARKETS[marketKey];
+  const vs = Array.isArray(m && m.venues) ? m.venues : [];
+  const byCity = {};
+  for (const v of vs) {
+    if (!v || !v.city) continue;
+    const slug = String(v.city).toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '');
+    if (!byCity[slug]) byCity[slug] = { city: v.city, slug, marketKey, marketSlug: m.marketSlug, venues: [] };
+    byCity[slug].venues.push({ name: v.name, city: v.city, type: v.type || 'dine_in' });
+  }
+  return Object.values(byCity);
+}
+
 module.exports = {
   INTERNATIONAL_MARKETS,
+  citiesForMarket,
   MARKET_LOCATION_CODES,
   getMarketsForBrand,
   getAllMarketKeys,

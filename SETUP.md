@@ -4727,3 +4727,11 @@ Nest side (`wordpress.js handleCreatePage`): if `payload.pageType` ∈ {`venue`,
 ⚠️ Site-team note: if a first REST write no-ops right after their deploy, a WP Engine "Clear all caches" clears PHP-FPM opcache and it takes.
 
 **Still Shazin's content call (Q3, unchanged):** which city slugs per market + migrate-vs-new for the UAE legacy `/ae/dubai|sharjah|abu-dhabi/` pages. Nest never invents slugs.
+
+### v7.9.10 — structured venue records + `citiesForMarket()` (city-hub source of truth)
+
+Captures the confirmed Bonbird venue data as the config-driven source for city-hub generation (rule 12). Added a `venues` array to `bonbird_oman/qatar/pakistan` in `international-config.js` — structured `{name, city, type}` records, LEAVING the existing `locations` string arrays untouched (they're consumed as strings by intl generation prompts + `resolveCountryCode` — verified before changing shape). `type`: `dine_in` (dine-in + pickup + delivery) | `dark_kitchen` (pickup/delivery only, NO dine-in — content must not imply dining in). Types confirmed with Shazin 20 Aug (NOT googled — venue attributes are NAP-class, taken from the owner, not inferred).
+
+New `citiesForMarket(marketKey)` (exported) groups `venues` by city → the city-hub target list. Verified (mocked): **4 hubs** — `/om/muscat/` (Souq Al Madina), `/om/seeb/` (Al Khoudh), `/qa/doha/` (West Walk · District 1), `/pk/lahore/` (Cue Cinemas · Dolmen Mall · Johar Town[dark_kitchen]).
+
+**City-hub readiness now:** plumbing ✅ (create_page template+parent+page_type, verified v7.9.9), city source ✅ (this), venue types ✅. Remaining to actually generate: (1) the generation path (`create_page` payload + prose/FAQ prompt driven by `citiesForMarket` — buildable no-Claude, RUNS only with credits), (2) Claude credits, (3) a human ACF pass on child venue pages, (4) site-team confirm: does the Location template render a `dark_kitchen` differently (hide dine-in / order-only)? Pre-existing note: `pickl_qatar` carries the same Doha location strings as bonbird_qatar (config smell — left alone, Pickl is paused).
