@@ -4678,7 +4678,7 @@ Two real bugs, both surfaced by asking the website-side chat instead of testing 
 **Also learned (for later, from the site team):**
 - **City hubs (Phase 3):** a Page on the **Bonbird Location** template with `page_type=city_hub`, parented `/{market}/{city}/`; Nest writes prose+FAQ body, template does venue cards/schema. Existing `/ae/dubai|sharjah|abu-dhabi/` are legacy twigs (body dev-edit-only). Confirm design with Shazin before coding.
 - **Safe test surface:** create a DRAFT journal post on live → verify → delete. NOT `bonbirddev` (stale DB, Nest creds point at prod). The 12 product scaffolds (47005–47016) are earmarked for real bodies — not throwaways.
-- **FAQ contract confirmed** (`bonbird_split_faq`): `<h2>FAQs</h2>` (or "FAQ"/"Frequently Asked Questions", case-insensitive) then `<h3>Q</h3><p>A</p>` pairs; template builds accordion + FAQPage schema verbatim. Matches `generate-draft.js generateTemplatePage`. (TODO: relax `validateFaqBlock` to accept the heading variants.)
+- **FAQ contract confirmed** (`bonbird_split_faq`): `<h2>FAQs</h2>` (or "FAQ"/"Frequently Asked Questions", case-insensitive) then `<h3>Q</h3><p>A</p>` pairs; template builds accordion + FAQPage schema verbatim. Matches `generate-draft.js generateTemplatePage`. `validateFaqBlock` now accepts all three heading variants via one shared `FAQ_HEADING_RE` (done v7.9.7; unit-tested).
 
 **Still owed (Bonbird verification):** 1.1 end-to-end (draft journal post → confirm `markets` term lands → delete) and the 1.2 "meta still allowed" half — both against a **throwaway draft**, with explicit approval, never a live page.
 
@@ -4691,3 +4691,13 @@ Adds a gated `delete_post` action so a verification draft can be cleaned up (no 
 ### v7.9.6 (doc) — verify-first promoted to the #1 / prime-directive rule
 
 Per Shazin: the "never act on an unverified assumption" rule is now the overriding #1 rule. Implemented as a **prime-directive banner at the very top of CLAUDE.md's Mandatory Rules** (above rule 1), explicitly "overrides everything below". The numbered list (1–13) and its ~30 stable references (`#5/#7/#10/#11/#12`, cited across code comments + docs) are left UNTOUCHED — the rule keeps its number 13 for the full text so no reference goes stale (chose this over a full renumber to avoid missing a reference).
+
+### v7.9.7 — validateFaqBlock accepts the template's FAQ heading variants
+
+Per the site team's Q5 answer: the `bonbird_split_faq` template splits on `<h2>`
+matching **FAQ / FAQs / Frequently Asked Questions** (case-insensitive). The Nest's
+`generate-draft.js validateFaqBlock` only accepted `FAQs?`, so a valid body using
+"Frequently Asked Questions" would have been wrongly rejected before queueing. Factored
+the matcher into one shared `FAQ_HEADING_RE` (used by both the presence check and the
+split, so they can't drift) and added the variant. Unit-tested: all three headings pass;
+missing-heading / <3 questions / stray `<img>` still fail.

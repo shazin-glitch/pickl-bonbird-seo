@@ -47,10 +47,15 @@ const isTemplateKind = k => k === 'template_location' || k === 'template_product
 
 // The FAQ contract the theme parses. Validated before queueing so a malformed block
 // never reaches WordPress (it would render as flat text with no schema).
+// The FAQ heading the theme (`bonbird_split_faq`) splits on — accepts "FAQ" / "FAQs"
+// / "Frequently Asked Questions", case-insensitive (confirmed with the site team,
+// 20 Aug). One source so the presence-check and the split can't drift.
+const FAQ_HEADING_RE = /<h2[^>]*>\s*(?:FAQs?|Frequently\s+Asked\s+Questions)\s*<\/h2>/i;
+
 function validateFaqBlock(html) {
   const issues = [];
-  if (!/<h2[^>]*>\s*FAQs?\s*<\/h2>/i.test(html)) issues.push('missing an <h2>FAQs</h2> heading');
-  const after = html.split(/<h2[^>]*>\s*FAQs?\s*<\/h2>/i)[1] || '';
+  if (!FAQ_HEADING_RE.test(html)) issues.push('missing an <h2>FAQs</h2> heading (also accepts "FAQ" / "Frequently Asked Questions")');
+  const after = html.split(FAQ_HEADING_RE)[1] || '';
   const qs = (after.match(/<h3[^>]*>[\s\S]*?<\/h3>/gi) || []).length;
   const as = (after.match(/<p[^>]*>[\s\S]*?<\/p>/gi) || []).length;
   if (qs < 3) issues.push(`only ${qs} <h3> question(s) after the FAQs heading (need at least 3)`);
