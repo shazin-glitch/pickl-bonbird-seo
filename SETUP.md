@@ -4776,3 +4776,7 @@ Verified: `npm run check` green; config `cities` payload verified (Bonbird → /
 - Migrating the 3 UAE pages onto the Location template (to unlock data-driven bodies) is **parked — revisit later**.
 
 **Code — enforced the "no existing page" requirement generically:** `handleCreatePage` now refuses (409) to create a page whose slug already exists under the same parent, instead of letting WP silently mint a colliding `slug-2` URL. Protects every market (not just UAE) from duplicate city-hub/page creation. Message points the user to edit/migrate the existing page.
+
+### v7.9.15 — struck the dark_kitchen site-template question (decision)
+
+Shazin: strike it. The only thing that genuinely mattered — generated copy not falsely implying dine-in at a pickup-only venue — is already handled by the `type:'dark_kitchen'` config flag + the generator's prompt line. Whether the Location *template* renders a dark-kitchen card differently (dine-in framing / schema) is human-owned ACF, one venue (Johar Town), and low-stakes — **not worth a site-team round-trip**. Removed from the open list. Revisit only if many more dark kitchens open and their cards need to visibly differ.
