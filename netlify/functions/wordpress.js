@@ -285,12 +285,22 @@ async function handleCreatePage(creds, payload, brand) {
   const pageType = ['venue', 'city_hub'].includes(payload.pageType) ? payload.pageType : null;
   if (pageType) meta.page_type = pageType;
   const parentId = payload.parentId || await resolveParentId(creds, payload.wpParent) || 0;
+  const slug = sanitizeSlug(payload.slug);
+  // Don't create a DUPLICATE: refuse if a page already exists at this slug under the
+  // same parent (e.g. a UAE legacy city page like /ae/dubai/). "New pages only" — WP
+  // would otherwise silently mint a colliding `slug-2` URL. Migrate/edit the existing
+  // page instead. (Decision 20 Aug: no UAE legacy migration; city hubs = new cities only.)
+  if (slug) {
+    const dup = await wpFetch(creds, `/wp/v2/pages?slug=${encodeURIComponent(slug)}&per_page=100&_fields=id,link,parent`).catch(() => null);
+    const clash = dup && dup.ok && Array.isArray(dup.data) ? dup.data.find(p => Number(p.parent) === Number(parentId)) : null;
+    if (clash) return fail(409, `A page already exists at that path (#${clash.id}, ${clash.link}) — not creating a duplicate. Edit/migrate the existing page, or use a different slug.`);
+  }
   // Custom taxonomies (e.g. { market:['om'] }) — a NEW page needs its market term too,
   // otherwise the site can't attribute it (same requirement as create_draft).
   const { fields: taxFields, unresolved } = await buildTaxonomies(creds, payload);
   const page = {
     title: payload.title, content: payload.body, excerpt: payload.excerpt || '',
-    slug: sanitizeSlug(payload.slug), status: 'draft', meta,
+    slug, status: 'draft', meta,
     parent: parentId,
     template: payload.template || '',
     ...taxFields,

@@ -4765,3 +4765,14 @@ Verified with a stubbed-Claude mock-invoke of the handler (bonbird_oman / muscat
 - The generate button surfaces paused/skipped/queued states (Pickl is content-paused → shows ⏸). Cities are config-only — the UI never lets you invent one.
 
 Verified: `npm run check` green; config `cities` payload verified (Bonbird → /om/muscat, /om/seeb, /qa/doha, /pk/lahore). The **listing** is live-testable; the **generate** action is credits-gated (no Claude), so its live run is still owed. City-hub feature is now complete + clickable — pending only Claude credits + the human ACF pass on child venue pages.
+
+### v7.9.14 — UAE legacy decision (new-cities-only) + create_page duplicate guard
+
+**Decision (Shazin, 20 Aug): NO UAE legacy migration for now — new-cities-only.**
+- The 3 UAE city pages `/ae/dubai/ /ae/sharjah/ /ae/abu-dhabi/` + their venue children stay **as-is, human-owned** (static Twig; Nest body writes stay blocked by the 409 guard).
+- Nest on those 3 = **Yoast meta only**, and only where there's genuine data-backed room — not cosmetic rewrites. Bodies untouched.
+- **UAE city hubs:** generate ONLY for a genuinely NEW UAE city with no existing page (a new venue location). Rare, fine. (UAE isn't in the markets/venues config today, so the City-hubs panel won't offer Dubai/Sharjah/Abu Dhabi.)
+- **om/qa/pk:** city hubs proceed now via the `page_type` meta contract.
+- Migrating the 3 UAE pages onto the Location template (to unlock data-driven bodies) is **parked — revisit later**.
+
+**Code — enforced the "no existing page" requirement generically:** `handleCreatePage` now refuses (409) to create a page whose slug already exists under the same parent, instead of letting WP silently mint a colliding `slug-2` URL. Protects every market (not just UAE) from duplicate city-hub/page creation. Message points the user to edit/migrate the existing page.
