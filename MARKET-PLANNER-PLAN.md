@@ -11,6 +11,9 @@
 3. **Three separate generators, never unified.** `scheduler-background` (UAE batch, own Claude logic), `international-seo-background` (intl batch, own Claude logic), `generate-draft` (on-demand, the unified engine + shared `content-pipeline` brain). The batch pipelines were left separate by an earlier decision to kill auto-gen; they duplicate generation logic and diverge.
 4. **Per-market research opportunities are discovered but not created.** Discovery stores `keywordOpportunities:<brand>:<market>` (research ideas by volume, non-GSC), but the creator reads only `keywordOpportunities:<brand>` (UAE). Intl opportunities are viewable, never generated.
 
+## ⭐ ARCHITECTURE (v7.9.21): Claude IS the planner brain
+The assess/cluster/relevance/prioritise step is ONE Claude call (`planWithClaude`) — NOT rules. Rules are only: a cheap gather/dedup pre-pass, a **fallback** if Claude fails (`useLLM:false` or error → rule `_assess`), and **hard safety guards** the LLM cannot bypass (executable-asset-only; a `city_hub` must reference a REAL configured city slug — invented cities dropped; dedupe vs queued). Claude clusters variants→one page, drops off-brand keywords, picks asset type, caps to a ~15 launch set. Shazin's point: the Claude API is the brain; use it for the DECISIONS, not just final writing.
+
 ## The target: one brain, one engine
 
 **Per brand × market:**

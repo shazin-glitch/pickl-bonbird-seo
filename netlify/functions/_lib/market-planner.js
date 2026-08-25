@@ -9,9 +9,79 @@
 // ─────────────────────────────────────────────────────────────────────────────
 
 const { getStore } = require('@netlify/blobs');
-const { listApprovals } = require('./store'); // dedupe vs already-queued (read-only)
+const { listApprovals, callClaude, extractJson } = require('./store'); // dedupe + LLM brain
 const { citiesForMarketAsync } = require('./international-config'); // config-driven city hubs
-const { getBrand, getVertical } = require('./brands-config'); // vertical off-menu for relevance guard
+const { getBrand, getVertical } = require('./brands-config'); // brand context + off-menu fallback guard
+
+const EXECUTABLE = new Set(['meta_update', 'page_creation', 'blog_draft', 'city_hub']);
+
+// ── THE BRAIN: one Claude call that clusters, judges relevance, picks the asset type,
+// and prioritises into a launch set — the SEO-strategist decision layer. Rules can't
+// cluster "chicken tenders" + "best chicken tenders lahore" into one page, or know
+// "bun bo hue" isn't halal fried chicken. Returns a validated plan, or null on failure
+// (caller falls back to the rule-based path). ONE call per plan-build (cheap).
+async function planWithClaude(candidates, cities, ctx, llmFn) {
+  const call = llmFn || callClaude;
+  if ((!candidates.length && !cities.length) || typeof call !== 'function') return null;
+
+  const kwLines = candidates.slice(0, 150).map(c =>
+    `- "${c.keyword}" (vol ${c.volume || 0}${c.target ? `, we rank via ${String(c.target).replace(/^https?:\/\/[^/]+/, '')} @#${c.position || '?'}` : ', no page yet'})`).join('\n');
+  const cityLines = cities.length
+    ? cities.map(c => `- ${c.city} [slug: ${c.slug}] — venues: ${(c.venues || []).map(v => v.name).join(', ') || '—'}`).join('\n')
+    : '(no configured cities)';
+
+  const system = `You are a senior SEO strategist for ${ctx.brandName} — ${ctx.sells} — planning for ${ctx.marketLabel}. You produce a tight, high-quality launch plan, NOT a page-per-keyword dump.`;
+  const prompt = `Build a launch content plan for ${ctx.brandName} in ${ctx.marketLabel}.
+
+CANDIDATE KEYWORDS (from research + current rankings):
+${kwLines || '(none)'}
+
+CONFIGURED CITIES (real venues — a city hub is allowed ONLY for these; never invent one):
+${cityLines}
+
+RULES:
+- CLUSTER keyword variants that should live on ONE page (e.g. "chicken tenders" + "best chicken tenders lahore" → one page). One plan item per cluster, with a primaryKeyword + the clustered keywords.
+- DROP anything not relevant to ${ctx.sells} (e.g. other cuisines, competitor brand names, informational-only noise with no business value). List drops with a reason.
+- Choose assetType per cluster:
+  • "city_hub" — ONLY for a configured city above (set "city" to its slug).
+  • "page_creation" — a commercial/category/local landing page we don't have.
+  • "blog_draft" — genuinely informational intent.
+  • "meta_update" — ONLY when we already rank via a REAL dedicated page (not the homepage / market hub); set "target" to that URL.
+- PRIORITISE by business value (volume × intent × winnability) and cap the plan to the ~15 highest-value items — a focused launch, not everything.
+
+Return ONLY JSON:
+{"plan":[{"primaryKeyword":"...","keywords":["..."],"assetType":"page_creation|blog_draft|meta_update|city_hub","target":"<url or null>","city":"<slug or null>","priority":1,"rationale":"one line"}],"dropped":[{"keyword":"...","reason":"..."}]}`;
+
+  try {
+    const { text } = await call(prompt, { system, max_tokens: 4000 });
+    const parsed = extractJson(text);
+    if (!parsed || !Array.isArray(parsed.plan)) return null;
+    return parsed;
+  } catch (e) { console.warn('[market-planner] LLM plan failed, falling back to rules:', e.message); return null; }
+}
+
+// Validate/sanitise an LLM plan item into our executable item shape. Enforces the
+// safety guards the LLM must not bypass: executable asset only, and a city_hub must
+// reference a REAL configured city slug (never an invented one).
+function _normalizeLlmItem(it, citySlugs) {
+  if (!it || !it.primaryKeyword) return null;
+  let assetType = EXECUTABLE.has(it.assetType) ? it.assetType : 'page_creation';
+  let city = null;
+  if (assetType === 'city_hub') {
+    city = String(it.city || '').toLowerCase();
+    if (!citySlugs.has(city)) return null; // invented/unknown city → drop (rule: config only)
+  }
+  return {
+    keyword:   it.primaryKeyword,
+    keywords:  Array.isArray(it.keywords) ? it.keywords.slice(0, 20) : [it.primaryKeyword],
+    assetType,
+    city,
+    target:    (assetType === 'meta_update') ? (it.target || null) : null,
+    priority:  Number.isFinite(it.priority) ? it.priority : 999,
+    rationale: String(it.rationale || '').slice(0, 300),
+    source:    'llm',
+  };
+}
 
 // A target URL is "generic" if it's the homepage or a single-segment market hub
 // (e.g. /pk/, /ae/) — GSC mis-attributes cold-market long-tail to these, so they must
@@ -69,7 +139,9 @@ const SKIP_TIERS = new Set(['top3', 'top10', 'monitor']);
 const _kw = k => String(k || '').toLowerCase().trim();
 
 // Build the plan for one brand × market. `market` omitted/'uae' = home market.
-async function buildMarketPlan({ brand, market } = {}) {
+// useLLM (default true): Claude clusters/judges/prioritises. false OR failure → rules.
+// llmFn: injectable Claude for testing.
+async function buildMarketPlan({ brand, market, useLLM = true, llmFn } = {}) {
   if (!brand) return { brand: null, market: market || 'uae', total: 0, items: [], error: 'brand required' };
   const isUae   = !market || market === 'uae';
   const sourceKey = isUae ? `keywordOpportunities:${brand}` : `keywordOpportunities:${brand}:${market}`;
@@ -84,74 +156,73 @@ async function buildMarketPlan({ brand, market } = {}) {
     const pending = await listApprovals({ brand, status: 'pending' }).catch(() => []);
     const arr = Array.isArray(pending) ? pending : (pending && pending.items) || [];
     queued = new Set(arr.map(i => _kw(i.payload && (i.payload.targetKeyword || i.payload.keyword))).filter(Boolean));
-    // city hubs are queued as page_creation with payload.pageType === 'city_hub' + a slug
     queuedCities = new Set(arr.filter(i => i.payload && i.payload.pageType === 'city_hub')
       .map(i => _kw(i.payload.slug || i.payload.city)).filter(Boolean));
   } catch { /* dedupe is best-effort */ }
 
-  // Off-menu terms for this brand's vertical → relevance guard (config-driven).
-  let offMenu = [];
-  try { const bc = await getBrand(brand); offMenu = (getVertical(bc && bc.vertical).offMenu) || []; } catch { /* no guard */ }
+  // Brand context (for the strategist prompt + fallback off-menu guard).
+  let bc = null, offMenu = [];
+  try { bc = await getBrand(brand); offMenu = (getVertical(bc && bc.vertical).offMenu) || []; } catch { /* no guard */ }
+  const brandName   = (bc && bc.name) || brand;
+  const sells       = (bc && bc.cuisine) || (getVertical(bc && bc.vertical).menuSummary) || 'its menu';
+  const marketLabel = isUae ? 'UAE' : ((data && data.marketLabel) || market);
 
-  const items = opps
-    .filter(o => o && o.keyword && !SKIP_TIERS.has(o.tier))          // skip already-winning / monitor
-    .filter(o => !queued.has(_kw(o.keyword)))                         // skip already-queued
-    .map(o => {
-      const a = _assess(o, offMenu);
-      if (a.skip) return null;
-      return {
-        keyword:   o.keyword,
-        assetType: a.assetType,                                       // EXECUTABLE: meta_update|page_creation|blog_draft
-        target:    a.target,
-        tier:      o.tier || null,
-        volume:    o.volume || 0,
-        position:  (o.position == null ? null : o.position),
-        priority:  Math.round(((o.score || 0) * 1000)) / 1000,       // discovery's composite score
-        rationale: a.rationale,
-      };
-    })
-    .filter(Boolean)
-    .sort((a, b) => (b.priority - a.priority) || (b.volume - a.volume) || _kw(a.keyword).localeCompare(_kw(b.keyword)));
+  // Candidate opportunities (cheap rule pre-pass: drop winning / queued / off-menu).
+  const candidates = opps
+    .filter(o => o && o.keyword && !SKIP_TIERS.has(o.tier))
+    .filter(o => !queued.has(_kw(o.keyword)))
+    .filter(o => !offMenu.some(t => t && _kw(o.keyword).includes(_kw(t))))
+    .map(o => ({ keyword: o.keyword, volume: o.volume || 0, tier: o.tier || null,
+      target: o.targetPage || o.existingPage || null, position: (o.position == null ? null : o.position) }));
 
-  // ── CONFIG-DRIVEN ASSETS (research-independent) ──────────────────────────────
-  // City hubs come from the venue config (citiesForMarketAsync), NOT from keyword
-  // data — so a market DataForSEO doesn't cover (e.g. Oman/Qatar have 0 keyword
-  // ideas) still gets a real plan. One hub per configured city that isn't already
-  // queued. Execution's create_page duplicate-guard blocks any city that already
-  // has a page (e.g. UAE legacy /ae/dubai/), so we don't need a WP read here.
-  // UAE ('uae') isn't in the market config → no city hubs (correct: new-cities-only).
-  let cityHubItems = [];
-  try {
-    const cities = isUae ? [] : (await citiesForMarketAsync(market).catch(() => []));
-    cityHubItems = (cities || [])
-      .filter(c => c && c.slug && !queuedCities.has(_kw(c.slug)))
-      .map(c => ({
-        keyword:   `${c.city} city hub`,
-        assetType: 'city_hub',
-        city:      c.slug,
-        target:    null,
-        tier:      'local',
-        volume:    0,                                   // no keyword-volume data (config-driven)
-        position:  null,
-        priority:  Math.round((0.7 + Math.min((c.venues || []).length, 5) * 0.02) * 1000) / 1000,
-        rationale: `Local city hub for ${c.city} — venues: ${(c.venues || []).map(v => v.name).join(', ') || '—'}.`,
-      }));
-  } catch { /* config assets are best-effort */ }
+  // Config-driven city-hub candidates (research-independent; never invented).
+  const cities = (isUae ? [] : await citiesForMarketAsync(market).catch(() => []))
+    .filter(c => c && c.slug && !queuedCities.has(_kw(c.slug)));
+  const citySlugs = new Set(cities.map(c => _kw(c.slug)));
 
-  const allItems = [...items, ...cityHubItems]
-    .sort((a, b) => (b.priority - a.priority) || (b.volume - a.volume) || _kw(a.keyword).localeCompare(_kw(b.keyword)));
+  // ── THE BRAIN (default): Claude clusters + judges relevance + picks asset + ranks.
+  let items = null, mode = 'rules';
+  if (useLLM) {
+    const llm = await planWithClaude(candidates, cities, { brandName, sells, marketLabel }, llmFn);
+    if (llm && Array.isArray(llm.plan)) {
+      const norm = llm.plan.map(it => _normalizeLlmItem(it, citySlugs))
+        .filter(Boolean)
+        .filter(i => !queued.has(_kw(i.keyword)))
+        .filter(i => !(i.assetType === 'city_hub' && queuedCities.has(_kw(i.city))));
+      if (norm.length) { items = norm; mode = 'llm'; }
+    }
+  }
 
-  const counts = allItems.reduce((c, i) => { c[i.assetType] = (c[i.assetType] || 0) + 1; return c; }, {});
+  // ── FALLBACK (LLM off/failed): rule-based assess over opps + config city hubs.
+  if (!items) {
+    const kwItems = opps
+      .filter(o => o && o.keyword && !SKIP_TIERS.has(o.tier))
+      .filter(o => !queued.has(_kw(o.keyword)))
+      .map(o => {
+        const a = _assess(o, offMenu);
+        if (a.skip) return null;
+        return { keyword: o.keyword, assetType: a.assetType, target: a.target, tier: o.tier || null,
+          volume: o.volume || 0, position: (o.position == null ? null : o.position),
+          priority: Math.round(((o.score || 0) * 1000)) / 1000, rationale: a.rationale, source: 'rules' };
+      })
+      .filter(Boolean);
+    const cityItems = cities.map(c => ({
+      keyword: `${c.city} city hub`, assetType: 'city_hub', city: c.slug, target: null, tier: 'local',
+      volume: 0, position: null, priority: Math.round((0.7 + Math.min((c.venues || []).length, 5) * 0.02) * 1000) / 1000,
+      rationale: `Local city hub for ${c.city} — venues: ${(c.venues || []).map(v => v.name).join(', ') || '—'}.`, source: 'rules' }));
+    items = [...kwItems, ...cityItems];
+  }
+
+  items.sort((a, b) => ((b.priority || 0) - (a.priority || 0)) || ((b.volume || 0) - (a.volume || 0)) || _kw(a.keyword).localeCompare(_kw(b.keyword)));
+  const counts = items.reduce((c, i) => { c[i.assetType] = (c[i.assetType] || 0) + 1; return c; }, {});
 
   return {
-    brand,
-    market: isUae ? 'uae' : market,
-    sourceKey,
+    brand, market: isUae ? 'uae' : market, sourceKey, mode,
     discoveredAt: (data && (data.updatedAt || data.fetchedAt)) || null,
-    total: allItems.length,
-    counts,           // e.g. { meta_update: 3, page_creation: 4, blog_draft: 6, city_hub: 2 } — data-driven, NOT quotas
-    items: allItems,
+    total: items.length,
+    counts,           // asset-type mix — data-driven, NOT quotas
+    items,
   };
 }
 
-module.exports = { buildMarketPlan, SKIP_TIERS };
+module.exports = { buildMarketPlan, planWithClaude, SKIP_TIERS };
