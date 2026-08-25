@@ -24,7 +24,10 @@ async function planWithClaude(candidates, cities, ctx, llmFn) {
   const call = llmFn || callClaude;
   if ((!candidates.length && !cities.length) || typeof call !== 'function') return null;
 
-  const kwLines = candidates.slice(0, 150).map(c =>
+  // Cap the set sent to Claude so the call fits Netlify's synchronous function limit
+  // (~26s). Top by volume = highest-value first; the rest are lower-priority tail.
+  const topCands = [...candidates].sort((a, b) => (b.volume || 0) - (a.volume || 0)).slice(0, 50);
+  const kwLines = topCands.map(c =>
     `- "${c.keyword}" (vol ${c.volume || 0}${c.target ? `, we rank via ${String(c.target).replace(/^https?:\/\/[^/]+/, '')} @#${c.position || '?'}` : ', no page yet'})`).join('\n');
   const cityLines = cities.length
     ? cities.map(c => `- ${c.city} [slug: ${c.slug}] — venues: ${(c.venues || []).map(v => v.name).join(', ') || '—'}`).join('\n')
@@ -53,7 +56,7 @@ Return ONLY JSON:
 {"plan":[{"primaryKeyword":"...","keywords":["..."],"assetType":"page_creation|blog_draft|meta_update|city_hub","target":"<url or null>","city":"<slug or null>","priority":1,"rationale":"one line"}],"dropped":[{"keyword":"...","reason":"..."}]}`;
 
   try {
-    const { text } = await call(prompt, { system, max_tokens: 4000 });
+    const { text } = await call(prompt, { system, max_tokens: 2500 });
     const parsed = extractJson(text);
     if (!parsed || !Array.isArray(parsed.plan)) return null;
     return parsed;
