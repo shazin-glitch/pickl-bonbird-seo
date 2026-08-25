@@ -80,3 +80,14 @@ Learned the hard way (the config-driven migration shipped `brandCfg`-out-of-scop
 ## ⭐ UI COHERENCE (P3b — Shazin, don't bolt on another panel)
 The tool has fragmented: Discover (Opportunities tab), Plan (🗺️ card under Analytics→Markets), city-hubs card, scaffolds card, Generate (per-opportunity buttons), Review (Approvals), Measure (Reports) — scattered across tabs with overlapping entry points. The Market Planner now SUBSUMES the standalone city-hubs + scaffold cards (it already proposes city hubs and can fill scaffolds via generate-draft), so those become redundant.
 **Design P3b around the SEO workflow, one coherent spine:** Discover → **Plan** → Generate → Review → Publish → Measure. The Market Planner should be the PRIMARY "act on a market" surface (its own destination, not a buried card), with Generate happening in-place on the plan, flowing into Approvals. FOLD the separate city-hubs + scaffold panels into the planner (or retire them) rather than adding a parallel one. Decide placement (own nav item vs top of Markets) with Shazin before building P3b.
+
+## ⭐ PLACEMENT + MULTI-BRAND DECISION (Shazin raised; my call)
+The planner is **per brand × market** and must serve ALL brands, so it is a **first-class destination**, NOT a card under Analytics→Markets. Proposed IA: a top-level **"Content Planner"** nav item (or a "Grow" group) — the single Plan→Generate→Review surface. Flow: **Brand → Market → Plan → Generate → Approvals**. Single-market brands (Southpour café, Yolk corporate) just use market = home ('uae'); multi-market (Pickl, Bonbird) pick a market. FOLD the city-hubs + scaffold cards into it.
+
+**It must be VERTICAL-ADAPTIVE (rule #2), and mostly already is** because the Claude prompt is fed the brand's `vertical` + `cuisine/sells` and city hubs come from venue config:
+- **restaurant** (Pickl/Bonbird): local + product + journal + city hubs (venue-driven). ✓
+- **cafe** (Southpour): coffee/brunch/specialty content + city hubs from its venues. ✓ (vertical drives relevance + prompt)
+- **corporate** (Yolk): NO venues → citiesForMarketAsync = [] → **no city hubs automatically** (correct); Claude gets "hospitality group" context → should propose franchise / careers / about / thought-leadership journal + meta, not local/product.
+- **P3 refinement:** make `planWithClaude`'s asset-type guidance **vertical-aware** — don't frame a corporate brand around "local landing / product / city hub." Pass the vertical's `promptNoun` + a per-vertical asset hint into the prompt. Small addition; do it in P3 so Yolk/Southpour plans read correctly.
+
+Net: ONE planner, brand-first, adapts by vertical — coherent across Pickl/Bonbird/Southpour/Yolk with zero per-brand code (config + vertical drive it).
