@@ -257,6 +257,31 @@ function planItemToDraftCall(item, { brand, market } = {}) {
   }
 }
 
+// PRE-FLIGHT: a meta_update is only executable if its target page actually EXISTS.
+// The plan's targets come from GSC history, which keeps serving pre-rebuild URLs long
+// after a site move (live: 2 of Bonbird Pakistan's 3 meta targets were dead /pakistan/*
+// slugs). Generating against a dead target burns a full Claude call on meta the human
+// can never publish, so we resolve every target read-only FIRST — cheap, no spend, no
+// writes. Unresolvable → reported as skipped, never generated. Failing OPEN on a lookup
+// error (rather than dropping the item) keeps a WP hiccup from silently emptying a run.
+async function preflightTargets(mapped, { brand, site, headers } = {}) {
+  const metas = mapped.filter(m => m.call && m.call.actionType === 'meta_update');
+  if (!metas.length) return mapped;
+  await Promise.all(metas.map(async (m) => {
+    try {
+      const r = await fetch(`${site}/.netlify/functions/wordpress`, {
+        method: 'POST', headers: { ...headers, 'Content-Type': 'application/json' },
+        body: JSON.stringify({ action: 'get_current_meta', brand, payload: { url: m.call.url } }),
+      });
+      const j = await r.json().catch(() => null);
+      if (j && j.found) { m.targetPostId = j.postId || null; m.targetTitle = j.wpTitle || null; return; }
+      m.error = `target page not found: ${m.call.url} (stale URL? the page may have moved) — meta cannot be written there`;
+      m.call = null;
+    } catch (e) { m.preflightWarning = `target check failed (${e.message}) — proceeding`; }
+  }));
+  return mapped;
+}
+
 // Hard ceiling on one execute run — a runaway selection can't spend unbounded Claude
 // credit (each item is a full generation). The UI's topN/budget sits under this.
 const MAX_EXECUTE = 25;
@@ -278,4 +303,4 @@ function selectPlanItems(planItems, { select, topN, max = MAX_EXECUTE } = {}) {
   return chosen.slice(0, Math.max(0, Math.min(max, MAX_EXECUTE)));
 }
 
-module.exports = { buildMarketPlan, planWithClaude, planItemToDraftCall, selectPlanItems, MAX_EXECUTE, SKIP_TIERS };
+module.exports = { buildMarketPlan, planWithClaude, planItemToDraftCall, preflightTargets, selectPlanItems, MAX_EXECUTE, SKIP_TIERS };

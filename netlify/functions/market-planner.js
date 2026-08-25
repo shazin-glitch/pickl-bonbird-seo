@@ -6,7 +6,7 @@
 
 const { authorize, denied, internalHeaders } = require('./_lib/auth');
 const { getStore } = require('@netlify/blobs');
-const { planItemToDraftCall, selectPlanItems, MAX_EXECUTE } = require('./_lib/market-planner');
+const { planItemToDraftCall, preflightTargets, selectPlanItems, MAX_EXECUTE } = require('./_lib/market-planner');
 
 function store() {
   return getStore({ name: 'seo-tool', siteID: process.env.NETLIFY_SITE_ID, token: process.env.NETLIFY_AUTH_TOKEN });
@@ -82,6 +82,10 @@ exports.handler = async (event) => {
       return { keyword: it.keyword, assetType: it.assetType, priority: it.priority ?? null,
         rationale: it.rationale || '', call: r.call || null, error: r.error || null };
     });
+    // Read-only pre-flight: drop meta_updates whose target page no longer exists
+    // (GSC keeps serving pre-rebuild URLs) BEFORE anything is generated against them.
+    const SITE = process.env.URL || 'https://yolkseo.netlify.app';
+    await preflightTargets(mapped, { brand, site: SITE, headers: internalHeaders() }).catch(() => {});
     const runnable = mapped.filter(m => m.call);
 
     const dryRun = body.dryRun !== false;   // default true — must opt IN to spending
