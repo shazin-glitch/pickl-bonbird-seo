@@ -327,7 +327,7 @@ async function handleCreatePage(creds, payload, brand) {
 async function handleUpdateContent(creds, payload, brand) {
   let { postId, postType } = payload;
   if (!postId && payload.url) {
-    const found = await findPostByUrl(creds, normalizeUrl(payload.url));
+    const found = await findPostByUrl(creds, normalizeUrl(payload.url, creds.base));
     if (!found) return fail(404, `No post or page matched URL: ${payload.url} — provide postId directly`);
     postId = found.id; postType = found.type;
   }
@@ -376,7 +376,7 @@ async function handleUpdateContent(creds, payload, brand) {
 async function handleUpdateMeta(creds, payload) {
   let { postId, postType } = payload;
   if (!postId && payload.url) {
-    const found = await findPostByUrl(creds, normalizeUrl(payload.url));
+    const found = await findPostByUrl(creds, normalizeUrl(payload.url, creds.base));
     if (!found) return fail(404, `No post or page matched URL: ${payload.url}`);
     postId = found.id; postType = found.type;
   }
@@ -414,7 +414,7 @@ async function handleUpdateMeta(creds, payload) {
 async function handleGetCurrentMeta(creds, payload) {
   let { postId, postType } = payload;
   if (!postId && payload.url) {
-    const found = await findPostByUrl(creds, normalizeUrl(payload.url));
+    const found = await findPostByUrl(creds, normalizeUrl(payload.url, creds.base));
     if (!found) return win({ found: false });
     postId = found.id; postType = found.type;
   }
@@ -443,7 +443,7 @@ async function handleGetCurrentMeta(creds, payload) {
 async function handlePublish(creds, payload) {
   let { postId, postType } = payload;
   if (!postId && payload.url) {
-    const found = await findPostByUrl(creds, normalizeUrl(payload.url));
+    const found = await findPostByUrl(creds, normalizeUrl(payload.url, creds.base));
     if (!found) return fail(404, `No post or page matched URL: ${payload.url}`);
     postId = found.id; postType = found.type;
   }
@@ -596,10 +596,20 @@ function buildSeoMeta(p) {
   return meta;
 }
 
-function normalizeUrl(url) {
+// A stored target can be absolute ("https://site.com/pk/menu/"), root-relative
+// ("/pk/menu/" — what GSC returns, and what the Market Planner carries into a
+// meta_update), or bare ("site.com/pk/menu/"). A root-relative path must resolve
+// against the BRAND'S WP base: prepending "https://" to "/pk/menu/" made "pk" the
+// HOSTNAME, so findPostByUrl saw pathname "/menu/" (or none at all) and always
+// missed — meta was then generated blind and could never be published. Fails safe
+// either way (findPostByUrl skips on a path mismatch, never guesses a wrong page),
+// but every relative target silently wasted a generation. Verified live on the
+// Bonbird Pakistan plan, v7.9.26.
+function normalizeUrl(url, base) {
   if (!url) return url;
   if (url.startsWith('http')) return url;
-  return 'https://' + url.replace(/^\/+/, '');
+  if (url.startsWith('/')) return base ? base.replace(/\/$/, '') + url : url;
+  return 'https://' + url;
 }
 
 function sanitizeSlug(slug) {
