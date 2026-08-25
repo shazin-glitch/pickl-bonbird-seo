@@ -4804,3 +4804,10 @@ The structured per-market SEO planner (replaces fixed-quota batch jobs; assess-t
 
 ### v7.9.19 — Market Planner P2b: frontend "🗺️ Market Planner" panel
 Added the read-only planner UI (Analytics → Markets, above Page scaffolds): pick brand + market → **Build plan** → `/api/market-planner action:'plan'` → renders the ranked map (counts by asset type + each item's keyword / assetType / target / rationale / priority). No generation yet (P3). `fillMpMarkets()` populates markets per brand (UAE home + intl); `mp-brand` seeded in bootstrapBrands. npm check green.
+
+### v7.9.20 — Market Planner P2.5: assess/map (fix cold-market mis-classification)
+Live P2 exposed that plans were "structured garbage": Pakistan = 104 `page_update` (GSC attributes cold-market long-tail to the `/pk/` hub → recommendAction saw hasPage → "optimise /pk/" ×104), and `page_update` isn't even a generate-draft action. Fixed **in the planner** (additive; no discovery change, no re-run/DataForSEO spend): `_assess(opp, offMenu)` in `_lib/market-planner.js` —
+- **generic target** (homepage or single-segment market hub `/pk/`) or no page → **page_creation** (or **blog_draft** if informational-intent regex) — kills the bogus mass page_update.
+- `page_update` on a **real specific** page → **meta_update** (generate-draft can't rewrite arbitrary bodies yet; safe move).
+- **relevance guard**: drops keywords containing the brand vertical's `offMenu` terms (config-driven; e.g. biryani/pizza). NOTE: subtle off-brand leaks (e.g. "bun bo hue") still need the upstream discovery relevance filter tightened — logged, not fixed here.
+Every planner assetType is now executable by generate-draft (meta_update/page_creation/blog_draft + city_hub). Mock-verified all cases. npm check green. Ready for P3 (execute).

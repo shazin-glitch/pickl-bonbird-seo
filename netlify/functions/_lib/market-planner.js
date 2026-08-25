@@ -11,6 +11,53 @@
 const { getStore } = require('@netlify/blobs');
 const { listApprovals } = require('./store'); // dedupe vs already-queued (read-only)
 const { citiesForMarketAsync } = require('./international-config'); // config-driven city hubs
+const { getBrand, getVertical } = require('./brands-config'); // vertical off-menu for relevance guard
+
+// A target URL is "generic" if it's the homepage or a single-segment market hub
+// (e.g. /pk/, /ae/) — GSC mis-attributes cold-market long-tail to these, so they must
+// NOT be treated as a real dedicated page (that produced 104 bogus "optimise /pk/"s).
+function _isGenericTarget(url) {
+  if (!url) return true; // no page at all = treat as generic (needs creation)
+  const path = String(url).replace(/^https?:\/\/[^/]+/, '').replace(/\/+$/, '');
+  const segs = path.split('/').filter(Boolean);
+  return segs.length <= 1; // '' (home) or '/pk' (market hub) — not a dedicated page
+}
+
+// Rough informational-intent check → route to a blog instead of a landing page.
+const _INFO_RE = /\b(how|what|why|when|recipe|recipes|vs|guide|ideas|calories|history|best time)\b/i;
+
+// Map an opportunity to an EXECUTABLE generate-draft action, correcting the
+// cold-market mis-classification and generate-draft's vocabulary.
+//   generate-draft knows: meta_update | page_creation | blog_draft (+ city_hub/template elsewhere)
+function _assess(o, offMenu) {
+  const kw = String(o.keyword || '').toLowerCase();
+  // Relevance guard: drop clearly off-vertical keywords (config-driven off-menu list).
+  if (offMenu.some(t => t && kw.includes(String(t).toLowerCase())))
+    return { skip: true };
+
+  const raw     = (o.action && o.action.actionType) || 'meta_update';
+  const target  = o.targetPage || o.existingPage || null;
+  const generic = _isGenericTarget(target);
+
+  // page_update (discovery's "optimise existing page") isn't a generate-draft action.
+  if (raw === 'page_update') {
+    if (generic) {
+      // No real dedicated page (or only the hub/home) → CREATE, not "update".
+      return { assetType: _INFO_RE.test(kw) ? 'blog_draft' : 'page_creation', target: null,
+        rationale: `No dedicated page yet (ranked via ${target || 'nothing'}) — create one for "${o.keyword}".` };
+    }
+    // A real, specific page → the safe executable move is a meta improvement.
+    return { assetType: 'meta_update', target,
+      rationale: (o.action && o.action.rationale) || `Improve meta on ${target} for "${o.keyword}".` };
+  }
+  // meta_update / page_creation / blog_draft pass through (but a meta_update pointed at a
+  // generic page should become a real page).
+  if (raw === 'meta_update' && generic)
+    return { assetType: 'page_creation', target: null,
+      rationale: `Only the homepage/market hub ranks for "${o.keyword}" — needs a dedicated page.` };
+  return { assetType: raw, target: (raw === 'page_creation' || raw === 'blog_draft') ? null : target,
+    rationale: (o.action && o.action.rationale) || (o.action && o.action.label) || '' };
+}
 
 function store() {
   return getStore({ name: 'seo-tool', siteID: process.env.NETLIFY_SITE_ID, token: process.env.NETLIFY_AUTH_TOKEN });
@@ -42,22 +89,28 @@ async function buildMarketPlan({ brand, market } = {}) {
       .map(i => _kw(i.payload.slug || i.payload.city)).filter(Boolean));
   } catch { /* dedupe is best-effort */ }
 
+  // Off-menu terms for this brand's vertical → relevance guard (config-driven).
+  let offMenu = [];
+  try { const bc = await getBrand(brand); offMenu = (getVertical(bc && bc.vertical).offMenu) || []; } catch { /* no guard */ }
+
   const items = opps
     .filter(o => o && o.keyword && !SKIP_TIERS.has(o.tier))          // skip already-winning / monitor
     .filter(o => !queued.has(_kw(o.keyword)))                         // skip already-queued
     .map(o => {
-      const act = o.action || {};
+      const a = _assess(o, offMenu);
+      if (a.skip) return null;
       return {
         keyword:   o.keyword,
-        assetType: act.actionType || 'meta_update',                  // meta_update | page_creation | blog_draft
-        target:    o.targetPage || o.existingPage || null,           // existing page to improve, or null = new
+        assetType: a.assetType,                                       // EXECUTABLE: meta_update|page_creation|blog_draft
+        target:    a.target,
         tier:      o.tier || null,
         volume:    o.volume || 0,
         position:  (o.position == null ? null : o.position),
         priority:  Math.round(((o.score || 0) * 1000)) / 1000,       // discovery's composite score
-        rationale: act.rationale || act.label || '',
+        rationale: a.rationale,
       };
     })
+    .filter(Boolean)
     .sort((a, b) => (b.priority - a.priority) || (b.volume - a.volume) || _kw(a.keyword).localeCompare(_kw(b.keyword)));
 
   // ── CONFIG-DRIVEN ASSETS (research-independent) ──────────────────────────────
