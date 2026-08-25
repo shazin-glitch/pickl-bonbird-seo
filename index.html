@@ -4559,19 +4559,26 @@ async function runScopedAudit(btn) {
       btn.disabled = true;
       btn.innerHTML = '<span class="spinner"></span> Auditing…';
       try {
+        let failed = 0;
         for (const t of targets) {
-          if (t.type === 'uae') {
-            await fetch('/.netlify/functions/scheduler-background', {
-              method: 'POST', headers: { 'Content-Type': 'application/json' },
-              body: JSON.stringify({ brand: t.brand }),
-            }).catch(e => console.error('[audit] UAE trigger failed:', e.message));
-          } else {
-            await fetch(`/.netlify/functions/international-seo-background?market=${t.marketKey}`)
-              .catch(e => console.error('[audit] intl trigger failed:', e.message));
-          }
+          try {
+            const res = t.type === 'uae'
+              ? await fetch('/.netlify/functions/scheduler-background', {
+                  method: 'POST', headers: { 'Content-Type': 'application/json' },
+                  body: JSON.stringify({ brand: t.brand }),
+                })
+              : await fetch(`/.netlify/functions/international-seo-background?market=${t.marketKey}`);
+            // Don't swallow a non-2xx (e.g. a 403 from a mis-scheduled fn) as success.
+            if (!res.ok) { failed++; console.error(`[audit] ${t.type} trigger HTTP ${res.status}`, t); }
+          } catch (e) { failed++; console.error('[audit] trigger failed:', e.message); }
         }
-        showToast(`Audit started — ${brandLabel} · ${marketLabel}. New items in ~60s.`, 'success');
-        setTimeout(async () => { await loadQueue(); showToast('Queue refreshed', ''); }, 45000);
+        if (failed === targets.length) {
+          showToast(`Audit failed — all ${failed} run(s) returned an error (check function logs).`, 'error');
+        } else {
+          if (failed) showToast(`${failed} of ${targets.length} run(s) failed — see console.`, '');
+          showToast(`Audit started — ${brandLabel} · ${marketLabel}. New items in ~60s.`, 'success');
+          setTimeout(async () => { await loadQueue(); showToast('Queue refreshed', ''); }, 45000);
+        }
       } catch (e) {
         showToast('Audit failed: ' + e.message, 'error');
       }

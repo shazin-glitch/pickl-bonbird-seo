@@ -225,8 +225,15 @@
 
 # Weekly cron — Monday 4:00am UTC = Monday 8:00am Dubai time (UTC+4)
 # Runs before your 9am Monday review so all data is fresh
+# scheduler-background — schedule DISABLED 2026-08-21 so it's HTTP-invocable on demand
+# (Netlify 403s any HTTP call to a scheduled function; that was breaking the Approvals
+# "Run Audit" button → scheduler-background for UAE). ⚠️ PARKED / TODO: the Monday 4am
+# run (content jobs + GSC snapshots + rank history + CPC enrichment + tech-audit fan-out)
+# is now OFF until a tiny scheduled dispatcher fires scheduler-background weekly via
+# internalHeaders() — same pattern as technical-seo (v7.9.1). Re-enable before relying on
+# the weekly cron. On-demand runs work now.
 [functions."scheduler-background"]
-  schedule = "0 4 * * 1"
+  # schedule = "0 4 * * 1"
 
 [functions."competitor-matrix-background"]
   schedule = "0 4 * * 1"

@@ -4780,3 +4780,13 @@ Verified: `npm run check` green; config `cities` payload verified (Bonbird → /
 ### v7.9.15 — struck the dark_kitchen site-template question (decision)
 
 Shazin: strike it. The only thing that genuinely mattered — generated copy not falsely implying dine-in at a pickup-only venue — is already handled by the `type:'dark_kitchen'` config flag + the generator's prompt line. Whether the Location *template* renders a dark-kitchen card differently (dine-in framing / schema) is human-owned ACF, one venue (Johar Town), and low-stakes — **not worth a site-team round-trip**. Removed from the open list. Revisit only if many more dark kitchens open and their cards need to visibly differ.
+
+### v7.9.16 — fix Approvals "Run Audit" (scheduler-background 403 trap) + honest button feedback
+
+**Bug:** the Approvals "Run Audit" button (`runScopedAudit`) fires `scheduler-background` (UAE content jobs) / `international-seo-background` (intl). `scheduler-background` was a **scheduled function** → Netlify **403s** any HTTP call → the UAE run never executed. `scheduler.js` (the wrapper) hit the same 403. And `runScopedAudit` did `fetch(...).catch()` with **no `res.ok` check**, so the 403 was swallowed and the button falsely showed *"Audit started"* while nothing ran/queued. (This — not the per-opportunity ⚡Generate — is why "Run Audit for Bonbird UAE" produced nothing.)
+
+**Fix:**
+- **netlify.toml:** commented out `scheduler-background`'s `schedule` → it's now HTTP-invocable, so the button (and `scheduler.js`) can trigger it. On-demand content runs work.
+- **index.html `runScopedAudit`:** now checks `res.ok` per target — reports real failure instead of a false "started"; refreshes the queue only if at least one run succeeded.
+
+**⚠️ PARKED / TODO (Shazin: ignore for now, just logged):** unscheduling `scheduler-background` disables its **Monday 4am cron** — which did more than content: **GSC snapshots, rank-history, CPC enrichment, and the tech-audit fan-out**. Those weekly jobs are now OFF until a tiny scheduled dispatcher fires `scheduler-background` weekly via `internalHeaders()` (same pattern as technical-seo v7.9.1). **Re-enable before relying on the weekly cron.** (The other scheduled data jobs — competitor-matrix/backlinks/ai-overview/citations — still have the same on-demand-403 trap; separate fix.)

@@ -77,7 +77,10 @@ POST /wp/v2/pages  { "template":"template-location.php", "parent":<market-home i
 
 ## 9. Deferred (not yet wired — future Nest builds)
 1. **Nest's keyword→content pipeline for location/product pages** — the WP side (templates + ACF + FAQ transform) is done and Nest CAN write their bodies by URL; wiring the generation for these page types is a future build.
-2. **Migrating the 13 legacy static pages** onto the data-driven templates — until then their bodies are dev-edit-only.
-3. **City-hub tier** generation (§6).
+2. **City-hubs — DECISION (2026-08-20): new-cities-only.**
+   - **om/qa/pk:** hubs proceed now — slugs are free; create via the `page_type` meta contract (§4).
+   - **UAE:** the 3 legacy city pages (`/ae/dubai/`, `/ae/sharjah/`, `/ae/abu-dhabi/` + their venue children) stay **human-owned / static**. **No migration for now** (no dev capacity). Nest **must not** write their bodies (already 409-blocked) and **must not** flip their template (empty `post_content` → near-blank page). Nest may optimise their **Yoast meta ONLY where data shows a genuine improvement** (weak/missing/truncated tag, or CTR/ranking evidence) — never cosmetic churn.
+   - Migrating those 3 onto the Location template — which is what would unlock Nest editing their **bodies** — is **parked; revisit later.** (Shazin is open to data-driven body improvements in principle; the migration is the enabler, just not resourced yet.)
+3. **Newsletter signups → Como (scoping only, 2026-08-20 — NOT built).** Today signups POST **directly to Mailchimp** (client-side embedded forms; per-market tag UAE 5449618 / Oman 5449615 / Qatar 5449616 / Pakistan 5449617), so **nothing is stored on-site** — that's the gap. To feed Como: change the signup form to submit to a **WP handler** (same pattern as the existing franchise-lead handler) → store email + market → forward to **Mailchimp (API)** and **Como (API)**. A "scraper" isn't the right tool — use an API/webhook push off the stored records. **Confirm before building:** (a) Como's API / import capability + credentials; (b) keep Mailchimp in parallel or replace it. Add a consent checkbox once storing on-site.
 
 _Full build history + the WP-side detail lives in the `bonbird-website-rebuild` repo (`PROJECT-STATUS.md`, `tools/`). This brief is the Nest-facing summary._
