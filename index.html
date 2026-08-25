@@ -5075,19 +5075,30 @@ async function buildMarketPlanUI() {
   const market = document.getElementById('mp-market').value;
   const out = document.getElementById('mp-results');
   const btn = document.getElementById('mp-build-btn');
-  btn.disabled = true; btn.textContent = 'Building…'; out.innerHTML = '';
+  btn.disabled = true; btn.textContent = 'Building…';
+  out.innerHTML = `<div style="color:var(--text-muted)"><span class="spinner"></span> Building plan — AI clustering keywords into pages (~20–40s)…</div>`;
   try {
-    const p = await apiPost('/api/market-planner', { action: 'plan', brand, market });
-    if (p.error) throw new Error(p.error);
-    if (!p.items || !p.items.length) {
-      out.innerHTML = `<div style="color:var(--text-muted)">No plan items — either no opportunities discovered for this market yet, or everything already ranks / is queued.</div>`;
+    // Plan build is async (Claude call too slow for a sync function): trigger + poll.
+    await apiPost('/api/market-planner', { action: 'plan', brand, market });
+    let p = null;
+    for (let i = 0; i < 20; i++) {                 // ~100s max
+      await new Promise(r => setTimeout(r, 5000));
+      p = await apiPost('/api/market-planner', { action: 'get', brand, market });
+      if (p && (p.status === 'ready' || p.status === 'error')) break;
+    }
+    if (!p || p.status === 'building' || p.status === 'none') {
+      out.innerHTML = `<div style="color:var(--text-muted)">Still building — click Build plan again in a moment to fetch it.</div>`;
+    } else if (p.status === 'error') {
+      out.innerHTML = `<div style="color:#ef4444">Plan failed: ${esc(p.error || 'unknown')}</div>`;
+    } else if (!p.items || !p.items.length) {
+      out.innerHTML = `<div style="color:var(--text-muted)">No plan items — no opportunities discovered for this market yet, or everything already ranks / is queued.</div>`;
     } else {
       const badges = Object.entries(p.counts || {}).map(([k, v]) =>
         `<span style="font-size:11px;padding:2px 8px;border-radius:10px;background:var(--border);margin-right:6px">${v} ${esc(k)}</span>`).join('');
-      out.innerHTML = `<div style="margin-bottom:8px">${p.total} items · ${badges}</div>`
+      out.innerHTML = `<div style="margin-bottom:8px">${p.total} items · ${badges} <span style="font-size:11px;color:var(--text-muted)">(${esc(p.mode || 'rules')})</span></div>`
         + p.items.slice(0, 60).map(i => `
           <div style="display:flex;justify-content:space-between;gap:10px;padding:7px 10px;border:1px solid var(--border);border-radius:8px;margin-bottom:5px">
-            <div><strong>${esc(i.keyword)}</strong> <span style="font-size:11px;color:#7c3aed">${esc(i.assetType)}</span>${i.target ? `<span style="font-size:11px;color:var(--text-muted)"> → ${esc(String(i.target).replace(/^https?:\/\/[^/]+/, ''))}</span>` : ''}
+            <div><strong>${esc(i.keyword)}</strong> <span style="font-size:11px;color:#7c3aed">${esc(i.assetType)}</span>${(i.keywords && i.keywords.length > 1) ? `<span style="font-size:11px;color:var(--text-muted)"> +${i.keywords.length - 1} kw</span>` : ''}${i.target ? `<span style="font-size:11px;color:var(--text-muted)"> → ${esc(String(i.target).replace(/^https?:\/\/[^/]+/, ''))}</span>` : ''}
               <div style="font-size:11px;color:var(--text-muted);margin-top:2px">${esc(i.rationale || '')}</div></div>
             <div style="font-size:11px;color:var(--text-muted);white-space:nowrap">${i.volume ? ('vol ' + i.volume + ' · ') : ''}p${i.priority}</div>
           </div>`).join('');

@@ -4817,3 +4817,6 @@ Per Shazin — clustering & relevance are semantic judgement, so Claude does the
 
 ### v7.9.22 — Market Planner: fit the Claude planning call inside the sync limit
 Live plan-build 504'd — the synchronous `/api/market-planner` (Netlify ~26s) can't hold a clustering call over ~100 keywords at 4000 max_tokens. Trimmed `planWithClaude`: cap to **top-50 candidates by volume** + **max_tokens 2500** → the call fits sync. (If it still times out, the fix is a `-background` function + poll; noted.) No behaviour change otherwise. check green.
+
+### v7.9.23 — Market Planner: async build (background + poll) — fixes the 504
+The Claude clustering call exceeds Netlify's synchronous limit (504 at ~31s even trimmed to 50 kws/2500 tokens). Moved the build to a **background function**: new `market-planner-background.js` (HTTP-invocable, NOT scheduled; 15-min budget) runs `buildMarketPlan` (incl. the Claude call) and stores `marketPlan:<brand>:<market>` = {status:ready|error, …}. Sync `/api/market-planner`: `action:'plan'` writes status:'building' + fires the background (awaited 202) + returns 202; `action:'get'` polls the stored plan (3-min double-fire guard). Frontend panel now triggers + polls every 5s (~100s max) with a spinner, renders on ready. npm check green. Next: live-verify the plan renders, then P3 execute.
