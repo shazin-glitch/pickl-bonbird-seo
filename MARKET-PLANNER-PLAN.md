@@ -67,4 +67,4 @@ Learned the hard way (the config-driven migration shipped `brandCfg`-out-of-scop
 - Cities/venues from config only — never invent a city/venue.
 
 ## Status
-- P1: ✅ DONE (v7.9.17) · P1.5 config-asset merge ✅ (v7.9.18) — `_lib/market-planner.js buildMarketPlan` read-only, mock-verified (cold + warm, dedupe, skip-winning, ranked, data-driven counts).  P2: 🔶 backend done (v7.9.18: `/api/market-planner` action:'plan' + lib merge, mock-verified); frontend panel pending  P3: ⬜  P4: ⬜ (deferred).
+- P1: ✅ DONE (v7.9.17) · P1.5 config-asset merge ✅ (v7.9.18) — `_lib/market-planner.js buildMarketPlan` read-only, mock-verified (cold + warm, dedupe, skip-winning, ranked, data-driven counts).  P2: ✅ DONE (v7.9.18 backend + v7.9.19 panel) — 🗺️ Market Planner card (Analytics→Markets): brand+market → Build plan → ranked read-only map. Next: P3 execute.  P3: ⬜  P4: ⬜ (deferred).
