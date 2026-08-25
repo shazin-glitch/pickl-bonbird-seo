@@ -228,4 +228,54 @@ async function buildMarketPlan({ brand, market, useLLM = true, llmFn } = {}) {
   };
 }
 
-module.exports = { buildMarketPlan, planWithClaude, SKIP_TIERS };
+// ── P3 EXECUTE: plan item → the exact generate-draft call ────────────────────
+// ONE mapping, shared by the sync dryRun preview and the background executor, so a
+// dry run shows EXACTLY what a real run will send (rule #1: verify what actually runs).
+// generate-draft owns every content guard (contentPaused, cannibalization, voice,
+// FAQ contract, writable-template, confidence) — we only translate, never bypass.
+// Returns { call } or { error } (an un-executable item is reported, never guessed at).
+function planItemToDraftCall(item, { brand, market } = {}) {
+  if (!brand) return { error: 'brand required' };
+  if (!item || !item.keyword) return { error: 'plan item has no keyword' };
+  const base = { brand, keyword: item.keyword, market: market || 'uae' };
+
+  switch (item.assetType) {
+    case 'city_hub':
+      // City must be a configured slug — generate-draft re-checks against
+      // citiesForMarketAsync and 400s on an invented one (never trust the plan alone).
+      if (!item.city) return { error: 'city_hub item has no city slug' };
+      return { call: { ...base, actionType: 'page_creation', pageKind: 'city_hub', city: item.city } };
+    case 'meta_update':
+      if (!item.target) return { error: 'meta_update item has no target url' };
+      return { call: { ...base, actionType: 'meta_update', url: item.target } };
+    case 'page_creation':
+      return { call: { ...base, actionType: 'page_creation' } };
+    case 'blog_draft':
+      return { call: { ...base, actionType: 'blog_draft' } };
+    default:
+      return { error: `unsupported assetType "${item.assetType}"` };
+  }
+}
+
+// Hard ceiling on one execute run — a runaway selection can't spend unbounded Claude
+// credit (each item is a full generation). The UI's topN/budget sits under this.
+const MAX_EXECUTE = 25;
+
+// Pick which plan items to execute. `select` accepts keywords (case-insensitive) and/or
+// zero-based indices; `topN` takes the highest-priority N (the plan is already sorted).
+// Neither given → nothing (explicit selection required; never "execute the whole plan"
+// by accident). Always capped at MAX_EXECUTE.
+function selectPlanItems(planItems, { select, topN, max = MAX_EXECUTE } = {}) {
+  const all = Array.isArray(planItems) ? planItems : [];
+  let chosen = [];
+  if (Array.isArray(select) && select.length) {
+    const kws = new Set(select.filter(s => typeof s === 'string').map(_kw));
+    const idx = new Set(select.filter(s => Number.isInteger(s)));
+    chosen = all.filter((it, i) => idx.has(i) || kws.has(_kw(it.keyword)));
+  } else if (Number.isFinite(topN) && topN > 0) {
+    chosen = all.slice(0, topN);
+  }
+  return chosen.slice(0, Math.max(0, Math.min(max, MAX_EXECUTE)));
+}
+
+module.exports = { buildMarketPlan, planWithClaude, planItemToDraftCall, selectPlanItems, MAX_EXECUTE, SKIP_TIERS };
