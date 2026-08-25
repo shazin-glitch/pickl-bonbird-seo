@@ -52,6 +52,7 @@ Learned the hard way (the config-driven migration shipped `brandCfg`-out-of-scop
 
 ### Phases (each ships + is verified independently)
 
+- **P1.5 — config-driven assets merged (v7.9.18).** `buildMarketPlan` now merges **city hubs from `citiesForMarketAsync`** (venue config, research-independent) into the plan, deduped vs queued. So a market DataForSEO doesn't cover still gets a real plan. Learned live: **Oman & Qatar are NOT in DataForSEO Labs** (`ideasDiag: "… not in DataForSEO Labs"`, ideasFetched:0) → keyword-research plans there are thin, but city-hub + product + seed-journal assets (config/menu-driven) fill the gap. Pakistan (362 ideas) + UAE (200) are research-rich. Data confirmed fresh (Aug 24 run). (TODO P2b: also merge unfilled product scaffolds via list_scaffolds.)
 - **P1 — `buildMarketPlan` (read-only planner lib).** Gather + assess + rank → plan JSON. No Claude, no writes. Accept: mock test produces a sensible ranked plan for a warm market (bonbird UAE) AND a cold market (bonbird pakistan, research-led). `npm run check` green.
 - **P2 — `/api/market-planner action:'plan'` (gated GET/POST) + frontend "Build plan" panel.** Read-only, shows the map. Accept: live panel renders the Bonbird Oman/Pakistan plan; no writes.
 - **P3 — `action:'execute'` → loops `generate-draft` (dryRun first).** Accept: dryRun lists what it *would* generate; then ONE real item (throwaway) verified in queue; then batch with a budget cap.
@@ -66,4 +67,4 @@ Learned the hard way (the config-driven migration shipped `brandCfg`-out-of-scop
 - Cities/venues from config only — never invent a city/venue.
 
 ## Status
-- P1: ✅ DONE (v7.9.17) — `_lib/market-planner.js buildMarketPlan` read-only, mock-verified (cold + warm, dedupe, skip-winning, ranked, data-driven counts).  P2: ⬜  P3: ⬜  P4: ⬜ (deferred).
+- P1: ✅ DONE (v7.9.17) · P1.5 config-asset merge ✅ (v7.9.18) — `_lib/market-planner.js buildMarketPlan` read-only, mock-verified (cold + warm, dedupe, skip-winning, ranked, data-driven counts).  P2: 🔶 backend done (v7.9.18: `/api/market-planner` action:'plan' + lib merge, mock-verified); frontend panel pending  P3: ⬜  P4: ⬜ (deferred).

@@ -114,6 +114,11 @@
   status = 200
 
 [[redirects]]
+  from = "/api/market-planner"
+  to = "/.netlify/functions/market-planner"
+  status = 200
+
+[[redirects]]
   from = "/api/tech-tasks"
   to = "/.netlify/functions/tech-tasks"
   status = 200
