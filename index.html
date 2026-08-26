@@ -456,6 +456,9 @@ body { font-family: var(--font-sans); background: var(--bg-base); color: var(--t
       <i class="ti ti-calendar-event" aria-hidden="true"></i><span>Content Calendar</span>
       <span class="badge" id="badge-calendar" style="display:none">0</span>
     </div>
+    <div class="nav-item" data-target="planner">
+      <i class="ti ti-map-2" aria-hidden="true"></i><span>Content Planner</span>
+    </div>
     <div class="nav-item" data-target="dashboard">
       <i class="ti ti-clipboard-check" aria-hidden="true"></i><span>Approvals Queue</span>
       <span class="badge" id="badge-approvals" style="display:none">0</span>
@@ -784,6 +787,80 @@ body { font-family: var(--font-sans); background: var(--bg-base); color: var(--t
     <div id="cal-detail-overlay" onclick="closeCalDetail()" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,0.35);z-index:200"></div>
     <div id="cal-detail-panel" style="display:none;position:fixed;top:0;right:0;width:580px;max-width:100vw;height:100vh;background:var(--bg-surface);box-shadow:-4px 0 24px rgba(0,0,0,0.18);z-index:201;overflow-y:auto">
       <div id="cal-detail-body" style="height:100%;display:flex;flex-direction:column"></div>
+    </div>
+
+    <!-- ═══ CONTENT PLANNER — the Plan → Generate step of the SEO spine ═══ -->
+    <!-- Discover (Opportunities) → PLAN → Generate → Review (Approvals) → Publish → Measure.
+         This is the single "act on a market" destination. It SUBSUMES the old standalone
+         🗺️ Market Planner / 🏙️ City hubs / 📄 Scaffolds cards that used to sit under
+         Analytics → Markets, each with its own duplicate brand picker. One brand+market
+         control drives everything below. See /MARKET-PLANNER-PLAN.md (P3b). -->
+    <div class="page-view" id="view-planner">
+
+      <div class="view-hero" style="background:linear-gradient(100deg,#2b1b52,#4c2a86)">
+        <h1 style="font-size:22px;font-weight:600;margin-bottom:6px">Content Planner</h1>
+        <div style="font-size:13px;opacity:0.85;max-width:760px">Pick a brand and market, build the AI plan, choose what to make. Claude clusters keywords into pages, judges relevance and picks the right asset — no fixed quotas. Nothing is generated until you choose it, and nothing publishes without review in the Approvals Queue.</div>
+      </div>
+
+      <!-- ONE control bar for the whole section -->
+      <div class="card" style="margin-bottom:18px">
+        <div style="display:flex;gap:12px;align-items:flex-end;flex-wrap:wrap">
+          <div class="form-group" style="margin-bottom:0"><label class="form-label">Brand</label>
+            <select id="pl-brand" class="form-input" style="font-family:var(--font-sans);width:170px" onchange="onPlannerBrandChange()"></select></div>
+          <div class="form-group" style="margin-bottom:0"><label class="form-label">Market</label>
+            <select id="pl-market" class="form-input" style="font-family:var(--font-sans);width:210px" onchange="onPlannerMarketChange()"></select></div>
+          <button class="btn btn-primary" id="pl-build-btn" onclick="plannerBuild()" style="font-size:13px">Build plan</button>
+          <div id="pl-plan-meta" style="font-size:12px;color:var(--text-muted);margin-left:auto;text-align:right"></div>
+        </div>
+      </div>
+
+      <!-- STEP 1 — the plan -->
+      <div class="card" style="margin-bottom:18px">
+        <div style="display:flex;justify-content:space-between;align-items:center;gap:12px;flex-wrap:wrap;margin-bottom:10px">
+          <div>
+            <div style="font-weight:600;font-size:14px">1 · Plan</div>
+            <div style="font-size:12px;color:var(--text-muted)">The ranked content map for this market. Tick what you want made.</div>
+          </div>
+          <div style="display:flex;gap:8px;align-items:center">
+            <button class="btn btn-outline" style="font-size:12px" onclick="plannerSelectAll(true)">Select all</button>
+            <button class="btn btn-outline" style="font-size:12px" onclick="plannerSelectAll(false)">Clear</button>
+          </div>
+        </div>
+        <div id="pl-plan-body" style="font-size:13px"><div style="color:var(--text-muted);padding:8px 0">Choose a brand and market, then <strong>Build plan</strong>.</div></div>
+        <div id="pl-dropped-wrap" style="margin-top:12px;display:none">
+          <button class="btn btn-outline" style="font-size:12px" onclick="plannerToggleDropped()" id="pl-dropped-btn">Show what the guards skipped</button>
+          <div id="pl-dropped" style="display:none;margin-top:8px"></div>
+        </div>
+      </div>
+
+      <!-- STEP 2 — generate -->
+      <div class="card" style="margin-bottom:18px">
+        <div style="font-weight:600;font-size:14px">2 · Generate</div>
+        <div style="font-size:12px;color:var(--text-muted);margin-bottom:10px">Preview costs nothing and shows exactly what would run. Generating writes drafts into the Approvals Queue — it never publishes.</div>
+        <div style="display:flex;gap:10px;align-items:center;flex-wrap:wrap">
+          <button class="btn btn-outline" id="pl-preview-btn" onclick="plannerPreview()" style="font-size:13px">Preview (dry run)</button>
+          <button class="btn btn-primary" id="pl-generate-btn" onclick="plannerGenerate()" style="font-size:13px">Generate selected</button>
+          <span id="pl-selected-count" style="font-size:12px;color:var(--text-muted)">0 selected</span>
+        </div>
+        <div id="pl-run" style="font-size:13px;margin-top:12px"></div>
+      </div>
+
+      <!-- FOLDED IN: the two cards this section replaced. Same brand control, no duplicate pickers. -->
+      <div class="card">
+        <div style="font-weight:600;font-size:14px">Also ready to generate</div>
+        <div style="font-size:12px;color:var(--text-muted);margin-bottom:12px">Config- and site-derived assets that don't come from keyword research. City hubs the plan already proposes appear in the plan above instead.</div>
+
+        <div style="display:flex;gap:10px;align-items:center;flex-wrap:wrap;margin-bottom:8px">
+          <button class="btn btn-outline" id="ch-find-btn" onclick="findCityHubs()" style="font-size:12px">🏙️ City hubs from config</button>
+          <button class="btn btn-outline" id="sc-find-btn" onclick="findScaffolds()" style="font-size:12px">📄 Empty page scaffolds</button>
+          <select id="sc-kind" class="form-input" style="font-family:var(--font-sans);width:170px;font-size:12px">
+            <option value="template_product">Product pages</option>
+            <option value="template_location">Location pages</option>
+          </select>
+        </div>
+        <div id="ch-results" style="font-size:13px"></div>
+        <div id="sc-results" style="font-size:13px"></div>
+      </div>
     </div>
 
     <!-- ═══ VIEW 1: DASHBOARD & APPROVALS ═══ -->
@@ -1199,49 +1276,9 @@ body { font-family: var(--font-sans); background: var(--bg-base); color: var(--t
             Loading market status…
           </div>
         </div>
-        <!-- Market Planner — structured per-market content plan (read-only preview) -->
-        <div class="card" id="market-planner-card" style="margin-top:24px;border-left:3px solid #7c3aed">
-          <div style="font-weight:600;font-size:14px;margin-bottom:2px">🗺️ Market Planner</div>
-          <div style="font-size:12px;color:var(--text-muted);margin-bottom:12px">AI-built per-market SEO plan — Claude clusters keyword variants into pages, judges relevance, picks the right asset (meta fix / new page / <strong>city hub</strong> / journal) and prioritises a focused launch set — <strong>no fixed quotas</strong>. Build plan = one small AI call; nothing is generated/published until you choose (next step).</div>
-          <div style="display:flex;gap:10px;align-items:flex-end;flex-wrap:wrap;margin-bottom:10px">
-            <div class="form-group" style="margin-bottom:0"><label class="form-label">Brand</label>
-              <select id="mp-brand" class="form-input" style="font-family:var(--font-sans);width:150px" onchange="fillMpMarkets()"></select></div>
-            <div class="form-group" style="margin-bottom:0"><label class="form-label">Market</label>
-              <select id="mp-market" class="form-input" style="font-family:var(--font-sans);width:190px"></select></div>
-            <button class="btn btn-primary" id="mp-build-btn" onclick="buildMarketPlanUI()" style="font-size:13px">Build plan</button>
-          </div>
-          <div id="mp-results" style="font-size:13px"></div>
-        </div>
-
-        <!-- Page scaffolds awaiting content (empty draft template pages) -->
-        <div class="card" id="scaffolds-card" style="margin-top:24px;border-left:3px solid #1BBFA3">
-          <div style="font-weight:600;font-size:14px;margin-bottom:2px">📄 Page scaffolds awaiting content</div>
-          <div style="font-size:12px;color:var(--text-muted);margin-bottom:12px">Draft pages that already have their template, parent and slug set but an <strong>empty body</strong> — ready for Nest to write. Generation writes the prose + FAQ block only; images and address/hours stay human-owned (ACF).</div>
-          <div style="display:flex;gap:10px;align-items:flex-end;flex-wrap:wrap;margin-bottom:10px">
-            <div class="form-group" style="margin-bottom:0"><label class="form-label">Brand</label>
-              <select id="sc-brand" class="form-input" style="font-family:var(--font-sans);width:150px"></select></div>
-            <div class="form-group" style="margin-bottom:0"><label class="form-label">Page type</label>
-              <select id="sc-kind" class="form-input" style="font-family:var(--font-sans);width:190px">
-                <option value="template_product">Product page</option>
-                <option value="template_location">Location page</option>
-              </select></div>
-            <button class="btn btn-primary" id="sc-find-btn" onclick="findScaffolds()" style="font-size:13px">Find scaffolds</button>
-          </div>
-          <div id="sc-results" style="font-size:13px"></div>
-        </div>
-
-        <!-- City hubs — generate a market/city landing page (config-driven, from venues) -->
-        <div class="card" id="cityhubs-card" style="margin-top:24px;border-left:3px solid #D85A30">
-          <div style="font-weight:600;font-size:14px;margin-bottom:2px">🏙️ City hubs</div>
-          <div style="font-size:12px;color:var(--text-muted);margin-bottom:12px">Generate a NEW city landing page (<code>template-location.php</code>, page_type=city_hub) for each city where the brand has venues — configured in <strong>Settings → SEO Markets</strong>. Nest writes prose + an FAQ block; a human creates + fills each child venue page's NAP (ACF). Cities come from config — Nest never invents one.</div>
-          <div style="display:flex;gap:10px;align-items:flex-end;flex-wrap:wrap;margin-bottom:10px">
-            <div class="form-group" style="margin-bottom:0"><label class="form-label">Brand</label>
-              <select id="ch-brand" class="form-input" style="font-family:var(--font-sans);width:150px"></select></div>
-            <button class="btn btn-primary" id="ch-find-btn" onclick="findCityHubs()" style="font-size:13px">Find city hubs</button>
-          </div>
-          <div id="ch-results" style="font-size:13px"></div>
-        </div>
-
+        <!-- 🗺️ Market Planner / 🏙️ City hubs / 📄 Scaffolds moved to the top-level
+             "Content Planner" nav item (P3b) — one destination, one brand+market control,
+             instead of three cards each with its own duplicate brand picker. -->
         <div id="intl-run-log" style="margin-top:24px;display:none">
           <div class="card">
             <h3 style="font-size:14px;font-weight:600;margin-bottom:12px">Run Log</h3>
@@ -2684,12 +2721,8 @@ async function bootstrapBrands() {
   renderBrandPillNavs();
   renderBacklinksButtons();
   renderIntlPills();
-  const scB = document.getElementById('sc-brand');
-  if (scB) scB.innerHTML = (window.NEST_BRANDS || []).map(b => `<option value="${esc(b.slug)}">${esc(b.name)}</option>`).join('');
-  const chB = document.getElementById('ch-brand');
-  if (chB) chB.innerHTML = (window.NEST_BRANDS || []).map(b => `<option value="${esc(b.slug)}">${esc(b.name)}</option>`).join('');
-  const mpB = document.getElementById('mp-brand');
-  if (mpB) { mpB.innerHTML = (window.NEST_BRANDS || []).map(b => `<option value="${esc(b.slug)}">${esc(b.name)}</option>`).join(''); fillMpMarkets(); }
+  const plB = document.getElementById('pl-brand');
+  if (plB) { plB.innerHTML = (window.NEST_BRANDS || []).map(b => `<option value="${esc(b.slug)}">${esc(b.name)}</option>`).join(''); fillPlannerMarkets(); }
 }
 
 // International view brand + market pills — from config (SEO markets). Each market
@@ -2937,6 +2970,7 @@ const VIEW_TITLES = {
   localseo:  'Local SEO',
   studio:    'AI Content Studio',
   settings:  'Settings & Logs',
+  planner:   'Content Planner',
   howto:     'How It Works',
 };
 
@@ -2957,6 +2991,7 @@ function switchView(target) {
   if (target === 'perch')      loadPerch();
   else                         closePerchPanel();
   if (target === 'calendar')   loadCalendarIfNeeded();
+  if (target === 'planner')    initPlanner();
   if (target === 'dashboard')  loadDashboardIfNeeded();
   if (target === 'analytics')  { loadGscIfNeeded(); renderAnalyticsCards(); }
   if (target === 'techseo')    { loadTechnicalSeo(); loadTechDevKanban(techSeoState.brand); }
@@ -5011,7 +5046,7 @@ async function refreshOnboardEnv(slug) {
 
 // ── Page scaffolds (empty draft template pages) → generate their body ──────────
 async function findScaffolds() {
-  const brand = document.getElementById('sc-brand').value;
+  const brand = document.getElementById('pl-brand').value;
   const btn = document.getElementById('sc-find-btn'), out = document.getElementById('sc-results');
   btn.disabled = true; btn.textContent = 'Searching…'; out.innerHTML = '<div style="color:var(--text-muted)">Looking for empty draft pages…</div>';
   try {
@@ -5040,7 +5075,7 @@ async function findScaffolds() {
 }
 
 async function generateScaffold(postId, link, title, btn) {
-  const brand = document.getElementById('sc-brand').value;
+  const brand = document.getElementById('pl-brand').value;
   const pageKind = document.getElementById('sc-kind').value;
   // Keyword seed = the page's own topic (slug words); the generator refines from there.
   const path = String(link).replace(/^https?:\/\/[^/]+/, '').replace(/\/+$/, '');
@@ -5060,56 +5095,239 @@ async function generateScaffold(postId, link, title, btn) {
   setTimeout(() => { btn.textContent = orig; btn.disabled = false; btn.style.color = ''; }, 6000);
 }
 
-// ── Market Planner — structured per-market content plan (read-only preview) ──
-function fillMpMarkets() {
-  const brand = document.getElementById('mp-brand') && document.getElementById('mp-brand').value;
-  const sel = document.getElementById('mp-market');
+// ── CONTENT PLANNER (P3b) — the single Plan → Generate surface ────────────────
+// Replaces the three separate cards (Market Planner / City hubs / Scaffolds) that
+// each carried their own brand picker under Analytics → Markets. One brand+market
+// control drives the plan, the selection and the folded-in config/site sources.
+const plannerState = { plan: null, selected: new Set(), polling: false };
+
+function fillPlannerMarkets() {
+  const brand = document.getElementById('pl-brand') && document.getElementById('pl-brand').value;
+  const sel = document.getElementById('pl-market');
   if (!sel) return;
   const intl = (window.NEST_MARKETS || []).filter(m => m.brand === brand);
   sel.innerHTML = '<option value="uae">🇦🇪 UAE (home)</option>'
     + intl.map(m => `<option value="${esc(m.key)}">${esc(m.flag || '')} ${esc(m.label)}</option>`).join('');
 }
 
-async function buildMarketPlanUI() {
-  const brand  = document.getElementById('mp-brand').value;
-  const market = document.getElementById('mp-market').value;
-  const out = document.getElementById('mp-results');
-  const btn = document.getElementById('mp-build-btn');
-  btn.disabled = true; btn.textContent = 'Building…';
-  out.innerHTML = `<div style="color:var(--text-muted)"><span class="spinner"></span> Building plan — AI clustering keywords into pages (~20–40s)…</div>`;
+function initPlanner() {
+  const plB = document.getElementById('pl-brand');
+  if (plB && !plB.options.length) {
+    plB.innerHTML = (window.NEST_BRANDS || []).map(b => `<option value="${esc(b.slug)}">${esc(b.name)}</option>`).join('');
+    fillPlannerMarkets();
+  }
+  // Show a plan we already have for this brand+market without spending anything.
+  plannerFetchExisting();
+}
+
+function onPlannerBrandChange() { fillPlannerMarkets(); plannerReset(); plannerFetchExisting(); }
+function onPlannerMarketChange() { plannerReset(); plannerFetchExisting(); }
+
+function plannerReset() {
+  plannerState.plan = null; plannerState.selected.clear();
+  const b = document.getElementById('pl-plan-body');
+  if (b) b.innerHTML = '<div style="color:var(--text-muted);padding:8px 0">Choose a brand and market, then <strong>Build plan</strong>.</div>';
+  const d = document.getElementById('pl-dropped-wrap'); if (d) d.style.display = 'none';
+  const m = document.getElementById('pl-plan-meta'); if (m) m.textContent = '';
+  const r = document.getElementById('pl-run'); if (r) r.innerHTML = '';
+  plannerUpdateCount();
+}
+
+function plannerSel() {
+  return { brand: document.getElementById('pl-brand').value, market: document.getElementById('pl-market').value };
+}
+
+// Read a stored plan (cheap, no build) so switching brand/market shows what exists.
+async function plannerFetchExisting() {
+  const { brand, market } = plannerSel();
+  if (!brand) return;
   try {
-    // Plan build is async (Claude call too slow for a sync function): trigger + poll.
+    const p = await apiPost('/api/market-planner', { action: 'get', brand, market });
+    if (p && p.status === 'ready') plannerRender(p);
+    else if (p && p.status === 'building') plannerPoll();
+  } catch { /* nothing stored yet — normal */ }
+}
+
+async function plannerBuild() {
+  const { brand, market } = plannerSel();
+  const btn = document.getElementById('pl-build-btn');
+  const out = document.getElementById('pl-plan-body');
+  btn.disabled = true; btn.textContent = 'Building…';
+  out.innerHTML = '<div style="color:var(--text-muted)"><span class="spinner"></span> Building — Claude is clustering keywords, judging relevance and checking targets (~20–60s)…</div>';
+  try {
     await apiPost('/api/market-planner', { action: 'plan', brand, market });
-    let p = null;
-    for (let i = 0; i < 20; i++) {                 // ~100s max
-      await new Promise(r => setTimeout(r, 5000));
-      p = await apiPost('/api/market-planner', { action: 'get', brand, market });
-      if (p && (p.status === 'ready' || p.status === 'error')) break;
-    }
-    if (!p || p.status === 'building' || p.status === 'none') {
-      out.innerHTML = `<div style="color:var(--text-muted)">Still building — click Build plan again in a moment to fetch it.</div>`;
-    } else if (p.status === 'error') {
-      out.innerHTML = `<div style="color:#ef4444">Plan failed: ${esc(p.error || 'unknown')}</div>`;
-    } else if (!p.items || !p.items.length) {
-      out.innerHTML = `<div style="color:var(--text-muted)">No plan items — no opportunities discovered for this market yet, or everything already ranks / is queued.</div>`;
-    } else {
-      const badges = Object.entries(p.counts || {}).map(([k, v]) =>
-        `<span style="font-size:11px;padding:2px 8px;border-radius:10px;background:var(--border);margin-right:6px">${v} ${esc(k)}</span>`).join('');
-      out.innerHTML = `<div style="margin-bottom:8px">${p.total} items · ${badges} <span style="font-size:11px;color:var(--text-muted)">(${esc(p.mode || 'rules')})</span></div>`
-        + p.items.slice(0, 60).map(i => `
-          <div style="display:flex;justify-content:space-between;gap:10px;padding:7px 10px;border:1px solid var(--border);border-radius:8px;margin-bottom:5px">
-            <div><strong>${esc(i.keyword)}</strong> <span style="font-size:11px;color:#7c3aed">${esc(i.assetType)}</span>${(i.keywords && i.keywords.length > 1) ? `<span style="font-size:11px;color:var(--text-muted)"> +${i.keywords.length - 1} kw</span>` : ''}${i.target ? `<span style="font-size:11px;color:var(--text-muted)"> → ${esc(String(i.target).replace(/^https?:\/\/[^/]+/, ''))}</span>` : ''}
-              <div style="font-size:11px;color:var(--text-muted);margin-top:2px">${esc(i.rationale || '')}</div></div>
-            <div style="font-size:11px;color:var(--text-muted);white-space:nowrap">${i.volume ? ('vol ' + i.volume + ' · ') : ''}p${i.priority}</div>
-          </div>`).join('');
-    }
-  } catch (e) { out.innerHTML = `<div style="color:#ef4444">Failed: ${esc(e.message)}</div>`; }
+    await plannerPoll();
+  } catch (e) {
+    out.innerHTML = `<div style="color:#ef4444">Failed: ${esc(e.message)}</div>`;
+  }
   btn.disabled = false; btn.textContent = 'Build plan';
+}
+
+async function plannerPoll() {
+  const { brand, market } = plannerSel();
+  const out = document.getElementById('pl-plan-body');
+  for (let i = 0; i < 24; i++) {                     // ~2 min
+    await new Promise(r => setTimeout(r, 5000));
+    let p = null;
+    try { p = await apiPost('/api/market-planner', { action: 'get', brand, market }); } catch { continue; }
+    if (!p) continue;
+    if (p.status === 'error') { out.innerHTML = `<div style="color:#ef4444">Plan failed: ${esc(p.error || 'unknown')}</div>`; return; }
+    if (p.status === 'ready') { plannerRender(p); return; }
+  }
+  out.innerHTML = '<div style="color:var(--text-muted)">Still building — press <strong>Build plan</strong> again shortly to pick it up.</div>';
+}
+
+function plannerRender(p) {
+  plannerState.plan = p;
+  plannerState.selected = new Set(p.items.map((_, i) => i));   // default: all selected
+  const meta = document.getElementById('pl-plan-meta');
+  const badges = Object.entries(p.counts || {}).map(([k, v]) =>
+    `<span style="font-size:11px;padding:2px 8px;border-radius:10px;background:var(--border);margin-left:6px">${v} ${esc(k)}</span>`).join('');
+  // mode:'rules' means the AI planning call failed and we fell back — say so plainly,
+  // a silent fallback is how a quality cliff hides (see SETUP v7.9.29).
+  const modeNote = p.mode === 'llm'
+    ? '<span style="color:#059669">AI-planned</span>'
+    : '<span style="color:#d97706" title="The AI planning call failed; this is the rule-based fallback and will be less focused.">⚠ rule-based fallback</span>';
+  if (meta) meta.innerHTML = `${modeNote} · built ${p.builtAt ? new Date(p.builtAt).toLocaleString() : '—'}${badges}`;
+
+  const out = document.getElementById('pl-plan-body');
+  if (!p.items || !p.items.length) {
+    out.innerHTML = '<div style="color:var(--text-muted);padding:8px 0">No plan items — nothing discovered for this market yet, or everything already ranks / is queued.</div>';
+  } else {
+    out.innerHTML = p.items.map((i, n) => `
+      <label style="display:flex;gap:10px;align-items:flex-start;padding:9px 10px;border:1px solid var(--border);border-radius:8px;margin-bottom:6px;cursor:pointer">
+        <input type="checkbox" data-pl-idx="${n}" checked onchange="plannerToggle(${n}, this.checked)" style="margin-top:3px">
+        <div style="flex:1;min-width:0">
+          <div><strong>${esc(i.keyword)}</strong>
+            <span style="font-size:11px;color:#7c3aed;margin-left:4px">${esc(i.assetType)}</span>
+            ${(i.keywords && i.keywords.length > 1) ? `<span style="font-size:11px;color:var(--text-muted)"> +${i.keywords.length - 1} kw</span>` : ''}
+            ${i.target ? `<span style="font-size:11px;color:var(--text-muted)"> → ${esc(String(i.target).replace(/^https?:\/\/[^/]+/, ''))}</span>` : ''}</div>
+          <div style="font-size:11px;color:var(--text-muted);margin-top:2px">${esc(i.rationale || '')}</div>
+        </div>
+        <div style="font-size:11px;color:var(--text-muted);white-space:nowrap">${i.volume ? ('vol ' + i.volume + ' · ') : ''}p${i.priority}</div>
+      </label>`).join('');
+  }
+
+  // What the guards removed, and why — visible, not silent.
+  const wrap = document.getElementById('pl-dropped-wrap');
+  const dropped = p.dropped || [];
+  if (wrap) {
+    wrap.style.display = dropped.length ? '' : 'none';
+    const btn = document.getElementById('pl-dropped-btn');
+    if (btn) btn.textContent = `Show what the guards skipped (${dropped.length})`;
+    document.getElementById('pl-dropped').innerHTML = dropped.map(d => `
+      <div style="padding:7px 10px;border-left:2px solid #d97706;background:var(--bg-subtle);border-radius:6px;margin-bottom:5px">
+        <strong style="font-size:12px">${esc(d.keyword)}</strong>
+        <span style="font-size:11px;color:var(--text-muted)">${esc(d.assetType || '')}</span>
+        <div style="font-size:11px;color:var(--text-muted);margin-top:2px">${esc(d.reason || '')}</div>
+      </div>`).join('');
+  }
+  plannerUpdateCount();
+}
+
+function plannerToggleDropped() {
+  const d = document.getElementById('pl-dropped');
+  const open = d.style.display !== 'none';
+  d.style.display = open ? 'none' : '';
+  const n = ((plannerState.plan || {}).dropped || []).length;
+  document.getElementById('pl-dropped-btn').textContent = open ? `Show what the guards skipped (${n})` : `Hide skipped (${n})`;
+}
+
+function plannerToggle(idx, on) {
+  if (on) plannerState.selected.add(idx); else plannerState.selected.delete(idx);
+  plannerUpdateCount();
+}
+
+function plannerSelectAll(on) {
+  const p = plannerState.plan;
+  if (!p || !p.items) return;
+  plannerState.selected = on ? new Set(p.items.map((_, i) => i)) : new Set();
+  document.querySelectorAll('[data-pl-idx]').forEach(cb => { cb.checked = on; });
+  plannerUpdateCount();
+}
+
+function plannerUpdateCount() {
+  const el = document.getElementById('pl-selected-count');
+  if (el) el.textContent = `${plannerState.selected.size} selected`;
+}
+
+// The keywords the backend selects on (it matches by keyword or index).
+function plannerSelectedKeywords() {
+  const p = plannerState.plan;
+  if (!p || !p.items) return [];
+  return [...plannerState.selected].sort((a, b) => a - b).map(i => p.items[i] && p.items[i].keyword).filter(Boolean);
+}
+
+// Dry run — costs nothing, shows the exact calls and anything the pre-flight rejects.
+async function plannerPreview() {
+  const { brand, market } = plannerSel();
+  const items = plannerSelectedKeywords();
+  const out = document.getElementById('pl-run');
+  if (!items.length) { out.innerHTML = '<div style="color:var(--text-muted)">Nothing selected.</div>'; return; }
+  const btn = document.getElementById('pl-preview-btn');
+  btn.disabled = true; btn.textContent = 'Checking…';
+  out.innerHTML = '<div style="color:var(--text-muted)"><span class="spinner"></span> Checking targets…</div>';
+  try {
+    const r = await apiPost('/api/market-planner', { action: 'execute', brand, market, items, dryRun: true });
+    if (r.error) throw new Error(r.error);
+    out.innerHTML = `<div style="padding:10px;border:1px solid var(--border);border-radius:8px">
+        <div style="font-weight:600;font-size:13px;margin-bottom:6px">Dry run — nothing was generated</div>
+        <div style="font-size:12px">${r.runnable} of ${r.selected} selected would generate.</div>
+        ${(r.skipped || []).length ? `<div style="margin-top:8px">${r.skipped.map(sk => `
+          <div style="font-size:11px;color:var(--text-muted);padding:5px 8px;border-left:2px solid #d97706;background:var(--bg-subtle);border-radius:6px;margin-bottom:4px">
+            <strong>${esc(sk.keyword)}</strong> — ${esc(sk.error || '')}</div>`).join('')}</div>` : ''}
+      </div>`;
+  } catch (e) { out.innerHTML = `<div style="color:#ef4444">Preview failed: ${esc(e.message)}</div>`; }
+  btn.disabled = false; btn.textContent = 'Preview (dry run)';
+}
+
+async function plannerGenerate() {
+  const { brand, market } = plannerSel();
+  const items = plannerSelectedKeywords();
+  const out = document.getElementById('pl-run');
+  if (!items.length) { out.innerHTML = '<div style="color:var(--text-muted)">Nothing selected.</div>'; return; }
+  if (!confirm(`Generate ${items.length} item(s) for ${brand}?\n\nEach one is an AI generation that lands as a DRAFT in the Approvals Queue. Nothing publishes automatically.`)) return;
+  const btn = document.getElementById('pl-generate-btn');
+  btn.disabled = true; btn.textContent = 'Generating…';
+  out.innerHTML = '<div style="color:var(--text-muted)"><span class="spinner"></span> Starting…</div>';
+  try {
+    const r = await apiPost('/api/market-planner', { action: 'execute', brand, market, items, dryRun: false });
+    if (r.error) throw new Error(r.error);
+    await plannerPollRun(r.total || items.length);
+  } catch (e) { out.innerHTML = `<div style="color:#ef4444">Generate failed: ${esc(e.message)}</div>`; }
+  btn.disabled = false; btn.textContent = 'Generate selected';
+}
+
+async function plannerPollRun(total) {
+  const { brand, market } = plannerSel();
+  const out = document.getElementById('pl-run');
+  for (let i = 0; i < 90; i++) {                     // generations run ~15–20s each
+    let run = null;
+    try { run = await apiPost('/api/market-planner', { action: 'run', brand, market }); } catch { }
+    if (run && run.results) {
+      const done = run.done || 0;
+      const pct = total ? Math.round((done / total) * 100) : 0;
+      out.innerHTML = `
+        <div style="font-size:12px;margin-bottom:6px">${run.status === 'done' ? 'Finished' : 'Generating'} — ${done}/${total}</div>
+        <div style="height:6px;background:var(--border);border-radius:3px;overflow:hidden;margin-bottom:10px">
+          <div style="height:100%;width:${pct}%;background:#7c3aed;transition:width .3s"></div></div>
+        ${run.results.map(rr => {
+          const c = rr.status === 'queued' ? '#059669' : rr.status === 'error' ? '#ef4444' : '#d97706';
+          return `<div style="font-size:11px;padding:5px 8px;border-left:2px solid ${c};background:var(--bg-subtle);border-radius:6px;margin-bottom:4px">
+            <strong>${esc(rr.keyword)}</strong> <span style="color:${c}">${esc(rr.status)}</span>
+            ${rr.reason ? `<div style="color:var(--text-muted);margin-top:2px">${esc(rr.reason)}</div>` : ''}</div>`;
+        }).join('')}
+        ${run.status === 'done' ? `<div style="margin-top:10px"><button class="btn btn-primary" style="font-size:12px" onclick="switchView('dashboard')">Review ${(run.counts || {}).queued || 0} draft(s) in Approvals →</button></div>` : ''}`;
+      if (run.status === 'done') { loadDashboardIfNeeded(); return; }
+    }
+    await new Promise(r => setTimeout(r, 4000));
+  }
+  out.innerHTML += '<div style="font-size:12px;color:var(--text-muted);margin-top:8px">Still running — check the Approvals Queue in a few minutes.</div>';
 }
 
 // ── City hubs — list config-derived cities per market, generate a hub per city ──
 async function findCityHubs() {
-  const brand = document.getElementById('ch-brand').value;
+  const brand = document.getElementById('pl-brand').value;
   const out = document.getElementById('ch-results');
   const btn = document.getElementById('ch-find-btn');
   btn.disabled = true; btn.textContent = 'Finding…';
