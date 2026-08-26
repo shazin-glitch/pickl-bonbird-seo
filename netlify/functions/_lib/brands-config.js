@@ -121,6 +121,8 @@ const BRAND_SEED = {
     // Claude-spending content generators. To re-enable: delete this line (deliberate)
     // — full runbook in SETUP.md “RE-ENABLING Pickl SEO content generation”.
     contentPaused: true,
+    // Pickl's UAE is also legacy static pages — no planner city hubs for its home market.
+    legacyHomeMarket: true,
     domain:        'https://eatpickl.com',
     ownDomain:     'eatpickl.com',
     gscProperty:   'https://eatpickl.com/',        // canonical GSC siteUrl (API + cache key)
@@ -152,6 +154,13 @@ const BRAND_SEED = {
     name:          'Bonbird',
     vertical:      'restaurant',
     active:        true,
+    // Brand-specific off-menu (merged with the vertical's offMenu by the planner).
+    // Bonbird = Nashville-style fried chicken; peri-peri is a different cuisine we don't
+    // sell, so those keywords are off-brand (Shazin, 2026-08-26).
+    offMenu:       ['peri peri', 'peri-peri', 'periperi', 'piri piri', 'piri-piri'],
+    // UAE is served by legacy static /ae/* pages (human-owned) — the planner must NEVER
+    // generate UAE city hubs for Bonbird even if a bonbird_uae venue record appears.
+    legacyHomeMarket: true,
     domain:        'https://bonbirdchicken.com',
     ownDomain:     'bonbirdchicken.com',
     gscProperty:   'sc-domain:bonbirdchicken.com',  // canonical (majority of files + gsc-data cache)

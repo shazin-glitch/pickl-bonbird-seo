@@ -15,15 +15,21 @@ require.cache[st].exports = { ...realStore, listApprovals: async () => PENDING, 
 
 const bc = require.resolve(path.join(FN, '_lib/brands-config.js'));
 const realBc = require(bc);
-require.cache[bc].exports = { ...realBc, getBrand: async () => ({
-  slug: 'bonbird', name: 'Bonbird', vertical: 'restaurant', cuisine: 'fried chicken',
-  commodityTerms: ['halal'], commodityTermsByMarket: { bonbird_uk: [] } }) };
+require.cache[bc].exports = { ...realBc, getBrand: async (slug) => (slug === 'southpour')
+  ? { slug:'southpour', name:'Southpour', vertical:'cafe', cuisine:'specialty coffee' }   // UAE-native, no legacyHomeMarket
+  : { slug:'bonbird', name:'Bonbird', vertical:'restaurant', cuisine:'fried chicken',
+      commodityTerms:['halal'], commodityTermsByMarket:{ bonbird_uk: [] },
+      offMenu:['peri peri','peri-peri','periperi'], legacyHomeMarket:true } };
 
 const icp = require.resolve(path.join(FN, '_lib/international-config.js'));
 const realIcp = require(icp);
 require.cache[icp].exports = { ...realIcp,
   INTERNATIONAL_MARKETS: { ...realIcp.INTERNATIONAL_MARKETS, bonbird_pakistan: { label:'Pakistan', marketSlug:'pk' } },
-  citiesForMarketAsync: async () => ([{ city:'Lahore', slug:'lahore', venues:[{name:'Cue Cinemas, Gulberg'},{name:'Johar Town'}] }]) };
+  citiesForMarketAsync: async (key) => {
+    if (key === 'bonbird_pakistan') return [{ city:'Lahore', slug:'lahore', venues:[{name:'Cue Cinemas, Gulberg'},{name:'Johar Town'}] }];
+    if (key === 'southpour_uae')    return [{ city:'Dubai',  slug:'dubai',  venues:[{name:'Southpour JLT'}] }];
+    return [];   // bonbird_uae etc. → none
+  } };
 
 global.fetch = async (url, opts) => {
   const b = JSON.parse(opts.body || '{}');
@@ -156,6 +162,29 @@ const mkMeta = (kw, url) => ({ keyword: kw, assetType:'meta_update',
   ok('near-duplicate of a queued page is dropped', !px.items.some(i=>/fried chicken.*lahore/i.test(i.keyword)), px.items.map(i=>i.keyword));
   ok('the drop reason points at the existing queue draft', px.dropped.some(d=>/already in the Approvals queue|Folded into the existing/i.test(d.reason)), px.dropped.map(d=>d.reason));
   PENDING = [];
+
+  console.log('\n── 5d. Peri-peri off-menu (brand-level, merged with vertical) (v7.9.38) ──');
+  KV.set('keywordOpportunities:bonbird:bonbird_pakistan', JSON.stringify({ marketLabel:'Pakistan', opportunities:[
+    { keyword:'peri peri chicken oman', volume:200, tier:'opportunity' },
+    { keyword:'crispy fried chicken lahore', volume:300, tier:'opportunity' },
+  ] }));
+  const llmP = async () => ({ text: JSON.stringify({ plan:[
+    { primaryKeyword:'peri peri chicken oman', assetType:'page_creation', priority:1 },
+    { primaryKeyword:'crispy fried chicken lahore', assetType:'page_creation', priority:2 },
+  ], dropped:[] }) });
+  const pp = await buildMarketPlan({ brand:'bonbird', market:'bonbird_pakistan', llmFn: llmP });
+  ok('peri-peri keyword never reaches the plan (off-brand for Bonbird)', !pp.items.some(i=>/peri/i.test(i.keyword)), pp.items.map(i=>i.keyword));
+  ok('real fried-chicken keyword survives', pp.items.some(i=>/crispy fried chicken/i.test(i.keyword)));
+
+  console.log('\n── 5e. Home-market city hubs: Southpour yes, Bonbird no (v7.9.38) ──');
+  // Southpour (UAE-native cafe, no legacyHomeMarket): home hubs come from southpour_uae.
+  KV.set('keywordOpportunities:southpour', JSON.stringify({ marketLabel:'UAE', opportunities:[] }));
+  const spPlan = await buildMarketPlan({ brand:'southpour', market:'uae', useLLM:false });   // rules path exercises cityItems
+  ok('Southpour gets a Dubai city hub for its home market', spPlan.items.some(i=>i.assetType==='city_hub' && i.city==='dubai'), spPlan.items);
+  // Bonbird (legacyHomeMarket): even the rules path must produce NO UAE hubs.
+  KV.set('keywordOpportunities:bonbird', JSON.stringify({ marketLabel:'UAE', opportunities:[] }));
+  const bbHome = await buildMarketPlan({ brand:'bonbird', market:'uae', useLLM:false });
+  ok('Bonbird gets NO UAE city hubs (legacy static pages)', !bbHome.items.some(i=>i.assetType==='city_hub'), bbHome.items);
 
   console.log('\n── 6. Internal linking directive ──');
   const src = require('fs').readFileSync(path.join(FN,'generate-draft.js'),'utf8');

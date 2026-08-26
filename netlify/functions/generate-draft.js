@@ -151,9 +151,13 @@ exports.handler = async (event) => {
     // Table-stakes terms must never become the selling point in the copy either — the
     // planner stops them being the TARGET, this stops them being the ANGLE.
     const commodityDirective = buildCommodityDirective(brandCfg, market, mkt);
-    const linkCities = (market && market !== 'uae') ? await citiesForMarketAsync(market).catch(() => []) : [];
+    // Home-market venues live in a `<brand>_uae` record, not under the bare key 'uae'
+    // (v7.9.38 — lets a UAE-native brand like Southpour have city hubs). Resolve once and
+    // use everywhere cities are needed, so the planner and generator agree.
+    const cityMarketKey = (!market || market === 'uae') ? `${brand}_uae` : market;
+    const linkCities = await citiesForMarketAsync(cityMarketKey).catch(() => []);
     const linkingDirective = buildLinkingDirective(mkt, linkCities, brandName);
-    const ctx = { brand, keyword, url, market, competitorPage, brandCtx, brandCfg, vertical, examples, feedback, systemPrompt, menuItems, menuDirective, isArabic, mkt, brandName, auth, intel, pageKind, postId, city, wpParent, presenceDirective, commodityDirective, linkingDirective };
+    const ctx = { brand, keyword, url, market, cityMarketKey, competitorPage, brandCtx, brandCfg, vertical, examples, feedback, systemPrompt, menuItems, menuDirective, isArabic, mkt, brandName, auth, intel, pageKind, postId, city, wpParent, presenceDirective, commodityDirective, linkingDirective };
 
     if (effectiveAction === 'meta_update')   return await generateMeta(ctx);
     if (effectiveAction === 'page_creation') return await generatePage(ctx);
@@ -470,11 +474,12 @@ Return ONLY JSON:
 // rule 12, Blobs-merged so onboarded markets work), never invented. A dark_kitchen
 // venue is pickup/delivery only (no dine-in) and the prompt is told so.
 async function generateCityHub(ctx) {
-  const { brand, keyword, market, brandCtx, feedback, systemPrompt, menuItems, menuDirective,
+  const { brand, keyword, market, cityMarketKey, brandCtx, feedback, systemPrompt, menuItems, menuDirective,
           isArabic, brandName, vertical, intel, city, commodityDirective, linkingDirective } = ctx;
   const intelDirective = (intel?.promptDirective || '') + (commodityDirective || '') + (linkingDirective || '');
 
-  const cities = await citiesForMarketAsync(market).catch(() => []);
+  // Home-market venues are under `<brand>_uae`, not the bare 'uae' key (v7.9.38).
+  const cities = await citiesForMarketAsync(cityMarketKey || market).catch(() => []);
   const hub = cities.find(c => c.slug === String(city || '').toLowerCase()) || null;
   if (!hub) return json(400, { error: `No city "${city}" with venues configured for market "${market}". Add it in Settings → SEO Markets (venues) — never invent a city/venue.` });
   const cityName = hub.city;

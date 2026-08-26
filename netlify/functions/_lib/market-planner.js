@@ -252,7 +252,14 @@ async function buildMarketPlan({ brand, market, useLLM = true, llmFn, verifyTarg
 
   // Brand context (for the strategist prompt + fallback off-menu guard).
   let bc = null, offMenu = [], vert = getVertical(null);
-  try { bc = await getBrand(brand); vert = getVertical(bc && bc.vertical); offMenu = vert.offMenu || []; } catch { /* no guard */ }
+  try {
+    bc = await getBrand(brand); vert = getVertical(bc && bc.vertical);
+    // Off-menu = the vertical's list PLUS a brand-specific list (rule #2: per-brand data
+    // in config, not a code literal). Bonbird excludes "peri peri" — it sells Nashville-
+    // style fried chicken, not peri-peri, so those keywords are off-brand (like the
+    // "bun bo hue" case). Confirmed with Shazin 2026-08-26.
+    offMenu = [...(vert.offMenu || []), ...((bc && bc.offMenu) || [])];
+  } catch { /* no guard */ }
   const commodityTerms = commodityTermsFor(bc, isUae ? 'uae' : market);
   const brandName   = (bc && bc.name) || brand;
   const sells       = (bc && bc.cuisine) || (getVertical(bc && bc.vertical).menuSummary) || 'its menu';
@@ -274,7 +281,16 @@ async function buildMarketPlan({ brand, market, useLLM = true, llmFn, verifyTarg
   // Lahore stopped counting as a venue city and every legitimate Lahore keyword was
   // dropped as "a city we are not in". With all hubs queued it would have told Claude we
   // have no venues at all and suppressed local content everywhere.
-  const allCities = (isUae ? [] : await citiesForMarketAsync(market).catch(() => []))
+  // HOME-MARKET CITY HUBS (v7.9.38). Previously `isUae ? []` hard-disabled hubs for the
+  // home market — right for Bonbird/Pickl (legacy static /ae/* pages) but wrong for a
+  // UAE-native brand like Southpour (a Dubai cafe that WANTS city hubs). Now driven by
+  // config: a brand's home venues live in a `<brand>_uae` market record; if none exists,
+  // no hubs (safe). A brand whose home market is legacy-static opts out explicitly so a
+  // future bonbird_uae record can never accidentally spawn hubs that collide with /ae/*.
+  const homeMarketKey = `${brand}_uae`;
+  const cityMarketKey = isUae ? homeMarketKey : market;
+  const suppressHomeHubs = isUae && !!(bc && bc.legacyHomeMarket);
+  const allCities = (suppressHomeHubs ? [] : await citiesForMarketAsync(cityMarketKey).catch(() => []))
     .filter(c => c && c.slug);
   const cities = allCities.filter(c => !queuedCities.has(_kw(c.slug)));
   const citySlugs = new Set(cities.map(c => _kw(c.slug)));
@@ -321,6 +337,18 @@ async function buildMarketPlan({ brand, market, useLLM = true, llmFn, verifyTarg
   // Config-driven: the allowed city list comes from venue config, never a literal.
   const cityNames = [...allCities.map(c => c.city), ...allCities.map(c => c.slug)].filter(Boolean);
   const dropped = [];
+
+  // OFF-MENU is a hard guard, not just a candidate pre-filter — the LLM is told the brand's
+  // menu but can still emit an off-brand keyword (e.g. "peri peri" for Bonbird), so enforce
+  // it on the FINAL items too (v7.9.38). offMenu = vertical list + brand list.
+  items = items.filter((it) => {
+    const kw = _kw(it.keyword);
+    const hit = offMenu.find(t => t && kw.includes(_kw(t)));
+    if (hit) { dropped.push({ keyword: it.keyword, assetType: it.assetType,
+      reason: `Off-brand — "${hit}" isn't something ${brandName} sells.` }); return false; }
+    return true;
+  });
+
   items = items.filter((it) => {
     const reason = _localIntentDrop(it, cityNames);
     if (reason) { dropped.push({ keyword: it.keyword, assetType: it.assetType, reason }); return false; }
