@@ -10,7 +10,7 @@
 
 const { getStore } = require('@netlify/blobs');
 const { listApprovals, callClaude, extractJson } = require('./store'); // dedupe + LLM brain
-const { citiesForMarketAsync } = require('./international-config'); // config-driven city hubs
+const { citiesForMarketAsync, INTERNATIONAL_MARKETS } = require('./international-config'); // config-driven city hubs
 const { getBrand, getVertical } = require('./brands-config'); // brand context + off-menu fallback guard
 
 const EXECUTABLE = new Set(['meta_update', 'page_creation', 'blog_draft', 'city_hub']);
@@ -372,6 +372,97 @@ async function preflightTargets(mapped, { brand, site, headers } = {}) {
   return mapped;
 }
 
+// ── ROUTE page_creation → an EXISTING SCAFFOLD, or a correctly-templated NEW page ──
+// A plain page_creation carries NO template, and handleCreatePage 409s that against the
+// brand's writableTemplates allow-list — the body would never render. Worse, 12 real
+// product scaffolds already sit as empty drafts (4 per market), so creating a page for
+// one of them would duplicate it. So before generating we:
+//   1. FILL a matching empty scaffold (postId → update_content) — the cheapest, safest win.
+//   2. Else CREATE on the right template: product → template-product.php under the market
+//      home; a VENUE/area page → blocked, because a venue page must be a child of its city
+//      hub and its NAP/images are human-owned ACF (see /BONBIRD-SITE-ARCHITECTURE.md §4).
+// Read-only; nothing is created here. Fails OPEN per item (leaves it untouched) on error.
+const TEMPLATE_KIND = { 'template-product.php': 'template_product', 'template-location.php': 'template_location' };
+
+const _slugTokens = s => String(s || '').toLowerCase().split(/[^a-z0-9]+/).filter(Boolean);
+
+// Match conservatively: EVERY token of the scaffold slug must appear in the keyword, and
+// a single-token scaffold never matches (slug "chicken" would otherwise swallow "chicken
+// sandwich" and fill the generic product page with the wrong content). Verified against
+// the live Pakistan set: "chicken tenders"→chicken-tenders ✓, "chicken sandwich"→none,
+// "best burger in lahore"→none (chicken-burger needs both "chicken" AND "burger").
+function _matchScaffold(keyword, scaffolds) {
+  const kw = _slugTokens(keyword);
+  if (!kw.length) return null;
+  let best = null;
+  for (const sc of scaffolds) {
+    const st = _slugTokens(sc.slug);
+    if (st.length < 2) continue;
+    if (!st.every(t => kw.includes(t))) continue;
+    if (!best || st.length > _slugTokens(best.slug).length) best = sc;
+  }
+  return best;
+}
+
+async function preflightPageCreations(mapped, { brand, market, site, headers } = {}) {
+  const targets = mapped.filter(m => m.call && m.call.actionType === 'page_creation' && m.call.pageKind !== 'city_hub');
+  if (!targets.length || !site) return mapped;
+  const mkt = INTERNATIONAL_MARKETS[market];
+  const marketSlug = mkt && mkt.marketSlug;
+  if (!marketSlug) return mapped;                      // home market — unchanged behaviour
+
+  const wp = async (action, payload) => {
+    const r = await fetch(`${site}/.netlify/functions/wordpress`, {
+      method: 'POST', headers: { ...(headers || {}), 'Content-Type': 'application/json' },
+      body: JSON.stringify({ action, brand, payload }),
+    });
+    return r.json().catch(() => null);
+  };
+
+  let scaffolds = [], venueNames = [], cityTokens = new Set();
+  try {
+    // The market's home page id is the ONLY reliable market signal for a scaffold: draft
+    // links are "/?page_id=N", so list_scaffolds' token filter can't see the market.
+    const home = await wp('get_current_meta', { url: `/${marketSlug}/` });
+    const homeId = home && home.found ? home.postId : null;
+    const list = await wp('list_scaffolds', { maxWords: 30 });
+    scaffolds = ((list && list.scaffolds) || []).filter(sc =>
+      TEMPLATE_KIND[sc.template] && (homeId ? Number(sc.parent) === Number(homeId) : false));
+    const cities = await citiesForMarketAsync(market).catch(() => []);
+    venueNames = cities.flatMap(c => (c.venues || []).map(v => v.name));
+    // A venue named after its city (e.g. "Lahore Fort Branch") would otherwise make the
+    // city token match EVERY keyword for that city and block them all. City tokens are
+    // never venue-identifying on their own.
+    cityTokens = new Set(cities.flatMap(c => [..._slugTokens(c.city), ..._slugTokens(c.slug)]));
+  } catch { return mapped; }                            // fail open — route nothing
+
+  for (const m of targets) {
+    const kw = String(m.keyword || '');
+    const sc = _matchScaffold(kw, scaffolds);
+    if (sc) {
+      m.call.pageKind = TEMPLATE_KIND[sc.template];
+      m.call.postId   = sc.id;
+      m.call.url      = sc.link || undefined;
+      m.routedTo = `fill existing scaffold #${sc.id} (${sc.slug}, ${sc.template})`;
+      continue;
+    }
+    // A keyword naming a real VENUE/area is a venue page — it must be a child of that
+    // city's hub and a human owns its NAP/images, so we refuse rather than mis-parent it.
+    const kwTokens = _slugTokens(kw);
+    const venue = venueNames.find(v => _slugTokens(v).some(t => t.length > 3 && !cityTokens.has(t) && kwTokens.includes(t)));
+    if (venue) {
+      m.error = `Looks like a venue page for "${venue}". A venue page must be created as a CHILD of that city's hub, with its address/hours/images added by a human (ACF) — the Nest can write its body once the page exists. Create + publish the city hub first, then add the venue page.`;
+      m.call = null;
+      continue;
+    }
+    // Otherwise a product/category page on the product template, under the market home.
+    m.call.pageKind = 'template_product';
+    m.call.wpParent = marketSlug;
+    m.routedTo = `create a new product page on template-product.php under /${marketSlug}/`;
+  }
+  return mapped;
+}
+
 // Hard ceiling on one execute run — a runaway selection can't spend unbounded Claude
 // credit (each item is a full generation). The UI's topN/budget sits under this.
 const MAX_EXECUTE = 25;
@@ -393,4 +484,4 @@ function selectPlanItems(planItems, { select, topN, max = MAX_EXECUTE } = {}) {
   return chosen.slice(0, Math.max(0, Math.min(max, MAX_EXECUTE)));
 }
 
-module.exports = { buildMarketPlan, planWithClaude, planItemToDraftCall, preflightTargets, selectPlanItems, MAX_EXECUTE, SKIP_TIERS };
+module.exports = { buildMarketPlan, planWithClaude, planItemToDraftCall, preflightTargets, preflightPageCreations, selectPlanItems, MAX_EXECUTE, SKIP_TIERS };

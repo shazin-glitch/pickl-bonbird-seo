@@ -77,7 +77,7 @@ exports.handler = async (event) => {
 
   let body = {};
   try { body = JSON.parse(event.body || '{}'); } catch { return json(400, { error: 'Invalid JSON' }); }
-  const { brand, keyword, url, market, competitorPage, postId, city } = body;
+  const { brand, keyword, url, market, competitorPage, postId, city, wpParent } = body;
   const pageKind = VALID_PAGE_KINDS.includes(body.pageKind) ? body.pageKind : null;
   const actionType = VALID_ACTIONS.includes(body.actionType) ? body.actionType : 'meta_update';
   const confidence = (body.confidence || '').toLowerCase();
@@ -148,7 +148,7 @@ exports.handler = async (event) => {
     // When a market genuinely has no venues we say THAT explicitly, so the model still
     // correctly avoids local/doorway framing.
     const presenceDirective = await buildPresenceDirective(market, mkt, brandName);
-    const ctx = { brand, keyword, url, market, competitorPage, brandCtx, brandCfg, vertical, examples, feedback, systemPrompt, menuItems, menuDirective, isArabic, mkt, brandName, auth, intel, pageKind, postId, city, presenceDirective };
+    const ctx = { brand, keyword, url, market, competitorPage, brandCtx, brandCfg, vertical, examples, feedback, systemPrompt, menuItems, menuDirective, isArabic, mkt, brandName, auth, intel, pageKind, postId, city, wpParent, presenceDirective };
 
     if (effectiveAction === 'meta_update')   return await generateMeta(ctx);
     if (effectiveAction === 'page_creation') return await generatePage(ctx);
@@ -347,10 +347,16 @@ Return ONLY JSON:
 // ACF (images, NAP, hours, product cards) is human-owned — never authored here.
 async function generateTemplatePage(ctx) {
   const { brand, keyword, url, brandCtx, feedback, systemPrompt, menuItems, menuDirective,
-          isArabic, mkt, brandName, vertical, intel, pageKind, postId, presenceDirective } = ctx;
+          isArabic, mkt, brandName, vertical, intel, pageKind, postId, wpParent, presenceDirective } = ctx;
   const isLocation = pageKind === 'template_location';
   const marketLabel = mkt ? mkt.label : 'UAE';
   const intelDirective = (intel?.promptDirective || '') + (presenceDirective || '');
+  // FILL an existing empty scaffold (postId) vs CREATE a new templated page. Creating
+  // MUST carry the template, or handleCreatePage 409s it (writableTemplates allow-list)
+  // and the body would never render — that gap is why plain page_creation items were
+  // held back from the first batch run. See /BONBIRD-SITE-ARCHITECTURE.md §4.
+  const isCreate = !postId;
+  const template = isLocation ? 'template-location.php' : 'template-product.php';
 
   const userPrompt = `You are writing the CONTENT BODY for an existing ${brandName} ${isLocation ? 'location' : 'product'} page in ${marketLabel}. The page's images, address, hours and product cards are managed separately by a human — you write ONLY the prose and FAQs.
 
@@ -372,7 +378,7 @@ HARD RULES:
 - ${metaLengthRule}${isArabic ? '\n- Write EVERYTHING in ARABIC.' : ''}${intelDirective}${feedback.length ? `\n\nHUMAN FEEDBACK — never repeat these past rejections:\n${feedback.slice(0, 10).map(n => `- ${n}`).join('\n')}` : ''}
 
 Return ONLY JSON:
-{"skip": false, "skipReason": "", "title": "SEO title", "metaDescription": "...", "contentHtml": "<p>intro…</p><h2>…</h2><p>…</p><h2>FAQs</h2><h3>Q?</h3><p>A.</p>…", "rationale": "one sentence — why this wins the keyword"}`;
+{"skip": false, "skipReason": "", ${isCreate ? '"slug": "url-slug-no-domain", ' : ''}"title": "SEO title", "metaDescription": "...", "contentHtml": "<p>intro…</p><h2>…</h2><p>…</p><h2>FAQs</h2><h3>Q?</h3><p>A.</p>…", "rationale": "one sentence — why this wins the keyword"}`;
 
   const { text } = await callClaude(userPrompt, { max_tokens: 3200, system: systemPrompt });
   const parsed = extractJson(text) || {};
@@ -392,22 +398,30 @@ Return ONLY JSON:
   try { const v = await runBrandVoiceCheck(contentHtml.replace(/<[^>]+>/g, ' '), brandCtx, callClaude); voiceScore = v?.score ?? null; voiceIssues = v?.issues || []; } catch {}
 
   const t = tags(ctx);
+  // Creating needs the template + parent so the body renders; filling must NEVER carry
+  // them (it would try to re-template an existing page).
+  const createFields = isCreate ? {
+    slug: parsed.slug || '', template,
+    ...(isLocation ? { pageType: 'venue' } : {}),
+    wpParent: wpParent || mkt?.marketSlug || undefined,
+  } : {};
   const item = await createApproval({
-    type: 'page_update', brand,
+    type: isCreate ? 'page_creation' : 'page_update', brand,
     title: `${isLocation ? 'Location' : 'Product'} page: ${keyword}`,
-    reason: parsed.rationale || `Write the content body for the ${marketLabel} ${isLocation ? 'location' : 'product'} page targeting "${keyword}"`,
+    reason: parsed.rationale || `${isCreate ? 'Create' : 'Write the content body for'} the ${marketLabel} ${isLocation ? 'location' : 'product'} page targeting "${keyword}"`,
     ...t,
     payload: {
       // Existing scaffold → update its body by postId (never create a duplicate).
       postId: postId || undefined, url: url || null, postType: 'pages',
       title, description: parsed.metaDescription || '',
       content: contentHtml, targetKeyword: keyword,
-      wpAction: 'update_content',
+      wpAction: isCreate ? 'create_page' : 'update_content',
+      ...createFields,
       ...marketTaxonomyFor(ctx),
       voiceScore, voiceIssues,
       faqPairs: (contentHtml.match(/<h3[^>]*>/gi) || []).length,
       serpFeatureTag: intel?.serpTag || null, competitors: intel?.competitors || null,
-      generatedType: pageKind, label: isLocation ? 'Location page body' : 'Product page body',
+      generatedType: pageKind, label: `${isLocation ? 'Location' : 'Product'} page ${isCreate ? '(new)' : 'body'}`,
       humanTodo: 'Add hero/product images + NAP via ACF, then publish.',
       source: 'worklist-generate',
     },

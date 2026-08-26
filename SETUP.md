@@ -4911,3 +4911,21 @@ The v7.9.32 re-run proved the presence fix worked — Claude wrote all 4 Lahore 
 Suite now 54 assertions (added: a 504 that DID create the draft recovers as queued; a genuine failure still reports nothing created). All three suites green — 54 + 18 + 9. `npm run check` green.
 
 ⚠️ **Root cause not yet fixed:** `generate-draft` remains synchronous, so the **UI's own ⚡ Generate button also 504s on a blog while silently creating the draft** — the user sees a failure and a phantom draft appears. The structural fix is a `generate-draft-background` + poll (memory `netlify-function-traps` #2). Logged, not built.
+
+### v7.9.34 — `page_creation` routing: fill an existing scaffold, or create on the RIGHT template
+Closes the gap Shazin spotted ("it should use the location page template we have, right?" — it didn't). A plain `page_creation` carried **no template**, so `handleCreatePage` would 409 it against Bonbird's `writableTemplates` allow-list and the body would never render. Worse, **12 real product scaffolds already exist as empty drafts** (4 per market × om/qa/pk), so creating a page for one of them would have duplicated it.
+
+**`preflightPageCreations()`** (`_lib/market-planner.js`), run read-only in the execute path before any spend. Three outcomes per item:
+1. **FILL a matching scaffold** → `pageKind` from the scaffold's template, `postId` set → `generateTemplatePage` writes the body via `update_content`. Cheapest and safest; no new page.
+2. **CREATE on the right template** → product/category intent gets `template_product` + `wpParent:<marketSlug>`, matching how the existing scaffolds are structured.
+3. **BLOCK a venue page** → a keyword naming a real configured venue ("bonbird johar town lahore") is refused with an actionable reason: a venue page must be a CHILD of that city's hub and its NAP/images are human-owned ACF, so the hub must exist first. Architecturally correct rather than mis-parenting a page.
+
+**Two subtleties verified live before building** (rule #1): (a) a scaffold's market can only be read from its **`parent`** — draft links are `/?page_id=N`, so `list_scaffolds`' token filter is blind to the market; market home ids resolved from config (`pk`=517, `om`=544, `qa`=542, `ae`=912). (b) Of the 31 "scaffolds" the endpoint returns, only **12 are real** (`template-product.php`, parented to a market home); the other 19 are launch cruft (parent 0, no/elementor template — the `bonbird-post-launch-cleanup` backlog) and are now excluded by construction.
+
+**Matching is deliberately conservative:** every token of the scaffold slug must appear in the keyword, and a single-token slug never matches — otherwise slug `chicken` would swallow "chicken sandwich" and fill the generic product page with the wrong content. Live set: `chicken tenders`→#47016 ✓, `chicken sandwich`→no match, `best burger in lahore`→no match (`chicken-burger` needs both tokens). Venue detection also ignores tokens that are city names, so a venue like "Lahore Fort Branch" can't block every Lahore keyword.
+
+**`generateTemplatePage` now creates as well as fills:** no `postId` → `wpAction:'create_page'` with `template` (+ `pageType:'venue'` for location), `wpParent` and a Claude-supplied slug, typed `page_creation`; with `postId` it behaves exactly as before. `handleCreatePage`'s duplicate-slug-under-same-parent guard still applies.
+
+**Net on the held-back 6:** 1 fills an existing scaffold, 3 create correctly-templated product pages, 2 venue pages are blocked with instructions. Previously all 6 would have generated and then failed at publish.
+
+**Verified:** new `tools/routing-test.js` (16 assertions) replays the exact live Pakistan scaffold set incl. the Qatar same-slug decoy and the cruft drafts. Full offline suite green — **54 + 18 + 9 + 16**. `npm run check` green.

@@ -6,7 +6,7 @@
 
 const { authorize, denied, internalHeaders } = require('./_lib/auth');
 const { getStore } = require('@netlify/blobs');
-const { planItemToDraftCall, preflightTargets, selectPlanItems, MAX_EXECUTE } = require('./_lib/market-planner');
+const { planItemToDraftCall, preflightTargets, preflightPageCreations, selectPlanItems, MAX_EXECUTE } = require('./_lib/market-planner');
 
 function store() {
   return getStore({ name: 'seo-tool', siteID: process.env.NETLIFY_SITE_ID, token: process.env.NETLIFY_AUTH_TOKEN });
@@ -86,6 +86,9 @@ exports.handler = async (event) => {
     // (GSC keeps serving pre-rebuild URLs) BEFORE anything is generated against them.
     const SITE = process.env.URL || 'https://yolkseo.netlify.app';
     await preflightTargets(mapped, { brand, site: SITE, headers: internalHeaders() }).catch(() => {});
+    // Route page_creation to an existing scaffold or the correct template (a plain
+    // create carries none and would be 409'd at publish).
+    await preflightPageCreations(mapped, { brand, market: plan.market, site: SITE, headers: internalHeaders() }).catch(() => {});
     const runnable = mapped.filter(m => m.call);
 
     const dryRun = body.dryRun !== false;   // default true — must opt IN to spending
