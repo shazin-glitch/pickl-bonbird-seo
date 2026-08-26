@@ -14,6 +14,7 @@
 
 const { getStore } = require('@netlify/blobs');
 const { authorizeJob, internalHeaders } = require('./_lib/auth');
+const { generateDraftCore } = require('./generate-draft');
 
 function store() {
   return getStore({ name: 'seo-tool', siteID: process.env.NETLIFY_SITE_ID, token: process.env.NETLIFY_AUTH_TOKEN });
@@ -22,38 +23,11 @@ const RUN_KEY = (b, m) => `marketPlanRun:${b}:${m || 'uae'}`;
 const SITE = process.env.URL || process.env.NETLIFY_URL || 'https://yolkseo.netlify.app';
 
 const VALID_ACTIONS = new Set(['meta_update', 'page_creation', 'blog_draft']);
-// Stop starting new generations with < 90s of the 15-min budget left, so the run record
-// is always closed out cleanly rather than dying mid-item with status stuck on 'running'.
-const BUDGET_MS = 12.5 * 60 * 1000;   // headroom for reconcile waits on slow items
+// Stop starting new generations with < ~2.5min of the 15-min budget left, so the run
+// record is always closed out cleanly rather than dying mid-item stuck on 'running'.
+const BUDGET_MS = 12.5 * 60 * 1000;
 
-// RECONCILE A TIMEOUT. generate-draft is synchronous, and a blog generation (GSC pull
-// + a 3500-token Claude call + the voice check) can exceed Netlify's ~26s gateway limit
-// → the caller gets a 504 while the function KEEPS RUNNING server-side and successfully
-// creates the approval. Live: all 4 Bonbird Pakistan blogs reported "HTTP 504" while all
-// 4 drafts were sitting in the queue. Reporting those as errors is worse than useless —
-// it invites a re-run that pays for every draft twice. So on any error we look for an
-// approval carrying this keyword created since the item started, and believe the QUEUE
-// over the HTTP status. Read-only; never creates anything.
-// NEST_FAST_RECONCILE shortens the waits for the offline suite only — never set in prod.
-const RECONCILE_WAITS = process.env.NEST_FAST_RECONCILE ? [10, 10] : [12000, 15000];
-async function reconcileTimeout(brand, keyword, since) {
-  for (const wait of RECONCILE_WAITS) {
-    await new Promise(r => setTimeout(r, wait));
-    try {
-      const r = await fetch(`${SITE}/api/approvals?brand=${encodeURIComponent(brand)}&status=pending&limit=200`,
-        { headers: internalHeaders() });
-      const j = await r.json().catch(() => null);
-      const items = (j && j.items) || [];
-      const hit = items.find(it => it && it.payload &&
-        String(it.payload.targetKeyword || '').toLowerCase() === String(keyword).toLowerCase() &&
-        (!it.createdAt || new Date(it.createdAt).getTime() >= since - 5000));
-      if (hit) return hit;
-    } catch { /* keep waiting */ }
-  }
-  return null;
-}
-
-// Classify one generate-draft response into a run result the queue/UI can read.
+// Classify a generation result into a run status the queue/UI can read.
 function classify(status, res) {
   if (status >= 400 || (res && res.error)) return { status: 'error', reason: (res && res.error) || `HTTP ${status}` };
   if (res && res.paused)       return { status: 'skipped', reason: res.reason || 'brand content generation is paused' };
@@ -100,27 +74,14 @@ exports.handler = async (event) => {
       done++; await save({ status: 'running' }); continue;
     }
 
-    const itemStartedAt = Date.now();
+    // IN-PROCESS generation — no HTTP, so no ~26s gateway 504 (this fn has a 15-min
+    // budget). Retires the old fetch-to-generate-draft + queue-reconcile hack (v7.9.40).
     let out;
     try {
-      const r = await fetch(`${SITE}/.netlify/functions/generate-draft`, {
-        method: 'POST', headers: internalHeaders({ 'Content-Type': 'application/json' }),
-        body: JSON.stringify(c.call),
-      });
-      const res = await r.json().catch(() => null);
-      out = classify(r.status, res);
+      const res = await generateDraftCore(c.call);   // { statusCode, ok?, item?, skipped?, ... }
+      out = classify(res.statusCode, res);
     } catch (e) {
       out = { status: 'error', reason: e.message };
-    }
-    // The HTTP status can lie on a slow generation — check the queue before believing it.
-    if (out.status === 'error') {
-      const hit = await reconcileTimeout(brand, c.keyword, itemStartedAt);
-      if (hit) {
-        out = { status: 'queued', itemId: hit.id || null, title: hit.title || null,
-          reason: `Generator timed out (${out.reason}) but the draft was created — recovered from the queue, not re-run.` };
-      } else {
-        out.reason = `${out.reason} — no draft found in Approvals, so nothing was created.`;
-      }
     }
     results.push({ keyword: c.keyword, assetType: c.assetType, ...out });
     console.log(`[planner-exec] ${label} → ${out.status}${out.reason ? ` (${out.reason})` : ''}`);

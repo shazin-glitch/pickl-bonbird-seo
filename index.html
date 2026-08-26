@@ -5092,7 +5092,7 @@ async function generateScaffold(postId, link, title, btn) {
   const mkt = (window.NEST_MARKETS || []).find(m => m.brand === brand && m.marketSlug === marketSlug);
   const orig = btn.textContent; btn.disabled = true; btn.textContent = '⏳ Writing…';
   try {
-    const r = await apiPost('/api/generate-draft', { brand, keyword, url: link, postId, pageKind, market: mkt ? mkt.key : 'uae', actionType: 'page_creation' });
+    const r = await generateViaJob({ brand, keyword, url: link, postId, pageKind, market: mkt ? mkt.key : 'uae', actionType: 'page_creation' });
     if (r.error) throw new Error(r.error);
     if (r.skipped) { btn.textContent = '✓ Skipped'; showToast(`Skipped: ${r.reason || 'not a good candidate'}`, ''); }
     else { btn.textContent = `✓ Queued (${r.faqPairs || 0} FAQs)`; btn.style.color = '#059669'; showToast(`Body for "${keyword}" queued — review it in the Approvals Queue.`, 'success'); }
@@ -5368,7 +5368,7 @@ async function generateCityHubFromPanel(marketKey, citySlug, cityName, brand, bt
   const keyword = `${cuisine} ${cityName}`;
   const orig = btn.textContent; btn.disabled = true; btn.textContent = '⏳ Writing…';
   try {
-    const r = await apiPost('/api/generate-draft', { brand, keyword, market: marketKey, city: citySlug, pageKind: 'city_hub', actionType: 'page_creation' });
+    const r = await generateViaJob({ brand, keyword, market: marketKey, city: citySlug, pageKind: 'city_hub', actionType: 'page_creation' });
     if (r.error) throw new Error(r.error);
     if (r.paused) { btn.textContent = '⏸ Paused'; showToast(r.reason || 'Content generation is paused for this brand.', ''); }
     else if (r.skipped) { btn.textContent = '✓ Skipped'; showToast(`Skipped: ${r.reason || 'not a good candidate'}`, ''); }
@@ -10360,6 +10360,26 @@ async function perchOppKeyword(keyword, brand, btn) {
 //   meta_update (default) | page_creation | blog_draft — see generate-draft.js.
 // Confidence-gated server-side (low → routed to Perch). Queues into Approvals for
 // human review; never auto-publishes.
+// generate-draft is now ASYNC (background + poll) so a blog generation can't 504 the UI
+// (v7.9.40). Fire once, then poll the jobId until done. Returns the SAME shape the old
+// synchronous call did ({ ok, item, skipped, paused, routeToPerch, faqPairs, error }), so
+// every caller's downstream handling is unchanged — only the call site swaps.
+async function generateViaJob(params, onTick) {
+  const fire = await apiPost('/api/generate-draft', params);
+  if (fire && fire.error) return fire;                 // 400/403 surfaced immediately
+  if (!fire || !fire.jobId) return fire || {};         // no job (shouldn't happen)
+  for (let i = 0; i < 45; i++) {                        // ~3 min at 4s
+    await new Promise(r => setTimeout(r, 4000));
+    if (onTick) try { onTick(i); } catch {}
+    let j = null;
+    try { j = await apiPost('/api/generate-draft', { action: 'job', jobId: fire.jobId }); } catch { continue; }
+    if (!j) continue;
+    if (j.status === 'done')  return j;                 // carries ok/item/skipped/paused/…
+    if (j.status === 'error') return { error: j.error || 'generation failed' };
+  }
+  return { error: 'Generation is taking longer than expected — check the Approvals queue shortly.' };
+}
+
 async function generateDraftFromWorklist(keyword, brand, url, market, competitorPage, btn, actionType, confidence) {
   actionType = actionType || 'meta_update';
   if (actionType === 'meta_update' && !url) { showToast('No target page for this keyword', 'error'); return; }
@@ -10367,7 +10387,8 @@ async function generateDraftFromWorklist(keyword, brand, url, market, competitor
   btn.disabled = true; btn.textContent = '⏳ Generating…';
   const noun = actionType === 'page_creation' ? 'Page' : actionType === 'blog_draft' ? 'Blog' : 'Meta';
   try {
-    const r = await apiPost('/api/generate-draft', { brand, keyword, url, market, actionType, confidence: confidence || null, competitorPage: competitorPage || null });
+    const r = await generateViaJob({ brand, keyword, url, market, actionType, confidence: confidence || null, competitorPage: competitorPage || null });
+    if (r.error) throw new Error(r.error);
     if (r.routeToPerch) { btn.textContent = '📋 Send to Perch'; showToast(`Low confidence — "${keyword}" is better handled by a human. Use 📋 Perch.`, ''); }
     else if (r.skipped) { btn.textContent = '✓ Already good'; showToast(`"${keyword}" — nothing to queue (${r.reason || 'already strong'}).`, 'success'); }
     else { btn.textContent = '✓ Queued'; btn.style.color = '#059669'; showToast(`${noun} draft for "${keyword}" queued — review it in the Approvals Queue.`, 'success'); }

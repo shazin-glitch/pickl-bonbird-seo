@@ -27,6 +27,8 @@ const { gatherIntelligence, routeAction } = require('./_lib/content-pipeline');
 const { metaLengthRule, metaLenIssues } = require('./_lib/seo-meta');
 const { INTERNATIONAL_MARKETS, citiesForMarketAsync } = require('./_lib/international-config');
 const { authorize, denied, internalHeaders } = require('./_lib/auth');
+const { getStore } = require('@netlify/blobs');
+const crypto = require('crypto');
 
 const CORS = {
   'Access-Control-Allow-Origin':  '*',
@@ -65,18 +67,57 @@ function validateFaqBlock(html) {
   return { ok: issues.length === 0, issues };
 }
 
+function store() {
+  return getStore({ name: 'seo-tool', siteID: process.env.NETLIFY_SITE_ID, token: process.env.NETLIFY_AUTH_TOKEN });
+}
+const JOB_KEY = id => `genDraftJob:${id}`;
+
+// ── HTTP handler (UI). A blog/page generation (GSC pull + 3500-token Claude call +
+// voice check) exceeds Netlify's ~26s gateway → a synchronous call 504s while the
+// function keeps running and creates the draft anyway (a phantom-draft + false error the
+// UI showed). So the UI path is now ASYNC: fire generate-draft-background, return a jobId,
+// poll `action:'job'`. The executor calls generateDraftCore() IN-PROCESS instead (no
+// gateway limit at all). See memory netlify-function-traps #2.
 exports.handler = async (event) => {
   if (event.httpMethod === 'OPTIONS') return { statusCode: 200, headers: CORS, body: '' };
   const auth = await authorize(event);
   if (!auth.ok) return denied();
-  // Generation spends Claude → session callers must be manager/admin (internal allowed).
-  if (auth.via === 'session' && !['admin', 'manager'].includes(auth.user?.role)) {
-    return json(403, { error: 'Manager or admin only' });
-  }
   if (event.httpMethod !== 'POST') return json(405, { error: 'Method Not Allowed' });
 
   let body = {};
   try { body = JSON.parse(event.body || '{}'); } catch { return json(400, { error: 'Invalid JSON' }); }
+
+  // ── Poll a job (any authenticated session may read progress). ──
+  if (body.action === 'job') {
+    if (!body.jobId) return json(400, { error: 'jobId required' });
+    const j = await store().get(JOB_KEY(body.jobId), { type: 'json' }).catch(() => null);
+    return json(200, j || { status: 'none' });
+  }
+
+  // Generation spends Claude → session callers must be manager/admin (internal allowed).
+  if (auth.via === 'session' && !['admin', 'manager'].includes(auth.user?.role)) {
+    return json(403, { error: 'Manager or admin only' });
+  }
+  if (!body.brand || !body.keyword) return json(400, { error: 'brand and keyword are required' });
+
+  // ── Fire the background worker + return a jobId to poll. ──
+  const jobId = crypto.randomUUID();
+  await store().setJSON(JOB_KEY(jobId), { status: 'running', startedAt: Date.now(),
+    brand: body.brand, keyword: body.keyword, actionType: body.actionType || 'meta_update' });
+  const base = process.env.URL || 'https://yolkseo.netlify.app';
+  try {
+    await fetch(`${base}/.netlify/functions/generate-draft-background`, {
+      method: 'POST', headers: internalHeaders({ 'Content-Type': 'application/json' }),
+      body: JSON.stringify({ ...body, jobId }),
+    });
+  } catch (e) { console.warn('[generate-draft] bg trigger failed:', e.message); }
+  return json(202, { status: 'running', jobId });
+};
+
+// ── THE GENERATION CORE. Auth already done by the caller (HTTP handler role-gate, or the
+// internal executor/background job). Returns an HTTP-shaped { statusCode, body } — reused
+// verbatim by the background worker and (via generateDraftCore) the in-process executor.
+async function coreGenerate(body, auth) {
   const { brand, keyword, url, market, competitorPage, postId, city, wpParent } = body;
   const pageKind = VALID_PAGE_KINDS.includes(body.pageKind) ? body.pageKind : null;
   const actionType = VALID_ACTIONS.includes(body.actionType) ? body.actionType : 'meta_update';
@@ -167,7 +208,19 @@ exports.handler = async (event) => {
     console.error(`[generate-draft/${actionType}] failed:`, e.message);
     return json(500, { error: e.message });
   }
-};
+}
+
+// In-process entry point for trusted internal callers (the planner executor). Runs the
+// full core with internal auth and returns a plain object — NO HTTP, so no gateway 26s
+// limit (the executor has a 15-min budget). This is why the executor no longer 504s.
+async function generateDraftCore(params) {
+  const res = await coreGenerate(params, { via: 'internal', user: null });
+  let data = {};
+  try { data = JSON.parse(res.body); } catch { /* leave empty */ }
+  return { statusCode: res.statusCode, ...data };
+}
+
+module.exports = { handler: exports.handler, coreGenerate, generateDraftCore, JOB_KEY };
 
 // Tells the generator where the brand actually TRADES in this market, from venue
 // config. Returns '' for the home market (unchanged behaviour) — only international
