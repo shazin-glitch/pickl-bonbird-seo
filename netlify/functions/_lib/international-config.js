@@ -124,7 +124,7 @@ const INTERNATIONAL_MARKETS = {
     location_code:   179,
     currency:        'QAR',
     countryCode:    'QA',      // ISO-3166 — hreflang locale + schema addressCountry
-    locations:       ['West Walk, Doha', 'District 1, Doha'],
+    locations:       ['West Walk, Doha', 'District One, Doha'],
     seedKeywords: {
       en: [
         'smash burger doha', 'best burger in doha', 'chicken sandwich doha',
@@ -368,10 +368,10 @@ const INTERNATIONAL_MARKETS = {
     location_code:   179,
     currency:        'QAR',
     countryCode:    'QA',      // ISO-3166 — hreflang locale + schema addressCountry
-    locations:       ['West Walk, Doha', 'District 1, Doha'],
+    locations:       ['West Walk, Doha', 'District One, Doha'],
     venues: [
       { name: 'West Walk',  city: 'Doha', type: 'dine_in' },
-      { name: 'District 1', city: 'Doha', type: 'dine_in' },
+      { name: 'District One', city: 'Doha', type: 'dine_in' },
     ],
     seedKeywords: {
       en: [
@@ -393,7 +393,7 @@ const INTERNATIONAL_MARKETS = {
       'Always fresh, hormone free, antibiotic free — Gulf audience responds well',
       'Family bucket meals and group dining important',
       'Gulf Arabic dialect for Arabic content',
-      'NOTE: Confirm Qatar Bonbird locations before publishing location content',
+      'Qatar venues confirmed 2026-08-26: West Walk + District One, both Doha (per Shazin / live site).',
     ],
   },
 };
