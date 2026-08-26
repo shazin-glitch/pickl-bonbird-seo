@@ -178,6 +178,18 @@ const BRAND_SEED = {
     // CLOBBERS the live page. This template allow-list is authoritative over the
     // path deny-list below. (The /ae/ homepage incident on 20 Aug is exactly this.)
     writableTemplates: ['template-location.php', 'template-product.php'],
+    // COMMODITY TERMS — table stakes in this brand's markets, so NEVER an SEO angle.
+    // Every Bonbird market (UAE, Pakistan, Qatar, Oman) is Muslim-majority: literally
+    // every competitor is halal too, so "halal fried chicken" is not a differentiator —
+    // optimising for it wastes an asset and makes the copy read defensively. GSC will
+    // still SHOW halal queries; that is demand for fried chicken, not for halalness, and
+    // it is already served by the base term. The planner folds such variants into the
+    // base keyword and the generator is told never to lead with them.
+    // ⚠️ If Bonbird ever enters a non-Muslim-majority market (UK, US), halal DOES become
+    // a differentiator there — add that market to commodityTermsByMarket with [] to
+    // re-enable it. Config only; no code change.
+    commodityTerms: ['halal'],
+    commodityTermsByMarket: {},   // marketKey → term list REPLACING the brand default
     // Menu availability differs by market (brief §3). Keys = market slug; values =
     // substrings matched case-insensitively against menu categories/items, which are
     // then withheld from generation AND added to a hard "never mention" prompt rule.

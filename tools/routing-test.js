@@ -56,11 +56,15 @@ const mk = (kw, extra = {}) => ({ keyword: kw, assetType: 'page_creation',
   console.log('\n── Conservative matching (no wrong-scaffold fills) ──');
   ok('"chicken sandwich" does NOT fill the generic "chicken" page', !by['chicken sandwich'].call.postId);
   ok('"chicken fries" does NOT fill the generic "chicken" page', !by['chicken fries'].call.postId);
-  ok('"best burger in lahore" does NOT fill chicken-burger (needs BOTH tokens)', !by['best burger in lahore'].call.postId);
+  // CHANGED v7.9.35: the strict matcher still refuses this (needs both tokens), but the
+  // FAMILY check now catches it — creating /pk/best-burger-lahore/ beside an EMPTY
+  // /pk/chicken-burger/ shipped two pages competing for one product. Filling wins.
+  ok('"best burger in lahore" fills the empty chicken-burger scaffold (family match)',
+     by['best burger in lahore'].call.postId === 47015, by['best burger in lahore'].call);
   ok('cruft drafts (parent 0 / no template) never matched', !mapped.some(m => m.call && [90001, 90002].includes(m.call.postId)));
 
   console.log('\n── Templated create (was a guaranteed 409 before) ──');
-  for (const k of ['chicken sandwich', 'chicken fries', 'best burger in lahore']) {
+  for (const k of ['chicken sandwich', 'chicken fries']) {   // burger now fills a scaffold instead
     ok(`"${k}" → product template under /pk/`,
        by[k].call.pageKind === 'template_product' && by[k].call.wpParent === 'pk', by[k].call);
   }
@@ -70,6 +74,8 @@ const mk = (kw, extra = {}) => ({ keyword: kw, assetType: 'page_creation',
     ok(`"${k}" blocked`, !by[k].call && /CHILD of that city's hub/.test(by[k].error), by[k].error);
   }
   ok('a city keyword alone is NOT treated as a venue', by['best burger in lahore'].call !== null);
+  ok('ambiguous chicken keywords still create rather than guess a scaffold',
+     !by['chicken sandwich'].call.postId && !by['chicken fries'].call.postId);
 
   console.log('\n── Untouched paths ──');
   ok('city_hub item left alone', by['fast food in lahore'].call.pageKind === 'city_hub' && !by['fast food in lahore'].routedTo);

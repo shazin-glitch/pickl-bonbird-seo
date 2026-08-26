@@ -83,7 +83,11 @@ const llmFn = async (prompt, opts) => { captured = { prompt, system: opts.system
   ok('cafe hint is coffee-shaped', /coffee/i.test(getVertical('cafe').assetHint));
 
   console.log('\n── Survivors are the genuinely rankable set ──');
-  ok('kept the real opportunities', ['halal fried chicken lahore','chicken sandwich','chicken tenders','best burger in lahore','fast food in lahore'].every(k => kws.includes(k)), kws);
+  // CHANGED v7.9.35: 'halal' is a commodity term for Bonbird (every market is
+  // Muslim-majority), so it is stripped from the keyword — the opportunity survives as
+  // 'fried chicken lahore', it is not lost.
+  ok('kept the real opportunities', ['fried chicken lahore','chicken sandwich','chicken tenders','best burger in lahore','fast food in lahore'].every(k => kws.includes(k)), kws);
+  ok('no surviving keyword optimises for the commodity term', !kws.some(k => /halal/i.test(k)), kws);
   ok('12 planned → 5 clean, 7 dropped with reasons', plan.items.length === 5 && plan.dropped.length === 7, {kept:plan.items.length, dropped:plan.dropped.length});
 
   console.log(`\n${fail===0?'✅':'❌'} ${pass} passed, ${fail} failed\n`);

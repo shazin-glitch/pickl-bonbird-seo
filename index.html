@@ -4040,6 +4040,13 @@ function buildActionCard(item) {
   </div>`;
 }
 
+// The generated body lives on payload.content (generate-draft) OR payload.body (the
+// legacy batch pipelines). Gating the "Read Full Content" button on p.body alone meant
+// EVERY draft generate-draft produced showed only its title + meta with no way to read
+// the body — previewContent() already handled both, so the modal was fine and simply
+// unreachable. One accessor so the two can never drift again.
+const _bodyOf = p => (p && (p.body || p.content)) || '';
+
 function buildPreview(item) {
   const p = item.payload || {};
   if (item.type === 'blog_draft') return `
@@ -4048,7 +4055,7 @@ function buildPreview(item) {
     <div style="margin-top:6px"><strong>Target Keyword:</strong> ${esc(p.targetKeyword || '—')} ${p.slug ? `<span style="color:var(--text-muted);font-size:11px">· /${esc(p.slug)}</span>` : ''}</div>
     ${p.excerpt ? `<div style="margin-top:6px"><strong>Excerpt:</strong> ${esc(p.excerpt)}</div>` : ''}
     ${p.voiceTopFix ? `<div style="margin-top:8px;padding:8px 12px;background:#fef3c7;border-left:3px solid #f59e0b;border-radius:0 6px 6px 0;font-size:12px;color:#92400e"><strong>⚠ Voice note:</strong> ${esc(p.voiceTopFix)}</div>` : ''}
-    ${p.body ? `<div style="margin-top:10px"><button class="btn btn-outline" style="font-size:12px" onclick="previewContent('${esc(item.id)}')">📄 Read Full Content (~${Math.round(p.body.replace(/<[^>]+>/g,'').length/5)} words)</button></div>` : ''}`;
+    ${_bodyOf(p) ? `<div style="margin-top:10px"><button class="btn btn-outline" style="font-size:12px" onclick="previewContent('${esc(item.id)}')">📄 Read Full Content (~${Math.round(_bodyOf(p).replace(/<[^>]+>/g,'').length/5)} words)</button></div>` : ''}`;
   if (item.type === 'meta_update') {
     const newTitle = p.metaTitle || (p.title !== item.title ? p.title : null) || '—';
     const newDesc  = p.metaDescription || p.description || '—';
@@ -4093,14 +4100,14 @@ function buildPreview(item) {
     <div style="margin-top:6px"><strong>New Title:</strong> ${esc(p.title || '-')}</div>
     <div style="margin-top:6px"><strong>New Meta:</strong> ${esc(p.description || '-')}</div>
     ${p.voiceTopFix ? `<div style="margin-top:8px;padding:8px 12px;background:#fef3c7;border-left:3px solid #f59e0b;border-radius:0 6px 6px 0;font-size:12px;color:#92400e"><strong>⚠ Voice note:</strong> ${esc(p.voiceTopFix)}</div>` : ''}
-    ${p.body ? `<div style="margin-top:10px"><button class="btn btn-outline" style="font-size:12px" onclick="previewContent('${esc(item.id)}')">📄 Read Full Content (~${Math.round(p.body.replace(/<[^>]+>/g,'').length/5)} words)</button></div>` : ''}`; }
+    ${_bodyOf(p) ? `<div style="margin-top:10px"><button class="btn btn-outline" style="font-size:12px" onclick="previewContent('${esc(item.id)}')">📄 Read Full Content (~${Math.round(_bodyOf(p).replace(/<[^>]+>/g,'').length/5)} words)</button></div>` : ''}`; }
   if (item.type === 'page_creation') return `
     <div><strong>Title:</strong> ${esc(p.title || '-')}</div>
     <div style="margin-top:6px"><strong>Meta:</strong> ${esc(p.description || '-')}</div>
     <div style="margin-top:6px"><strong>Target Keyword:</strong> ${esc(p.targetKeyword || '-')} ${p.slug ? `<span style="color:var(--text-muted);font-size:11px">· /${esc(p.slug)}</span>` : ''}</div>
     ${p.excerpt ? `<div style="margin-top:6px"><strong>Excerpt:</strong> ${esc(p.excerpt)}</div>` : ''}
     ${p.voiceTopFix ? `<div style="margin-top:8px;padding:8px 12px;background:#fef3c7;border-left:3px solid #f59e0b;border-radius:0 6px 6px 0;font-size:12px;color:#92400e"><strong>⚠ Voice note:</strong> ${esc(p.voiceTopFix)}</div>` : ''}
-    ${p.body ? `<div style="margin-top:10px"><button class="btn btn-outline" style="font-size:12px" onclick="previewContent('${esc(item.id)}')">📄 Read Full Content (~${Math.round(p.body.replace(/<[^>]+>/g,'').length/5)} words)</button></div>` : ''}
+    ${_bodyOf(p) ? `<div style="margin-top:10px"><button class="btn btn-outline" style="font-size:12px" onclick="previewContent('${esc(item.id)}')">📄 Read Full Content (~${Math.round(_bodyOf(p).replace(/<[^>]+>/g,'').length/5)} words)</button></div>` : ''}
     <div style="margin-top:8px;padding:6px 10px;background:#eff6ff;border-radius:6px;font-size:11px;color:#2563eb">New page — add real images in WordPress before publishing</div>`;
   return `<div>${esc(item.reason || JSON.stringify(p))}</div>`;
 }

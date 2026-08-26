@@ -57,6 +57,7 @@ RULES:
 - WHAT WINS FOR THIS BRAND: ${ctx.assetHint}
 - ⚠️ WE HAVE VENUES ONLY IN: ${ctx.cityList || 'no cities (this brand has no venues — do NOT propose local, "near me", venue or city pages at all)'}. NEVER propose a local/location page for a city we are not in — that is a doorway page. Drop those keywords.
 - ⚠️ "near me" / "nearest" / "nearby" keywords are answered by Google's LOCAL PACK from our Google Business Profile, NOT by a web page — a page cannot be "near" anyone. Never create a page or blog targeting the literal phrase. Instead CLUSTER that demand into the relevant city_hub above, or drop it. A generic category near-me term (e.g. "restaurants near me" for a specialist brand) is off-brand — drop it.
+${ctx.commodityTerms && ctx.commodityTerms.length ? `- ⚠️ TABLE STAKES in ${ctx.marketLabel}, NEVER an angle: ${ctx.commodityTerms.join(', ')}. Every competitor here is the same, so it differentiates nothing. Treat "${ctx.commodityTerms[0]} X" and "X" as the SAME intent — cluster them into ONE item using the BASE keyword, and never make it the primary keyword or the page's selling point.\n` : ''}- ⚠️ NO TWO ITEMS MAY COMPETE WITH EACH OTHER. Before finalising, check every pair: if two items would serve the same product, intent or searcher — even under different words (e.g. "chicken burger" and "chicken sandwich" are the SAME product; a city hub and a local landing page for that same city are the SAME intent) — MERGE them into one item and list the loser in "dropped" with the reason. Shipping two pages for one intent splits authority and both lose. Exactly ONE item may own local/city intent for a given city: the city_hub.
 - PRIORITISE by business value (volume × intent × winnability) and cap the plan to the ~15 highest-value items — a focused launch, not everything.
 
 Return ONLY JSON:
@@ -94,6 +95,35 @@ const _IN_CITY_RE = /\b(?:in|at|near)\s+([a-z\u0600-\u06FF][\w\u0600-\u06FF'-]+(
 function _mentionsConfiguredCity(keyword, cityNames) {
   const kw = _kw(keyword);
   return cityNames.some(c => c && kw.includes(_kw(c)));
+}
+
+// ── COMMODITY TERMS ─────────────────────────────────────────────────────────
+// A term that is TABLE STAKES in this market is not an SEO angle. Bonbird: every one of
+// its markets (UAE, PK, QA, OM) is Muslim-majority, so every competitor is halal too —
+// "halal fried chicken lahore" and "fried chicken lahore" are the same intent, and
+// building a separate asset for the halal variant splits authority for no gain. GSC will
+// keep showing halal queries; that is demand for fried chicken, already served by the
+// base term. So we NORMALISE (strip the term) and let the dedupe fold the variant into
+// the base keyword, rather than dropping the demand. Config-driven per brand, with a
+// per-market override for a market where the term IS a differentiator (e.g. a UK entry).
+function commodityTermsFor(brandCfg, marketKey) {
+  const byMarket = (brandCfg && brandCfg.commodityTermsByMarket) || {};
+  if (marketKey && Object.prototype.hasOwnProperty.call(byMarket, marketKey)) {
+    return (byMarket[marketKey] || []).map(t => String(t).toLowerCase());
+  }
+  return ((brandCfg && brandCfg.commodityTerms) || []).map(t => String(t).toLowerCase());
+}
+
+// "halal fried chicken lahore" → "fried chicken lahore". Returns the original when
+// stripping would leave nothing meaningful (a keyword that is ONLY the commodity term).
+function stripCommodityTerms(keyword, terms) {
+  if (!terms.length) return keyword;
+  let out = String(keyword || '');
+  for (const t of terms) {
+    out = out.replace(new RegExp(`\\b${t.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}\\b`, 'gi'), ' ');
+  }
+  out = out.replace(/\s+/g, ' ').trim();
+  return out.length >= 3 ? out : keyword;
 }
 
 // Returns a drop reason, or null to keep. `cityNames` = configured city names + slugs.
@@ -190,6 +220,9 @@ function store() {
 const SKIP_TIERS = new Set(['top3', 'top10', 'monitor']);
 
 const _kw = k => String(k || '').toLowerCase().trim();
+// Compare targets by PATH — the same page arrives as an absolute URL from one source
+// and a root-relative one from another, and they must count as the same page.
+const _pathOf = u => String(u || '').replace(/^https?:\/\/[^/]+/, '').replace(/\/+$/, '').toLowerCase() || null;
 
 // Build the plan for one brand × market. `market` omitted/'uae' = home market.
 // useLLM (default true): Claude clusters/judges/prioritises. false OR failure → rules.
@@ -216,6 +249,7 @@ async function buildMarketPlan({ brand, market, useLLM = true, llmFn, verifyTarg
   // Brand context (for the strategist prompt + fallback off-menu guard).
   let bc = null, offMenu = [], vert = getVertical(null);
   try { bc = await getBrand(brand); vert = getVertical(bc && bc.vertical); offMenu = vert.offMenu || []; } catch { /* no guard */ }
+  const commodityTerms = commodityTermsFor(bc, isUae ? 'uae' : market);
   const brandName   = (bc && bc.name) || brand;
   const sells       = (bc && bc.cuisine) || (getVertical(bc && bc.vertical).menuSummary) || 'its menu';
   const marketLabel = isUae ? 'UAE' : ((data && data.marketLabel) || market);
@@ -240,6 +274,7 @@ async function buildMarketPlan({ brand, market, useLLM = true, llmFn, verifyTarg
       brandName, sells, marketLabel,
       promptNoun: vert.promptNoun, assetHint: vert.assetHint || '',
       cityList: cities.map(c => c.city).join(', '),
+      commodityTerms,
     }, llmFn);
     if (llm && Array.isArray(llm.plan)) {
       const norm = llm.plan.map(it => _normalizeLlmItem(it, citySlugs))
@@ -279,6 +314,47 @@ async function buildMarketPlan({ brand, market, useLLM = true, llmFn, verifyTarg
     if (reason) { dropped.push({ keyword: it.keyword, assetType: it.assetType, reason }); return false; }
     return true;
   });
+
+  // Normalise commodity terms out of the keyword, then fold duplicates together — the
+  // LLM is told this rule, this enforces it. "halal fried chicken lahore" becomes
+  // "fried chicken lahore"; if that already exists as an item, the variant is dropped
+  // rather than shipping two assets for one intent.
+  if (commodityTerms.length) {
+    const seenKw = new Set();
+    items = items.filter((it) => {
+      const stripped = stripCommodityTerms(it.keyword, commodityTerms);
+      if (_kw(stripped) !== _kw(it.keyword)) {
+        it.commodityStrippedFrom = it.keyword;
+        it.keyword = stripped;
+      }
+      const k = _kw(it.keyword);
+      if (seenKw.has(k)) {
+        dropped.push({ keyword: it.commodityStrippedFrom || it.keyword, assetType: it.assetType,
+          reason: `"${commodityTerms.join('/')}" is table stakes in this market — every competitor is too, so it is not a differentiator. Folded into the existing "${it.keyword}" item rather than building a second asset for the same intent.` });
+        return false;
+      }
+      seenKw.add(k);
+      return true;
+    });
+  }
+
+  // Rules backstop for the prompt rule above: two items whose distinctive tokens are
+  // IDENTICAL are the same target however they are worded. (Genuine synonym overlap —
+  // "burger" vs "sandwich" — is semantic and stays the LLM's job.)
+  {
+    const seenSig = new Map();
+    items = items.filter((it) => {
+      const sig = _slugTokens(it.keyword).filter(t => !_STOPWORDS.has(t)).sort().join('|');
+      if (!sig) return true;
+      if (seenSig.has(sig)) {
+        dropped.push({ keyword: it.keyword, assetType: it.assetType,
+          reason: `Same target as "${seenSig.get(sig)}" once generic modifiers are removed — two assets for one intent split authority, so only the higher-priority one is kept.` });
+        return false;
+      }
+      seenSig.set(sig, it.keyword);
+      return true;
+    });
+  }
 
   // ── STALE-TARGET FILTER: a meta_update whose target page no longer exists wastes a
   // launch slot. GSC keeps serving pre-rebuild URLs long after a site move (live: 2 of
@@ -357,7 +433,37 @@ function planItemToDraftCall(item, { brand, market } = {}) {
 async function preflightTargets(mapped, { brand, site, headers } = {}) {
   const metas = mapped.filter(m => m.call && m.call.actionType === 'meta_update');
   if (!metas.length) return mapped;
-  await Promise.all(metas.map(async (m) => {
+
+  // SAME-URL CONFLICT: two pending meta rewrites for ONE page silently overwrite each
+  // other — whichever is published second wins and the first review is wasted. Live: both
+  // "fried chicken lahore" and "fried chicken near me" queued against post 1170. A page
+  // has exactly one title+description, so only one rewrite may ever be in flight.
+  let pendingMetaUrls = new Set();
+  try {
+    const pend = await listApprovals({ brand, status: 'pending' }).catch(() => []);
+    const arr = Array.isArray(pend) ? pend : (pend && pend.items) || [];
+    pendingMetaUrls = new Set(arr
+      .filter(i => i.payload && i.payload.wpAction === 'update_meta')
+      .map(i => _pathOf(i.payload.url)).filter(Boolean));
+  } catch { /* best-effort */ }
+
+  const seenUrls = new Set();
+  for (const m of metas) {
+    const path = _pathOf(m.call.url);
+    if (!path) continue;
+    if (pendingMetaUrls.has(path)) {
+      m.error = `A meta rewrite for ${path} is already awaiting review — a page has one title+description, so a second would overwrite the first. Publish or reject that one first.`;
+      m.call = null;
+    } else if (seenUrls.has(path)) {
+      m.error = `Two selected items target the same page (${path}) — only one meta rewrite per page.`;
+      m.call = null;
+    } else {
+      seenUrls.add(path);
+    }
+  }
+  const live = mapped.filter(m => m.call && m.call.actionType === 'meta_update');
+  if (!live.length) return mapped;
+  await Promise.all(live.map(async (m) => {
     try {
       const r = await fetch(`${site}/.netlify/functions/wordpress`, {
         method: 'POST', headers: { ...headers, 'Content-Type': 'application/json' },
@@ -404,6 +510,23 @@ function _matchScaffold(keyword, scaffolds) {
   return best;
 }
 
+// Generic modifiers carry no product meaning — matching on them would fill the wrong
+// scaffold ("best X in Y" must not match every scaffold because of "best").
+const _STOPWORDS = new Set(['best', 'top', 'good', 'great', 'cheap', 'near', 'me', 'in', 'at', 'the', 'a',
+  'and', 'or', 'for', 'with', 'my', 'to', 'of', 'on', 'new', 'order', 'delivery', 'online', 'price', 'menu']);
+
+// Softer than _matchScaffold: ONE shared distinctive token is enough to say "this
+// scaffold already owns this product". Used only after the strict match fails, and only
+// to prefer filling over creating — never to pick between two scaffolds arbitrarily
+// (ties are refused, so an ambiguous keyword falls through to a normal create).
+function _matchScaffoldFamily(keyword, scaffolds) {
+  const kw = _slugTokens(keyword).filter(t => !_STOPWORDS.has(t));
+  if (!kw.length) return null;
+  const hits = scaffolds.filter(sc => _slugTokens(sc.slug).some(t => !_STOPWORDS.has(t) && kw.includes(t)));
+  if (hits.length !== 1) return null;                    // 0 = no family; >1 = ambiguous
+  return hits[0];
+}
+
 async function preflightPageCreations(mapped, { brand, market, site, headers } = {}) {
   const targets = mapped.filter(m => m.call && m.call.actionType === 'page_creation' && m.call.pageKind !== 'city_hub');
   if (!targets.length || !site) return mapped;
@@ -446,6 +569,20 @@ async function preflightPageCreations(mapped, { brand, market, site, headers } =
       m.routedTo = `fill existing scaffold #${sc.id} (${sc.slug}, ${sc.template})`;
       continue;
     }
+    // FAMILY CHECK — an unfilled scaffold covering this PRODUCT must win over creating a
+    // new page beside it. The strict all-tokens match above deliberately refuses a wrong
+    // fill, but on its own it produced a worse outcome live: "best burger in lahore"
+    // created /pk/best-burger-lahore/ while the empty /pk/chicken-burger/ scaffold sat
+    // right next to it — two pages competing for one product. If ANY distinctive token of
+    // the keyword matches a scaffold slug token, that scaffold owns this product: fill it.
+    const fam = _matchScaffoldFamily(kw, scaffolds);
+    if (fam) {
+      m.call.pageKind = TEMPLATE_KIND[fam.template];
+      m.call.postId   = fam.id;
+      m.call.url      = fam.link || undefined;
+      m.routedTo = `fill existing scaffold #${fam.id} (${fam.slug}) — same product family, so filling it beats creating a competing page`;
+      continue;
+    }
     // A keyword naming a real VENUE/area is a venue page — it must be a child of that
     // city's hub and a human owns its NAP/images, so we refuse rather than mis-parent it.
     const kwTokens = _slugTokens(kw);
@@ -484,4 +621,4 @@ function selectPlanItems(planItems, { select, topN, max = MAX_EXECUTE } = {}) {
   return chosen.slice(0, Math.max(0, Math.min(max, MAX_EXECUTE)));
 }
 
-module.exports = { buildMarketPlan, planWithClaude, planItemToDraftCall, preflightTargets, preflightPageCreations, selectPlanItems, MAX_EXECUTE, SKIP_TIERS };
+module.exports = { buildMarketPlan, planWithClaude, planItemToDraftCall, preflightTargets, preflightPageCreations, _matchScaffoldFamily, commodityTermsFor, stripCommodityTerms, selectPlanItems, MAX_EXECUTE, SKIP_TIERS };

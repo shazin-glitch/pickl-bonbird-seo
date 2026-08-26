@@ -148,7 +148,12 @@ exports.handler = async (event) => {
     // When a market genuinely has no venues we say THAT explicitly, so the model still
     // correctly avoids local/doorway framing.
     const presenceDirective = await buildPresenceDirective(market, mkt, brandName);
-    const ctx = { brand, keyword, url, market, competitorPage, brandCtx, brandCfg, vertical, examples, feedback, systemPrompt, menuItems, menuDirective, isArabic, mkt, brandName, auth, intel, pageKind, postId, city, wpParent, presenceDirective };
+    // Table-stakes terms must never become the selling point in the copy either — the
+    // planner stops them being the TARGET, this stops them being the ANGLE.
+    const commodityDirective = buildCommodityDirective(brandCfg, market, mkt);
+    const linkCities = (market && market !== 'uae') ? await citiesForMarketAsync(market).catch(() => []) : [];
+    const linkingDirective = buildLinkingDirective(mkt, linkCities, brandName);
+    const ctx = { brand, keyword, url, market, competitorPage, brandCtx, brandCfg, vertical, examples, feedback, systemPrompt, menuItems, menuDirective, isArabic, mkt, brandName, auth, intel, pageKind, postId, city, wpParent, presenceDirective, commodityDirective, linkingDirective };
 
     if (effectiveAction === 'meta_update')   return await generateMeta(ctx);
     if (effectiveAction === 'page_creation') return await generatePage(ctx);
@@ -173,6 +178,35 @@ async function buildPresenceDirective(market, mkt, brandName) {
   const lines = cities.map(c => `${c.city} (${(c.venues || []).map(v => v.name).join(', ') || 'venue'})`).join('; ');
   return `\n- PRESENCE — this is TRUE, do not contradict it: ${brandName} IS open and trading in ${mkt.label}, with venues in ${lines}. Never say or imply we have no presence, no locations, or no plans there.`
        + `\n- Reference venues by NAME only. Never invent an address, phone number, opening hours, or a venue that is not listed above.`;
+}
+
+// A term that is table stakes in this market differentiates nothing — leading with it
+// wastes the strongest copy real estate and reads defensively. Config-driven
+// (brandsConfig.commodityTerms + per-market override); brands without it are unaffected.
+// INTERNAL LINKING. Every draft in the first live batch shipped with ZERO internal
+// links — for a launch cluster that is the biggest single miss: internal links are how a
+// hub consolidates authority and how a brand realistically outranks aggregators for local
+// terms. Only real, known URLs are offered (the market home + configured city hubs), so
+// the model can never invent a path. Relative URLs so they survive a domain change.
+function buildLinkingDirective(mkt, cities, brandName) {
+  const targets = [];
+  if (mkt?.marketSlug) targets.push(`/${mkt.marketSlug}/ — the ${mkt.label} home`);
+  for (const c of (cities || [])) {
+    if (c && c.slug && mkt?.marketSlug) targets.push(`/${mkt.marketSlug}/${c.slug}/ — the ${c.city} city hub`);
+  }
+  if (!targets.length) return '';
+  return `\n- INTERNAL LINKS (required): include 2–3 contextual internal links in the body, as plain <a href="/path/">anchor</a> with descriptive anchor text (never "click here", never the bare URL). Link ONLY to these real ${brandName} pages — do NOT invent any other path:\n  ${targets.join('\n  ')}\n  Place them where they genuinely help the reader, not in a list at the end.`;
+}
+
+function buildCommodityDirective(brandCfg, market, mkt) {
+  const byMarket = (brandCfg && brandCfg.commodityTermsByMarket) || {};
+  const key = market || 'uae';
+  const terms = Object.prototype.hasOwnProperty.call(byMarket, key)
+    ? (byMarket[key] || [])
+    : ((brandCfg && brandCfg.commodityTerms) || []);
+  if (!terms.length) return '';
+  const label = mkt ? mkt.label : 'this market';
+  return `\n- ⚠️ TABLE STAKES in ${label} — NEVER the selling point: ${terms.join(', ')}. Every competitor here is the same, so it differentiates nothing. Do NOT put it in the title, H1, meta description, or opening line, and do not build a section around it. State it once in passing ONLY if a customer would genuinely ask. Lead on what actually sets us apart instead.`;
 }
 
 // Market-aware menu filtering (brief §3): an item discontinued in a market must not
@@ -229,8 +263,8 @@ function tags(ctx) {
 
 // ── meta_update ────────────────────────────────────────────────────────────────
 async function generateMeta(ctx) {
-  const { brand, keyword, url, competitorPage, brandCtx, feedback, systemPrompt, menuItems, menuDirective, isArabic, mkt, brandName, intel } = ctx;
-  const intelDirective = intel?.promptDirective || '';
+  const { brand, keyword, url, competitorPage, brandCtx, feedback, systemPrompt, menuItems, menuDirective, isArabic, mkt, brandName, intel, commodityDirective, linkingDirective } = ctx;
+  const intelDirective = (intel?.promptDirective || '') + (commodityDirective || '');
 
   // 1) current live meta (proven path — reuse the wordpress function)
   let currentTitle = null, currentDesc = null;
@@ -291,8 +325,8 @@ Return ONLY JSON:
 
 // ── page_creation ───────────────────────────────────────────────────────────────
 async function generatePage(ctx) {
-  const { brand, keyword, url, brandCtx, feedback, systemPrompt, menuItems, menuDirective, isArabic, mkt, brandName, vertical, intel, pageKind, postId, presenceDirective } = ctx;
-  const intelDirective = (intel?.promptDirective || '') + (presenceDirective || '');
+  const { brand, keyword, url, brandCtx, feedback, systemPrompt, menuItems, menuDirective, isArabic, mkt, brandName, vertical, intel, pageKind, postId, presenceDirective, commodityDirective, linkingDirective } = ctx;
+  const intelDirective = (intel?.promptDirective || '') + (presenceDirective || '') + (commodityDirective || '') + (linkingDirective || '');
   if (pageKind === 'city_hub') return await generateCityHub(ctx);
   if (isTemplateKind(pageKind)) return await generateTemplatePage(ctx);
 
@@ -347,10 +381,10 @@ Return ONLY JSON:
 // ACF (images, NAP, hours, product cards) is human-owned — never authored here.
 async function generateTemplatePage(ctx) {
   const { brand, keyword, url, brandCtx, feedback, systemPrompt, menuItems, menuDirective,
-          isArabic, mkt, brandName, vertical, intel, pageKind, postId, wpParent, presenceDirective } = ctx;
+          isArabic, mkt, brandName, vertical, intel, pageKind, postId, wpParent, presenceDirective, commodityDirective, linkingDirective } = ctx;
   const isLocation = pageKind === 'template_location';
   const marketLabel = mkt ? mkt.label : 'UAE';
-  const intelDirective = (intel?.promptDirective || '') + (presenceDirective || '');
+  const intelDirective = (intel?.promptDirective || '') + (presenceDirective || '') + (commodityDirective || '') + (linkingDirective || '');
   // FILL an existing empty scaffold (postId) vs CREATE a new templated page. Creating
   // MUST carry the template, or handleCreatePage 409s it (writableTemplates allow-list)
   // and the body would never render — that gap is why plain page_creation items were
@@ -437,8 +471,8 @@ Return ONLY JSON:
 // venue is pickup/delivery only (no dine-in) and the prompt is told so.
 async function generateCityHub(ctx) {
   const { brand, keyword, market, brandCtx, feedback, systemPrompt, menuItems, menuDirective,
-          isArabic, brandName, vertical, intel, city } = ctx;
-  const intelDirective = intel?.promptDirective || '';
+          isArabic, brandName, vertical, intel, city, commodityDirective, linkingDirective } = ctx;
+  const intelDirective = (intel?.promptDirective || '') + (commodityDirective || '') + (linkingDirective || '');
 
   const cities = await citiesForMarketAsync(market).catch(() => []);
   const hub = cities.find(c => c.slug === String(city || '').toLowerCase()) || null;
@@ -513,8 +547,8 @@ Return ONLY JSON:
 
 // ── blog_draft ────────────────────────────────────────────────────────────────
 async function generateBlog(ctx) {
-  const { brand, keyword, brandCtx, feedback, systemPrompt, menuItems, menuDirective, isArabic, mkt, brandName, vertical, intel, presenceDirective } = ctx;
-  const intelDirective = (intel?.promptDirective || '') + (presenceDirective || '');
+  const { brand, keyword, brandCtx, feedback, systemPrompt, menuItems, menuDirective, isArabic, mkt, brandName, vertical, intel, presenceDirective, commodityDirective, linkingDirective } = ctx;
+  const intelDirective = (intel?.promptDirective || '') + (presenceDirective || '') + (commodityDirective || '') + (linkingDirective || '');
 
   const userPrompt = `You are writing a NEW blog/journal post for ${brandName} to build topical authority and rank for an informational keyword. Write the full post.
 
