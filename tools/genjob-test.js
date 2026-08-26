@@ -55,6 +55,30 @@ const ok = (n, c, e) => { c ? (pass++, console.log('  ✅', n)) : (fail++, conso
   ok('unauthenticated → denied', (await call({ brand: 'bonbird', keyword: 'x' })).statusCode === 401);
   AUTH = { ok: true, via: 'session', user: { email: 'shazin@yolkbrands.com', role: 'admin' } };
 
+  console.log('\n── callClaudeJson: one retry on empty/invalid, none on skip (v7.9.41) ──');
+  const fs = require('fs');
+  const src = fs.readFileSync(path.join(FN, 'generate-draft.js'), 'utf8');
+  const fnBody = src.match(/async function callClaudeJson[\s\S]*?\n}/)[0];
+  const make = (texts) => { let i = 0; const calls = { n: 0 };
+    const cc = async () => { calls.n++; return { text: texts[i++] }; };
+    const ex = t => { try { return JSON.parse(t); } catch { return null; } };
+    const fn = new Function('callClaude','extractJson','console', `return (${fnBody})`)(cc, ex, console);
+    return { fn, calls };
+  };
+  const needTitleContent = p2 => !p2.skip && (!p2.title || !p2.contentHtml);
+  { const { fn, calls } = make(['', '{"title":"T","contentHtml":"<p>x</p>"}']);
+    const r = await fn('p', {}, needTitleContent);
+    ok('empty first response → retries once → returns the valid retry', r.title === 'T' && calls.n === 2, { r, n: calls.n }); }
+  { const { fn, calls } = make(['{"title":"T","contentHtml":"<p>x</p>"}', 'SHOULD-NOT-BE-CALLED']);
+    const r = await fn('p', {}, needTitleContent);
+    ok('valid first response → no retry', r.title === 'T' && calls.n === 1, calls.n); }
+  { const { fn, calls } = make(['{"skip":true,"skipReason":"already good"}', 'NOPE']);
+    const r = await fn('p', {}, needTitleContent);
+    ok('legitimate skip → no retry', r.skip === true && calls.n === 1, calls.n); }
+  { const { fn, calls } = make(['', '']);
+    const r = await fn('p', {}, needTitleContent);
+    ok('still-empty after retry → returns empty (caller 502s as before)', (!r.title) && calls.n === 2, calls.n); }
+
   console.log(`\n${fail === 0 ? '✅' : '❌'} ${pass} passed, ${fail} failed\n`);
   process.exit(fail ? 1 : 0);
 })();

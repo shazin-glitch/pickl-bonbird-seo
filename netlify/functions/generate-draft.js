@@ -72,6 +72,23 @@ function store() {
 }
 const JOB_KEY = id => `genDraftJob:${id}`;
 
+// Claude occasionally returns an empty or non-JSON blob (~1-in-N) → the generator would
+// 502 "generation returned no title/content" and, in a planner run, surface as a false
+// "1 error" (seen live on Slack). ONE retry clears the transient case. `needsRetry(parsed)`
+// is generator-specific: a legitimate {skip:true} must NOT retry. (v7.9.41)
+async function callClaudeJson(userPrompt, opts, needsRetry) {
+  let parsed = {};
+  for (let attempt = 0; attempt < 2; attempt++) {
+    try {
+      const { text } = await callClaude(userPrompt, opts);
+      parsed = extractJson(text) || {};
+    } catch (e) { parsed = {}; if (attempt === 1) throw e; }
+    if (!needsRetry(parsed)) return parsed;
+    if (attempt === 0) console.warn('[generate-draft] empty/invalid generation — retrying once');
+  }
+  return parsed;
+}
+
 // ── HTTP handler (UI). A blog/page generation (GSC pull + 3500-token Claude call +
 // voice check) exceeds Netlify's ~26s gateway → a synchronous call 504s while the
 // function keeps running and creates the draft anyway (a phantom-draft + false error the
@@ -351,8 +368,7 @@ PAGE:
 Return ONLY JSON:
 {"skip": false, "skipReason": "only if the current meta is already excellent", "title": "...", "description": "...", "rationale": "one sentence — why current underperforms and why yours is better"}`;
 
-  const { text } = await callClaude(userPrompt, { max_tokens: 1200, system: systemPrompt });
-  const parsed = extractJson(text) || {};
+  const parsed = await callClaudeJson(userPrompt, { max_tokens: 1200, system: systemPrompt }, p => !p.skip && (!p.title || !p.description));
   if (parsed.skip) return json(200, { ok: true, skipped: true, reason: parsed.skipReason || 'current meta already good' });
   const title = (parsed.title || '').trim();
   const description = (parsed.description || '').trim();
@@ -402,8 +418,7 @@ RULES — non-negotiable:
 Return ONLY JSON:
 {"skip": false, "skipReason": "only if this keyword should NOT get a dedicated page", "slug": "url-slug-no-domain", "title": "SEO title", "metaDescription": "...", "h1": "page H1", "contentHtml": "<h2>...</h2><p>...</p> full page body as HTML", "rationale": "one sentence — why this page wins the keyword"}`;
 
-  const { text } = await callClaude(userPrompt, { max_tokens: 3000, system: systemPrompt });
-  const parsed = extractJson(text) || {};
+  const parsed = await callClaudeJson(userPrompt, { max_tokens: 3000, system: systemPrompt }, p => !p.skip && (!p.title || !p.contentHtml));
   if (parsed.skip) return json(200, { ok: true, skipped: true, reason: parsed.skipReason || 'not a good page-creation candidate' });
   const title = (parsed.title || '').trim();
   let contentHtml = (parsed.contentHtml || '').trim();
@@ -473,8 +488,7 @@ HARD RULES:
 Return ONLY JSON:
 {"skip": false, "skipReason": "", ${isCreate ? '"slug": "url-slug-no-domain", ' : ''}"title": "SEO title", "metaDescription": "...", "contentHtml": "<p>intro…</p><h2>…</h2><p>…</p><h2>FAQs</h2><h3>Q?</h3><p>A.</p>…", "rationale": "one sentence — why this wins the keyword"}`;
 
-  const { text } = await callClaude(userPrompt, { max_tokens: 3200, system: systemPrompt });
-  const parsed = extractJson(text) || {};
+  const parsed = await callClaudeJson(userPrompt, { max_tokens: 3200, system: systemPrompt }, p => !p.skip && (!p.title || !p.contentHtml));
   if (parsed.skip) return json(200, { ok: true, skipped: true, reason: parsed.skipReason || 'not a good candidate' });
   const title = (parsed.title || '').trim();
   let contentHtml = (parsed.contentHtml || '').trim();
@@ -566,8 +580,7 @@ HARD RULES:
 Return ONLY JSON:
 {"skip": false, "skipReason": "", "title": "SEO title", "metaDescription": "...", "contentHtml": "<p>intro…</p><h2>…</h2><p>…</p><h2>FAQs</h2><h3>Q?</h3><p>A.</p>…", "rationale": "one sentence — why this hub wins the keyword"}`;
 
-  const { text } = await callClaude(userPrompt, { max_tokens: 3200, system: systemPrompt });
-  const parsed = extractJson(text) || {};
+  const parsed = await callClaudeJson(userPrompt, { max_tokens: 3200, system: systemPrompt }, p => !p.skip && (!p.title || !p.contentHtml));
   if (parsed.skip) return json(200, { ok: true, skipped: true, reason: parsed.skipReason || 'not a good candidate' });
   const title = (parsed.title || '').trim();
   let contentHtml = (parsed.contentHtml || '').trim();
@@ -624,8 +637,7 @@ RULES — non-negotiable:
 Return ONLY JSON:
 {"skip": false, "skipReason": "only if this keyword shouldn't be a blog", "slug": "post-slug", "title": "post title", "metaDescription": "...", "contentHtml": "<h2>...</h2><p>...</p> full post body as HTML", "rationale": "one sentence — the angle and why it ranks"}`;
 
-  const { text } = await callClaude(userPrompt, { max_tokens: 3500, system: systemPrompt });
-  const parsed = extractJson(text) || {};
+  const parsed = await callClaudeJson(userPrompt, { max_tokens: 3500, system: systemPrompt }, p => !p.skip && (!p.title || !p.contentHtml));
   if (parsed.skip) return json(200, { ok: true, skipped: true, reason: parsed.skipReason || 'not a good blog candidate' });
   const title = (parsed.title || '').trim();
   let contentHtml = (parsed.contentHtml || '').trim();
