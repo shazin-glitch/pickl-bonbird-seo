@@ -5040,3 +5040,10 @@ New `pageKind:'venue'` in generate-draft (routes through generateTemplatePage as
 Threaded `parentId` + `pageTitle` through the handler → coreGenerate → ctx. `handleCreatePage` already honoured `payload.parentId`. `npm run check` green.
 
 Live target (Bonbird Lahore hub #47054): Cue Cinemas #47057 (published, NAP already added by Shazin — body queued for his approval since it's live), Dolmen Mall #47065 (draft — body filled), Johar Town (created as a new child). Only NAP left for the 2 without it. Remaining nicety: auto-loop all configured venues when a hub is generated (dedup vs existing children) — the `venue` kind is the building block.
+
+### v7.9.44b — Lahore venue pages scaffolded live (verified) + parent-display fix
+Ran the `venue` kind for the Bonbird Lahore hub (#47054). Verified server-side via wp-cli:
+- **#47057 Cue Cinemas** — title PRESERVED (not clobbered), still published, parent 47054, page_type=venue, NAP already present; body generated but LEFT in the Approvals queue for Shazin's approval (live page).
+- **#47065 Dolmen Mall** — title preserved, draft, parent 47054, page_type=venue, **body filled (502 words + 5 FAQ)**; needs NAP.
+- **#47068 Johar Town** — created new, "Johar Town", draft, **parent 47054** (correctly under the hub), page_type=venue, body 484 words + 5 FAQ; needs NAP.
+Confirmed the title-preserving fill works (fills omit post title, set Yoast via metaTitle). Fixed a cosmetic bug: `create_page` success message printed `wpParent` ('root') even when a numeric `parentId` was used — now shows the real parent (`#47054`). Remaining for Shazin: approve the Cue Cinemas body (live), add NAP to Dolmen + Johar Town. All suites green.

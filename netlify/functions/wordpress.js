@@ -320,7 +320,7 @@ async function handleCreatePage(creds, payload, brand) {
     ok: true, id: res.data.id, postType: 'page', ref: res.data.link,
     taxonomies: taxFields, unresolvedTaxonomies: unresolved.length ? unresolved : undefined,
     editUrl: `${creds.base}/wp-admin/post.php?post=${res.data.id}&action=edit`,
-    message: `Page draft #${res.data.id} created under parent "${payload.wpParent || 'root'}"`
+    message: `Page draft #${res.data.id} created under parent ${parentId ? ('#' + parentId) : (payload.wpParent ? '"' + payload.wpParent + '"' : 'root')}`
       + (Object.keys(taxFields).length ? ` (${Object.entries(taxFields).map(([k,v])=>k+':'+v.join('/')).join(', ')})` : '')
       + ' — add images then publish when ready'
       + (unresolved.length ? ` ⚠ unresolved taxonomy: ${unresolved.join('; ')}` : ''),
