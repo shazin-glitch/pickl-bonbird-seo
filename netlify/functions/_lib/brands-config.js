@@ -35,6 +35,10 @@ const { getStore } = require('@netlify/blobs');
 const VERTICALS = {
   restaurant: {
     promptNoun: 'restaurant',
+    // What the Market Planner should propose for this vertical. Keeps a corporate or
+    // cafe brand from being framed around "local landing / product page / city hub"
+    // (rule #2 — the planner adapts by config, never by per-brand code).
+    assetHint: 'Local city/area hubs where we have venues, product & menu-category pages, and journal posts on food/quality/openings.',
     schemaType: 'Restaurant',            // schema.org @type for local/location pages
     menuSummary: 'burgers, fried chicken and fast food',
     relevantRoots: [
@@ -61,6 +65,7 @@ const VERTICALS = {
   },
   cafe: {
     promptNoun: 'café / coffee shop',
+    assetHint: 'Local city/area hubs where we have cafés, pages for coffee/brunch/specialty categories, and journal posts on beans, brewing and provenance.',
     schemaType: 'CafeOrCoffeeShop',
     menuSummary: 'specialty coffee, espresso drinks, pastries and brunch',
     relevantRoots: [
@@ -83,6 +88,9 @@ const VERTICALS = {
   },
   corporate: {
     promptNoun: 'corporate brand / restaurant group',
+    // A corporate brand has NO venues → citiesForMarketAsync returns [] → no city hubs.
+    // Its wins are company-intent pages + thought leadership, NOT local/product pages.
+    assetHint: 'Franchise & partnership pages, careers, about/leadership, portfolio-brand pages, investor/press, and thought-leadership journal posts. Do NOT propose local "near me" landing pages, venue pages or menu/product pages — this brand has no venues of its own.',
     schemaType: 'Organization',
     menuSummary: 'a hospitality group and its portfolio of brands',
     // No hard category gate — corporate visibility is brand/company + intent

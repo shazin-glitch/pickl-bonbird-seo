@@ -6,7 +6,7 @@
 // must be called at /.netlify/functions/market-planner-background directly.
 
 const { getStore } = require('@netlify/blobs');
-const { authorizeJob } = require('./_lib/auth');
+const { authorizeJob, internalHeaders } = require('./_lib/auth');
 const { buildMarketPlan } = require('./_lib/market-planner');
 
 function store() {
@@ -27,7 +27,15 @@ exports.handler = async (event) => {
   const key = KEY(brand, market);
   console.log(`[market-planner-bg] building ${key}`);
   try {
-    const plan = await buildMarketPlan({ brand, market });   // includes the Claude clustering call
+    // verifyTargets: resolve every meta_update target read-only so dead pre-rebuild
+    // URLs from GSC history don't dilute the launch set (v7.9.28). Safe here — the
+    // background fn has a 15-min budget; the sync API never would.
+    const plan = await buildMarketPlan({
+      brand, market,
+      verifyTargets: true,
+      site: process.env.URL || 'https://yolkseo.netlify.app',
+      headers: internalHeaders(),
+    });   // includes the Claude clustering call
     await store().setJSON(key, { ...plan, status: 'ready', builtAt: Date.now() });
     console.log(`[market-planner-bg] ${key} ready — ${plan.total} items (mode ${plan.mode})`);
   } catch (e) {

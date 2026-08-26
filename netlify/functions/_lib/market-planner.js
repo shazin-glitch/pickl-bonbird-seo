@@ -33,7 +33,7 @@ async function planWithClaude(candidates, cities, ctx, llmFn) {
     ? cities.map(c => `- ${c.city} [slug: ${c.slug}] — venues: ${(c.venues || []).map(v => v.name).join(', ') || '—'}`).join('\n')
     : '(no configured cities)';
 
-  const system = `You are a senior SEO strategist for ${ctx.brandName} — ${ctx.sells} — planning for ${ctx.marketLabel}. You produce a tight, high-quality launch plan, NOT a page-per-keyword dump.`;
+  const system = `You are a senior SEO strategist for ${ctx.brandName} — a ${ctx.promptNoun}, ${ctx.sells} — planning for ${ctx.marketLabel}. You produce a tight, high-quality launch plan, NOT a page-per-keyword dump.`;
   const prompt = `Build a launch content plan for ${ctx.brandName} in ${ctx.marketLabel}.
 
 CANDIDATE KEYWORDS (from research + current rankings):
@@ -50,6 +50,9 @@ RULES:
   • "page_creation" — a commercial/category/local landing page we don't have.
   • "blog_draft" — genuinely informational intent.
   • "meta_update" — ONLY when we already rank via a REAL dedicated page (not the homepage / market hub); set "target" to that URL.
+- WHAT WINS FOR THIS BRAND: ${ctx.assetHint}
+- ⚠️ WE HAVE VENUES ONLY IN: ${ctx.cityList || 'no cities (this brand has no venues — do NOT propose local, "near me", venue or city pages at all)'}. NEVER propose a local/location page for a city we are not in — that is a doorway page. Drop those keywords.
+- ⚠️ "near me" / "nearest" / "nearby" keywords are answered by Google's LOCAL PACK from our Google Business Profile, NOT by a web page — a page cannot be "near" anyone. Never create a page or blog targeting the literal phrase. Instead CLUSTER that demand into the relevant city_hub above, or drop it. A generic category near-me term (e.g. "restaurants near me" for a specialist brand) is off-brand — drop it.
 - PRIORITISE by business value (volume × intent × winnability) and cap the plan to the ~15 highest-value items — a focused launch, not everything.
 
 Return ONLY JSON:
@@ -61,6 +64,46 @@ Return ONLY JSON:
     if (!parsed || !Array.isArray(parsed.plan)) return null;
     return parsed;
   } catch (e) { console.warn('[market-planner] LLM plan failed, falling back to rules:', e.message); return null; }
+}
+
+// ── IMPLICIT-LOCATION ("near me") + NO-VENUE-CITY GUARD ─────────────────────
+// Google rewrites "near me"/"nearest" to the searcher's own coordinates and answers
+// with the LOCAL PACK, which is ranked by Google Business Profile signals — proximity,
+// prominence, categories, reviews — not by a web page. A page cannot be "near" anyone,
+// so a landing page targeting the literal phrase is unrankable by construction. The
+// demand is real; the right vessels are GBP + a CITY HUB / area page that ranks for the
+// rewritten intent ("fried chicken in Gulberg, Lahore"). So: city_hub items are ALWAYS
+// allowed to carry near-me demand (that IS the correct asset) — every other asset type
+// targeting an implicit-location query is dropped and routed to local/GBP work.
+// Live evidence (Bonbird Pakistan, v7.9.24): the plan queued page_creation for
+// "restaurants near me", "nearest chicken shop to me" and "best fast food deals near me".
+const _NEAR_ME_RE = /\b(near\s*me|nearest|near\s*by|nearby|close\s*to\s*me|around\s*me)\b/i;
+// "<something> in <place>" — the explicit-city form. Used to catch a city we have NO
+// venue in (live: "best burger in karachi" — Bonbird has no Karachi venue).
+const _IN_CITY_RE = /\b(?:in|at|near)\s+([a-z\u0600-\u06FF][\w\u0600-\u06FF'-]+(?:\s+[a-z\u0600-\u06FF][\w\u0600-\u06FF'-]+)?)\s*$/i;
+
+// Does the keyword name a city we actually have venues in? Config-driven — the city
+// list comes from citiesForMarketAsync (venues), never a hardcoded gazetteer.
+function _mentionsConfiguredCity(keyword, cityNames) {
+  const kw = _kw(keyword);
+  return cityNames.some(c => c && kw.includes(_kw(c)));
+}
+
+// Returns a drop reason, or null to keep. `cityNames` = configured city names + slugs.
+function _localIntentDrop(item, cityNames) {
+  // A city hub is the CORRECT home for local + near-me demand, and its city slug has
+  // already been validated against the config — never drop it here.
+  if (item.assetType === 'city_hub') return null;
+  const kw = String(item.keyword || '');
+
+  if (_NEAR_ME_RE.test(kw)) {
+    return 'Implicit-location ("near me") query — answered by the local pack from Google Business Profile, not by a page. Route to GBP + the relevant city hub.';
+  }
+  const m = kw.match(_IN_CITY_RE);
+  if (m && !_mentionsConfiguredCity(kw, cityNames)) {
+    return `Targets "${m[1]}", where we have no configured venue — a local page for a city we are not in is a doorway page. Add the venue in Settings first, or drop.`;
+  }
+  return null;
 }
 
 // Validate/sanitise an LLM plan item into our executable item shape. Enforces the
@@ -144,7 +187,7 @@ const _kw = k => String(k || '').toLowerCase().trim();
 // Build the plan for one brand × market. `market` omitted/'uae' = home market.
 // useLLM (default true): Claude clusters/judges/prioritises. false OR failure → rules.
 // llmFn: injectable Claude for testing.
-async function buildMarketPlan({ brand, market, useLLM = true, llmFn } = {}) {
+async function buildMarketPlan({ brand, market, useLLM = true, llmFn, verifyTargets = false, site, headers } = {}) {
   if (!brand) return { brand: null, market: market || 'uae', total: 0, items: [], error: 'brand required' };
   const isUae   = !market || market === 'uae';
   const sourceKey = isUae ? `keywordOpportunities:${brand}` : `keywordOpportunities:${brand}:${market}`;
@@ -164,8 +207,8 @@ async function buildMarketPlan({ brand, market, useLLM = true, llmFn } = {}) {
   } catch { /* dedupe is best-effort */ }
 
   // Brand context (for the strategist prompt + fallback off-menu guard).
-  let bc = null, offMenu = [];
-  try { bc = await getBrand(brand); offMenu = (getVertical(bc && bc.vertical).offMenu) || []; } catch { /* no guard */ }
+  let bc = null, offMenu = [], vert = getVertical(null);
+  try { bc = await getBrand(brand); vert = getVertical(bc && bc.vertical); offMenu = vert.offMenu || []; } catch { /* no guard */ }
   const brandName   = (bc && bc.name) || brand;
   const sells       = (bc && bc.cuisine) || (getVertical(bc && bc.vertical).menuSummary) || 'its menu';
   const marketLabel = isUae ? 'UAE' : ((data && data.marketLabel) || market);
@@ -186,7 +229,11 @@ async function buildMarketPlan({ brand, market, useLLM = true, llmFn } = {}) {
   // ── THE BRAIN (default): Claude clusters + judges relevance + picks asset + ranks.
   let items = null, mode = 'rules';
   if (useLLM) {
-    const llm = await planWithClaude(candidates, cities, { brandName, sells, marketLabel }, llmFn);
+    const llm = await planWithClaude(candidates, cities, {
+      brandName, sells, marketLabel,
+      promptNoun: vert.promptNoun, assetHint: vert.assetHint || '',
+      cityList: cities.map(c => c.city).join(', '),
+    }, llmFn);
     if (llm && Array.isArray(llm.plan)) {
       const norm = llm.plan.map(it => _normalizeLlmItem(it, citySlugs))
         .filter(Boolean)
@@ -216,6 +263,40 @@ async function buildMarketPlan({ brand, market, useLLM = true, llmFn } = {}) {
     items = [...kwItems, ...cityItems];
   }
 
+  // ── HARD GUARDS the LLM must not bypass (it is told these rules; this enforces them).
+  // Config-driven: the allowed city list comes from venue config, never a literal.
+  const cityNames = [...cities.map(c => c.city), ...cities.map(c => c.slug)].filter(Boolean);
+  const dropped = [];
+  items = items.filter((it) => {
+    const reason = _localIntentDrop(it, cityNames);
+    if (reason) { dropped.push({ keyword: it.keyword, assetType: it.assetType, reason }); return false; }
+    return true;
+  });
+
+  // ── STALE-TARGET FILTER: a meta_update whose target page no longer exists wastes a
+  // launch slot. GSC keeps serving pre-rebuild URLs long after a site move (live: 2 of
+  // Bonbird Pakistan's 3 meta targets were dead /pakistan/* slugs). Verified read-only
+  // here so the PLAN is clean, not just the execute pre-flight. Only runs when the
+  // caller supplies a site (the background worker does) — fails OPEN on any error.
+  if (verifyTargets && site) {
+    const metas = items.filter(i => i.assetType === 'meta_update' && i.target);
+    await Promise.all(metas.map(async (m) => {
+      try {
+        const r = await fetch(`${site}/.netlify/functions/wordpress`, {
+          method: 'POST', headers: { ...(headers || {}), 'Content-Type': 'application/json' },
+          body: JSON.stringify({ action: 'get_current_meta', brand, payload: { url: m.target } }),
+        });
+        const j = await r.json().catch(() => null);
+        if (!j || !j.found) m._dead = `Target page no longer exists (${m.target}) — stale URL from GSC history.`;
+      } catch { /* fail open — a WP hiccup must not empty the plan */ }
+    })).catch(() => {});
+    items = items.filter((it) => {
+      if (!it._dead) return true;
+      dropped.push({ keyword: it.keyword, assetType: it.assetType, reason: it._dead });
+      return false;
+    });
+  }
+
   items.sort((a, b) => ((b.priority || 0) - (a.priority || 0)) || ((b.volume || 0) - (a.volume || 0)) || _kw(a.keyword).localeCompare(_kw(b.keyword)));
   const counts = items.reduce((c, i) => { c[i.assetType] = (c[i.assetType] || 0) + 1; return c; }, {});
 
@@ -225,6 +306,8 @@ async function buildMarketPlan({ brand, market, useLLM = true, llmFn } = {}) {
     total: items.length,
     counts,           // asset-type mix — data-driven, NOT quotas
     items,
+    dropped,          // what the guards removed, and why — shown in the UI
+
   };
 }
 
