@@ -4929,3 +4929,13 @@ Closes the gap Shazin spotted ("it should use the location page template we have
 **Net on the held-back 6:** 1 fills an existing scaffold, 3 create correctly-templated product pages, 2 venue pages are blocked with instructions. Previously all 6 would have generated and then failed at publish.
 
 **Verified:** new `tools/routing-test.js` (16 assertions) replays the exact live Pakistan scaffold set incl. the Qatar same-slug decoy and the cruft drafts. Full offline suite green — **54 + 18 + 9 + 16**. `npm run check` green.
+
+### v7.9.34 — LIVE-VERIFIED: the full Bonbird Pakistan plan is now executed
+Live dry run over the 6 previously-blocked `page_creation` items matched the offline suite exactly: 6 selected → **4 runnable, 2 blocked**. Then run for real, both new paths confirmed from the queued payloads:
+- **FILL** `Product page: chicken tenders` → `type:page_update`, `wpAction:update_content`, **`postId:47016`** (the real /pk/ scaffold, not the same-slug Qatar one), **no** template/parent/slug (correct — filling, never re-templating), 5 FAQ pairs, `markets:['pk']`.
+- **CREATE** `Product page: chicken sandwich` (+ `chicken fries`, `best burger in lahore`) → `type:page_creation`, `wpAction:create_page`, **`template:'template-product.php'`** ← the field whose absence caused the 409, `wpParent:'pk'`, slug from Claude, 5 FAQ pairs, `markets:['pk']`.
+- **BLOCKED** the 2 venue keywords, unchanged.
+
+**The 12-item plan is now fully executed: 10 drafts in Approvals, 2 blocked pending their city hub.** (4 Lahore blogs · 1 meta · 1 Lahore city hub · 1 scaffold fill · 3 new product pages.) Voice scores are 7/10 across the batch — visible per item, worth a human read before publishing.
+
+**Remaining known gaps:** (1) `generate-draft` is still synchronous, so the UI's own ⚡ Generate button 504s on a blog while silently creating the draft — the executor reconciles this, the UI does not (fix = `generate-draft-background` + poll). (2) Venue pages need their city hub published first, then they become scaffolds the Nest can fill. (3) P4 — retire the three legacy generators — still open.
