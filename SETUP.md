@@ -5028,3 +5028,15 @@ Shazin rightly pushed: had I looked at how the drafts RENDER, not just that cont
 **The visual layer is ACF (human-owned by design):** product template = `hero_images` (gallery) + `product_cards` (repeater: image/name/description/menu_link); location template = `hero_images` + venue NAP (`address`/`hours`/`phone`/`map_query`), and a `page_type=city_hub` renders its CHILD venue pages as cards. The Nest cannot write ACF/media (anti-fake-NAP guardrail), so a Nest page is always "content-complete, visuals pending human ACF." Per-page finishing checklist written to **`/BONBIRD-PK-ACF-HANDOFF.md`** (the 4 PK drafts #47015/#47016/#47052/#47054, exact fields + how-to + PK menu category IDs).
 
 **SSH access:** `ssh -i ~/.ssh/id_ed25519 bonbird@bonbird.ssh.wpengine.net` (prod install `bonbird`; theme at `sites/bonbird/wp-content/themes/bonbird-timber`; `wp` CLI available — WPEngine has no scp/sftp subsystem, pipe files via `ssh 'cat > sites/bonbird/x.php'` and `wp eval-file` needs a `<?php` opener).
+
+### v7.9.44 — `venue` page kind: the Nest now scaffolds a city hub's child venue pages
+Shazin (correctly): the child venue pages under a city hub should be created BY the Nest, with only NAP left to the human. They can be — `page_type=venue`, template, parent, title and body are all REST-writable; only NAP/images are locked (ACF `show_in_rest:0`). The city-hub generator previously stopped at the hub (documented shortcut) — closed that.
+
+New `pageKind:'venue'` in generate-draft (routes through generateTemplatePage as a location page):
+- **CREATE** (new child): `create_page` on `template-location.php`, `page_type=venue`, **parented to the hub by `parentId`**, WP title = the venue NAME (`pageTitle`), SEO title → Yoast via `metaTitle`.
+- **FILL** (existing venue page by `postId`): `update_content` writes body + Yoast meta but **omits the post title**, so a human-named page ("Cue Cinemas") is never clobbered — `buildSeoMeta` still sets the Yoast SEO title from `metaTitle`.
+- Body = location/area prose + FAQ (accordion + schema), same contract as the hub. NAP + images remain the human ACF step.
+
+Threaded `parentId` + `pageTitle` through the handler → coreGenerate → ctx. `handleCreatePage` already honoured `payload.parentId`. `npm run check` green.
+
+Live target (Bonbird Lahore hub #47054): Cue Cinemas #47057 (published, NAP already added by Shazin — body queued for his approval since it's live), Dolmen Mall #47065 (draft — body filled), Johar Town (created as a new child). Only NAP left for the 2 without it. Remaining nicety: auto-loop all configured venues when a hub is generated (dedup vs existing children) — the `venue` kind is the building block.

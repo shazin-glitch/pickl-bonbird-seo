@@ -44,8 +44,11 @@ const VALID_ACTIONS = ['meta_update', 'page_creation', 'blog_draft'];
 // (hero images, venue NAP/hours/map, product cards) are HUMAN-owned and must never
 // be attempted; post_content carries prose + an FAQ block that the theme turns into
 // a styled accordion AND FAQPage JSON-LD.
-const VALID_PAGE_KINDS = ['journal', 'template_location', 'template_product', 'city_hub'];
-const isTemplateKind = k => k === 'template_location' || k === 'template_product';
+const VALID_PAGE_KINDS = ['journal', 'template_location', 'template_product', 'city_hub', 'venue'];
+// 'venue' = a single-store child page of a city hub (template-location.php, page_type=venue,
+// parented to the hub). Generated like a location page but its WP TITLE is the venue name
+// (preserved on fill), and NAP/images stay human (ACF). See BONBIRD-SITE-ARCHITECTURE §4.
+const isTemplateKind = k => k === 'template_location' || k === 'template_product' || k === 'venue';
 
 // The FAQ contract the theme parses. Validated before queueing so a malformed block
 // never reaches WordPress (it would render as flat text with no schema).
@@ -135,7 +138,7 @@ exports.handler = async (event) => {
 // internal executor/background job). Returns an HTTP-shaped { statusCode, body } — reused
 // verbatim by the background worker and (via generateDraftCore) the in-process executor.
 async function coreGenerate(body, auth) {
-  const { brand, keyword, url, market, competitorPage, postId, city, wpParent } = body;
+  const { brand, keyword, url, market, competitorPage, postId, city, wpParent, parentId, pageTitle } = body;
   const pageKind = VALID_PAGE_KINDS.includes(body.pageKind) ? body.pageKind : null;
   const actionType = VALID_ACTIONS.includes(body.actionType) ? body.actionType : 'meta_update';
   const confidence = (body.confidence || '').toLowerCase();
@@ -215,7 +218,7 @@ async function coreGenerate(body, auth) {
     const cityMarketKey = (!market || market === 'uae') ? `${brand}_uae` : market;
     const linkCities = await citiesForMarketAsync(cityMarketKey).catch(() => []);
     const linkingDirective = buildLinkingDirective(mkt, linkCities, brandName);
-    const ctx = { brand, keyword, url, market, cityMarketKey, competitorPage, brandCtx, brandCfg, vertical, examples, feedback, systemPrompt, menuItems, menuDirective, isArabic, mkt, brandName, auth, intel, pageKind, postId, city, wpParent, presenceDirective, commodityDirective, linkingDirective };
+    const ctx = { brand, keyword, url, market, cityMarketKey, competitorPage, brandCtx, brandCfg, vertical, examples, feedback, systemPrompt, menuItems, menuDirective, isArabic, mkt, brandName, auth, intel, pageKind, postId, city, wpParent, parentId, pageTitle, presenceDirective, commodityDirective, linkingDirective };
 
     if (effectiveAction === 'meta_update')   return await generateMeta(ctx);
     if (effectiveAction === 'page_creation') return await generatePage(ctx);
@@ -454,8 +457,9 @@ Return ONLY JSON:
 // ACF (images, NAP, hours, product cards) is human-owned — never authored here.
 async function generateTemplatePage(ctx) {
   const { brand, keyword, url, brandCtx, feedback, systemPrompt, menuItems, menuDirective,
-          isArabic, mkt, brandName, vertical, intel, pageKind, postId, wpParent, presenceDirective, commodityDirective, linkingDirective } = ctx;
-  const isLocation = pageKind === 'template_location';
+          isArabic, mkt, brandName, vertical, intel, pageKind, postId, wpParent, parentId, pageTitle, presenceDirective, commodityDirective, linkingDirective } = ctx;
+  const isVenue    = pageKind === 'venue';
+  const isLocation = pageKind === 'template_location' || isVenue;   // a venue is a location page
   const marketLabel = mkt ? mkt.label : 'UAE';
   const intelDirective = (intel?.promptDirective || '') + (presenceDirective || '') + (commodityDirective || '') + (linkingDirective || '');
   // FILL an existing empty scaffold (postId) vs CREATE a new templated page. Creating
@@ -510,17 +514,23 @@ Return ONLY JSON:
   const createFields = isCreate ? {
     slug: parsed.slug || '', template,
     ...(isLocation ? { pageType: 'venue' } : {}),
-    wpParent: wpParent || mkt?.marketSlug || undefined,
+    // A venue parents to its city hub by ID; other creates parent to the market home slug.
+    ...(parentId ? { parentId } : { wpParent: wpParent || mkt?.marketSlug || undefined }),
   } : {};
   const item = await createApproval({
     type: isCreate ? 'page_creation' : 'page_update', brand,
-    title: `${isLocation ? 'Location' : 'Product'} page: ${keyword}`,
+    title: `${isVenue ? 'Venue' : isLocation ? 'Location' : 'Product'} page: ${isVenue ? (pageTitle || keyword) : keyword}`,
     reason: parsed.rationale || `${isCreate ? 'Create' : 'Write the content body for'} the ${marketLabel} ${isLocation ? 'location' : 'product'} page targeting "${keyword}"`,
     ...t,
     payload: {
       // Existing scaffold → update its body by postId (never create a duplicate).
       postId: postId || undefined, url: url || null, postType: 'pages',
-      title, description: parsed.metaDescription || '',
+      // Venue pages: WP title = the venue NAME (given on create; PRESERVED on fill by
+      // omitting title so we never clobber "Cue Cinemas"); SEO title → Yoast via metaTitle.
+      ...(isVenue
+        ? { ...(isCreate ? { title: pageTitle || keyword } : {}), metaTitle: title }
+        : { title }),
+      description: parsed.metaDescription || '',
       content: contentHtml, targetKeyword: keyword,
       wpAction: isCreate ? 'create_page' : 'update_content',
       ...createFields,
