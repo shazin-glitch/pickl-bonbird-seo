@@ -1,4 +1,5 @@
 // P3a offline verification — mocks Blobs + fetch. NO network, NO Claude, NO writes.
+process.env.NEST_FAST_RECONCILE = '1';   // don't sit through the real reconcile waits
 const path = require('path');
 const FN = path.join(__dirname, '..', 'netlify', 'functions');
 
@@ -24,14 +25,20 @@ require.cache[authPath] = { id: authPath, filename: authPath, loaded: true, expo
 
 // ── mock fetch: record calls, never leave the machine ──────────────────
 const SENT = [];
+let APPROVALS = [];
 let fetchImpl = async (url, opts) => {
-  const body = JSON.parse(opts.body);
+  if (url.includes('/api/approvals')) return { status: 200, json: async () => ({ items: APPROVALS }) };
+  const body = JSON.parse((opts && opts.body) || '{}');
   SENT.push({ url, body });
   if (url.includes('generate-draft')) {
     if (body.keyword === 'paused kw')   return { status: 200, json: async () => ({ ok: false, paused: true, reason: 'brand paused' }) };
     if (body.keyword === 'cannibal kw') return { status: 200, json: async () => ({ ok: true, skipped: true, cannibalization: true, reason: 'already ranks' }) };
     if (body.keyword === 'boom kw')     throw new Error('socket hang up');
     if (body.keyword === 'bad kw')      return { status: 500, json: async () => ({ error: 'generation failed' }) };
+    if (body.keyword === 'slow kw') {   // 504 at the gateway, but the draft lands anyway
+      APPROVALS.push({ id: 'appr_slow', title: 'Blog: slow kw', createdAt: new Date().toISOString(), payload: { targetKeyword: 'slow kw' } });
+      return { status: 504, json: async () => null };
+    }
     return { status: 200, json: async () => ({ ok: true, item: { id: 'appr_' + body.keyword.replace(/\W/g, ''), title: `Draft: ${body.keyword}` } }) };
   }
   if (url.includes('/wordpress')) {
@@ -160,6 +167,7 @@ const PLAN = {
   const mk = (kw, at = 'page_creation') => ({ keyword: kw, assetType: at, call: { brand: 'bonbird', keyword: kw, market: 'pakistan', actionType: 'page_creation' } });
   bg = await executor.handler({ httpMethod: 'POST', headers: {}, body: JSON.stringify({ brand: 'bonbird', market: 'pakistan',
     calls: [mk('good kw'), mk('paused kw'), mk('cannibal kw'), mk('bad kw'), mk('boom kw'),
+            mk('slow kw'),
             { keyword: 'evil', assetType: 'x', call: { brand: 'bonbird', actionType: 'delete_everything' } },
             { keyword: 'wrongbrand', assetType: 'page_creation', call: { brand: 'pickl', keyword: 'x', actionType: 'page_creation' } }] }) });
   run = JSON.parse(KV.get('marketPlanRun:bonbird:pakistan'));
@@ -168,14 +176,19 @@ const PLAN = {
   ok('paused brand → skipped', byKw['paused kw'] === 'skipped');
   ok('cannibalization → skipped', byKw['cannibal kw'] === 'skipped');
   ok('HTTP 500 → error', byKw['bad kw'] === 'error');
-  ok('throw → error (warns credit may be spent)', byKw['boom kw'] === 'error' && /may still have completed/.test(run.results.find(r => r.keyword === 'boom kw').reason));
+  ok('throw → error, reconciled against the queue and confirmed nothing was created',
+     byKw['boom kw'] === 'error' && /no draft found in Approvals/.test(run.results.find(r => r.keyword === 'boom kw').reason));
   ok('invalid actionType refused, never sent', byKw['evil'] === 'error' && !SENT.some(s => s.body.actionType === 'delete_everything'));
   ok('brand mismatch refused, never sent', byKw['wrongbrand'] === 'error' && !SENT.some(s => s.body.brand === 'pickl'));
-  ok('run closed as done', run.status === 'done' && run.done === 7, run.done);
+  ok('504 that DID create the draft is recovered as queued, not a false error',
+     byKw['slow kw'] === 'queued' && /timed out .* but the draft was created/.test(run.results.find(r => r.keyword === 'slow kw').reason),
+     run.results.find(r => r.keyword === 'slow kw'));
+  ok('a real failure still says nothing was created', /no draft found in Approvals/.test(run.results.find(r => r.keyword === 'bad kw').reason));
+  ok('run closed as done', run.status === 'done' && run.done === 8, run.done);
 
   console.log('\n── 8. action:\'run\' polling ──');
   const pr = J(await call({ action: 'run', brand: 'bonbird', market: 'pakistan' }));
-  ok('returns the run record', pr.status === 'done' && pr.counts.queued === 1, pr.counts);
+  ok('returns the run record', pr.status === 'done' && pr.counts.queued === 2, pr.counts);
   ok('unknown market → status none', J(await call({ action: 'run', brand: 'bonbird', market: 'qatar' })).status === 'none');
   ok('unknown action → 400', (await call({ action: 'nope', brand: 'bonbird' })).statusCode === 400);
 
