@@ -343,6 +343,7 @@ RULES — non-negotiable:
 - This is a real, publishable page — write substantive, on-brand body copy (350–600 words) in ${brandName}'s voice.
 - Structure with clear H2/H3 headings. Lead with the search intent behind "${keyword}".
 - Only reference REAL offerings: ${menuItems || vertical.menuSummary}. Invent nothing (no fake locations, awards, or menu items).${menuDirective || ''}
+- STAY ON TARGET: this page is about "${keyword}". Keep every section about it; mention other menu items only briefly as context, and never build a section around a different product that has (or should have) its own page — that splits ranking authority.
 - ${metaLengthRule}${isArabic ? '\n- Write EVERYTHING (title, headings, body, meta) in ARABIC.' : ''}${intelDirective}${feedback.length ? `\n\nHUMAN FEEDBACK — never repeat these past rejections:\n${feedback.slice(0, 10).map(n => `- ${n}`).join('\n')}` : ''}
 
 Return ONLY JSON:
@@ -411,7 +412,8 @@ REQUIRED STRUCTURE — follow exactly, the theme parses it:
 
 HARD RULES:
 - NEVER write image tags, photo captions, opening hours, phone numbers or a street address — those are human/ACF-owned. Do not invent them.${isLocation ? '\n- Do NOT invent a venue, branch or address. Write about the AREA and the offer, not a specific street.' : ''}
-- Only reference REAL offerings: ${menuItems || vertical.menuSummary}. Invent nothing.${menuDirective || ''}
+- Only reference REAL offerings: ${menuItems || vertical.menuSummary}. Invent nothing.${menuDirective || ''}${isLocation ? '' : `
+- STAY ON ONE PRODUCT: this page is about "${keyword}" and nothing else. Every <h2> must be about THIS product. You may mention a complementary item in a single passing phrase, but do NOT devote a heading or section to a DIFFERENT product that has its own page (e.g. no "Chicken Tenders" section on a fries page) — that splits ranking authority. If "${keyword}" maps to a specific named menu item, write about that item, not the category.`}
 - Genuinely specific to ${marketLabel} — no interchangeable city-name filler. If a sentence would read identically for another market, rewrite it.
 - ${metaLengthRule}${isArabic ? '\n- Write EVERYTHING in ARABIC.' : ''}${intelDirective}${feedback.length ? `\n\nHUMAN FEEDBACK — never repeat these past rejections:\n${feedback.slice(0, 10).map(n => `- ${n}`).join('\n')}` : ''}
 
