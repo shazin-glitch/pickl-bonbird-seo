@@ -224,12 +224,17 @@ async function bodyWritable(brand, url, creds, postId, postType) {
 
 // ── create blog POST draft ───────────────────────────────────────
 async function handleCreateDraft(creds, payload) {
-  if (!payload.title || !payload.body) return fail(400, 'title and body are required');
+  // Accept the body under EITHER key: generate-draft writes payload.content, the older
+  // batch pipeline wrote payload.body. The mismatch silently broke every Nest-generated
+  // publish (create_draft/create_page updated title+meta only; update_content no-op'd the
+  // body). One normalization here fixes all three paths. (v7.9.42)
+  const bodyHtml = payload.body || payload.content;
+  if (!payload.title || !bodyHtml) return fail(400, 'title and body are required');
   const meta = buildSeoMeta(payload);
   // Custom taxonomies (e.g. { market:['om'] }) — required for Bonbird journal posts.
   const { fields: taxFields, unresolved } = await buildTaxonomies(creds, payload);
   const post = {
-    title: payload.title, content: payload.body, excerpt: payload.excerpt || '',
+    title: payload.title, content: bodyHtml, excerpt: payload.excerpt || '',
     slug: sanitizeSlug(payload.slug), status: 'draft', meta,
     categories: payload.categoryIds || undefined,
     tags: payload.tagIds || undefined,
@@ -264,7 +269,8 @@ async function resolveParentId(creds, parentSlug) {
 // Used for landing pages, location pages, new content pages.
 // Images left as [IMAGE_PLACEHOLDER] comments for you to swap in WP.
 async function handleCreatePage(creds, payload, brand) {
-  if (!payload.title || !payload.body) return fail(400, 'title and body are required');
+  const bodyHtml = payload.body || payload.content;   // see handleCreateDraft (v7.9.42)
+  if (!payload.title || !bodyHtml) return fail(400, 'title and body are required');
 
   // A brand with a template allow-list (e.g. Bonbird) may only CREATE a body-bearing
   // page on an allowed template — otherwise the new page's body renders from the
@@ -299,7 +305,7 @@ async function handleCreatePage(creds, payload, brand) {
   // otherwise the site can't attribute it (same requirement as create_draft).
   const { fields: taxFields, unresolved } = await buildTaxonomies(creds, payload);
   const page = {
-    title: payload.title, content: payload.body, excerpt: payload.excerpt || '',
+    title: payload.title, content: bodyHtml, excerpt: payload.excerpt || '',
     slug, status: 'draft', meta,
     parent: parentId,
     template: payload.template || '',
@@ -332,12 +338,13 @@ async function handleUpdateContent(creds, payload, brand) {
     postId = found.id; postType = found.type;
   }
   if (!postId) return fail(400, 'postId or url required');
-  if (!payload.title && !payload.body) return fail(400, 'title or body required to update content');
+  const bodyHtml = payload.body || payload.content;   // see handleCreateDraft (v7.9.42)
+  if (!payload.title && !bodyHtml) return fail(400, 'title or body required to update content');
 
   // Refuse a BODY write to a non-writable page. For pages, body is writable ONLY on an
   // allowed template (journal posts are always fine); everything else renders its body
   // from blocks/ACF, so a write would CLOBBER a live page (the /ae/ homepage incident).
-  if (payload.body) {
+  if (bodyHtml) {
     const target = payload.url || (await wpFetch(creds, `/wp/v2/pages/${postId}?_fields=link`).then(r => r.ok ? r.data?.link : null).catch(() => null));
     const w = await bodyWritable(brand, target, creds, postId, postType);
     if (!w.ok) {
@@ -353,7 +360,7 @@ async function handleUpdateContent(creds, payload, brand) {
   // human already approved it in the queue), a draft stays a draft. Matches handleUpdateMeta.
   const updates = {};
   if (payload.title)   updates.title   = payload.title;
-  if (payload.body)    updates.content  = payload.body;
+  if (bodyHtml)        updates.content  = bodyHtml;
   if (payload.excerpt) updates.excerpt  = payload.excerpt;
   const meta = buildSeoMeta(payload);
   if (Object.keys(meta).length) updates.meta = meta;

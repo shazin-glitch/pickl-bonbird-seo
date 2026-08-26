@@ -5009,3 +5009,13 @@ Verified: new `tools/genjob-test.js` (13 — fire/poll/guards) ; `tools/p3a-test
 
 ### v7.9.41 — generate-draft: one retry on a transient empty/invalid Claude response
 Live, a planner run posted to Slack "bonbird · bonbird_pakistan (nothing queued) · 1 error" — the item had 502'd with "generation returned no title/content". Root cause: Claude occasionally (~1-in-N) returns an empty or non-JSON blob; the same keyword succeeds on a re-run. (Also confirms the v7.9.37 Slack fix is working live — the run DID notify.) Added `callClaudeJson(prompt, opts, needsRetry)` — retries ONCE when the parse is empty/invalid, with a generator-specific `needsRetry` so a legitimate `{skip:true}` never retries. Wired into all 5 generators (meta needs title+description; page/template/cityHub/blog need title+contentHtml). A still-empty second attempt 502s exactly as before (no behaviour change on genuine failure). Verified: `tools/genjob-test.js` now 17 assertions (retry-once, no-retry-on-valid, no-retry-on-skip, still-empty→empty). Full suite green. `npm run check` green.
+
+### v7.9.42 — 🔴🔴 THE publishing blocker: body field mismatch (content vs body)
+Trying to actually publish exposed why no Nest-generated content ever reached WordPress. `generate-draft` stores the body as **`payload.content`**; `wordpress.js` reads **`payload.body`** in create_draft, create_page AND update_content. Consequences, all silent:
+- **create_page** → 400 "missing title or body" (every new page/city-hub failed at push).
+- **create_draft** (blogs) → same 400.
+- **update_content** (scaffold fills) → WORST: the guard `!title && !body` passed on title alone, so it returned **"Content updated" (success) while writing title+meta only — never the body.** A phantom success; the scaffold stayed empty.
+
+The old batch pipeline used `payload.body`, so this only ever bit the newer generate-draft engine — i.e. everything the Market Planner produces. **Fix:** wordpress.js now accepts `payload.body || payload.content` in all three handlers (guard + the actual content write + the update_content body-writable check), and approvals `pushItem` guard matches. Authoritative single normalization. `npm run check` + full offline suite green.
+
+⚠️ Cleanup from the live discovery: the two fills approved before the fix (#47015 chicken-burger, #47016 chicken-tenders) got title+meta but no body; the two create_page items (chicken delivery, Lahore city hub) 400'd. Re-pushed directly from their stored payloads post-deploy (zero Claude) and verified the bodies landed.

@@ -428,7 +428,7 @@ async function pushItem(item) {
     case 'page_creation': {
       // Claude has written a brand new WP Page — create it as a draft
       const p = Object.assign({}, item.payload);
-      if (!p.title || !p.body) return { ok: false, message: 'page_creation payload is missing title or body' };
+      if (!p.title || !(p.body || p.content)) return { ok: false, message: 'page_creation payload is missing title or body/content' };
       endpoint = '/.netlify/functions/wordpress';
       pushBody = { action: 'create_page', brand: item.brand, payload: p };
       break;
