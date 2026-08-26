@@ -137,7 +137,18 @@ exports.handler = async (event) => {
         reason: `A dedicated page already ranks for "${keyword}" (${intel.cannibalPage}). Creating another would split authority — optimise that page's meta instead.` });
     }
 
-    const ctx = { brand, keyword, url, market, competitorPage, brandCtx, brandCfg, vertical, examples, feedback, systemPrompt, menuItems, menuDirective, isArabic, mkt, brandName, auth, intel, pageKind, postId, city };
+    // ── MARKET PRESENCE (config-driven) ──────────────────────────────────────
+    // Without this, the generator only knows the brand's HOME-market identity, so for
+    // an international market the model concludes "this brand has no presence here" and
+    // refuses — live: all 4 Bonbird Pakistan blog drafts were skipped with "Bonbird has
+    // no presence in Pakistan and no locations in Lahore", while config lists THREE
+    // Lahore venues. generateCityHub never had this bug because it injects the venue
+    // list from config; blog/page/template paths did not. Venues come from
+    // citiesForMarketAsync (config only — never invented), same source as the planner.
+    // When a market genuinely has no venues we say THAT explicitly, so the model still
+    // correctly avoids local/doorway framing.
+    const presenceDirective = await buildPresenceDirective(market, mkt, brandName);
+    const ctx = { brand, keyword, url, market, competitorPage, brandCtx, brandCfg, vertical, examples, feedback, systemPrompt, menuItems, menuDirective, isArabic, mkt, brandName, auth, intel, pageKind, postId, city, presenceDirective };
 
     if (effectiveAction === 'meta_update')   return await generateMeta(ctx);
     if (effectiveAction === 'page_creation') return await generatePage(ctx);
@@ -148,6 +159,21 @@ exports.handler = async (event) => {
     return json(500, { error: e.message });
   }
 };
+
+// Tells the generator where the brand actually TRADES in this market, from venue
+// config. Returns '' for the home market (unchanged behaviour) — only international
+// markets carry a per-market venue list.
+async function buildPresenceDirective(market, mkt, brandName) {
+  if (!mkt || !market || market === 'uae') return '';
+  let cities = [];
+  try { cities = await citiesForMarketAsync(market); } catch { return ''; }
+  if (!cities.length) {
+    return `\n- ${brandName} has NO venues in ${mkt.label} yet. Do NOT write as though we have a location there, and do NOT target city-level "local" intent — write only what is true without a venue.`;
+  }
+  const lines = cities.map(c => `${c.city} (${(c.venues || []).map(v => v.name).join(', ') || 'venue'})`).join('; ');
+  return `\n- PRESENCE — this is TRUE, do not contradict it: ${brandName} IS open and trading in ${mkt.label}, with venues in ${lines}. Never say or imply we have no presence, no locations, or no plans there.`
+       + `\n- Reference venues by NAME only. Never invent an address, phone number, opening hours, or a venue that is not listed above.`;
+}
 
 // Market-aware menu filtering (brief §3): an item discontinued in a market must not
 // be generated for it. Returns the menu summary with excluded things stripped, plus a
@@ -265,8 +291,8 @@ Return ONLY JSON:
 
 // ── page_creation ───────────────────────────────────────────────────────────────
 async function generatePage(ctx) {
-  const { brand, keyword, url, brandCtx, feedback, systemPrompt, menuItems, menuDirective, isArabic, mkt, brandName, vertical, intel, pageKind, postId } = ctx;
-  const intelDirective = intel?.promptDirective || '';
+  const { brand, keyword, url, brandCtx, feedback, systemPrompt, menuItems, menuDirective, isArabic, mkt, brandName, vertical, intel, pageKind, postId, presenceDirective } = ctx;
+  const intelDirective = (intel?.promptDirective || '') + (presenceDirective || '');
   if (pageKind === 'city_hub') return await generateCityHub(ctx);
   if (isTemplateKind(pageKind)) return await generateTemplatePage(ctx);
 
@@ -321,10 +347,10 @@ Return ONLY JSON:
 // ACF (images, NAP, hours, product cards) is human-owned — never authored here.
 async function generateTemplatePage(ctx) {
   const { brand, keyword, url, brandCtx, feedback, systemPrompt, menuItems, menuDirective,
-          isArabic, mkt, brandName, vertical, intel, pageKind, postId } = ctx;
+          isArabic, mkt, brandName, vertical, intel, pageKind, postId, presenceDirective } = ctx;
   const isLocation = pageKind === 'template_location';
   const marketLabel = mkt ? mkt.label : 'UAE';
-  const intelDirective = intel?.promptDirective || '';
+  const intelDirective = (intel?.promptDirective || '') + (presenceDirective || '');
 
   const userPrompt = `You are writing the CONTENT BODY for an existing ${brandName} ${isLocation ? 'location' : 'product'} page in ${marketLabel}. The page's images, address, hours and product cards are managed separately by a human — you write ONLY the prose and FAQs.
 
@@ -473,8 +499,8 @@ Return ONLY JSON:
 
 // ── blog_draft ────────────────────────────────────────────────────────────────
 async function generateBlog(ctx) {
-  const { brand, keyword, brandCtx, feedback, systemPrompt, menuItems, menuDirective, isArabic, mkt, brandName, vertical, intel } = ctx;
-  const intelDirective = intel?.promptDirective || '';
+  const { brand, keyword, brandCtx, feedback, systemPrompt, menuItems, menuDirective, isArabic, mkt, brandName, vertical, intel, presenceDirective } = ctx;
+  const intelDirective = (intel?.promptDirective || '') + (presenceDirective || '');
 
   const userPrompt = `You are writing a NEW blog/journal post for ${brandName} to build topical authority and rank for an informational keyword. Write the full post.
 
