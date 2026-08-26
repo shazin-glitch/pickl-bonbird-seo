@@ -131,5 +131,20 @@ exports.handler = async (event) => {
   const counts = results.reduce((acc, r) => { acc[r.status] = (acc[r.status] || 0) + 1; return acc; }, {});
   await save({ status: 'done', finishedAt: Date.now(), counts });
   console.log(`[planner-exec] ${runKey} done — ${JSON.stringify(counts)}`);
+
+  // ONE Slack summary per run. Routed through slack-notify (which resolves the webhook
+  // Blobs-first — the Settings UI writes it there, not to an env var), so planner drafts
+  // finally notify. Historically NOTHING notified for planner/generate-draft creates:
+  // notifyQueued was only wired into approvals.js's HTTP create actions (the old batch
+  // pipeline), never the createApproval → queue.create path the planner uses (v7.9.37).
+  try {
+    await fetch(`${SITE}/.netlify/functions/slack-notify`, {
+      method: 'POST', headers: internalHeaders({ 'Content-Type': 'application/json' }),
+      body: JSON.stringify({ type: 'planner_run', brand, market,
+        queued: counts.queued || 0, skipped: counts.skipped || 0,
+        error: counts.error || 0, siteUrl: SITE }),
+    });
+  } catch (e) { console.warn('[planner-exec] slack notify failed (non-critical):', e.message); }
+
   return { statusCode: 200, body: JSON.stringify({ ok: true, done, counts }) };
 };

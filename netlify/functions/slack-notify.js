@@ -48,6 +48,7 @@ exports.handler = async (event) => {
     else if (type === 'calendar_mention')           payload = buildCalendarMention(body);
     else if (type === 'calendar_submitted')         payload = buildCalendarSubmitted(body);
     else if (type === 'calendar_manual_reminder')   payload = buildCalendarManualReminder(body);
+    else if (type === 'planner_run')         payload = buildPlannerRun(body);
     else                                     payload = buildGeneric(body);
 
     const slackRes = await fetch(webhookUrl, {
@@ -394,6 +395,28 @@ function buildCalendarManualReminder({ posts }) {
 }
 
 // ─── Generic fallback ────────────────────────────────────────────────────────
+// Market Planner execute run finished — ONE summary per run (not per draft), so a batch
+// of N generations is a single, useful ping rather than N pings.
+function buildPlannerRun(body) {
+  const { brand, market, queued = 0, skipped = 0, error = 0, siteUrl } = body;
+  const label = [brand, market && market !== 'uae' ? market : null].filter(Boolean).join(' · ');
+  const bits = [`${queued} draft${queued === 1 ? '' : 's'} queued`];
+  if (skipped) bits.push(`${skipped} skipped`);
+  if (error)   bits.push(`${error} error${error === 1 ? '' : 's'}`);
+  const head = queued > 0
+    ? `🪺 ${queued} new draft${queued === 1 ? '' : 's'} ready to review — ${label}`
+    : `🪺 Planner run finished — ${label} (nothing queued)`;
+  return {
+    text: head,
+    blocks: [
+      { type: 'section', text: { type: 'mrkdwn', text: `*${head}*\n${bits.join(' · ')}` } },
+      ...(queued > 0 ? [{ type: 'actions', elements: [{ type: 'button',
+        text: { type: 'plain_text', text: 'Open Approvals →' }, style: 'primary',
+        url: `${siteUrl || 'https://yolkseo.netlify.app'}/?tab=approvals` }] }] : []),
+    ],
+  };
+}
+
 function buildGeneric(body) {
   return { text: `*🪺 The Nest*\n${JSON.stringify(body, null, 2).slice(0, 500)}` };
 }

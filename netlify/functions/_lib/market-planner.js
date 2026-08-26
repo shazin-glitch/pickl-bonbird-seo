@@ -238,10 +238,14 @@ async function buildMarketPlan({ brand, market, useLLM = true, llmFn, verifyTarg
   // Don't re-plan what's already queued (pending) for this brand.
   let queued = new Set();
   let queuedCities = new Set();
+  let queuedKeywords = [];   // raw pending keywords, kept so the commodity + signature
+                             // dedups can compare NEW items against what's ALREADY queued,
+                             // not just against each other (the cross-run gap, v7.9.37).
   try {
     const pending = await listApprovals({ brand, status: 'pending' }).catch(() => []);
     const arr = Array.isArray(pending) ? pending : (pending && pending.items) || [];
-    queued = new Set(arr.map(i => _kw(i.payload && (i.payload.targetKeyword || i.payload.keyword))).filter(Boolean));
+    queuedKeywords = arr.map(i => i.payload && (i.payload.targetKeyword || i.payload.keyword)).filter(Boolean);
+    queued = new Set(queuedKeywords.map(_kw));
     queuedCities = new Set(arr.filter(i => i.payload && i.payload.pageType === 'city_hub')
       .map(i => _kw(i.payload.slug || i.payload.city)).filter(Boolean));
   } catch { /* dedupe is best-effort */ }
@@ -328,7 +332,10 @@ async function buildMarketPlan({ brand, market, useLLM = true, llmFn, verifyTarg
   // "fried chicken lahore"; if that already exists as an item, the variant is dropped
   // rather than shipping two assets for one intent.
   if (commodityTerms.length) {
-    const seenKw = new Set();
+    // Seed with ALREADY-QUEUED keywords (stripped the same way) so a commodity-variant of
+    // a pending draft is caught, not just an in-plan repeat. "halal fried chicken lahore"
+    // strips to "fried chicken lahore"; if that is already queued, drop it (v7.9.37).
+    const seenKw = new Set(queuedKeywords.map(k => _kw(stripCommodityTerms(k, commodityTerms))));
     items = items.filter((it) => {
       const stripped = stripCommodityTerms(it.keyword, commodityTerms);
       if (_kw(stripped) !== _kw(it.keyword)) {
@@ -338,7 +345,7 @@ async function buildMarketPlan({ brand, market, useLLM = true, llmFn, verifyTarg
       const k = _kw(it.keyword);
       if (seenKw.has(k)) {
         dropped.push({ keyword: it.commodityStrippedFrom || it.keyword, assetType: it.assetType,
-          reason: `"${commodityTerms.join('/')}" is table stakes in this market — every competitor is too, so it is not a differentiator. Folded into the existing "${it.keyword}" item rather than building a second asset for the same intent.` });
+          reason: `"${commodityTerms.join('/')}" is table stakes in this market — every competitor is too, so it is not a differentiator. Folded into the existing "${it.keyword}" item/draft rather than building a second asset for the same intent.` });
         return false;
       }
       seenKw.add(k);
@@ -350,16 +357,23 @@ async function buildMarketPlan({ brand, market, useLLM = true, llmFn, verifyTarg
   // IDENTICAL are the same target however they are worded. (Genuine synonym overlap —
   // "burger" vs "sandwich" — is semantic and stays the LLM's job.)
   {
+    const _sig = kw => _slugTokens(kw).filter(t => !_STOPWORDS.has(t)).sort().join('|');
+    // Seed with already-queued keywords so a near-duplicate of a PENDING draft is caught
+    // cross-run, not just within this plan (v7.9.37). Marked so the reason can say so.
     const seenSig = new Map();
+    for (const qk of queuedKeywords) { const s = _sig(qk); if (s && !seenSig.has(s)) seenSig.set(s, { kw: qk, queued: true }); }
     items = items.filter((it) => {
-      const sig = _slugTokens(it.keyword).filter(t => !_STOPWORDS.has(t)).sort().join('|');
+      const sig = _sig(it.keyword);
       if (!sig) return true;
       if (seenSig.has(sig)) {
+        const prev = seenSig.get(sig);
         dropped.push({ keyword: it.keyword, assetType: it.assetType,
-          reason: `Same target as "${seenSig.get(sig)}" once generic modifiers are removed — two assets for one intent split authority, so only the higher-priority one is kept.` });
+          reason: prev.queued
+            ? `A draft for "${prev.kw}" is already in the Approvals queue — same target once generic modifiers are removed. Review or publish that one instead of generating a competing page.`
+            : `Same target as "${prev.kw}" once generic modifiers are removed — two assets for one intent split authority, so only the higher-priority one is kept.` });
         return false;
       }
-      seenSig.set(sig, it.keyword);
+      seenSig.set(sig, { kw: it.keyword, queued: false });
       return true;
     });
   }

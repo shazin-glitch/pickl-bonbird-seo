@@ -141,6 +141,22 @@ const mkMeta = (kw, url) => ({ keyword: kw, assetType:'meta_update',
   ok('the prompt still tells Claude we have venues in Lahore', /VENUES ONLY IN: .*Lahore/.test(seenPrompt));
   PENDING = [];
 
+  console.log('\n── 5c. Cross-run dedup: a variant of an ALREADY-QUEUED page is caught (v7.9.37) ──');
+  PENDING = [{ id:'q', payload:{ targetKeyword:'fried chicken lahore', wpAction:'create_page' } }];
+  KV.set('keywordOpportunities:bonbird:bonbird_pakistan', JSON.stringify({ marketLabel:'Pakistan', opportunities:[
+    { keyword:'halal fried chicken lahore', volume:400, tier:'opportunity' },
+    { keyword:'best fried chicken in lahore', volume:300, tier:'opportunity' },
+  ] }));
+  const llmX = async () => ({ text: JSON.stringify({ plan:[
+    { primaryKeyword:'halal fried chicken lahore', assetType:'page_creation', priority:1 },
+    { primaryKeyword:'best fried chicken in lahore', assetType:'page_creation', priority:2 },
+  ], dropped:[] }) });
+  const px = await buildMarketPlan({ brand:'bonbird', market:'bonbird_pakistan', llmFn: llmX });
+  ok('commodity-variant of a queued page is dropped', !px.items.some(i=>i.keyword==='fried chicken lahore'), px.items.map(i=>i.keyword));
+  ok('near-duplicate of a queued page is dropped', !px.items.some(i=>/fried chicken.*lahore/i.test(i.keyword)), px.items.map(i=>i.keyword));
+  ok('the drop reason points at the existing queue draft', px.dropped.some(d=>/already in the Approvals queue|Folded into the existing/i.test(d.reason)), px.dropped.map(d=>d.reason));
+  PENDING = [];
+
   console.log('\n── 6. Internal linking directive ──');
   const src = require('fs').readFileSync(path.join(FN,'generate-draft.js'),'utf8');
   const body = src.match(/function buildLinkingDirective[\s\S]*?\n}/)[0];

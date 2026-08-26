@@ -516,9 +516,20 @@ async function rewriteWithClaude(item, feedback) {
 }
 
 // ── notification stubs (mirrors notify.js, inline to avoid import issues) ───
+// Resolve the webhook Blobs-FIRST — the Settings UI writes `slackWebhookUrl` to Blobs,
+// not to an env var, so an env-only read was a silent no-op for anyone who configured
+// Slack through Settings (v7.9.37). Matches slack-notify.js's resolution order.
+async function resolveSlackWebhook() {
+  try {
+    const s = getStore({ name: 'seo-tool', siteID: process.env.NETLIFY_SITE_ID, token: process.env.NETLIFY_AUTH_TOKEN });
+    const stored = await s.get('slackWebhookUrl', { type: 'json' });
+    if (stored) return stored;
+  } catch { /* fall back to env */ }
+  return process.env.SLACK_WEBHOOK_URL || '';
+}
 async function notifyQueued(items) {
   if (!items || !items.length) return;
-  const webhookUrl = process.env.SLACK_WEBHOOK_URL;
+  const webhookUrl = await resolveSlackWebhook();
   if (!webhookUrl) return;
   const text = items.length === 1
     ? `New approval: ${items[0].title || items[0].type} (${items[0].brand})`
@@ -530,7 +541,7 @@ async function notifyQueued(items) {
   }).catch(() => {});
 }
 async function notifyPushFailed(item, msg) {
-  const webhookUrl = process.env.SLACK_WEBHOOK_URL;
+  const webhookUrl = await resolveSlackWebhook();
   if (!webhookUrl) return;
   await fetch(webhookUrl, {
     method: 'POST',
