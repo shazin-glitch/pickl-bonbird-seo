@@ -24,9 +24,13 @@ async function planWithClaude(candidates, cities, ctx, llmFn) {
   const call = llmFn || callClaude;
   if ((!candidates.length && !cities.length) || typeof call !== 'function') return null;
 
-  // Cap the set sent to Claude so the call fits Netlify's synchronous function limit
-  // (~26s). Top by volume = highest-value first; the rest are lower-priority tail.
-  const topCands = [...candidates].sort((a, b) => (b.volume || 0) - (a.volume || 0)).slice(0, 50);
+  // Top by volume = highest-value first; the rest are lower-priority tail.
+  // NOTE: the old 50/2500 squeeze existed only to fit the SYNCHRONOUS function limit
+  // (v7.9.22). v7.9.23 moved the build into a background function with a 15-min budget,
+  // so that constraint is obsolete — and it had become harmful: a richer prompt made the
+  // model's JSON overrun 2500 tokens, so extractJson returned null and every build
+  // silently fell back to `mode:'rules'` (a 43-item unclustered dump). Verified live.
+  const topCands = [...candidates].sort((a, b) => (b.volume || 0) - (a.volume || 0)).slice(0, 80);
   const kwLines = topCands.map(c =>
     `- "${c.keyword}" (vol ${c.volume || 0}${c.target ? `, we rank via ${String(c.target).replace(/^https?:\/\/[^/]+/, '')} @#${c.position || '?'}` : ', no page yet'})`).join('\n');
   const cityLines = cities.length
@@ -59,9 +63,12 @@ Return ONLY JSON:
 {"plan":[{"primaryKeyword":"...","keywords":["..."],"assetType":"page_creation|blog_draft|meta_update|city_hub","target":"<url or null>","city":"<slug or null>","priority":1,"rationale":"one line"}],"dropped":[{"keyword":"...","reason":"..."}]}`;
 
   try {
-    const { text } = await call(prompt, { system, max_tokens: 2500 });
+    const { text } = await call(prompt, { system, max_tokens: 8000 });
     const parsed = extractJson(text);
-    if (!parsed || !Array.isArray(parsed.plan)) return null;
+    if (!parsed || !Array.isArray(parsed.plan)) {
+      console.warn(`[market-planner] LLM returned unparseable/!plan JSON (${(text || '').length} chars) — falling back to rules. Likely a max_tokens truncation.`);
+      return null;
+    }
     return parsed;
   } catch (e) { console.warn('[market-planner] LLM plan failed, falling back to rules:', e.message); return null; }
 }
