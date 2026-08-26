@@ -4958,3 +4958,12 @@ Reviewing the 10 generated drafts as CTO/SEO surfaced one UI bug and five conten
 **Verified:** new `tools/review-fixes-test.js` (26 assertions). Two older assertions were updated because they encoded the now-fixed behaviour (noted inline). Full suite green — **54 + 19 + 9 + 16 + 26 = 124**. `npm run check` green.
 
 ⚠️ `commodityTerms` is on the brand SEED; `_load()` uses `rec || BRAND_SEED[slug]`, so a stored Blobs record REPLACES the seed wholesale. Verify live after deploy that `commodityTerms` is present on Bonbird — if a Blobs record shadows it, read-modify-write the stored record via `/api/config` rather than editing the seed.
+
+### v7.9.36 — 🔴 a queued city hub erased its city from the brand's "presence" truth
+Caught by live-verifying v7.9.35: the rebuilt Pakistan plan dropped **"fast food restaurants in lahore"** with *"Targets 'lahore', where we have no configured venue — a doorway page."* Lahore has three configured venues; we had just queued its city hub.
+
+**Cause:** `buildMarketPlan` used ONE list for two different jobs. `cities` is `citiesForMarketAsync(market)` **filtered to exclude cities whose hub is already queued** — correct for "which hubs still need building", wrong as "which cities we have venues in". Queueing the Lahore hub removed Lahore from that list, so the no-venue/doorway guard concluded we aren't in Lahore and rejected legitimate Lahore keywords — and the prompt's `WE HAVE VENUES ONLY IN: …` line would have gone EMPTY once every hub was queued, suppressing local content in that market entirely. A self-inflicted version of the same class as v7.9.32.
+
+**Fix:** two explicitly-named lists — `allCities` (every venue city = the presence truth, used for the prompt line and the doorway guard) and `cities` (hub candidates only, queued ones removed). Covered by 3 new assertions in `tools/review-fixes-test.js` that queue a hub and assert the city's keywords still survive and the prompt still names it. Suite: **54 + 19 + 9 + 16 + 29 = 127**. `npm run check` green.
+
+**Live-verified for v7.9.35:** `commodityTerms:['halal']` present on Bonbird (the seed is in use — no Blobs record shadows it, so no read-modify-write needed); rebuilt plan returned **zero halal keywords**; Approvals now renders 9 "📄 Read Full Content" buttons across 12 cards (the 3 without are meta updates, which have no body) and the modal opens with the full body, headings, FAQs and voice score.

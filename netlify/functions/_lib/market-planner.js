@@ -262,9 +262,17 @@ async function buildMarketPlan({ brand, market, useLLM = true, llmFn, verifyTarg
     .map(o => ({ keyword: o.keyword, volume: o.volume || 0, tier: o.tier || null,
       target: o.targetPage || o.existingPage || null, position: (o.position == null ? null : o.position) }));
 
-  // Config-driven city-hub candidates (research-independent; never invented).
-  const cities = (isUae ? [] : await citiesForMarketAsync(market).catch(() => []))
-    .filter(c => c && c.slug && !queuedCities.has(_kw(c.slug)));
+  // TWO DIFFERENT LISTS — conflating them caused a live regression (v7.9.36):
+  //  · allCities  = every city we have venues in. This is the PRESENCE truth, used for
+  //    the "we have venues only in X" prompt line and the no-venue/doorway guard.
+  //  · cities     = those still NEEDING a hub (queued ones removed) — hub candidates only.
+  // Using the filtered list for presence meant that once the Lahore hub was queued,
+  // Lahore stopped counting as a venue city and every legitimate Lahore keyword was
+  // dropped as "a city we are not in". With all hubs queued it would have told Claude we
+  // have no venues at all and suppressed local content everywhere.
+  const allCities = (isUae ? [] : await citiesForMarketAsync(market).catch(() => []))
+    .filter(c => c && c.slug);
+  const cities = allCities.filter(c => !queuedCities.has(_kw(c.slug)));
   const citySlugs = new Set(cities.map(c => _kw(c.slug)));
 
   // ── THE BRAIN (default): Claude clusters + judges relevance + picks asset + ranks.
@@ -273,7 +281,7 @@ async function buildMarketPlan({ brand, market, useLLM = true, llmFn, verifyTarg
     const llm = await planWithClaude(candidates, cities, {
       brandName, sells, marketLabel,
       promptNoun: vert.promptNoun, assetHint: vert.assetHint || '',
-      cityList: cities.map(c => c.city).join(', '),
+      cityList: allCities.map(c => c.city).join(', '),
       commodityTerms,
     }, llmFn);
     if (llm && Array.isArray(llm.plan)) {
@@ -307,7 +315,7 @@ async function buildMarketPlan({ brand, market, useLLM = true, llmFn, verifyTarg
 
   // ── HARD GUARDS the LLM must not bypass (it is told these rules; this enforces them).
   // Config-driven: the allowed city list comes from venue config, never a literal.
-  const cityNames = [...cities.map(c => c.city), ...cities.map(c => c.slug)].filter(Boolean);
+  const cityNames = [...allCities.map(c => c.city), ...allCities.map(c => c.slug)].filter(Boolean);
   const dropped = [];
   items = items.filter((it) => {
     const reason = _localIntentDrop(it, cityNames);

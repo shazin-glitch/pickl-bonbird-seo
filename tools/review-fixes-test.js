@@ -121,6 +121,26 @@ const mkMeta = (kw, url) => ({ keyword: kw, assetType:'meta_update',
   ok('same target once modifiers are stripped → one item', p2.items.length === 1, p2.items.map(i=>i.keyword));
   ok('the duplicate is reported with a reason', p2.dropped.some(d => /split authority/.test(d.reason)));
 
+  console.log('\n── 5b. A queued city hub must NOT erase the city from presence (v7.9.36) ──');
+  // Regression: `cities` is filtered to hubs still NEEDED, but it was also used as the
+  // "cities we have venues in" truth. Once the Lahore hub was queued, Lahore stopped
+  // counting as a venue city and every legitimate Lahore keyword was dropped as a
+  // doorway page — and with all hubs queued Claude would be told we have no venues.
+  PENDING = [{ id:'hub', payload:{ pageType:'city_hub', slug:'lahore', targetKeyword:'fast food in lahore' } }];
+  KV.set('keywordOpportunities:bonbird:bonbird_pakistan', JSON.stringify({ marketLabel:'Pakistan', opportunities:[
+    { keyword:'fast food restaurants in lahore', volume:800, tier:'opportunity' }] }));
+  let seenPrompt = '';
+  const llm3 = async (prompt) => { seenPrompt = prompt; return { text: JSON.stringify({ plan:[
+    { primaryKeyword:'fast food restaurants in lahore', assetType:'page_creation', priority:1 }], dropped:[] }) }; };
+  const p3 = await buildMarketPlan({ brand:'bonbird', market:'bonbird_pakistan', llmFn: llm3 });
+  ok('a Lahore keyword survives even though the Lahore hub is already queued',
+     p3.items.some(i => /lahore/i.test(i.keyword)),
+     { kept: p3.items.map(i=>i.keyword), dropped: p3.dropped.map(d=>d.reason) });
+  ok('it is NOT dropped as a no-venue/doorway city',
+     !p3.dropped.some(d => /no configured venue/.test(d.reason)), p3.dropped);
+  ok('the prompt still tells Claude we have venues in Lahore', /VENUES ONLY IN: .*Lahore/.test(seenPrompt));
+  PENDING = [];
+
   console.log('\n── 6. Internal linking directive ──');
   const src = require('fs').readFileSync(path.join(FN,'generate-draft.js'),'utf8');
   const body = src.match(/function buildLinkingDirective[\s\S]*?\n}/)[0];
