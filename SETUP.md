@@ -5047,3 +5047,13 @@ Ran the `venue` kind for the Bonbird Lahore hub (#47054). Verified server-side v
 - **#47065 Dolmen Mall** — title preserved, draft, parent 47054, page_type=venue, **body filled (502 words + 5 FAQ)**; needs NAP.
 - **#47068 Johar Town** — created new, "Johar Town", draft, **parent 47054** (correctly under the hub), page_type=venue, body 484 words + 5 FAQ; needs NAP.
 Confirmed the title-preserving fill works (fills omit post title, set Yoast via metaTitle). Fixed a cosmetic bug: `create_page` success message printed `wpParent` ('root') even when a numeric `parentId` was used — now shows the real parent (`#47054`). Remaining for Shazin: approve the Cue Cinemas body (live), add NAP to Dolmen + Johar Town. All suites green.
+
+### v7.9.45 — city hubs auto-scaffold their venue pages (approve hub → venue drafts appear)
+Closes the loop Shazin asked for: generating/approving a city hub now automatically scaffolds a draft venue page for EVERY configured venue in that city — parented to the hub, page_type=venue, body written — so the only human step is NAP.
+
+- **`scaffold-venues-background.js`** (NEW, no schedule → HTTP-invocable): given `{brand, hubPostId, city, marketSlug}`, resolves the market key (from brand+slug), reads the city's venues from `citiesForMarketAsync` (config only — never invents), **dedups against existing children** (new `list_children` WP action; contains-match so a human-named "Cue Cinemas" page dedupes the config "Cue Cinemas, Gulberg"), and loops `generateDraftCore({pageKind:'venue', parentId:hub, pageTitle:venue.name})` for each missing venue → pending approvals. In-process generation (past the sync gateway), one per venue.
+- **Trigger:** `approvals.js handleApprove` fires it fire-and-forget when a `city_hub` is successfully pushed. So: generate hub → approve hub → its venue drafts appear in Approvals (deduped) → you approve + add NAP. Also callable directly for a backfill.
+- Creates pending APPROVALS, not live pages — the content gate stays; nothing publishes.
+- **`list_children`** added to wordpress.js (child pages of a parent: id/title/slug/status).
+
+Verified: new `tools/scaffold-venues-test.js` (11 — scaffolds missing, skips existing via contains-dedup, resolves market from slug, idempotent re-run generates nothing, never invents for a no-venue city, arg guards). Full suite green (50+19+9+16+36+17+11). `npm run check` green. Live backfill for the existing Lahore hub not needed — its 3 venues already scaffolded manually (v7.9.44b).

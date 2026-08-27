@@ -92,6 +92,7 @@ exports.handler = async (event) => {
       case 'list_posts':       return await handleListPosts(creds, body);
       case 'list_market_pages': return await handleListMarketPages(creds, body.payload || {});
       case 'list_scaffolds':    return await handleListScaffolds(creds, body.payload || {});
+      case 'list_children':     return await handleListChildren(creds, body.payload || {});
       case 'get_post':         return await handleGetPost(creds, body);
       case 'get_revisions':    return await handleGetRevisions(creds, body.payload || {});
       case 'delete_post':      return await handleDeletePost(creds, body.payload || {});
@@ -493,6 +494,21 @@ async function handleListPosts(creds, body) {
 // content. Bonbird's rebuild left 12 product scaffolds as drafts (parent + template +
 // slug set, empty bodies) ready for Nest to write; this is how we find them.
 // payload: { tokens?: ['om','qa','pk'], template?: 'substring', maxWords?: 30 }
+// List the child pages of a parent (used to dedupe venue scaffolding against venues a
+// human already created under a city hub). Returns id/title/slug/status/page_type.
+async function handleListChildren(creds, payload) {
+  const parent = payload.parentId || payload.postId;
+  if (!parent) return fail(400, 'parentId required');
+  const params = new URLSearchParams({ parent: String(parent), per_page: '100',
+    status: 'publish,draft,pending,future,private', context: 'edit', _fields: 'id,slug,link,title,status' });
+  const res = await wpFetch(creds, `/wp/v2/pages?${params}`);
+  if (!res.ok) return fail(res.status, `WP list children failed: ${describeError(res)}`);
+  const children = (Array.isArray(res.data) ? res.data : []).map(p => ({
+    id: p.id, slug: p.slug || '', link: p.link || '', status: p.status,
+    title: (p.title && (p.title.raw || p.title.rendered)) || '' }));
+  return win({ count: children.length, children });
+}
+
 async function handleListScaffolds(creds, payload) {
   const tokens   = (payload.tokens || []).map(t => String(t || '').toLowerCase().trim()).filter(Boolean);
   const tplMatch = payload.template ? String(payload.template).toLowerCase() : null;

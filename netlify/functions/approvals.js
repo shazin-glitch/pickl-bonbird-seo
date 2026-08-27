@@ -202,6 +202,18 @@ async function handleApprove(body, actor, edited) {
   });
 
   if (!pushResult.ok) notifyPushFailed(item, pushResult.message).catch(() => {});
+
+  // A city hub just went into WordPress → auto-scaffold its configured venues as child
+  // venue pages (page_type=venue, parented to the hub) so a human only adds NAP. Fire-and-
+  // forget background (loops one generation per venue, deduped vs existing children).
+  if (pushResult.ok && payload.pageType === 'city_hub' && (pushResult.id || pushResult.postId)) {
+    fetch(`${SITE_URL}/.netlify/functions/scaffold-venues-background`, {
+      method: 'POST', headers: internalHeaders({ 'Content-Type': 'application/json' }),
+      body: JSON.stringify({ brand: item.brand, hubPostId: pushResult.id || pushResult.postId,
+        city: payload.slug, marketSlug: payload.wpParent }),
+    }).catch(e => console.warn('[approvals] venue-scaffold trigger failed:', e.message));
+  }
+
   return ok({ item: final, pushResult });
 }
 
