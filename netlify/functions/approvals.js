@@ -466,7 +466,11 @@ async function pushItem(item) {
     });
     const data = await res.json().catch(() => ({}));
     return res.ok
-      ? { ok: true, ref: data.ref || data.editUrl || null, message: data.message || 'pushed' }
+      // Surface the WP post id + type — publish-live and the venue-scaffold-on-approve
+      // trigger both need it. Dropping it broke "Publish Live" ("Could not determine WP
+      // post ID") and silently no-op'd the hub auto-scaffold. (v7.9.50)
+      ? { ok: true, id: data.id ?? data.postId ?? null, postType: data.postType || null,
+          ref: data.ref || data.editUrl || null, message: data.message || 'pushed' }
       : { ok: false, message: data.error || `push failed: ${res.status}` };
   } catch (e) {
     return { ok: false, message: e.message };
