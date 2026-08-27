@@ -10,9 +10,10 @@
 // generation core (generateDraftCore) — every guard stays in one place.
 
 const { getStore } = require('@netlify/blobs');
-const { authorizeJob } = require('./_lib/auth');
+const { authorizeJob, internalHeaders } = require('./_lib/auth');
 const { generateDraftCore, JOB_KEY } = require('./generate-draft');
 
+const SITE = process.env.URL || process.env.NETLIFY_URL || 'https://yolkseo.netlify.app';
 function store() {
   return getStore({ name: 'seo-tool', siteID: process.env.NETLIFY_SITE_ID, token: process.env.NETLIFY_AUTH_TOKEN });
 }
@@ -31,6 +32,16 @@ exports.handler = async (event) => {
     const out = await generateDraftCore(params);   // { statusCode, ok?, item?, skipped?, paused?, error?, ... }
     await store().setJSON(JOB_KEY(jobId), { ...out, status: 'done', finishedAt: Date.now() });
     console.log(`[generate-draft-bg] ${jobId} done — HTTP ${out.statusCode}${out.item ? ` (queued ${out.item.id})` : out.skipped ? ' (skipped)' : ''}`);
+    // Slack: one ping when a draft is actually queued (UI single-item path; the planner
+    // executor sends its own run summary, so no double-ping). Blobs-first webhook. (v7.9.48)
+    if (out.item) {
+      try {
+        await fetch(`${SITE}/.netlify/functions/slack-notify`, {
+          method: 'POST', headers: internalHeaders({ 'Content-Type': 'application/json' }),
+          body: JSON.stringify({ type: 'draft_queued', brand: params.brand, title: out.item.title, siteUrl: SITE }),
+        });
+      } catch (e) { console.warn('[generate-draft-bg] slack notify failed (non-critical):', e.message); }
+    }
   } catch (e) {
     console.error(`[generate-draft-bg] ${jobId} failed:`, e.message);
     await store().setJSON(JOB_KEY(jobId), { status: 'error', statusCode: 500, error: e.message, finishedAt: Date.now() }).catch(() => {});

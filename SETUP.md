@@ -5073,3 +5073,9 @@ Pattern confirmed with Shazin: page TITLE carries the brand ("Bonbird Johar Town
 
 ### v7.9.47 — fix: Approvals queue crashed ("puUrl.startsWith is not a function")
 A `page_update` approval that targets a numeric `postId` with no `url` (e.g. the venue/scaffold fills) made `buildPreview`'s page_update branch compute `puUrl = p.url || p.postId` = a NUMBER, then call `puUrl.startsWith(...)` → threw → the WHOLE queue failed to render ("Could not load queue"). Fixed: coerce/guard — link only a real string URL, otherwise show the postId as "#<id>" (no link). The parallel `buildContextBar` path was already safe (`url = p.url || null`). `npm run check` green.
+
+### v7.9.48 — Slack pings for single-item + auto-scaffold generations (the other silent paths)
+"0 notifications on Slack" — because only the planner EXECUTOR sent a run summary (v7.9.37). The single-item path (`generate-draft-background`, i.e. the UI ⚡ button + direct /api/generate-draft calls) and `scaffold-venues-background` created drafts via `generateDraftCore` and never pinged. Wired both to `slack-notify` (Blobs-first webhook), new `draft_queued` message type, one ping per action (no per-item spam; the executor's in-process path is unaffected so no double-ping):
+- `generate-draft-background`: pings when an item is actually queued (skips/paused don't ping).
+- `scaffold-venues-background`: one summary — "N venue pages for <city>".
+`npm run check` + suites green. Now every creation surface notifies: planner run summary, single generate, venue scaffold, and approvals.js create.

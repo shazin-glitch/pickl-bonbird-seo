@@ -81,5 +81,16 @@ exports.handler = async (event) => {
   }
 
   console.log(`[scaffold-venues] ${brand}/${marketKey}/${city} hub#${hubPostId}: ${JSON.stringify(results)}`);
+  // Slack: one summary for the auto-scaffolded venues (not per-venue). (v7.9.48)
+  const queuedCount = results.filter(r => r.status === 'queued').length;
+  if (queuedCount) {
+    try {
+      await fetch(`${SITE}/.netlify/functions/slack-notify`, {
+        method: 'POST', headers: internalHeaders({ 'Content-Type': 'application/json' }),
+        body: JSON.stringify({ type: 'draft_queued', brand, count: queuedCount,
+          context: `${queuedCount} venue page${queuedCount === 1 ? '' : 's'} for ${hub.city}`, siteUrl: SITE }),
+      });
+    } catch (e) { console.warn('[scaffold-venues] slack notify failed (non-critical):', e.message); }
+  }
   return { statusCode: 200, body: JSON.stringify({ ok: true, hubPostId, results }) };
 };

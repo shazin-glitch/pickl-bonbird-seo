@@ -49,6 +49,7 @@ exports.handler = async (event) => {
     else if (type === 'calendar_submitted')         payload = buildCalendarSubmitted(body);
     else if (type === 'calendar_manual_reminder')   payload = buildCalendarManualReminder(body);
     else if (type === 'planner_run')         payload = buildPlannerRun(body);
+    else if (type === 'draft_queued')        payload = buildDraftQueued(body);
     else                                     payload = buildGeneric(body);
 
     const slackRes = await fetch(webhookUrl, {
@@ -397,6 +398,20 @@ function buildCalendarManualReminder({ posts }) {
 // ─── Generic fallback ────────────────────────────────────────────────────────
 // Market Planner execute run finished — ONE summary per run (not per draft), so a batch
 // of N generations is a single, useful ping rather than N pings.
+// One draft (or a small batch) queued for review — a single ping, not per-item spam.
+function buildDraftQueued(body) {
+  const { brand, title, count = 1, context, siteUrl } = body;
+  const label = [brand, context].filter(Boolean).join(' · ');
+  const head = count > 1
+    ? `🪺 ${count} new drafts ready to review${label ? ' — ' + label : ''}`
+    : `🪺 New draft ready to review${title ? ': ' + title : ''}${brand ? ' (' + brand + ')' : ''}`;
+  return { text: head, blocks: [
+    { type: 'section', text: { type: 'mrkdwn', text: `*${head}*` } },
+    { type: 'actions', elements: [{ type: 'button', text: { type: 'plain_text', text: 'Open Approvals →' },
+      style: 'primary', url: `${siteUrl || 'https://yolkseo.netlify.app'}/?tab=approvals` }] },
+  ] };
+}
+
 function buildPlannerRun(body) {
   const { brand, market, queued = 0, skipped = 0, error = 0, siteUrl } = body;
   const label = [brand, market && market !== 'uae' ? market : null].filter(Boolean).join(' · ');
