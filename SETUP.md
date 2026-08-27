@@ -5079,3 +5079,6 @@ A `page_update` approval that targets a numeric `postId` with no `url` (e.g. the
 - `generate-draft-background`: pings when an item is actually queued (skips/paused don't ping).
 - `scaffold-venues-background`: one summary — "N venue pages for <city>".
 `npm run check` + suites green. Now every creation surface notifies: planner run summary, single generate, venue scaffold, and approvals.js create.
+
+### v7.9.49 — approval cards for page FILLS label by the target page, not the keyword
+Shazin couldn't find "Cue Cinemas" in the queue — the card was titled "Venue page: fried chicken gulberg lahore" (the keyword), though it targets postId 47057 = Cue Cinemas. A page_update/fill card now labels by the PAGE it updates: generateTemplatePage reads the existing WP title (get_current_meta by postId) and titles the card "Venue page: Bonbird Cue Cinemas". (Creates already labelled by pageTitle.) Content was correct all along — the Cue Cinemas body is Gulberg-specific and mentions the venue; H1 stays "Bonbird Cue Cinemas", Yoast targets "Bonbird Gulberg Lahore". The existing pending card keeps its old label (no rename endpoint) — it IS the Cue Cinemas update, safe to approve. `npm run check` + suites green.

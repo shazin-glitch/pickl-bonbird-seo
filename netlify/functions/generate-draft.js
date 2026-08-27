@@ -481,6 +481,21 @@ async function generateTemplatePage(ctx) {
   const isCreate = !postId;
   const template = isLocation ? 'template-location.php' : 'template-product.php';
 
+  // When FILLING an existing page, label the approval card by the PAGE it updates (e.g.
+  // "Bonbird Cue Cinemas"), not the keyword — a fill card showing "fried chicken gulberg
+  // lahore" is unrecognisable as the Cue Cinemas page. Cheap read of the current WP title.
+  let existingTitle = pageTitle || null;
+  if (!isCreate && !existingTitle) {
+    try {
+      const cmRes = await fetch(`${SITE}/.netlify/functions/wordpress`, {
+        method: 'POST', headers: internalHeaders({ 'Content-Type': 'application/json' }),
+        body: JSON.stringify({ action: 'get_current_meta', brand, payload: { postId } }),
+      });
+      const cm = await cmRes.json().catch(() => null);
+      if (cm && cm.wpTitle) existingTitle = cm.wpTitle;
+    } catch { /* fall back to keyword in the label */ }
+  }
+
   const userPrompt = `You are writing the CONTENT BODY for an existing ${brandName} ${isLocation ? 'location' : 'product'} page in ${marketLabel}. The page's images, address, hours and product cards are managed separately by a human — you write ONLY the prose and FAQs.
 
 TARGET KEYWORD: "${keyword}"${url ? `\nPAGE: ${url}` : ''}
@@ -533,7 +548,7 @@ Return ONLY JSON:
   } : {};
   const item = await createApproval({
     type: isCreate ? 'page_creation' : 'page_update', brand,
-    title: `${isVenue ? 'Venue' : isLocation ? 'Location' : 'Product'} page: ${isVenue ? (pageTitle || keyword) : keyword}`,
+    title: `${isVenue ? 'Venue' : isLocation ? 'Location' : 'Product'} page: ${existingTitle || (isVenue ? (pageTitle || keyword) : keyword)}`,
     reason: parsed.rationale || `${isCreate ? 'Create' : 'Write the content body for'} the ${marketLabel} ${isLocation ? 'location' : 'product'} page targeting "${keyword}"`,
     ...t,
     payload: {
