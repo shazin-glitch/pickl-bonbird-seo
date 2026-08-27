@@ -5070,3 +5070,6 @@ Verified: `cleanHeading` unit tests in `tools/genjob-test.js` (now 22) incl. hyp
 
 ### v7.9.46c — venue slugs = plain venue name (title has brand, slug doesn't)
 Pattern confirmed with Shazin: page TITLE carries the brand ("Bonbird Johar Town"), the SLUG stays short and un-prefixed ("johar-town"), because the brand is already in the domain and the path already carries market+city (→ /pk/lahore/johar-town/). Generator: venue create now derives the slug from the plain venue name (not the LLM slug, which tended to include market/city, e.g. `pk-lahore-johar-town`). Fixed the existing Lahore venue slugs live → /pk/lahore/{johar-town,dolmen-mall,cue-cinemas}/ (Johar Town was published but fresh — no redirect needed). Slug changes only; titles/bodies/Yoast untouched.
+
+### v7.9.47 — fix: Approvals queue crashed ("puUrl.startsWith is not a function")
+A `page_update` approval that targets a numeric `postId` with no `url` (e.g. the venue/scaffold fills) made `buildPreview`'s page_update branch compute `puUrl = p.url || p.postId` = a NUMBER, then call `puUrl.startsWith(...)` → threw → the WHOLE queue failed to render ("Could not load queue"). Fixed: coerce/guard — link only a real string URL, otherwise show the postId as "#<id>" (no link). The parallel `buildContextBar` path was already safe (`url = p.url || null`). `npm run check` green.

@@ -4094,8 +4094,15 @@ function buildPreview(item) {
   if (item.type === 'review_response') return `
     <div><strong>Review:</strong> "${esc(p.reviewText || '—')}"</div>
     <div style="margin-top:6px"><strong>Draft Reply:</strong> ${esc(p.responseText || '—')}</div>`;
-  if (item.type === 'page_update') { const puUrl = p.url || p.postId || null; return `
-    <div><strong>Target Page:</strong> ${puUrl ? `<a href="${esc(puUrl.startsWith('http') ? puUrl : (item.brand === 'bonbird' ? 'https://bonbirdchicken.com' : 'https://eatpickl.com') + puUrl)}" target="_blank" style="color:var(--primary)">${esc(puUrl)}</a>` : '—'}</div>
+  if (item.type === 'page_update') {
+    // A page_update can target a URL (string) OR just a postId (number, e.g. a venue/scaffold
+    // fill) — coercing the postId to a string is essential; puUrl.startsWith crashed the whole
+    // queue render when it was a number. A postId has no path, so show it as "#<id>" (no link).
+    const rawUrl = (typeof p.url === 'string' && p.url) ? p.url : null;
+    const puHref = rawUrl ? (rawUrl.startsWith('http') ? rawUrl : (item.brand === 'bonbird' ? 'https://bonbirdchicken.com' : 'https://eatpickl.com') + rawUrl) : null;
+    const puLabel = rawUrl || (p.postId ? ('#' + p.postId) : '—');
+    return `
+    <div><strong>Target Page:</strong> ${puHref ? `<a href="${esc(puHref)}" target="_blank" style="color:var(--primary)">${esc(puLabel)}</a>` : esc(puLabel)}</div>
     <div style="margin-top:6px"><strong>Keyword:</strong> ${esc(p.targetKeyword || '-')}</div>
     <div style="margin-top:6px"><strong>New Title:</strong> ${esc(p.title || '-')}</div>
     <div style="margin-top:6px"><strong>New Meta:</strong> ${esc(p.description || '-')}</div>
