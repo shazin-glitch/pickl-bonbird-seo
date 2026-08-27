@@ -92,6 +92,16 @@ async function callClaudeJson(userPrompt, opts, needsRetry) {
   return parsed;
 }
 
+// H1 vs SEO title are different levers: the H1 (WP post_title, also the venue-card label)
+// should be a clean human headline; the keyword-rich SEO title belongs in Yoast (metaTitle).
+// The generator returns one SEO-shaped "title" (e.g. "Bonbird Lahore | Fresh Fried Chicken,
+// No Bull") — cleanHeading strips the "| …" / " - …" / ": …" suffix to get the headline.
+// (Splits only on a separator PADDED by spaces, so "Snack-A-Wrap" is safe.) (v7.9.46)
+function cleanHeading(seoTitle) {
+  const t = String(seoTitle || '').split(/\s*[|:]\s+|\s+[-–—]\s+/)[0].trim();
+  return t || String(seoTitle || '').trim();
+}
+
 // ── HTTP handler (UI). A blog/page generation (GSC pull + 3500-token Claude call +
 // voice check) exceeds Netlify's ~26s gateway → a synchronous call 504s while the
 // function keeps running and creates the draft anyway (a phantom-draft + false error the
@@ -438,7 +448,9 @@ Return ONLY JSON:
     reason: parsed.rationale || `Create a dedicated page targeting "${keyword}"`,
     ...t,
     payload: {
-      url: url || null, slug: parsed.slug || '', title,
+      url: url || null, slug: parsed.slug || '',
+      title: parsed.h1 || cleanHeading(title),   // clean H1 as the WP page title
+      metaTitle: title,                          // keyword-rich SEO title → Yoast
       description: parsed.metaDescription || '', h1: parsed.h1 || title,
       content: contentHtml, targetKeyword: keyword, wpAction: 'create_page',
       ...marketTaxonomyFor(ctx),
@@ -528,8 +540,11 @@ Return ONLY JSON:
       // Venue pages: WP title = the venue NAME (given on create; PRESERVED on fill by
       // omitting title so we never clobber "Cue Cinemas"); SEO title → Yoast via metaTitle.
       ...(isVenue
-        ? { ...(isCreate ? { title: pageTitle || keyword } : {}), metaTitle: title }
-        : { title }),
+        // Venue: WP title = "Brand Venue" (clean as both card + H1; brand = local keyword).
+        // Fill preserves the human title (omit it). SEO title → Yoast via metaTitle.
+        ? { ...(isCreate ? { title: `${brandName} ${pageTitle || keyword}`.trim() } : {}), metaTitle: title }
+        // Product/location: clean H1 as WP title, keyword-rich SEO title → Yoast.
+        : { title: cleanHeading(title), metaTitle: title }),
       description: parsed.metaDescription || '',
       content: contentHtml, targetKeyword: keyword,
       wpAction: isCreate ? 'create_page' : 'update_content',
@@ -610,7 +625,7 @@ Return ONLY JSON:
     reason: parsed.rationale || `Create the ${cityName} city hub targeting "${keyword}"`,
     ...t,
     payload: {
-      title, slug: hub.slug, description: parsed.metaDescription || '',
+      title: cleanHeading(title), metaTitle: title, slug: hub.slug, description: parsed.metaDescription || '',
       content: contentHtml, targetKeyword: keyword,
       wpAction: 'create_page',
       template: 'template-location.php',   // guard-allowed writable template

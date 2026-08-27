@@ -5057,3 +5057,13 @@ Closes the loop Shazin asked for: generating/approving a city hub now automatica
 - **`list_children`** added to wordpress.js (child pages of a parent: id/title/slug/status).
 
 Verified: new `tools/scaffold-venues-test.js` (11 — scaffolds missing, skips existing via contains-dedup, resolves market from slug, idempotent re-run generates nothing, never invents for a no-venue city, arg guards). Full suite green (50+19+9+16+36+17+11). `npm run check` green. Live backfill for the existing Lahore hub not needed — its 3 venues already scaffolded manually (v7.9.44b).
+
+### v7.9.46 — split H1 (page title) from the SEO title; brand-in-title for venues
+Shazin asked whether the brand belongs in the title (SEO call). It does — branded-local searches ("bonbird johar town", "bonbird gulberg") are the highest-intent a venue page wins — but the real bug was using ONE string for two jobs: the generator jammed the keyword-rich SEO title into the WP page title, so it rendered as the H1 (and, for venues, the card heading via `get_the_title`). Result: hub H1 = "Bonbird Lahore | Fresh Fried Chicken, No Bull", products = "Best Burger in Lahore | Bonbird Chicken Burgers" — reads like a meta tag.
+
+**Fix — H1 and SEO title are now separate levers:**
+- WP **page title** (= H1, and the venue-card label) → a **clean headline** via `cleanHeading()` (strips the ` | …` / ` - …` / `: …` suffix; splits only on space-padded separators so "Snack-A-Wrap" survives). `generatePage` uses the LLM's `h1` field; hub/product/location use `cleanHeading(title)`.
+- **Yoast SEO title** (the `<title>` / SERP) → the full keyword-rich string via `metaTitle` (buildSeoMeta already prefers metaTitle).
+- **Venue** page title = **`{Brand} {Venue}`** ("Bonbird Johar Town") — clean as both card and H1, brand as the local keyword; fill still preserves a human-named page.
+
+Verified: `cleanHeading` unit tests in `tools/genjob-test.js` (now 22) incl. hyphen/colon/pipe/dash cases; full suite green. `npm run check` green. Existing Lahore pages (hub #47054, products #47015/47016/47052, Johar Town #47068) still carry the old SEO-title-as-H1 — retitle pending (drafts safe; Cue Cinemas is live).

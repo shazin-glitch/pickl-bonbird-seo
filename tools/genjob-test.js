@@ -55,6 +55,15 @@ const ok = (n, c, e) => { c ? (pass++, console.log('  ✅', n)) : (fail++, conso
   ok('unauthenticated → denied', (await call({ brand: 'bonbird', keyword: 'x' })).statusCode === 401);
   AUTH = { ok: true, via: 'session', user: { email: 'shazin@yolkbrands.com', role: 'admin' } };
 
+  console.log('\n── cleanHeading: H1 headline vs SEO title (v7.9.46) ──');
+  const src2 = require('fs').readFileSync(path.join(FN,'generate-draft.js'),'utf8');
+  const cleanHeading = new Function('return '+src2.match(/function cleanHeading[\s\S]*?\n}/)[0])();
+  ok('strips " | …" SEO suffix', cleanHeading('Bonbird Lahore | Fresh Fried Chicken, No Bull') === 'Bonbird Lahore');
+  ok('strips " - …"', cleanHeading('Chicken Delivery Lahore - Bonbird') === 'Chicken Delivery Lahore');
+  ok('strips ": …" without leading space', cleanHeading('Fried Chicken in DHA Lahore: Bonbird') === 'Fried Chicken in DHA Lahore');
+  ok('keeps hyphenated words', cleanHeading('Snack-A-Wrap Deals') === 'Snack-A-Wrap Deals');
+  ok('leaves a clean title untouched', cleanHeading('Bonbird Johar Town') === 'Bonbird Johar Town');
+
   console.log('\n── callClaudeJson: one retry on empty/invalid, none on skip (v7.9.41) ──');
   const fs = require('fs');
   const src = fs.readFileSync(path.join(FN, 'generate-draft.js'), 'utf8');
