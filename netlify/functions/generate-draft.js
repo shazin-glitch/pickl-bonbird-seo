@@ -524,7 +524,9 @@ Return ONLY JSON:
   // Creating needs the template + parent so the body renders; filling must NEVER carry
   // them (it would try to re-template an existing page).
   const createFields = isCreate ? {
-    slug: parsed.slug || '', template,
+    // Venue slug = the plain venue name (→ /pk/lahore/johar-town/); the path already carries
+    // market+city, and the brand is in the domain, so keep the slug short & un-prefixed.
+    slug: (isVenue ? (pageTitle || keyword) : parsed.slug) || '', template,
     ...(isLocation ? { pageType: 'venue' } : {}),
     // A venue parents to its city hub by ID; other creates parent to the market home slug.
     ...(parentId ? { parentId } : { wpParent: wpParent || mkt?.marketSlug || undefined }),
