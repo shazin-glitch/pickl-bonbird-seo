@@ -256,7 +256,7 @@ async function generateDraftCore(params) {
   return { statusCode: res.statusCode, ...data };
 }
 
-module.exports = { handler: exports.handler, coreGenerate, generateDraftCore, JOB_KEY };
+module.exports = { handler: exports.handler, coreGenerate, generateDraftCore, JOB_KEY, buildOwnershipDirective, cleanHeading };
 
 // Tells the generator where the brand actually TRADES in this market, from venue
 // config. Returns '' for the home market (unchanged behaviour) — only international

@@ -15,6 +15,9 @@
 
 const { getStore } = require('@netlify/blobs');
 const { getBrandContext, getBrandExamples, buildBrandPrompt } = require('./_lib/brand');
+const { getBrand } = require('./_lib/brands-config');
+const { getMarketsForBrandAsync } = require('./_lib/international-config');
+const { buildOwnershipDirective, cleanHeading } = require('./generate-draft');
 const { authorize, denied, internalHeaders } = require('./_lib/auth');
 
 const CORS = {
@@ -226,30 +229,35 @@ async function handleReject(body, actor) {
   if (!item)                  return bad(404, 'not found');
   if (item.status !== 'pending') return bad(400, `cannot reject item with status: ${item.status}`);
 
-  await patchItem(id, { status: 'rejected', rejectionFeedback: feedback }, {
-    at: Date.now(), actor, action: 'reject', note: feedback,
-  });
-
-  // Persist feedback so schedulers avoid repeating the same mistake
+  // Persist feedback so future generation avoids repeating the same mistake.
   appendBrandFeedback(item.brand, feedback).catch(() => {});
 
   const requeue = body.requeue !== false;
-  if (!requeue) return ok({ item: await getItem(id), rewrite: null });
+  if (!requeue) {
+    await patchItem(id, { status: 'rejected', rejectionFeedback: feedback }, { at: Date.now(), actor, action: 'reject', note: feedback });
+    return ok({ item: await getItem(id), rewrite: null });
+  }
 
-  // Call Claude for the rewrite
+  // Rewrite FIRST — only reject the original once a revised draft is safely queued, so a
+  // failed rewrite never loses the draft (v7.9.57). Previously the item was rejected up
+  // front, and an unsupported type (page_creation) then left NOTHING requeued.
   const newPayload = await rewriteWithClaude(item, feedback);
   if (!newPayload) {
-    return ok({ item: await getItem(id), rewrite: null, rewriteError: 'Claude rewrite failed; item rejected without requeue' });
+    return bad(502, `Rewrite failed for "${item.title || item.type}" — the draft was kept in the queue (nothing rejected). Try again, or edit it manually.`);
   }
 
   const newItem = await createItem({
     type: item.type, brand: item.brand,
-    title: (item.title || '') + ' (revised)',
+    title: (item.title || '').replace(/\s*\(revised\)\s*$/i, '') + ' (revised)',
     reason: `Rewritten after feedback: ${feedback.slice(0, 140)}`,
     payload: newPayload,
     parentId: item.id,
     rejectionFeedback: feedback,
     actor: 'claude',
+  });
+
+  await patchItem(id, { status: 'rejected', rejectionFeedback: feedback }, {
+    at: Date.now(), actor, action: 'reject', note: `${feedback} → revised as ${newItem.id}`,
   });
 
   notifyQueued([newItem]).catch(() => {});
@@ -505,16 +513,44 @@ function extractJson(text) {
   return null;
 }
 
+// Resolve the market record + directive key for an approval item so a REWRITE gets the
+// same market-aware ownership guard as fresh generation (v7.9.57). Home market → 'uae'.
+async function resolveMarketForItem(item) {
+  const p = item.payload || {};
+  const brandCfg = await getBrand(item.brand).catch(() => null);
+  const homeSlug = (brandCfg && brandCfg.homeMarketSlug) || 'ae';
+  let slug = p.wpParent || p.marketSlug || '';
+  if (!slug) {
+    const path = String(p.url || p.slug || '').replace(/^https?:\/\/[^/]+/, '').replace(/^\/+/, '');
+    slug = path.split('/')[0] || '';
+  }
+  slug = String(slug).toLowerCase();
+  if (!slug || slug === homeSlug || slug === 'uae') return { marketKey: 'uae', mkt: null };
+  const list = await getMarketsForBrandAsync(item.brand).catch(() => []);
+  const mkt = (list || []).find(m => String(m.marketSlug).toLowerCase() === slug) || null;
+  return { marketKey: mkt ? mkt.key : slug, mkt };
+}
+
 async function rewriteWithClaude(item, feedback) {
   const p = item.payload || {};
   const brand = item.brand;
 
   const brandCtx  = await getBrandContext(brand).catch(() => null);
   const brandExamples = await getBrandExamples(brand).catch(() => null);
-  const system    = buildBrandPrompt(brandCtx, brandExamples) || undefined;
+  const brandName = (brandCtx && brandCtx.name) || brand;
+  // Inject the SAME market-aware ownership guard fresh generation uses, so a rewrite can't
+  // reintroduce "homegrown / not a franchise" in a franchised market (v7.9.56 parity).
+  let ownership = '';
+  try { const { marketKey, mkt } = await resolveMarketForItem(item); ownership = buildOwnershipDirective(marketKey, mkt, brandName); } catch {}
+  const system = ((buildBrandPrompt(brandCtx, brandExamples) || '') + ownership) || undefined;
 
+  // A page_creation item (city hub / product / location / venue) is a full-body page.
+  // This was previously UNHANDLED — "Rewrite with AI" returned null, the draft was
+  // rejected, and nothing was requeued (the exact "nothing queued back" bug, v7.9.57).
+  const isTemplatePage = p.pageType === 'city_hub' || p.pageType === 'venue' || /template-(location|product)\.php/.test(p.template || '');
   const prompts = {
-    blog_draft:       `Rewrite this blog post addressing feedback: "${feedback}"\n\nOriginal title: ${p.title}\nOriginal meta: ${p.metaDescription}\nKeyword: ${p.targetKeyword}\n\nReturn ONLY JSON: {"title":"...","metaDescription":"...","targetKeyword":"...","slug":"...","excerpt":"...","body":"<full HTML>"}`,
+    page_creation:    `Rewrite this page's FULL body addressing the feedback: "${feedback}"\n\nTitle: ${p.title || p.metaTitle}\nMeta: ${p.description || p.metaDescription}\nKeyword: ${p.targetKeyword}\nKEEP the same target keyword and page focus — only change what the feedback asks.${isTemplatePage ? ' The body MUST keep an <h2>FAQs</h2> section followed by <h3>Q?</h3><p>A.</p> pairs (the template builds the accordion + FAQ schema from it).' : ''}\n\nCurrent body:\n${(p.content || p.body || '').slice(0, 6000)}\n\nReturn ONLY JSON: {"title":"SEO title","metaDescription":"...","targetKeyword":"${p.targetKeyword || ''}","contentHtml":"<full page HTML>"}`,
+    blog_draft:       `Rewrite this blog post addressing feedback: "${feedback}"\n\nOriginal title: ${p.title}\nOriginal meta: ${p.metaDescription}\nKeyword: ${p.targetKeyword}\n\nCurrent body:\n${(p.body || p.content || '').slice(0, 6000)}\n\nReturn ONLY JSON: {"title":"...","metaDescription":"...","targetKeyword":"...","slug":"...","excerpt":"...","body":"<full HTML>"}`,
     meta_update:      `Rewrite SEO meta addressing feedback: "${feedback}"\nURL: ${p.url}, Title: ${p.metaTitle || p.title}, Description: ${p.metaDescription || p.description}\n\nReturn ONLY JSON: {"url":"...","metaTitle":"(50-60 chars)","metaDescription":"(150-160 chars)","targetKeyword":"..."}`,
     onpage_suggestion:`Revise this on-page suggestion based on feedback: "${feedback}"\n${JSON.stringify(p)}\n\nReturn ONLY JSON in the same shape.`,
     review_response:  `Rewrite this review response based on feedback: "${feedback}"\nReview: "${p.reviewText}"\nOriginal: "${p.responseText}"\n\nReturn ONLY JSON: {"reviewId":"${p.reviewId}","reviewText":"${(p.reviewText||'').replace(/"/g,'\\"')}","responseText":"(under 120 words, warm, UAE keyword natural)"}`,
@@ -523,8 +559,21 @@ async function rewriteWithClaude(item, feedback) {
   const prompt = prompts[item.type];
   if (!prompt) return null;
   try {
-    const text = await callClaude(prompt, { max_tokens: 3000, system });
-    return extractJson(text);
+    const text = await callClaude(prompt, { max_tokens: 3500, system });
+    const parsed = extractJson(text);
+    if (!parsed) return null;
+    // page_creation: MERGE the rewritten content into the ORIGINAL payload so routing
+    // fields (pageType, template, wpParent, parentId, market taxonomy, slug) survive.
+    if (item.type === 'page_creation') {
+      if (!parsed.contentHtml || !parsed.title) return null;
+      return { ...p,
+        title: cleanHeading(parsed.title), metaTitle: parsed.title,
+        description: parsed.metaDescription || p.description || '',
+        content: parsed.contentHtml,
+        targetKeyword: parsed.targetKeyword || p.targetKeyword };
+    }
+    // other types: merge onto the original so incidental fields aren't lost
+    return { ...p, ...parsed };
   } catch (e) {
     console.error('rewrite failed:', e.message);
     return null;
@@ -565,3 +614,7 @@ async function notifyPushFailed(item, msg) {
     body: JSON.stringify({ text: `:warning: Push failed for ${item.type} (${item.brand}): ${msg}` }),
   }).catch(() => {});
 }
+
+// Exported for offline tests (tools/rewrite-fix-test.js). Not used by the handler.
+module.exports.rewriteWithClaude = rewriteWithClaude;
+module.exports.resolveMarketForItem = resolveMarketForItem;

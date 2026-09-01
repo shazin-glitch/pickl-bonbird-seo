@@ -4460,11 +4460,12 @@ async function rejectItem(id, btn) {
       overlay.remove();
       btn.disabled = true; btn.textContent = 'Rewriting…';
       try {
-        await apiPost('/api/approvals', { action: 'reject', id, feedback, actor: state.actor });
-        showToast('Rejected — revised version queued ✓', 'success');
+        const res = await apiPost('/api/approvals', { action: 'reject', id, feedback, actor: state.actor });
+        if (res && res.rewrite) showToast('Revised version queued ✓', 'success');
+        else showToast('Rewrite ran but nothing was requeued', 'warn');
         await loadQueue();
       } catch (e) {
-        showToast('Error: ' + e.message, 'error');
+        showToast('Rewrite failed: ' + e.message, 'error');
         btn.disabled = false; btn.textContent = 'Rewrite with AI';
       }
       resolve(true);
