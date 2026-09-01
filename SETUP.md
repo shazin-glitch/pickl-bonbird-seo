@@ -5093,3 +5093,9 @@ The Monday 4am data run (GSC snapshots, rank history, CPC enrichment, published-
 - `scheduler-background` stays schedule-LESS (Run Audit button unaffected).
 
 **Triple-checked:** `npm run check` green; all 7 offline suites green (50+19+9+16+36+22+11); TOML verified — the ONLY newly-active schedule is `cron-weekly-background`, and scheduler/intl/technical-seo remain commented (HTTP-invocable). P4 part 2 (retire/thin the legacy generators) deliberately NOT done — higher risk, low urgency, and scheduler's content jobs are already inert without a `jobs` arg.
+
+### v7.9.52 — tracking accuracy: kill fabricated rankings + clear stale positions
+Live tracking run (invoked manually, not waiting for Monday) confirmed the mechanism WORKS — all 5 Lahore items updated lastTrackedAt. BUT four brand-new pages showed position #1 the day they launched: the fuzzy matcher in `trackPublishedItems` attributed ANY GSC query sharing ≥2 words (or a broader term like the branded "bonbird lahore" #1) to a specific page. Fabricated data.
+- **`matchTrackedPosition()`** (new, extracted + unit-tested): exact match, else a GSC query that CONTAINS the tracked phrase as a WHOLE word/phrase (a genuine longer-tail, e.g. "chicken tenders" ⊂ "best chicken tenders lahore"); NEVER a broader query; word-boundaried so "chicken" ≠ "chickens". No genuine match → null (honest "not ranking yet"). Exact match wins over a different long-tail.
+- **Clear-on-null:** the tracker only ever SET positionLatest, never cleared a wrong one, so fabricated values would persist forever. Now positionLatest/delta/clicks reflect the LATEST measurement (cleared when no match). positionAtPublish + rank history (rank-tracker.js) untouched. Genuine exact-match items (e.g. "bonbird sharjah" #1) are unaffected.
+Verified: `tools/tracking-match-test.js` (10). Full suite green (50+19+9+16+36+22+11+10). A re-run will correct the 5 fabricated Lahore positions to honest values.

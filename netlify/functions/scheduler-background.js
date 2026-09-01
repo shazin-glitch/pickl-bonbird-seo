@@ -349,6 +349,22 @@ async function fetchGscRows(siteUrl, brand) {
 // Runs every Monday after GSC fetch. For each item published in last 8 weeks,
 // finds current GSC position for the target keyword and updates the item with
 // positionLatest + positionDelta so the Published & Tracking tab shows movement.
+// Match a tracked keyword to a GSC position ACCURATELY (v7.9.52). Exact, else a GSC
+// query that CONTAINS the tracked phrase as a WHOLE word/phrase (a genuine longer-tail
+// the page ranks for, e.g. "chicken tenders" ⊂ "best chicken tenders lahore"). NEVER a
+// broader query (a specific page must not inherit "bonbird lahore" #1). Word boundaries
+// stop "chicken" matching "chickens". No genuine match → null (honest "not ranking yet").
+function matchTrackedPosition(kwNorm, kwPosMap, kwClicksMap) {
+  if (!kwNorm) return { pos: null, clicks: null };
+  if (kwPosMap[kwNorm] != null) return { pos: kwPosMap[kwNorm], clicks: kwClicksMap[kwNorm] || null };
+  const re = new RegExp('(^|\\s)' + kwNorm.replace(/[.*+?^${}()|[\]\\]/g, '\\$&') + '(\\s|$)');
+  let best = null;
+  for (const gkw of Object.keys(kwPosMap)) {
+    if (re.test(gkw) && (!best || kwPosMap[gkw] < best.pos)) best = { pos: kwPosMap[gkw], clicks: kwClicksMap[gkw] || null };
+  }
+  return best || { pos: null, clicks: null };
+}
+
 async function trackPublishedItems(brand, gscRows) {
   const s     = getStore({ name: 'seo-tool', siteID: process.env.NETLIFY_SITE_ID, token: process.env.NETLIFY_AUTH_TOKEN });
   const EIGHT_WEEKS = 8 * 7 * 24 * 60 * 60 * 1000;
@@ -386,22 +402,17 @@ async function trackPublishedItems(brand, gscRows) {
       if (!trackKw) continue;
       if (item.publishedAt && item.publishedAt < cutoff) continue; // older than 8 weeks
 
-      // Normalise + fuzzy-match: a published page's tracked keyword often differs
-      // slightly from the exact GSC query (rewordings, extra/missing words), so an
-      // exact-string lookup left ranking pages permanently stuck on "tracking
-      // starts Monday." Try exact first, then containment/word-overlap.
+      // Match the tracked keyword to a GSC position — ACCURATELY (v7.9.52). The old
+      // fuzzy path (any 2 shared words, or the tracked phrase CONTAINING a broader query)
+      // fabricated rankings: a brand-new "fried chicken gulberg lahore" page matched the
+      // branded "bonbird lahore" #1 and showed #1 the day it launched. Now: exact match,
+      // else a GSC query that CONTAINS the whole tracked phrase (a genuine longer-tail the
+      // page ranks for). Never a BROADER query. No genuine match → null = honest "not
+      // ranking yet" (the whole-word guard stops "chicken" matching inside "chickens").
       const kwNorm = trackKw.toLowerCase().replace(/\s+/g, ' ').trim();
-      let posNow = kwPosMap[kwNorm] != null ? kwPosMap[kwNorm] : null;
-      let clicks = kwClicksMap[kwNorm] || null;
-      if (posNow == null) {
-        const words = kwNorm.split(' ').filter(w => w.length > 2);
-        let best = null;
-        for (const gkw of Object.keys(kwPosMap)) {
-          const score = (gkw.includes(kwNorm) || kwNorm.includes(gkw)) ? 99 : words.filter(w => gkw.includes(w)).length;
-          if (score >= 2 && (!best || kwPosMap[gkw] < best.pos)) best = { pos: kwPosMap[gkw], clicks: kwClicksMap[gkw] || null };
-        }
-        if (best) { posNow = best.pos; clicks = best.clicks; }
-      }
+      const { pos: posRaw, clicks: clicksMatched } = matchTrackedPosition(kwNorm, kwPosMap, kwClicksMap);
+      let posNow = posRaw;
+      let clicks = clicksMatched;
       posNow = posNow != null ? Math.round(posNow * 10) / 10 : null;
 
       const patch = { ...item, lastTrackedAt: Date.now() };
@@ -448,9 +459,12 @@ async function trackPublishedItems(brand, gscRows) {
       // landed during this 15-min run isn't clobbered by the stale item snapshot.
       const fresh = (await s.get(`approvals:item:${id}`, { type: 'json' }).catch(() => null)) || item;
       const merged = { ...fresh, lastTrackedAt: patch.lastTrackedAt };
-      if (patch.positionLatest != null) merged.positionLatest = patch.positionLatest;
-      if (patch.positionDelta  != null) merged.positionDelta  = patch.positionDelta;
-      if (patch.clicksLatest   != null) merged.clicksLatest   = patch.clicksLatest;
+      // positionLatest reflects the LATEST measurement, so a stale/fabricated value is
+      // corrected — clear it when this run found no genuine match (v7.9.52). positionAtPublish
+      // (in `fresh`) and rank HISTORY (rank-tracker.js) are untouched.
+      merged.positionLatest = patch.positionLatest != null ? patch.positionLatest : null;
+      merged.positionDelta  = patch.positionDelta  != null ? patch.positionDelta  : null;
+      merged.clicksLatest   = patch.clicksLatest   != null ? patch.clicksLatest   : null;
       if (patch.indexStatus)             merged.indexStatus    = patch.indexStatus;
       await s.set(`approvals:item:${id}`, JSON.stringify(merged));
     } catch { /* skip individual failures */ }
