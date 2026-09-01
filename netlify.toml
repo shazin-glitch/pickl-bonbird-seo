@@ -238,7 +238,15 @@
 # internalHeaders() — same pattern as technical-seo (v7.9.1). Re-enable before relying on
 # the weekly cron. On-demand runs work now.
 [functions."scheduler-background"]
-  # schedule = "0 4 * * 1"
+  # schedule = "0 4 * * 1"   # stays OFF — fired by cron-weekly-background (dispatcher) so it
+                             # remains HTTP-invocable for the on-demand "Run Audit" button.
+
+# Weekly cron DISPATCHER (P4, v7.9.51) — restores the parked Monday 4am data pipeline.
+# Fires scheduler-background with NO `jobs` (data jobs only: GSC snapshot + rank history +
+# CPC + tracking + technical-seo fan-out). NO content generation (autogen stays off).
+# A dispatcher is required because a scheduled fn is HTTP-403'd (see scheduler note above).
+[functions."cron-weekly-background"]
+  schedule = "0 4 * * 1"
 
 [functions."competitor-matrix-background"]
   schedule = "0 4 * * 1"

@@ -5085,3 +5085,11 @@ Shazin couldn't find "Cue Cinemas" in the queue — the card was titled "Venue p
 
 ### v7.9.50 — fix: "Publish Live" (and hub auto-scaffold) — pushItem dropped the WP post id
 "Could not determine WP post ID to publish" on Publish Live. Root cause: `pushItem` returned only `{ ok, ref, message }` — it discarded the `id`/`postType` the wordpress handlers return (create_draft/create_page/update_content all `win({ id, postType })`). So `handlePublishItem` got `pushResult.id = undefined` after the push and bailed with that 500. Same bug silently broke the **venue-scaffold-on-hub-approve** trigger (it fires with `hubPostId: pushResult.id`, which was undefined → 400 → no auto-scaffold). Fix: `pushItem` now surfaces `id: data.id ?? data.postId` + `postType`. Publish-live and hub→venue auto-scaffold both work now. `npm run check` + suites green. (Live-verify: click Publish Live on a draft; approve a city hub → its venue drafts appear.)
+
+### v7.9.51 — P4 (part 1): weekly cron dispatcher — restores the parked Monday data pipeline
+The Monday 4am data run (GSC snapshots, rank history, CPC enrichment, published-item tracking, per-brand technical-seo audit) was PARKED since v7.9.16 — `scheduler-background`'s schedule was commented so it stayed HTTP-invocable for the "Run Audit" button (a scheduled fn gets 403'd on HTTP). Reporting/trend data has been going stale as a result. Fixed with the documented dispatcher pattern:
+- **`cron-weekly-background.js`** (NEW, `schedule = "0 4 * * 1"`) — cron-only; fires `scheduler-background` over HTTP with `internalHeaders()`.
+- ⚡ **DATA-ONLY**: it passes NO `jobs`, so scheduler-background runs only its unconditional data/measurement jobs — **autonomous content-gen stays OFF** (North Star; content is on-demand via the planner). `international-seo-background` is deliberately NOT fired (it IS content-gen → stays manual).
+- `scheduler-background` stays schedule-LESS (Run Audit button unaffected).
+
+**Triple-checked:** `npm run check` green; all 7 offline suites green (50+19+9+16+36+22+11); TOML verified — the ONLY newly-active schedule is `cron-weekly-background`, and scheduler/intl/technical-seo remain commented (HTTP-invocable). P4 part 2 (retire/thin the legacy generators) deliberately NOT done — higher risk, low urgency, and scheduler's content jobs are already inert without a `jobs` arg.
