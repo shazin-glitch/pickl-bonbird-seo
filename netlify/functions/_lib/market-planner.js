@@ -126,6 +126,25 @@ function stripCommodityTerms(keyword, terms) {
   return out.length >= 3 ? out : keyword;
 }
 
+// Menu synonym map (config-driven, per brand): wrong-name → canonical menu term, so
+// GSC demand under the wrong word ("chicken fingers") folds into the right page
+// ("chicken tenders") instead of spawning a fabricated product page. Keys lowercased.
+function menuSynonymsFor(brandCfg) {
+  const raw = (brandCfg && brandCfg.menuSynonyms) || {};
+  const out = {};
+  for (const [from, to] of Object.entries(raw)) out[String(from).toLowerCase()] = String(to);
+  return out;
+}
+// "chicken fingers lahore" → "chicken tenders lahore". Whole-phrase, case-insensitive.
+function applyMenuSynonyms(keyword, synMap) {
+  if (!keyword || !synMap || !Object.keys(synMap).length) return keyword;
+  let out = String(keyword);
+  for (const [from, to] of Object.entries(synMap)) {
+    out = out.replace(new RegExp(`\\b${from.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}\\b`, 'gi'), to);
+  }
+  return out.replace(/\s+/g, ' ').trim();
+}
+
 // Returns a drop reason, or null to keep. `cityNames` = configured city names + slugs.
 function _localIntentDrop(item, cityNames) {
   // A city hub is the CORRECT home for local + near-me demand, and its city slug has
@@ -260,6 +279,7 @@ async function buildMarketPlan({ brand, market, useLLM = true, llmFn, verifyTarg
     // "bun bo hue" case). Confirmed with Shazin 2026-08-26.
     offMenu = [...(vert.offMenu || []), ...((bc && bc.offMenu) || [])];
   } catch { /* no guard */ }
+  const menuSyn = menuSynonymsFor(bc);   // wrong-name → canonical menu term (config)
   const commodityTerms = commodityTermsFor(bc, isUae ? 'uae' : market);
   const brandName   = (bc && bc.name) || brand;
   const sells       = (bc && bc.cuisine) || (getVertical(bc && bc.vertical).menuSummary) || 'its menu';
@@ -270,7 +290,9 @@ async function buildMarketPlan({ brand, market, useLLM = true, llmFn, verifyTarg
     .filter(o => o && o.keyword && !SKIP_TIERS.has(o.tier))
     .filter(o => !queued.has(_kw(o.keyword)))
     .filter(o => !offMenu.some(t => t && _kw(o.keyword).includes(_kw(t))))
-    .map(o => ({ keyword: o.keyword, volume: o.volume || 0, tier: o.tier || null,
+    // Fold wrong-name demand into the canonical menu term BEFORE clustering, so the LLM
+    // sees "chicken tenders" (not "chicken fingers") and never proposes an off-menu page.
+    .map(o => ({ keyword: applyMenuSynonyms(o.keyword, menuSyn), volume: o.volume || 0, tier: o.tier || null,
       target: o.targetPage || o.existingPage || null, position: (o.position == null ? null : o.position) }));
 
   // TWO DIFFERENT LISTS — conflating them caused a live regression (v7.9.36):
@@ -349,10 +371,40 @@ async function buildMarketPlan({ brand, market, useLLM = true, llmFn, verifyTarg
     return true;
   });
 
+  // Enforce menu synonyms on the FINAL items too — the LLM can still emit a wrong-name
+  // keyword from its own knowledge; remap so it lands on the canonical page, not a new one.
+  if (Object.keys(menuSyn).length) {
+    for (const it of items) {
+      const mapped = applyMenuSynonyms(it.keyword, menuSyn);
+      if (_kw(mapped) !== _kw(it.keyword)) { it.menuSynonymFrom = it.keyword; it.keyword = mapped; }
+    }
+  }
+
+  // NATIONAL-TERM FOLD (Shazin 2026-09-01): a bare-country term ("best fried chicken oman")
+  // is a doorway page as its own asset, but the demand is real. Instead of dropping it,
+  // attach it as a secondary keyword to the primary city hub (most-venued city; config
+  // order breaks ties) — one authoritative page for the country, not a doorway.
+  const nationalTerms = [_kw(marketLabel)].filter(t => t && t.length >= 3);
+  const _cityOrder  = new Map(allCities.map((c, idx) => [_kw(c.slug), idx]));
+  const _venueCount = new Map(allCities.map(c => [_kw(c.slug), (c.venues || []).length]));
+  const primaryHub = items.filter(i => i.assetType === 'city_hub')
+    .sort((a, b) => (_venueCount.get(_kw(b.city)) || 0) - (_venueCount.get(_kw(a.city)) || 0)
+      || (_cityOrder.get(_kw(a.city)) ?? 999) - (_cityOrder.get(_kw(b.city)) ?? 999))[0] || null;
+
   items = items.filter((it) => {
     const reason = _localIntentDrop(it, cityNames);
-    if (reason) { dropped.push({ keyword: it.keyword, assetType: it.assetType, reason }); return false; }
-    return true;
+    if (!reason) return true;
+    const m = String(it.keyword || '').match(_IN_CITY_RE);
+    const place = m ? _kw(m[1]) : '';
+    if (primaryHub && it.assetType !== 'city_hub' && place && nationalTerms.includes(place)) {
+      if (!Array.isArray(primaryHub.keywords)) primaryHub.keywords = [primaryHub.keyword];
+      if (!primaryHub.keywords.map(_kw).includes(_kw(it.keyword))) primaryHub.keywords.push(it.keyword);
+      dropped.push({ keyword: it.keyword, assetType: it.assetType,
+        reason: `National term — folded into the "${primaryHub.keyword}" city hub as a secondary keyword (one authoritative page for ${marketLabel}, not a separate doorway page).` });
+      return false;
+    }
+    dropped.push({ keyword: it.keyword, assetType: it.assetType, reason });
+    return false;
   });
 
   // Normalise commodity terms out of the keyword, then fold duplicates together — the

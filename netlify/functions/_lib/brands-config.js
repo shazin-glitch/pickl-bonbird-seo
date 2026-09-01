@@ -157,7 +157,21 @@ const BRAND_SEED = {
     // Brand-specific off-menu (merged with the vertical's offMenu by the planner).
     // Bonbird = Nashville-style fried chicken; peri-peri is a different cuisine we don't
     // sell, so those keywords are off-brand (Shazin, 2026-08-26).
-    offMenu:       ['peri peri', 'peri-peri', 'periperi', 'piri piri', 'piri-piri'],
+    offMenu:       ['peri peri', 'peri-peri', 'periperi', 'piri piri', 'piri-piri', 'salad', 'catering'],
+    // Canonical menu categories from the bp-menu plugin (ssm_menu_category CPTs, verified
+    // 2026-09-01). This is what Bonbird ACTUALLY sells — the planner's positive reference
+    // so it never invents a product page for something off the menu (e.g. "salads",
+    // "chicken catering"). Config-driven (rule 12): a new brand ships its own menu here.
+    menuCategories: ['bone-in', 'tenders', 'just chicken', 'chicken burger', 'melts',
+      'wraps', 'mega bon wrap', 'snack-a-wrap', 'rice bowl', 'messy bowl', 'sides',
+      'sauces & dips', 'drinks', 'desserts'],
+    // Wrong-name / variant → the canonical menu term it should fold into, so real demand
+    // under the wrong word (GSC "chicken fingers") lands on the RIGHT page (Tenders)
+    // instead of spawning a fabricated one. Applied to candidates + final plan items.
+    menuSynonyms: {
+      'chicken fingers': 'chicken tenders', 'chicken finger': 'chicken tenders',
+      'chicken strips':  'chicken tenders', 'chicken strip':  'chicken tenders',
+    },
     // UAE is served by legacy static /ae/* pages (human-owned) — the planner must NEVER
     // generate UAE city hubs for Bonbird even if a bonbird_uae venue record appears.
     legacyHomeMarket: true,
