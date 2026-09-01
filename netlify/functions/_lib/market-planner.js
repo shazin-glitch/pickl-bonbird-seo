@@ -257,16 +257,27 @@ async function buildMarketPlan({ brand, market, useLLM = true, llmFn, verifyTarg
   // Don't re-plan what's already queued (pending) for this brand.
   let queued = new Set();
   let queuedCities = new Set();
-  let queuedKeywords = [];   // raw pending keywords, kept so the commodity + signature
-                             // dedups can compare NEW items against what's ALREADY queued,
-                             // not just against each other (the cross-run gap, v7.9.37).
+  let queuedKeywords = [];   // raw keywords already queued/live, kept so the commodity +
+                             // signature dedups can compare NEW items against what ALREADY
+                             // EXISTS, not just against each other (the cross-run gap, v7.9.37).
+  const kwStatus = new Map(); // _kw(keyword) -> 'live' | 'queued', for the skip-reason wording
   try {
-    const pending = await listApprovals({ brand, status: 'pending' }).catch(() => []);
-    const arr = Array.isArray(pending) ? pending : (pending && pending.items) || [];
-    queuedKeywords = arr.map(i => i.payload && (i.payload.targetKeyword || i.payload.keyword)).filter(Boolean);
+    // Dedup against everything that already EXISTS or is in-flight — not just pending
+    // (v7.9.55). A page published last week must not be re-proposed. pending/approved =
+    // in-flight ("queued"); pushed/published = live. rejected/failed stay re-proposable.
+    const all = await listApprovals({ brand }).catch(() => []);
+    const arr = Array.isArray(all) ? all : (all && all.items) || [];
+    const DEDUP = { pending: 'queued', approved: 'queued', pushed: 'live', published: 'live' };
+    const _st = i => DEDUP[i.status || 'pending'];   // a status-less item is effectively pending
+    const relevant = arr.filter(_st);
+    queuedKeywords = relevant.map(i => i.payload && (i.payload.targetKeyword || i.payload.keyword)).filter(Boolean);
     queued = new Set(queuedKeywords.map(_kw));
-    queuedCities = new Set(arr.filter(i => i.payload && i.payload.pageType === 'city_hub')
+    queuedCities = new Set(relevant.filter(i => i.payload && i.payload.pageType === 'city_hub')
       .map(i => _kw(i.payload.slug || i.payload.city)).filter(Boolean));
+    for (const i of relevant) {
+      const k = i.payload && (i.payload.targetKeyword || i.payload.keyword);
+      if (k) kwStatus.set(_kw(k), _st(i));
+    }
   } catch { /* dedupe is best-effort */ }
 
   // Brand context (for the strategist prompt + fallback off-menu guard).
@@ -329,7 +340,9 @@ async function buildMarketPlan({ brand, market, useLLM = true, llmFn, verifyTarg
     if (llm && Array.isArray(llm.plan)) {
       const norm = llm.plan.map(it => _normalizeLlmItem(it, citySlugs))
         .filter(Boolean)
-        .filter(i => !queued.has(_kw(i.keyword)))
+        // NB: don't silently drop already-queued/live keywords here — let them flow to the
+        // signature-dedup below, which drops them WITH a reason ("already published" /
+        // "already in the Approvals queue") so the skip is visible, not invisible (v7.9.55).
         .filter(i => !(i.assetType === 'city_hub' && queuedCities.has(_kw(i.city))));
       if (norm.length) { items = norm; mode = 'llm'; }
     }
@@ -424,11 +437,17 @@ async function buildMarketPlan({ brand, market, useLLM = true, llmFn, verifyTarg
       }
       const k = _kw(it.keyword);
       if (seenKw.has(k)) {
-        dropped.push({ keyword: it.commodityStrippedFrom || it.keyword, assetType: it.assetType,
-          reason: `"${commodityTerms.join('/')}" is table stakes in this market — every competitor is too, so it is not a differentiator. Folded into the existing "${it.keyword}" item/draft rather than building a second asset for the same intent.` });
-        return false;
+        // Only claim "commodity" when THIS item actually carried a commodity term. A plain
+        // duplicate (no commodity term) is left for the signature-dedup below, which drops
+        // it with the accurate reason ("already published" / "already queued"). (v7.9.55)
+        if (it.commodityStrippedFrom) {
+          dropped.push({ keyword: it.commodityStrippedFrom, assetType: it.assetType,
+            reason: `"${commodityTerms.join('/')}" is table stakes in this market — every competitor is too, so it is not a differentiator. Folded into the existing "${it.keyword}" item/draft rather than building a second asset for the same intent.` });
+          return false;
+        }
+      } else {
+        seenKw.add(k);
       }
-      seenKw.add(k);
       return true;
     });
   }
@@ -441,19 +460,22 @@ async function buildMarketPlan({ brand, market, useLLM = true, llmFn, verifyTarg
     // Seed with already-queued keywords so a near-duplicate of a PENDING draft is caught
     // cross-run, not just within this plan (v7.9.37). Marked so the reason can say so.
     const seenSig = new Map();
-    for (const qk of queuedKeywords) { const s = _sig(qk); if (s && !seenSig.has(s)) seenSig.set(s, { kw: qk, queued: true }); }
+    // status: 'live' (published/pushed) | 'queued' (pending/approved) | null (in-plan dupe).
+    for (const qk of queuedKeywords) { const s = _sig(qk); if (s && !seenSig.has(s)) seenSig.set(s, { kw: qk, status: kwStatus.get(_kw(qk)) || 'queued' }); }
     items = items.filter((it) => {
       const sig = _sig(it.keyword);
       if (!sig) return true;
       if (seenSig.has(sig)) {
         const prev = seenSig.get(sig);
         dropped.push({ keyword: it.keyword, assetType: it.assetType,
-          reason: prev.queued
-            ? `A draft for "${prev.kw}" is already in the Approvals queue — same target once generic modifiers are removed. Review or publish that one instead of generating a competing page.`
-            : `Same target as "${prev.kw}" once generic modifiers are removed — two assets for one intent split authority, so only the higher-priority one is kept.` });
+          reason: prev.status === 'live'
+            ? `Already published for this brand ("${prev.kw}") — same target once generic modifiers are removed. The planner won't create a duplicate; re-optimising a live page is a separate action.`
+            : prev.status === 'queued'
+              ? `A draft for "${prev.kw}" is already in the Approvals queue — same target once generic modifiers are removed. Review or publish that one instead of generating a competing page.`
+              : `Same target as "${prev.kw}" once generic modifiers are removed — two assets for one intent split authority, so only the higher-priority one is kept.` });
         return false;
       }
-      seenSig.set(sig, { kw: it.keyword, queued: false });
+      seenSig.set(sig, { kw: it.keyword, status: null });
       return true;
     });
   }
@@ -480,6 +502,37 @@ async function buildMarketPlan({ brand, market, useLLM = true, llmFn, verifyTarg
       dropped.push({ keyword: it.keyword, assetType: it.assetType, reason: it._dead });
       return false;
     });
+  }
+
+  // ── METRICS (v7.9.55): attach demand + current rank + a goal to each item so the card
+  // shows WHAT it targets, its monthly volume, where we rank NOW, and the target position.
+  // LLM items don't carry these (clustering returns only keywords), so join back to the
+  // research data. Volume = summed across the cluster (total addressable); position = the
+  // BEST current rank among the clustered keywords, or null = not ranking yet.
+  {
+    const metric = new Map();  // _kw(synonym-normalized) -> { volume, position }
+    for (const o of opps) {
+      if (!o || !o.keyword) continue;
+      const k = _kw(applyMenuSynonyms(o.keyword, menuSyn));
+      const prev = metric.get(k) || { volume: 0, position: null };
+      prev.volume += (o.volume || 0);
+      const p = (o.position == null ? null : o.position);
+      if (p != null) prev.position = (prev.position == null) ? p : Math.min(prev.position, p);
+      metric.set(k, prev);
+    }
+    for (const it of items) {
+      const kws = [it.keyword, ...(Array.isArray(it.keywords) ? it.keywords : [])];
+      let vol = 0, pos = null; const seen = new Set();
+      for (const kw of kws) {
+        const k = _kw(applyMenuSynonyms(kw, menuSyn));
+        if (seen.has(k)) continue; seen.add(k);
+        const m = metric.get(k);
+        if (m) { vol += (m.volume || 0); if (m.position != null) pos = (pos == null) ? m.position : Math.min(pos, m.position); }
+      }
+      if (!it.volume) it.volume = vol || null;               // keep a rules-path volume if already set
+      if (it.position == null) it.position = pos;            // best current rank across the cluster, or null
+      it.goalRank = it.assetType === 'blog_draft' ? 10 : 3;  // commercial pages aim top-3, blogs top-10
+    }
   }
 
   items.sort((a, b) => ((b.priority || 0) - (a.priority || 0)) || ((b.volume || 0) - (a.volume || 0)) || _kw(a.keyword).localeCompare(_kw(b.keyword)));

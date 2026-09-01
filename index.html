@@ -5217,8 +5217,13 @@ function plannerRender(p) {
             ${(i.keywords && i.keywords.length > 1) ? `<span style="font-size:11px;color:var(--text-muted)"> +${i.keywords.length - 1} kw</span>` : ''}
             ${i.target ? `<span style="font-size:11px;color:var(--text-muted)"> → ${esc(String(i.target).replace(/^https?:\/\/[^/]+/, ''))}</span>` : ''}</div>
           <div style="font-size:11px;color:var(--text-muted);margin-top:2px">${esc(i.rationale || '')}</div>
+          ${(i.keywords && i.keywords.length > 1) ? `<div style="font-size:10.5px;color:var(--text-muted);opacity:.85;margin-top:3px">🎯 ${esc(i.keywords.slice(0, 6).join(' · '))}${i.keywords.length > 6 ? ` +${i.keywords.length - 6} more` : ''}</div>` : ''}
         </div>
-        <div style="font-size:11px;color:var(--text-muted);white-space:nowrap">${i.volume ? ('vol ' + i.volume + ' · ') : ''}p${i.priority}</div>
+        <div style="font-size:11px;color:var(--text-muted);white-space:nowrap;text-align:right;line-height:1.6">
+          <div>${i.volume ? (i.volume.toLocaleString() + '/mo') : 'vol n/a'}</div>
+          <div>${i.position != null ? ('now #' + i.position) : 'not ranking'}</div>
+          <div style="color:#059669">goal: top ${i.goalRank || 3}</div>
+        </div>
       </label>`).join('');
   }
 

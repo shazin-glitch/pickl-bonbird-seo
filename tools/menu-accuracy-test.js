@@ -11,9 +11,12 @@ const bp = require.resolve('@netlify/blobs', { paths: [FN] });
 require.cache[bp] = { id: bp, filename: bp, loaded: true, exports: { getStore: () => ({
   get: async k => KV.has(k) ? JSON.parse(KV.get(k)) : null, setJSON: async (k,v)=>{KV.set(k,JSON.stringify(v));} }) } };
 
+let EXISTING = [];   // approvals already queued/live — the planner dedups against these
 const st = require.resolve(path.join(FN, '_lib/store.js'));
 const realStore = require(st);
-require.cache[st].exports = { ...realStore, listApprovals: async () => [], callClaude: async () => ({ text: '{}' }) };
+require.cache[st].exports = { ...realStore,
+  listApprovals: async (f) => (f && f.status) ? EXISTING.filter(i => i.status === f.status) : EXISTING,
+  callClaude: async () => ({ text: '{}' }) };
 
 // Bonbird with the real menu-accuracy config (offMenu incl salad/catering + synonyms).
 const bc = require.resolve(path.join(FN, '_lib/brands-config.js'));
@@ -49,6 +52,7 @@ const STUB_PLAN = { plan: [
   { primaryKeyword:'fried chicken salads oman', keywords:['fried chicken salads oman'], assetType:'page_creation', priority:5, rationale:'off menu' },
   { primaryKeyword:'chicken catering oman',     keywords:['chicken catering oman'],     assetType:'page_creation', priority:6, rationale:'off menu' },
   { primaryKeyword:'best fried chicken in oman', keywords:['best fried chicken in oman'], assetType:'blog_draft', priority:9, rationale:'national' },
+  { primaryKeyword:'what makes bonbird crispy', keywords:['what makes bonbird crispy'], assetType:'blog_draft', priority:8, rationale:'brand story' },
 ], dropped: [] };
 const llmFn = async () => ({ text: JSON.stringify(STUB_PLAN) });
 
@@ -81,6 +85,30 @@ const llmFn = async () => ({ text: JSON.stringify(STUB_PLAN) });
   ok('fold onto PRIMARY hub = Muscat, not Seeb',
      !!muscat && !(plan.items.find(i=>i.city==='seeb')||{keywords:[]}).keywords.map(k=>k.toLowerCase()).includes('best fried chicken in oman'));
   ok('drop log explains the fold', dropReasons.some(r=>/national term.*folded/i.test(r)), dropReasons);
+
+  console.log('\n── metrics on cards (#1) ──');
+  const tenders = plan.items.find(i => i.keyword.toLowerCase() === 'chicken tenders');
+  const crispy  = plan.items.find(i => i.keyword.toLowerCase() === 'crispy chicken');
+  const blog    = plan.items.find(i => i.assetType === 'blog_draft');
+  ok('crispy chicken carries its volume (200)', !!crispy && crispy.volume === 200, crispy && crispy.volume);
+  ok('commercial page goal = top 3', !!crispy && crispy.goalRank === 3, crispy && crispy.goalRank);
+  ok('blog goal = top 10',           !!blog && blog.goalRank === 10, blog && blog.goalRank);
+  ok('muscat hub aggregates cluster volume + goal top 3', !!muscat && muscat.goalRank === 3);
+  ok('not-ranking item has position null', !!crispy && crispy.position == null, crispy && crispy.position);
+
+  console.log('\n── dedup against PUBLISHED (#2) ──');
+  EXISTING = [
+    { status:'published', brand:'bonbird', payload:{ targetKeyword:'crispy chicken', keyword:'crispy chicken' } },
+    { status:'pending',   brand:'bonbird', payload:{ targetKeyword:'what makes bonbird crispy', keyword:'what makes bonbird crispy' } },
+  ];
+  const plan2 = await buildMarketPlan({ brand:'bonbird', market:'bonbird_oman', useLLM:true, llmFn });
+  const kws2 = plan2.items.map(i => i.keyword.toLowerCase());
+  const reasons2 = plan2.dropped.map(d => `${d.keyword} :: ${d.reason}`);
+  ok('published "crispy chicken" not re-proposed', !kws2.includes('crispy chicken'), kws2);
+  ok('drop reason says "already published"', reasons2.some(r=>/already published/i.test(r)), reasons2);
+  ok('pending item not re-proposed',        !kws2.includes('what makes bonbird crispy'), kws2);
+  ok('drop reason says "already in the Approvals queue"', reasons2.some(r=>/already in the approvals queue/i.test(r)), reasons2);
+  EXISTING = [];
 
   console.log(`\n${fail? '❌':'✅'} ${pass} passed, ${fail} failed`);
   process.exit(fail?1:0);
