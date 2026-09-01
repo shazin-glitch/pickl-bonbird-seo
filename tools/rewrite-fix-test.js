@@ -39,6 +39,21 @@ global.fetch = async (url, opts) => {
   return { ok:true, json: async () => ({ content:[{ text: JSON.stringify(canned) }] }) };
 };
 
+// Mock the queue so handleReject's create/reject are observable (capture created items).
+const CREATED = [];
+let STORE_ITEM = null;
+const q = require.resolve(path.join(FN, '_lib/queue.js'));
+const realQ = require(q);
+require.cache[q].exports = { ...realQ,
+  get:    async () => STORE_ITEM,
+  create: async (input) => { const it = { id:'itm_new', status:'pending', locationTag: input.locationTag || (input.payload&&input.payload.locationTag) || '🇦🇪 UAE', ...input }; CREATED.push(it); return it; },
+  update: async () => ({}),
+  addAudit: async () => ({}),
+  appendBrandFeedback: async () => ({}) };
+// Neutralize Blobs (notifyQueued → resolveSlackWebhook) so it no-ops offline.
+const nb = require.resolve('@netlify/blobs', { paths: [FN] });
+require.cache[nb] = { id:nb, filename:nb, loaded:true, exports: { getStore: () => ({ get: async()=>null, setJSON: async()=>{} }) } };
+
 const A = require(path.join(FN, 'approvals.js'));
 let pass=0, fail=0;
 const ok=(n,c,e)=>{c?(pass++,console.log('  ✅',n)):(fail++,console.log('  ❌',n,e!==undefined?JSON.stringify(e):''));};
@@ -72,6 +87,21 @@ const cityHub = { id:'itm1', status:'pending', type:'page_creation', brand:'bonb
   await A.rewriteWithClaude(homeItem, 'tighten intro');
   ok('home directive present (UAE home market)', /homegrown in its UAE home market/i.test(lastSystem), lastSystem.slice(-260));
   ok('no franchise guard on home copy', !/NEVER describe/i.test(lastSystem));
+
+  console.log('\n── handleReject: revised item keeps the market tag (v7.9.58) ──');
+  STORE_ITEM = { id:'itm_seeb', status:'pending', type:'page_creation', brand:'bonbird',
+    title:'City hub: Seeb', locationTag:'🇴🇲 Oman',
+    payload:{ pageType:'city_hub', wpParent:'om', template:'template-location.php', slug:'seeb',
+      title:'Fried Chicken Seeb', metaTitle:'Fried Chicken Seeb | Bonbird', description:'d',
+      content:'<p>old copy</p><h2>FAQs</h2><h3>Q?</h3><p>A.</p>', targetKeyword:'fried chicken seeb' } };
+  CREATED.length = 0;
+  const res = await A.handleReject({ id:'itm_seeb', feedback:'make the copy more exciting', actor:'shazin' }, 'shazin');
+  const created = CREATED[0];
+  ok('handleReject returned 200', res && res.statusCode === 200, res && res.statusCode);
+  ok('a revised item was created', !!created, created);
+  ok('revised inherits 🇴🇲 Oman tag (not defaulted to UAE)', created && created.locationTag === '🇴🇲 Oman', created && created.locationTag);
+  ok('revised title marked (revised)', created && /\(revised\)$/.test(created.title), created && created.title);
+  ok('revised keeps city_hub routing', created && created.payload && created.payload.pageType === 'city_hub' && created.payload.wpParent === 'om');
 
   console.log(`\n${fail? '❌':'✅'} ${pass} passed, ${fail} failed`);
   process.exit(fail?1:0);

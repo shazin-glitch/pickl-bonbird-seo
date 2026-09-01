@@ -253,6 +253,10 @@ async function handleReject(body, actor) {
     payload: newPayload,
     parentId: item.id,
     rejectionFeedback: feedback,
+    // Preserve the market tag so the revised item stays under the same market filter as
+    // the original — without this it defaulted to 🇦🇪 UAE and vanished from an Oman/QA/PK
+    // filtered view (v7.9.58). locationTag is a UI filter label; routing lives in payload.
+    locationTag: item.locationTag || (item.payload && item.payload.locationTag),
     actor: 'claude',
   });
 
@@ -618,3 +622,4 @@ async function notifyPushFailed(item, msg) {
 // Exported for offline tests (tools/rewrite-fix-test.js). Not used by the handler.
 module.exports.rewriteWithClaude = rewriteWithClaude;
 module.exports.resolveMarketForItem = resolveMarketForItem;
+module.exports.handleReject = handleReject;
