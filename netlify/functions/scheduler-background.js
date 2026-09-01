@@ -20,6 +20,7 @@ const { getBrands, getBrandSlugs, getBrand, wpCredentialsFor } = require('./_lib
 const { internalHeaders, authorizeJob } = require('./_lib/auth');
 const { metaLengthRule } = require('./_lib/seo-meta');
 const { updateRankHistory } = require('./_lib/rank-tracker');
+const { sanitizeKeywordsForDfs } = require('./_lib/keyword-metrics');
 const { marketForUrl, INTERNATIONAL_MARKETS } = require('./_lib/international-config');
 const { getStore } = require('@netlify/blobs');
 
@@ -487,11 +488,12 @@ async function enrichGscWithCpc(brand, rows, brandConfig) {
 
   // All non-branded keywords — DataForSEO Keywords Data API accepts up to 700 per task
   // Cost: ~$0.05 per 1,000 keywords. Enriching 500 keywords costs $0.025. Negligible.
-  const toEnrich = rows
-    .filter(r => r.keyword && !BRAND_TERMS.some(t => r.keyword.toLowerCase().includes(t)))
-    .sort((a, b) => (b.clicks || 0) - (a.clicks || 0))
-    .slice(0, 700) // DataForSEO hard limit per task — batch if ever exceeded
-    .map(r => r.keyword);
+  const toEnrich = sanitizeKeywordsForDfs(   // strip '?' etc. — DataForSEO 40501s on symbols
+    rows
+      .filter(r => r.keyword && !BRAND_TERMS.some(t => r.keyword.toLowerCase().includes(t)))
+      .sort((a, b) => (b.clicks || 0) - (a.clicks || 0))
+      .map(r => r.keyword)
+  ).slice(0, 700); // DataForSEO hard limit per task — batch if ever exceeded
 
   if (!toEnrich.length) return;
 
@@ -521,19 +523,30 @@ async function enrichGscWithCpc(brand, rows, brandConfig) {
   const KW_GET_URL = `https://api.dataforseo.com/v3/keywords_data/google_ads/search_volume/task_get/${taskId}`;
   const cpcMap = {};
 
+  // Only these codes mean "not done yet — keep polling": 40601 in queue, 40602 in
+  // progress, 40100 not ready. ANY other non-20000 code is terminal (e.g. 40401
+  // Task Not Found) — bail immediately instead of hammering the dead task for all
+  // 24 attempts (that was flooding the DataForSEO error log: 24 polls × N runs).
+  const TRANSIENT = new Set([40601, 40602, 40100]);
   for (let attempt = 0; attempt < 24; attempt++) { // max 2 minutes
     await new Promise(r => setTimeout(r, 5000));
     const getRes  = await fetch(KW_GET_URL, { headers: { Authorization: authHeader } });
     const getData = await getRes.json();
     const task    = getData.tasks?.[0];
+    const code    = task?.status_code;
 
-    if (task?.status_code === 20000 && task.result) {
+    if (code === 20000 && task.result) {
       for (const item of task.result) {
         if (item.keyword && item.cpc != null) {
           cpcMap[item.keyword.toLowerCase()] = item.cpc; // USD
         }
       }
       console.log(`[scheduler] CPC enrichment complete for ${brand}: ${Object.keys(cpcMap).length}/${toEnrich.length} keywords got CPC data`);
+      break;
+    }
+
+    if (code && !TRANSIENT.has(code)) {
+      console.warn(`[scheduler] CPC task ${taskId} terminal status ${code} (${task?.status_message}) — aborting poll`);
       break;
     }
 

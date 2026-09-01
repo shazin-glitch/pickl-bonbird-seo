@@ -11,6 +11,29 @@
 
 const DFS = 'https://api.dataforseo.com/v3';
 
+// DataForSEO rejects keywords containing symbols with 40501
+// ("Keyword text has invalid characters or symbols: 'best dish?'"). These come
+// straight from real GSC queries (users type '?', '!', etc.), so sanitize at the
+// API boundary: keep only letters (ANY script — Arabic included), digits, spaces,
+// and & ' - ; strip everything else, collapse spaces, drop empties / >80 chars,
+// and dedupe. Used by every DataForSEO keywords_data / Labs call.
+function sanitizeKeywordsForDfs(keywords) {
+  const seen = new Set();
+  const out = [];
+  for (const raw of (keywords || [])) {
+    const k = String(raw || '')
+      .replace(/[^\p{L}\p{N}\s&'-]/gu, ' ')
+      .replace(/\s+/g, ' ')
+      .trim();
+    if (!k || k.length > 80) continue;
+    const key = k.toLowerCase();
+    if (seen.has(key)) continue;
+    seen.add(key);
+    out.push(k);
+  }
+  return out;
+}
+
 async function postOne(url, payload, authHeader) {
   const res = await fetch(url, {
     method:  'POST',
@@ -55,7 +78,7 @@ async function postWithLang(url, basePayload, langs, authHeader) {
 // location's authoritative Labs languages, tried in order if the preferred fails.
 async function enrichKeywords(keywords, locationCode, languageCode, authHeader, fallbackLangs = []) {
   const out = {};
-  const kws = [...new Set((keywords || []).map(k => String(k).trim()).filter(Boolean))].slice(0, 700);
+  const kws = sanitizeKeywordsForDfs(keywords).slice(0, 700);
   if (!kws.length || !locationCode) return out;
   const langs = [languageCode, ...fallbackLangs];
 
@@ -99,4 +122,4 @@ async function enrichKeywordsMixed(keywords, locationCode, authHeader, supported
   return out;
 }
 
-module.exports = { enrichKeywords, enrichKeywordsMixed };
+module.exports = { enrichKeywords, enrichKeywordsMixed, sanitizeKeywordsForDfs };
