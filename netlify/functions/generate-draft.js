@@ -228,7 +228,13 @@ async function coreGenerate(body, auth) {
     const cityMarketKey = (!market || market === 'uae') ? `${brand}_uae` : market;
     const linkCities = await citiesForMarketAsync(cityMarketKey).catch(() => []);
     const linkingDirective = buildLinkingDirective(mkt, linkCities, brandName);
-    const ctx = { brand, keyword, url, market, cityMarketKey, competitorPage, brandCtx, brandCfg, vertical, examples, feedback, systemPrompt, menuItems, menuDirective, isArabic, mkt, brandName, auth, intel, pageKind, postId, city, wpParent, parentId, pageTitle, presenceDirective, commodityDirective, linkingDirective };
+    // Origin/ownership framing (config-driven) — keeps the "homegrown / not a franchise"
+    // claim to the UAE home market and OUT of franchised markets (Oman/Qatar/Pakistan),
+    // where the brand operates as a franchise. Fixes false copy like "not a franchise
+    // flown in from somewhere else… now serving Muscat" on an Oman page. Injected into the
+    // system prompt so it applies to every generator (meta/blog/page/hub/venue).
+    const ownershipDirective = buildOwnershipDirective(market, mkt, brandName);
+    const ctx = { brand, keyword, url, market, cityMarketKey, competitorPage, brandCtx, brandCfg, vertical, examples, feedback, systemPrompt: systemPrompt + ownershipDirective, menuItems, menuDirective, isArabic, mkt, brandName, auth, intel, pageKind, postId, city, wpParent, parentId, pageTitle, presenceDirective, commodityDirective, linkingDirective };
 
     if (effectiveAction === 'meta_update')   return await generateMeta(ctx);
     if (effectiveAction === 'page_creation') return await generatePage(ctx);
@@ -265,6 +271,23 @@ async function buildPresenceDirective(market, mkt, brandName) {
   const lines = cities.map(c => `${c.city} (${(c.venues || []).map(v => v.name).join(', ') || 'venue'})`).join('; ');
   return `\n- PRESENCE — this is TRUE, do not contradict it: ${brandName} IS open and trading in ${mkt.label}, with venues in ${lines}. Never say or imply we have no presence, no locations, or no plans there.`
        + `\n- Reference venues by NAME only. Never invent an address, phone number, opening hours, or a venue that is not listed above.`;
+}
+
+// Origin/ownership framing (config-driven). The brand is homegrown ONLY in its UAE home
+// market; every other market is a franchise/expansion by default (a market record may set
+// ownership:'corporate' for a company-owned expansion). This stops the brand's UAE
+// "homegrown / not a franchise" identity leaking into franchised markets — the source of
+// copy like "not a franchise flown in from somewhere else… now serving Muscat" on an Oman
+// page. Injected into the system prompt so it reaches every generation call.
+function buildOwnershipDirective(market, mkt, brandName) {
+  const isHome = !market || market === 'uae';
+  if (isHome) {
+    return `\n\nORIGIN: ${brandName} is homegrown in its UAE home market — founded in Dubai, not a franchise or import. UAE copy may lean into this local-origin pride.`;
+  }
+  const ownership = (mkt && mkt.ownership) || 'franchise';
+  if (ownership === 'corporate') return '';
+  const label = (mkt && mkt.label) || market;
+  return `\n\nORIGIN & OWNERSHIP: ${brandName} is a UAE-born brand now operating in ${label} as a franchise / expansion market. NEVER describe ${brandName} as "homegrown", "local", or "not a franchise" in ${label}, and never imply it originated in ${label}. Frame it as a UAE-born brand bringing its food to ${label}.`;
 }
 
 // A term that is table stakes in this market differentiates nothing — leading with it

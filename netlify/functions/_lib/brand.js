@@ -30,7 +30,7 @@ const PICKL_DEFAULT = {
   ],
   positioning: 'Pickl is a homegrown UAE fast-casual restaurant brand serving premium smashed cheeseburgers, hand-breaded chicken sandos, hot dogs, and plant-based options. Founded in Dubai, proudly part of the Yolk Brands family. The food is the hero — fresh, indulgent, perfectly imperfect.',
   differentiators: [
-    'Homegrown UAE brand — not an import or franchise, born and raised in Dubai',
+    'Dubai-born fast-casual brand, founded in the UAE (part of the Yolk Brands family)',
     'The namesake artisanal house-made pickles elevate every item — it\'s in the name',
     'Trifecta menu: smashed beef burgers + hand-breaded chicken sandos (5 heat levels) + hot dogs + plant-based options',
     'Chicken sandos in 5 heat levels: Plain, Medium-ish, Feel the Heat, Nashville, The Reaper',
@@ -126,7 +126,7 @@ const BONBIRD_DEFAULT = {
   ],
   positioning: 'Bonbird is a Dubai-born, community-focused fried chicken brand. 100% fresh, hormone-free, antibiotic-free chicken — made to order, never frozen. Proudly part of the Yolk Brands UAE family. A community chicken shop where everyone can grab a bite and share a bucket.',
   differentiators: [
-    'Dubai-born homegrown brand — not a franchise or import',
+    'Dubai-born fried chicken brand, founded in the UAE (part of the Yolk Brands family)',
     '100% fresh, hormone free, antibiotic free chicken — always made to order, never frozen',
     'Spice system: Plain Jane / Medium / Hot / XXX — OR — Garlic Parm / Jamaican Tang / Jalapeño / Lemon Pepper / Chicken Salt',
     'Full menu: Bone-In, Tenders, Sandwiches, Wraps (Bon Wrap + Snack-A-Wrap), Rice Bowls',
