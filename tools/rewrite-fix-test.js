@@ -27,10 +27,14 @@ const realIcp = require(icp);
 require.cache[icp].exports = { ...realIcp,
   getMarketsForBrandAsync: async () => ([{ key:'bonbird_oman', marketSlug:'om', label:'Oman' }]) };  // no ownership → franchise
 
-// Capture the system prompt sent to Anthropic; return a canned rewrite.
-let lastSystem = '';
+// fetch mock: /generate-draft (generator path) vs Anthropic (legacy rewriteWithClaude).
+let lastSystem = '', lastGenBody = null, genReturnsJob = true;
 global.fetch = async (url, opts) => {
   const b = JSON.parse(opts.body || '{}');
+  if (String(url).includes('/generate-draft')) {
+    lastGenBody = b;
+    return { ok:true, json: async () => genReturnsJob ? ({ status:'running', jobId:'job_test' }) : ({ error:'no jobId (forced fallback)' }) };
+  }
   lastSystem = b.system || '';
   const canned = { title:'Crispy Chicken in Muscat | Bonbird',
     metaDescription:'Fresh crispy chicken at Bonbird Souq Al Madina, Muscat.',
@@ -88,20 +92,33 @@ const cityHub = { id:'itm1', status:'pending', type:'page_creation', brand:'bonb
   ok('home directive present (UAE home market)', /homegrown in its UAE home market/i.test(lastSystem), lastSystem.slice(-260));
   ok('no franchise guard on home copy', !/NEVER describe/i.test(lastSystem));
 
-  console.log('\n── handleReject: revised item keeps the market tag (v7.9.58) ──');
-  STORE_ITEM = { id:'itm_seeb', status:'pending', type:'page_creation', brand:'bonbird',
+  console.log('\n── itemToGenerateParams maps an item → generator call (v7.9.59) ──');
+  const seebItem = { id:'itm_seeb', status:'pending', type:'page_creation', brand:'bonbird',
     title:'City hub: Seeb', locationTag:'🇴🇲 Oman',
-    payload:{ pageType:'city_hub', wpParent:'om', template:'template-location.php', slug:'seeb',
+    payload:{ generatedType:'city_hub', pageType:'city_hub', wpParent:'om', template:'template-location.php', slug:'seeb',
       title:'Fried Chicken Seeb', metaTitle:'Fried Chicken Seeb | Bonbird', description:'d',
-      content:'<p>old copy</p><h2>FAQs</h2><h3>Q?</h3><p>A.</p>', targetKeyword:'fried chicken seeb' } };
-  CREATED.length = 0;
-  const res = await A.handleReject({ id:'itm_seeb', feedback:'make the copy more exciting', actor:'shazin' }, 'shazin');
+      content:'<p>old copy</p><h2>FAQs</h2><h3>Q?</h3><p>A.</p>', targetKeyword:'chicken seeb' } };
+  const gp = await A.itemToGenerateParams(seebItem);
+  ok('city_hub → actionType page_creation + pageKind city_hub', gp && gp.actionType==='page_creation' && gp.pageKind==='city_hub', gp);
+  ok('carries city slug + market', gp && gp.city==='seeb' && gp.market==='bonbird_oman', gp);
+  ok('blog item → blog_draft', (await A.itemToGenerateParams({type:'blog_draft',brand:'bonbird',payload:{targetKeyword:'x',wpParent:'om'}})).actionType==='blog_draft');
+  ok('unsupported type → null', (await A.itemToGenerateParams({type:'review_response',brand:'bonbird',payload:{targetKeyword:'x'}})) === null);
+
+  console.log('\n── handleReject: generator path (v7.9.59) ──');
+  STORE_ITEM = seebItem; genReturnsJob = true; lastGenBody = null;
+  const resG = await A.handleReject({ id:'itm_seeb', feedback:'make the copy more exciting', actor:'shazin' }, 'shazin');
+  const bodyG = resG && JSON.parse(resG.body);
+  ok('returns running + jobId (async regen)', resG.statusCode===200 && bodyG.jobId==='job_test' && bodyG.via==='generator', bodyG);
+  ok('fired generate-draft as a city_hub in bonbird_oman', lastGenBody && lastGenBody.pageKind==='city_hub' && lastGenBody.market==='bonbird_oman', lastGenBody);
+  ok('passes per-item reviseFeedback + revisedFrom', lastGenBody && lastGenBody.reviseFeedback==='make the copy more exciting' && lastGenBody.revisedFrom==='itm_seeb', lastGenBody);
+
+  console.log('\n── handleReject: legacy fallback keeps the market tag (v9.9.58) ──');
+  STORE_ITEM = seebItem; genReturnsJob = false; CREATED.length = 0;   // force generator to yield no jobId → fallback
+  const resL = await A.handleReject({ id:'itm_seeb', feedback:'tighten it', actor:'shazin' }, 'shazin');
   const created = CREATED[0];
-  ok('handleReject returned 200', res && res.statusCode === 200, res && res.statusCode);
-  ok('a revised item was created', !!created, created);
-  ok('revised inherits 🇴🇲 Oman tag (not defaulted to UAE)', created && created.locationTag === '🇴🇲 Oman', created && created.locationTag);
-  ok('revised title marked (revised)', created && /\(revised\)$/.test(created.title), created && created.title);
-  ok('revised keeps city_hub routing', created && created.payload && created.payload.pageType === 'city_hub' && created.payload.wpParent === 'om');
+  ok('fallback created a revised item', !!created, created);
+  ok('fallback revised inherits 🇴🇲 Oman tag', created && created.locationTag === '🇴🇲 Oman', created && created.locationTag);
+  ok('fallback title marked (revised)', created && /\(revised\)$/.test(created.title));
 
   console.log(`\n${fail? '❌':'✅'} ${pass} passed, ${fail} failed`);
   process.exit(fail?1:0);

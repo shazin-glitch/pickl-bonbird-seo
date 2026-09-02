@@ -229,18 +229,36 @@ async function handleReject(body, actor) {
   if (!item)                  return bad(404, 'not found');
   if (item.status !== 'pending') return bad(400, `cannot reject item with status: ${item.status}`);
 
-  // Persist feedback so future generation avoids repeating the same mistake.
-  appendBrandFeedback(item.brand, feedback).catch(() => {});
-
   const requeue = body.requeue !== false;
   if (!requeue) {
+    appendBrandFeedback(item.brand, feedback).catch(() => {});
     await patchItem(id, { status: 'rejected', rejectionFeedback: feedback }, { at: Date.now(), actor, action: 'reject', note: feedback });
     return ok({ item: await getItem(id), rewrite: null });
   }
 
-  // Rewrite FIRST — only reject the original once a revised draft is safely queued, so a
-  // failed rewrite never loses the draft (v7.9.57). Previously the item was rejected up
-  // front, and an unsupported type (page_creation) then left NOTHING requeued.
+  // PREFERRED (v7.9.59): regenerate through the REAL generator with the human's feedback as
+  // a top-priority per-item directive, so a rewrite gets EVERY guard (ownership / menu /
+  // voice / market-tagging) — no parallel prompt map that keeps drifting. Runs in the
+  // background (page/hub generation exceeds the sync gateway limit); the bg worker tags the
+  // fresh draft "(revised)", parents it, and rejects THIS one on success (no data loss).
+  // Feedback stays PER-ITEM (not appended to the brand-wide list), so a one-off tweak never
+  // silently becomes a permanent brand rule.
+  const gp = await itemToGenerateParams(item).catch(() => null);
+  if (gp) {
+    try {
+      const r = await fetch(`${SITE_URL}/.netlify/functions/generate-draft`, {
+        method: 'POST', headers: internalHeaders({ 'Content-Type': 'application/json' }),
+        body: JSON.stringify({ ...gp, reviseFeedback: feedback, revisedFrom: id, reviseActor: actor }),
+      });
+      const j = await r.json().catch(() => ({}));
+      if (r.ok && j.jobId) return ok({ status: 'running', jobId: j.jobId, via: 'generator', item: await getItem(id) });
+      console.warn('[approvals] generator rewrite returned no jobId, falling back to legacy:', j && j.error);
+    } catch (e) { console.warn('[approvals] generator rewrite failed, falling back to legacy:', e.message); }
+  }
+
+  // LEGACY fallback (light types: review_response / schema_update / onpage_suggestion, or if
+  // the generator path is unavailable): rewrite via the local prompt map, reject on success.
+  appendBrandFeedback(item.brand, feedback).catch(() => {});
   const newPayload = await rewriteWithClaude(item, feedback);
   if (!newPayload) {
     return bad(502, `Rewrite failed for "${item.title || item.type}" — the draft was kept in the queue (nothing rejected). Try again, or edit it manually.`);
@@ -535,6 +553,27 @@ async function resolveMarketForItem(item) {
   return { marketKey: mkt ? mkt.key : slug, mkt };
 }
 
+// Reconstruct the generate-draft call for an approval item, so "Rewrite with AI" can
+// regenerate it through the real generator (v7.9.59). Returns null for types the generator
+// doesn't own (review_response / schema_update / onpage_suggestion) → legacy path.
+async function itemToGenerateParams(item) {
+  const p = item.payload || {};
+  const { marketKey } = await resolveMarketForItem(item);
+  const base = { brand: item.brand, market: marketKey || 'uae', keyword: p.targetKeyword };
+  if (!base.keyword) return null;
+  if (item.type === 'blog_draft' || p.generatedType === 'blog') return { ...base, actionType: 'blog_draft' };
+  if (item.type === 'meta_update') return { ...base, actionType: 'meta_update', url: p.url, postId: p.postId };
+  if (item.type === 'page_creation' || item.type === 'page_update') {
+    const gt = p.generatedType || p.pageType;
+    if (gt === 'city_hub') return { ...base, actionType: 'page_creation', pageKind: 'city_hub', city: p.slug || p.city };
+    if (gt === 'venue')    return { ...base, actionType: 'page_creation', pageKind: 'venue', parentId: p.parentId, pageTitle: p.title, wpParent: p.wpParent };
+    if (gt === 'template_location' || gt === 'template_product')
+      return { ...base, actionType: 'page_creation', pageKind: gt, parentId: p.parentId, wpParent: p.wpParent, postId: p.postId };
+    return { ...base, actionType: 'page_creation' };   // generic page
+  }
+  return null;
+}
+
 async function rewriteWithClaude(item, feedback) {
   const p = item.payload || {};
   const brand = item.brand;
@@ -622,4 +661,5 @@ async function notifyPushFailed(item, msg) {
 // Exported for offline tests (tools/rewrite-fix-test.js). Not used by the handler.
 module.exports.rewriteWithClaude = rewriteWithClaude;
 module.exports.resolveMarketForItem = resolveMarketForItem;
+module.exports.itemToGenerateParams = itemToGenerateParams;
 module.exports.handleReject = handleReject;

@@ -4461,8 +4461,26 @@ async function rejectItem(id, btn) {
       btn.disabled = true; btn.textContent = 'Rewriting…';
       try {
         const res = await apiPost('/api/approvals', { action: 'reject', id, feedback, actor: state.actor });
-        if (res && res.rewrite) showToast('Revised version queued ✓', 'success');
-        else showToast('Rewrite ran but nothing was requeued', 'warn');
+        if (res && res.jobId) {
+          // Generator path (v7.9.59): regenerating in the background — poll the job.
+          showToast('Rewriting with your feedback…', 'success');
+          let done = false;
+          for (let i = 0; i < 90 && !done; i++) {
+            await new Promise(r => setTimeout(r, 4000));
+            let jr = null; try { jr = await apiPost('/api/generate-draft', { action: 'job', jobId: res.jobId }); } catch {}
+            if (jr && (jr.status === 'done' || jr.status === 'error')) {
+              done = true;
+              if (jr.status === 'done' && jr.item)      showToast('Revised version queued ✓', 'success');
+              else if (jr.status === 'done' && jr.skipped) showToast('Rewrite skipped: ' + (jr.reason || 'not a good candidate'), 'warn');
+              else                                       showToast('Rewrite failed: ' + (jr.error || 'generation error') + ' — original kept', 'error');
+            }
+          }
+          if (!done) showToast('Still rewriting — check the queue shortly', 'warn');
+        } else if (res && res.rewrite) {
+          showToast('Revised version queued ✓', 'success');
+        } else {
+          showToast('Rewrite ran but nothing was requeued', 'warn');
+        }
         await loadQueue();
       } catch (e) {
         showToast('Rewrite failed: ' + e.message, 'error');
@@ -4479,13 +4497,19 @@ function editItem(id) {
   if (!item) return;
   const p = item.payload || {};
 
+  // The body lives under `content` for every Nest-generated draft (city hub / product /
+  // location / blog); only the legacy batch pipeline used `body`. Read whichever exists and
+  // write back to the SAME key so publish (which reads body||content) stays consistent.
+  const bodyKey = (p.content !== undefined || p.body === undefined) ? 'content' : 'body';
+  const bodyVal = p.content !== undefined ? p.content : (p.body || '');
+
   // Build form fields based on type — no raw JSON
   const fields = [];
   if (['blog_draft','page_creation','page_update'].includes(item.type)) {
     fields.push(`<div class="form-group"><label class="form-label">Title</label><input type="text" id="edit-title" class="form-input" value="${esc(p.title || p.metaTitle || '')}" style="font-family:var(--font-sans)"></div>`);
     fields.push(`<div class="form-group"><label class="form-label">Meta Description</label><input type="text" id="edit-meta" class="form-input" value="${esc(p.metaDescription || p.description || '')}" style="font-family:var(--font-sans)"></div>`);
     if (p.targetKeyword !== undefined) fields.push(`<div class="form-group"><label class="form-label">Target Keyword</label><input type="text" id="edit-keyword" class="form-input" value="${esc(p.targetKeyword || '')}" style="font-family:var(--font-sans)"></div>`);
-    if (p.body !== undefined) fields.push(`<div class="form-group"><label class="form-label">Content</label><textarea id="edit-body" rows="12" class="form-input" style="font-family:var(--font-sans);font-size:13px;resize:vertical">${esc(p.body || '')}</textarea></div>`);
+    fields.push(`<div class="form-group"><label class="form-label">Content (HTML)</label><textarea id="edit-body" rows="16" class="form-input" style="font-family:var(--font-mono,monospace);font-size:12px;resize:vertical">${esc(bodyVal)}</textarea></div>`);
     if (p.slug !== undefined) fields.push(`<div class="form-group"><label class="form-label">Slug</label><input type="text" id="edit-slug" class="form-input" value="${esc(p.slug || '')}" style="font-family:var(--font-sans)"></div>`);
   } else if (item.type === 'meta_update') {
     fields.push(`<div class="form-group"><label class="form-label">New Title</label><input type="text" id="edit-title" class="form-input" value="${esc(p.metaTitle || p.title || '')}" style="font-family:var(--font-sans)"></div>`);
@@ -4510,7 +4534,7 @@ function editItem(id) {
     if (title   != null) { updated.title = title; updated.metaTitle = title; }
     if (meta    != null) { updated.metaDescription = meta; updated.description = meta; }
     if (keyword != null) updated.targetKeyword = keyword;
-    if (body    != null) updated.body = body;
+    if (body    != null) updated[bodyKey] = body;   // write to the key the payload actually uses (content)
     if (slug    != null) updated.slug = slug;
     return updated;
   }

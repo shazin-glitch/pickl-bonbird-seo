@@ -234,7 +234,14 @@ async function coreGenerate(body, auth) {
     // flown in from somewhere else… now serving Muscat" on an Oman page. Injected into the
     // system prompt so it applies to every generator (meta/blog/page/hub/venue).
     const ownershipDirective = buildOwnershipDirective(market, mkt, brandName);
-    const ctx = { brand, keyword, url, market, cityMarketKey, competitorPage, brandCtx, brandCfg, vertical, examples, feedback, systemPrompt: systemPrompt + ownershipDirective, menuItems, menuDirective, isArabic, mkt, brandName, auth, intel, pageKind, postId, city, wpParent, parentId, pageTitle, presenceDirective, commodityDirective, linkingDirective };
+    // Per-item REVISION feedback (v7.9.59): when a human rejects a draft with feedback, the
+    // "Rewrite with AI" button now regenerates through THIS engine and passes their note here
+    // as the highest-priority instruction — so a rewrite gets every guard (ownership, menu,
+    // voice, tagging) instead of the old parallel prompt map. Applied to every generator.
+    const reviseDirective = body.reviseFeedback
+      ? `\n\nREVISION REQUEST — highest priority: this page is being regenerated after a human reviewed the previous draft and asked for specific changes. Honor this above all else, and do NOT reproduce whatever they objected to:\n"${String(body.reviseFeedback).slice(0, 700)}"`
+      : '';
+    const ctx = { brand, keyword, url, market, cityMarketKey, competitorPage, brandCtx, brandCfg, vertical, examples, feedback, systemPrompt: systemPrompt + ownershipDirective + reviseDirective, menuItems, menuDirective, isArabic, mkt, brandName, auth, intel, pageKind, postId, city, wpParent, parentId, pageTitle, presenceDirective, commodityDirective, linkingDirective };
 
     if (effectiveAction === 'meta_update')   return await generateMeta(ctx);
     if (effectiveAction === 'page_creation') return await generatePage(ctx);
