@@ -5154,6 +5154,18 @@ Verified: `menu-accuracy-test.js` (24, +6 cluster) + `p3a-test` shape updated + 
 ### v7.9.61 — ownership directive de-emphasised (Dubai origin was the backbone, should be a one-off)
 The franchised-market directive said "Frame it as a UAE-born brand bringing its food to X" — which MANDATED the Dubai angle, so every page opened with "born in Dubai / no need to drive to Dubai". Rewrote it: origin is now a LIGHT, at-most-once, optional signal (never the hook/opener/backbone; the "drive to Dubai" line explicitly banned as a one-off, not a template); lead with food + local relevance. Hard rules (never "homegrown/local/not a franchise" in-market) unchanged. Verified: rewrite-fix-test 25 + full suite + npm run check.
 
+### v7.9.62 — ownership directive: ban "homegrown" outright on franchised pages
+Muscat regen still contained *"Homegrown in Dubai, now properly planted in Oman"* — technically homegrown-in-Dubai (not Oman) so it slipped the in-market-only ban, but exactly the origin-lean to kill. Directive now bans the word "homegrown" ANYWHERE on a franchised page (even "homegrown in Dubai"). rewrite-fix-test updated (26).
+
+### v7.9.63 — publish/update on PAGES failed: "Invalid post ID" (postType singular/plural)
+`create_page` and WP's REST `type` return `postType:'page'` (singular), but four endpoint selectors (publish/update_content/update_meta + one) checked `=== 'pages'` (plural) only → a page fell through to `/wp/v2/posts/<id>` → WP rejects a page id as a post. Only surfaced now because city hubs/products are the first PAGES published through the flow (blogs are posts → matched by luck). Fix: all four treat 'page' and 'pages' as pages.
+
+### v7.9.64 — Publish Live now also fires the venue auto-scaffold
+The city_hub → venue scaffold trigger lived only in `handleApprove` (Approve → WP Draft). Publishing a hub via `handlePublishItem` (Publish Live) skipped it, so a directly-published hub scaffolded no venues. Added the same idempotent trigger to the publish path.
+
+### v7.9.65 — venue auto-scaffold was DEAD (silent): .find() on a keyed-map object
+Even via the correct trigger, scaffolding produced nothing. `resolveMarketKey` did `getMarketsForBrandAsync(brand).find(...)`, but that accessor returns an OBJECT keyed by market key (`acc[m.key]=m`), not an array — `.find` on an object throws a TypeError, and because the bg job had already returned 202 the throw died silently → a published hub scaffolded ZERO venues (Muscat + Seeb). Only "worked" when a caller passed a full market KEY (short-circuits before .find); Approve/Publish pass the market SLUG → always broke. Fix: `Object.values(map).find(...)`. `scaffold-venues-test` had mocked the accessor as an ARRAY (wrong shape) which hid it — corrected to the real object shape (11 green, now guards it). Muscat + Seeb venues backfilled + live (Souq Al Madina #47157, Al Khoudh #47165).
+
 ### v7.9.56 — market-aware ownership framing (stop "not a franchise" leaking into franchised markets)
 Bonbird is homegrown in the UAE and **franchised** in Oman/Qatar/Pakistan, but the brand identity asserted the homegrown claim globally, so generated intl copy said things like *"This isn't a franchise flown in from somewhere else. Bonbird is a homegrown brand built in the UAE and now serving Muscat"* — false for a franchised Oman location (and it recurred in FAQs). Same class of bug as the hardcoded `+971` / `addressCountry:'AE'`.
 - **Root cause:** `_lib/brand.js` differentiators carried the absolute `'Dubai-born homegrown brand — not a franchise or import'` (Bonbird) / `'Homegrown UAE brand — not an import or franchise…'` (Pickl), injected into every generation prompt via `buildBrandPrompt`, with no market awareness.
