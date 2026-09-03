@@ -38,7 +38,7 @@ require.cache[icp].exports = { ...realIcp,
     : [] };
 
 const MP = require(path.join(FN, '_lib/market-planner.js'));
-const { buildMarketPlan } = MP;
+const { buildMarketPlan, planItemToDraftCall } = MP;
 let pass=0, fail=0;
 const ok=(n,c,e)=>{c?(pass++,console.log('  ✅',n)):(fail++,console.log('  ❌',n,e!==undefined?JSON.stringify(e):''));};
 
@@ -108,6 +108,28 @@ const llmFn = async () => ({ text: JSON.stringify(STUB_PLAN) });
   ok('drop reason says "already published"', reasons2.some(r=>/already published/i.test(r)), reasons2);
   ok('pending item not re-proposed',        !kws2.includes('what makes bonbird crispy'), kws2);
   ok('drop reason says "already in the Approvals queue"', reasons2.some(r=>/already in the approvals queue/i.test(r)), reasons2);
+  EXISTING = [];
+
+  console.log('\n── cluster wiring: plan → generator forwards cluster + metrics (v7.9.60) ──');
+  const item = { keyword:'chicken seeb', assetType:'city_hub', city:'seeb',
+    keywords:['chicken near me seeb','fried chicken al khoudh'], position:14, volume:320, goalRank:3 };
+  const call = planItemToDraftCall(item, { brand:'bonbird', market:'bonbird_oman' }).call;
+  ok('forwards the cluster keywords', call && JSON.stringify(call.keywords) === JSON.stringify(['chicken near me seeb','fried chicken al khoudh']), call);
+  ok('forwards currentPos (→ positionAtPublish)', call && call.currentPos === 14, call && call.currentPos);
+  ok('forwards volume + goalRank (→ queue card)', call && call.volume === 320 && call.goalRank === 3, call);
+
+  console.log('\n── cluster dedup: a variant already covered by a live page is not re-proposed ──');
+  EXISTING = [{ status:'published', brand:'bonbird',
+    payload:{ targetKeyword:'chicken seeb', keywords:['fried chicken al khoudh','crispy chicken seeb'] } }];
+  const llmC = async () => ({ text: JSON.stringify({ plan:[
+    { primaryKeyword:'fried chicken al khoudh', keywords:['fried chicken al khoudh'], assetType:'page_creation', priority:3, rationale:'variant' },
+    { primaryKeyword:'chicken tenders oman', keywords:['chicken tenders oman'], assetType:'page_creation', priority:4, rationale:'ok' },
+  ], dropped:[] }) });
+  const planC = await buildMarketPlan({ brand:'bonbird', market:'bonbird_oman', useLLM:true, llmFn: llmC });
+  const kwsC = planC.items.map(i=>i.keyword.toLowerCase());
+  ok('cluster-member variant is NOT re-proposed as its own page', !kwsC.includes('fried chicken al khoudh'), kwsC);
+  ok('drop reason says already published', planC.dropped.some(d=>/already published/i.test(d.reason)), planC.dropped.map(d=>d.reason));
+  ok('an unrelated item still passes', kwsC.includes('chicken tenders oman'), kwsC);
   EXISTING = [];
 
   console.log(`\n${fail? '❌':'✅'} ${pass} passed, ${fail} failed`);

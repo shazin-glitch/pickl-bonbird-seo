@@ -79,8 +79,9 @@ const PLAN = {
 
 (async () => {
   console.log('\n── 1. Mapping: plan item → generate-draft call ──');
-  ok('page_creation', JSON.stringify(planItemToDraftCall(PLAN.items[0], { brand: 'bonbird', market: 'pakistan' }).call) ===
-     JSON.stringify({ brand: 'bonbird', keyword: 'fried chicken lahore', market: 'pakistan', actionType: 'page_creation' }));
+  { const c = planItemToDraftCall(PLAN.items[0], { brand: 'bonbird', market: 'pakistan' }).call;
+    ok('page_creation', c.brand === 'bonbird' && c.keyword === 'fried chicken lahore' && c.market === 'pakistan'
+      && c.actionType === 'page_creation' && Array.isArray(c.keywords) && c.currentPos === null, c); }
   ok('meta_update carries url', planItemToDraftCall(PLAN.items[1], { brand: 'bonbird', market: 'pakistan' }).call.url === 'https://bonbirdchicken.com/pk/burgers/');
   ok('blog_draft', planItemToDraftCall(PLAN.items[2], { brand: 'bonbird', market: 'pakistan' }).call.actionType === 'blog_draft');
   const hub = planItemToDraftCall(PLAN.items[3], { brand: 'bonbird', market: 'pakistan' }).call;

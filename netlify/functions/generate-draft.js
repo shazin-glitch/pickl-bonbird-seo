@@ -152,6 +152,15 @@ async function coreGenerate(body, auth) {
   const pageKind = VALID_PAGE_KINDS.includes(body.pageKind) ? body.pageKind : null;
   const actionType = VALID_ACTIONS.includes(body.actionType) ? body.actionType : 'meta_update';
   const confidence = (body.confidence || '').toLowerCase();
+  // The keyword CLUSTER this one page should target (from the planner), minus the primary —
+  // so the writer covers the variants ("chicken near me seeb", "fried chicken al khoudh")
+  // instead of only the primary, and we persist them for the queue + rank tracking (v7.9.60).
+  const clusterKeywords = (Array.isArray(body.keywords) ? body.keywords : [])
+    .map(k => String(k || '').trim()).filter(k => k && k.toLowerCase() !== String(keyword || '').toLowerCase());
+  const uniqueCluster = [...new Set(clusterKeywords)].slice(0, 20);
+  const currentPos = (body.currentPos == null) ? null : body.currentPos;   // rank at generation → positionAtPublish
+  const volume   = (body.volume == null) ? null : body.volume;             // cluster monthly volume (for the queue card)
+  const goalRank = (body.goalRank == null) ? null : body.goalRank;         // target position (commercial→3, blog→10)
 
   if (!brand || !keyword) return json(400, { error: 'brand and keyword are required' });
 
@@ -241,7 +250,12 @@ async function coreGenerate(body, auth) {
     const reviseDirective = body.reviseFeedback
       ? `\n\nREVISION REQUEST — highest priority: this page is being regenerated after a human reviewed the previous draft and asked for specific changes. Honor this above all else, and do NOT reproduce whatever they objected to:\n"${String(body.reviseFeedback).slice(0, 700)}"`
       : '';
-    const ctx = { brand, keyword, url, market, cityMarketKey, competitorPage, brandCtx, brandCfg, vertical, examples, feedback, systemPrompt: systemPrompt + ownershipDirective + reviseDirective, menuItems, menuDirective, isArabic, mkt, brandName, auth, intel, pageKind, postId, city, wpParent, parentId, pageTitle, presenceDirective, commodityDirective, linkingDirective };
+    // Cluster directive (v7.9.60): tell the writer the secondary keywords this ONE page must
+    // also serve, so the grouping actually shapes the content (not just the plan).
+    const clusterDirective = uniqueCluster.length
+      ? `\n\nSECONDARY KEYWORDS — this single page should also read naturally for these related searches; weave them into headings/copy where they genuinely fit. Do NOT keyword-stuff, list them, or repeat them verbatim: ${uniqueCluster.join(', ')}.`
+      : '';
+    const ctx = { brand, keyword, keywords: uniqueCluster, currentPos, volume, goalRank, url, market, cityMarketKey, competitorPage, brandCtx, brandCfg, vertical, examples, feedback, systemPrompt: systemPrompt + ownershipDirective + reviseDirective + clusterDirective, menuItems, menuDirective, isArabic, mkt, brandName, auth, intel, pageKind, postId, city, wpParent, parentId, pageTitle, presenceDirective, commodityDirective, linkingDirective };
 
     if (effectiveAction === 'meta_update')   return await generateMeta(ctx);
     if (effectiveAction === 'page_creation') return await generatePage(ctx);
@@ -378,6 +392,14 @@ function tags(ctx) {
   };
 }
 
+// Cluster + rank-at-generation for the PAYLOAD (v7.9.60): the queue shows what the page
+// targets, tracking measures all variants, and positionAtPublish is set on publish for the
+// closed-loop delta. Spread into every generator's payload (`...clusterMeta(ctx)`).
+function clusterMeta(ctx) {
+  return { keywords: ctx.keywords || [], currentPos: (ctx.currentPos == null ? null : ctx.currentPos),
+    volume: (ctx.volume == null ? null : ctx.volume), goalRank: (ctx.goalRank == null ? null : ctx.goalRank) };
+}
+
 // ── meta_update ────────────────────────────────────────────────────────────────
 async function generateMeta(ctx) {
   const { brand, keyword, url, competitorPage, brandCtx, feedback, systemPrompt, menuItems, menuDirective, isArabic, mkt, brandName, intel, commodityDirective, linkingDirective } = ctx;
@@ -428,7 +450,7 @@ Return ONLY JSON:
     reason: parsed.rationale || `Optimise meta for "${keyword}" on ${url}`,
     ...t,
     payload: {
-      url, title, description, targetKeyword: keyword, wpAction: 'update_meta',
+      url, title, description, targetKeyword: keyword, ...clusterMeta(ctx), wpAction: 'update_meta',
       currentMeta: { title: currentTitle, description: currentDesc },
       voiceScore, voiceIssues, lengthWarning: lengthIssues,
       competitorPage: competitorPage || null,
@@ -482,7 +504,7 @@ Return ONLY JSON:
       title: parsed.h1 || cleanHeading(title),   // clean H1 as the WP page title
       metaTitle: title,                          // keyword-rich SEO title → Yoast
       description: parsed.metaDescription || '', h1: parsed.h1 || title,
-      content: contentHtml, targetKeyword: keyword, wpAction: 'create_page',
+      content: contentHtml, targetKeyword: keyword, ...clusterMeta(ctx), wpAction: 'create_page',
       ...marketTaxonomyFor(ctx),
       voiceScore, voiceIssues,
       serpFeatureTag: intel?.serpTag || null, competitors: intel?.competitors || null,
@@ -593,7 +615,7 @@ Return ONLY JSON:
         // Product/location: clean H1 as WP title, keyword-rich SEO title → Yoast.
         : { title: cleanHeading(title), metaTitle: title }),
       description: parsed.metaDescription || '',
-      content: contentHtml, targetKeyword: keyword,
+      content: contentHtml, targetKeyword: keyword, ...clusterMeta(ctx),
       wpAction: isCreate ? 'create_page' : 'update_content',
       ...createFields,
       ...marketTaxonomyFor(ctx),
@@ -673,7 +695,7 @@ Return ONLY JSON:
     ...t,
     payload: {
       title: cleanHeading(title), metaTitle: title, slug: hub.slug, description: parsed.metaDescription || '',
-      content: contentHtml, targetKeyword: keyword,
+      content: contentHtml, targetKeyword: keyword, ...clusterMeta(ctx),
       wpAction: 'create_page',
       template: 'template-location.php',   // guard-allowed writable template
       pageType: 'city_hub',                // set via meta on create (site team, v7.9.9)
@@ -727,7 +749,7 @@ Return ONLY JSON:
     ...t,
     payload: {
       slug: parsed.slug || '', title, description: parsed.metaDescription || '',
-      content: contentHtml, targetKeyword: keyword, wpAction: 'create_draft',
+      content: contentHtml, targetKeyword: keyword, ...clusterMeta(ctx), wpAction: 'create_draft',
       ...marketTaxonomyFor(ctx),
       voiceScore, voiceIssues,
       serpFeatureTag: intel?.serpTag || null, competitors: intel?.competitors || null,

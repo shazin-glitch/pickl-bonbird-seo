@@ -3806,6 +3806,16 @@ function buildTrackingCard(item) {
 
   const pageUrl = item.publishResult?.ref || p.url || null;
 
+  // Per-variant cluster ranks (v7.9.60) — every keyword this page targets, not just the primary.
+  let clusterHtml = '';
+  const cps = Array.isArray(item.clusterPositions) ? item.clusterPositions.filter(c => c && c.keyword) : [];
+  if (cps.length) {
+    clusterHtml = `<div style="margin-top:8px;padding:8px 12px;border-radius:8px;background:var(--bg-base);font-size:12px">
+      <div style="font-weight:600;color:var(--text-muted);margin-bottom:6px;text-transform:uppercase;font-size:10px;letter-spacing:.5px">Cluster keywords</div>
+      ${cps.map(c => `<div style="display:flex;justify-content:space-between;gap:10px;padding:2px 0"><span>${esc(c.keyword)}</span><span style="color:${c.position != null ? 'var(--text-main)' : 'var(--text-muted)'}">${c.position != null ? ('#' + c.position) : 'not ranking'}</span></div>`).join('')}
+    </div>`;
+  }
+
   // Show what was actually published — varies by type
   let publishedContentHtml = '';
   if (item.type === 'meta_update') {
@@ -3846,6 +3856,7 @@ function buildTrackingCard(item) {
       </div>
       ${publishedContentHtml}
       ${movementHtml}
+      ${clusterHtml}
       ${indexBadgeHtml}
       <div style="margin-top:10px;display:flex;justify-content:flex-end">
         <button onclick="openRepublishModal('${item.id}')" style="padding:6px 14px;font-size:12px;border:1px solid var(--border);border-radius:7px;background:transparent;color:var(--text-main);cursor:pointer;font-weight:500">✏️ Edit &amp; Re-push</button>
@@ -4047,12 +4058,28 @@ function buildActionCard(item) {
 // unreachable. One accessor so the two can never drift again.
 const _bodyOf = p => (p && (p.body || p.content)) || '';
 
+// The keyword CLUSTER this page targets + its metrics — mirrors the planner card so the
+// grouping is visible where you review/edit (v7.9.60). Renders nothing pre-v7.9.60 drafts
+// (no stored keywords) except the metrics line when present.
+function _clusterLine(p) {
+  const kws = (Array.isArray(p.keywords) ? p.keywords : []).filter(Boolean);
+  const out = [];
+  if (kws.length) out.push(`<div style="margin-top:6px;font-size:12px;color:var(--text-muted)">🎯 <strong style="font-weight:600">Also targeting:</strong> ${kws.slice(0,8).map(esc).join(' · ')}${kws.length>8?` +${kws.length-8} more`:''}</div>`);
+  const m = [];
+  if (p.volume)          m.push(`${Number(p.volume).toLocaleString()}/mo`);
+  if (p.currentPos != null) m.push(`now #${p.currentPos}`); else if (p.keywords) m.push('not ranking');
+  if (p.goalRank)        m.push(`goal top ${p.goalRank}`);
+  if (m.length) out.push(`<div style="margin-top:3px;font-size:11px;color:var(--text-muted)">${m.join(' · ')}</div>`);
+  return out.join('');
+}
+
 function buildPreview(item) {
   const p = item.payload || {};
   if (item.type === 'blog_draft') return `
     <div><strong>Title:</strong> ${esc(p.title || '—')}</div>
     <div style="margin-top:6px"><strong>Meta:</strong> ${esc(p.metaDescription || '—')}</div>
     <div style="margin-top:6px"><strong>Target Keyword:</strong> ${esc(p.targetKeyword || '—')} ${p.slug ? `<span style="color:var(--text-muted);font-size:11px">· /${esc(p.slug)}</span>` : ''}</div>
+    ${_clusterLine(p)}
     ${p.excerpt ? `<div style="margin-top:6px"><strong>Excerpt:</strong> ${esc(p.excerpt)}</div>` : ''}
     ${p.voiceTopFix ? `<div style="margin-top:8px;padding:8px 12px;background:#fef3c7;border-left:3px solid #f59e0b;border-radius:0 6px 6px 0;font-size:12px;color:#92400e"><strong>⚠ Voice note:</strong> ${esc(p.voiceTopFix)}</div>` : ''}
     ${_bodyOf(p) ? `<div style="margin-top:10px"><button class="btn btn-outline" style="font-size:12px" onclick="previewContent('${esc(item.id)}')">📄 Read Full Content (~${Math.round(_bodyOf(p).replace(/<[^>]+>/g,'').length/5)} words)</button></div>` : ''}`;
@@ -4104,6 +4131,7 @@ function buildPreview(item) {
     return `
     <div><strong>Target Page:</strong> ${puHref ? `<a href="${esc(puHref)}" target="_blank" style="color:var(--primary)">${esc(puLabel)}</a>` : esc(puLabel)}</div>
     <div style="margin-top:6px"><strong>Keyword:</strong> ${esc(p.targetKeyword || '-')}</div>
+    ${_clusterLine(p)}
     <div style="margin-top:6px"><strong>New Title:</strong> ${esc(p.title || '-')}</div>
     <div style="margin-top:6px"><strong>New Meta:</strong> ${esc(p.description || '-')}</div>
     ${p.voiceTopFix ? `<div style="margin-top:8px;padding:8px 12px;background:#fef3c7;border-left:3px solid #f59e0b;border-radius:0 6px 6px 0;font-size:12px;color:#92400e"><strong>⚠ Voice note:</strong> ${esc(p.voiceTopFix)}</div>` : ''}
@@ -4112,6 +4140,7 @@ function buildPreview(item) {
     <div><strong>Title:</strong> ${esc(p.title || '-')}</div>
     <div style="margin-top:6px"><strong>Meta:</strong> ${esc(p.description || '-')}</div>
     <div style="margin-top:6px"><strong>Target Keyword:</strong> ${esc(p.targetKeyword || '-')} ${p.slug ? `<span style="color:var(--text-muted);font-size:11px">· /${esc(p.slug)}</span>` : ''}</div>
+    ${_clusterLine(p)}
     ${p.excerpt ? `<div style="margin-top:6px"><strong>Excerpt:</strong> ${esc(p.excerpt)}</div>` : ''}
     ${p.voiceTopFix ? `<div style="margin-top:8px;padding:8px 12px;background:#fef3c7;border-left:3px solid #f59e0b;border-radius:0 6px 6px 0;font-size:12px;color:#92400e"><strong>⚠ Voice note:</strong> ${esc(p.voiceTopFix)}</div>` : ''}
     ${_bodyOf(p) ? `<div style="margin-top:10px"><button class="btn btn-outline" style="font-size:12px" onclick="previewContent('${esc(item.id)}')">📄 Read Full Content (~${Math.round(_bodyOf(p).replace(/<[^>]+>/g,'').length/5)} words)</button></div>` : ''}

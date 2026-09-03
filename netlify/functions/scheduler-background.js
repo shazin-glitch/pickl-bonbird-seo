@@ -418,6 +418,19 @@ async function trackPublishedItems(brand, gscRows) {
 
       const patch = { ...item, lastTrackedAt: Date.now() };
 
+      // Cluster tracking (v7.9.60): measure EVERY variant this page targets (payload.keywords),
+      // not just the primary — so the whole grouping's ranking is visible, using the same
+      // accurate matcher (exact / whole-phrase containment, never broader).
+      const clusterKws = Array.isArray(item.payload?.keywords) ? item.payload.keywords : [];
+      if (clusterKws.length) {
+        patch.clusterPositions = clusterKws.map(ck => {
+          const n = String(ck || '').toLowerCase().replace(/\s+/g, ' ').trim();
+          if (!n) return null;
+          const { pos } = matchTrackedPosition(n, kwPosMap, kwClicksMap);
+          return { keyword: ck, position: pos != null ? Math.round(pos * 10) / 10 : null };
+        }).filter(Boolean);
+      }
+
       if (posNow) {
         const delta = item.positionAtPublish
           ? Math.round((item.positionAtPublish - posNow) * 10) / 10
@@ -466,6 +479,7 @@ async function trackPublishedItems(brand, gscRows) {
       merged.positionLatest = patch.positionLatest != null ? patch.positionLatest : null;
       merged.positionDelta  = patch.positionDelta  != null ? patch.positionDelta  : null;
       merged.clicksLatest   = patch.clicksLatest   != null ? patch.clicksLatest   : null;
+      if (patch.clusterPositions) merged.clusterPositions = patch.clusterPositions;   // per-variant ranks (v7.9.60)
       if (patch.indexStatus)             merged.indexStatus    = patch.indexStatus;
       await s.set(`approvals:item:${id}`, JSON.stringify(merged));
     } catch { /* skip individual failures */ }

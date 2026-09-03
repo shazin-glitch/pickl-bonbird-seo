@@ -270,14 +270,18 @@ async function buildMarketPlan({ brand, market, useLLM = true, llmFn, verifyTarg
     const DEDUP = { pending: 'queued', approved: 'queued', pushed: 'live', published: 'live' };
     const _st = i => DEDUP[i.status || 'pending'];   // a status-less item is effectively pending
     const relevant = arr.filter(_st);
-    queuedKeywords = relevant.map(i => i.payload && (i.payload.targetKeyword || i.payload.keyword)).filter(Boolean);
+    // Dedup against the PRIMARY *and* every CLUSTER member of each queued/live item, so a
+    // variant already covered by a shipped page (e.g. "fried chicken al khoudh" folded into
+    // the Seeb hub) is never proposed again as its own page (v7.9.60).
+    const kwsOf = i => {
+      const p = i.payload || {};
+      return [p.targetKeyword || p.keyword, ...(Array.isArray(p.keywords) ? p.keywords : [])].filter(Boolean);
+    };
+    queuedKeywords = relevant.flatMap(kwsOf);
     queued = new Set(queuedKeywords.map(_kw));
     queuedCities = new Set(relevant.filter(i => i.payload && i.payload.pageType === 'city_hub')
       .map(i => _kw(i.payload.slug || i.payload.city)).filter(Boolean));
-    for (const i of relevant) {
-      const k = i.payload && (i.payload.targetKeyword || i.payload.keyword);
-      if (k) kwStatus.set(_kw(k), _st(i));
-    }
+    for (const i of relevant) for (const k of kwsOf(i)) kwStatus.set(_kw(k), _st(i));
   } catch { /* dedupe is best-effort */ }
 
   // Brand context (for the strategist prompt + fallback off-menu guard).
@@ -558,7 +562,13 @@ async function buildMarketPlan({ brand, market, useLLM = true, llmFn, verifyTarg
 function planItemToDraftCall(item, { brand, market } = {}) {
   if (!brand) return { error: 'brand required' };
   if (!item || !item.keyword) return { error: 'plan item has no keyword' };
-  const base = { brand, keyword: item.keyword, market: market || 'uae' };
+  // Forward the CLUSTER + current rank so the generator writes for all variants and the
+  // draft records positionAtPublish (v7.9.60) — not just the primary keyword.
+  const base = { brand, keyword: item.keyword, market: market || 'uae',
+    keywords: Array.isArray(item.keywords) ? item.keywords : [],
+    currentPos: (item.position == null ? null : item.position),
+    volume: (item.volume == null ? null : item.volume),
+    goalRank: (item.goalRank == null ? null : item.goalRank) };
 
   switch (item.assetType) {
     case 'city_hub':

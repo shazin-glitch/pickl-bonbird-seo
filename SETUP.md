@@ -5141,6 +5141,16 @@ Two issues from live use. **(1) The band-aid pattern:** `rewriteWithClaude` was 
 **(2) Edit-draft body uneditable:** the Edit modal only rendered the Content box `if (p.body !== undefined)`, but every Nest draft stores its body under `p.content` — so the field never showed for pages/blogs. Now reads/writes the real key (`content`, falling back to `body`), always shows a Content (HTML) textarea for blog/page/page_update.
 Verified: `tools/rewrite-fix-test.js` (24 — generator path + itemToGenerateParams + ownership + legacy fallback + market-tag) + full suite green (50+16+19+9+36+22+11+10+18) + `npm run check` + require smoke-test (no cycle).
 
+### v7.9.60 — keyword CLUSTER wired end-to-end (was plan-only; content/queue/tracking/dedup ignored it)
+Full-feature audit of the cluster lifecycle found it half-built: the plan grouped keywords but the cluster died at 6 points. Fixed all:
+- **Plan → generator:** `planItemToDraftCall` now forwards `keywords` (cluster), `currentPos`, `volume`, `goalRank`; `generateDraftCore` reads them.
+- **Generation:** a **cluster directive** injects the secondary keywords into every generator prompt ("this one page should also read naturally for: …") so the page targets the variants, not just the primary.
+- **Payload:** `clusterMeta(ctx)` persists `keywords`/`currentPos`/`volume`/`goalRank` on every draft (spread into all 5 payloads).
+- **Queue:** the Approvals card shows the cluster (🎯 Also targeting: …) + volume/now-rank/goal, matching the planner card (`_clusterLine`). Edit-draft unaffected.
+- **Dedup:** the planner now dedups against every queued/live item's cluster **members**, not just its primary — so a variant already covered by a shipped page ("fried chicken al khoudh" folded into the Seeb hub) is never re-proposed as its own page.
+- **Tracking:** `trackPublishedItems` measures each cluster keyword's rank (`item.clusterPositions`, same accurate matcher) and the Published & Tracking card renders per-variant ranks. `positionAtPublish` now populates from the forwarded `currentPos` → closed-loop delta works for planner content.
+Verified: `menu-accuracy-test.js` (24, +6 cluster) + `p3a-test` shape updated + full suite green (50+16+19+9+36+22+11+10+24+24) + `npm run check`.
+
 ### v7.9.56 — market-aware ownership framing (stop "not a franchise" leaking into franchised markets)
 Bonbird is homegrown in the UAE and **franchised** in Oman/Qatar/Pakistan, but the brand identity asserted the homegrown claim globally, so generated intl copy said things like *"This isn't a franchise flown in from somewhere else. Bonbird is a homegrown brand built in the UAE and now serving Muscat"* — false for a franchised Oman location (and it recurred in FAQs). Same class of bug as the hardcoded `+971` / `addressCountry:'AE'`.
 - **Root cause:** `_lib/brand.js` differentiators carried the absolute `'Dubai-born homegrown brand — not a franchise or import'` (Bonbird) / `'Homegrown UAE brand — not an import or franchise…'` (Pickl), injected into every generation prompt via `buildBrandPrompt`, with no market awareness.
