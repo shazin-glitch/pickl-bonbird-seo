@@ -318,6 +318,17 @@ async function handlePublishItem(body, actor) {
 
   if (!postId) return bad(500, 'Could not determine WP post ID to publish');
 
+  // A city hub going live must also spawn its venue child pages — the same auto-scaffold
+  // handleApprove does. Publish Live previously skipped this (venues never got scaffolded
+  // when a hub was published directly). Idempotent: scaffold-venues dedups vs existing
+  // children, so firing here even if it already ran via Approve is safe. (v7.9.64)
+  if (item.payload && item.payload.pageType === 'city_hub') {
+    fetch(`${SITE_URL}/.netlify/functions/scaffold-venues-background`, {
+      method: 'POST', headers: internalHeaders({ 'Content-Type': 'application/json' }),
+      body: JSON.stringify({ brand: item.brand, hubPostId: postId, city: item.payload.slug, marketSlug: item.payload.wpParent }),
+    }).catch(e => console.warn('[approvals] venue-scaffold trigger (publish) failed:', e.message));
+  }
+
   // Now call wordpress.js publish action
   const base = SITE_URL.replace(/\/$/, '');
   const res = await fetch(base + '/.netlify/functions/wordpress', {
