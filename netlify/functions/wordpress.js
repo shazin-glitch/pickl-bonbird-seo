@@ -353,7 +353,7 @@ async function handleUpdateContent(creds, payload, brand) {
     }
   }
 
-  const endpoint = postType === 'pages' ? 'pages' : 'posts';
+  const endpoint = (postType === 'pages' || postType === 'page') ? 'pages' : 'posts';   // WP + create_page return singular 'page'; publish/update on /posts/<pageId> → "Invalid post ID" (v7.9.63)
   // Do NOT force status here. update_content targets an EXISTING page; forcing
   // status:'draft' flipped a currently-PUBLISHED (live, ranking) page to draft → it
   // 404'd on its public URL until republished. Omitting status makes WP preserve the
@@ -397,7 +397,7 @@ async function handleUpdateMeta(creds, payload) {
   // NOTE: payload.title is the SEO meta title — never write it to updates.title (that's the WP post title / page name)
   if (!Object.keys(updates).length) return fail(400, 'Provide title, description, or targetKeyword');
 
-  const endpoint = postType === 'pages' ? 'pages' : 'posts';
+  const endpoint = (postType === 'pages' || postType === 'page') ? 'pages' : 'posts';   // WP + create_page return singular 'page'; publish/update on /posts/<pageId> → "Invalid post ID" (v7.9.63)
   const res = await wpFetch(creds, `/wp/v2/${endpoint}/${postId}`, { method: 'POST', body: updates });
   if (!res.ok) return fail(res.status, `WP meta update failed: ${describeError(res)}`);
 
@@ -428,7 +428,7 @@ async function handleGetCurrentMeta(creds, payload) {
   }
   if (!postId) return fail(400, 'postId or url required');
 
-  const endpoint = postType === 'pages' ? 'pages' : 'posts';
+  const endpoint = (postType === 'pages' || postType === 'page') ? 'pages' : 'posts';   // WP + create_page return singular 'page'; publish/update on /posts/<pageId> → "Invalid post ID" (v7.9.63)
   const res = await wpFetch(creds, `/wp/v2/${endpoint}/${postId}?context=edit`);
   if (!res.ok) return win({ found: false });
 
@@ -457,7 +457,7 @@ async function handlePublish(creds, payload) {
   }
   if (!postId) return fail(400, 'postId required to publish');
 
-  const endpoint = postType === 'pages' ? 'pages' : 'posts';
+  const endpoint = (postType === 'pages' || postType === 'page') ? 'pages' : 'posts';   // WP + create_page return singular 'page'; publish/update on /posts/<pageId> → "Invalid post ID" (v7.9.63)
   const res = await wpFetch(creds, `/wp/v2/${endpoint}/${postId}`, { method: 'POST', body: { status: 'publish' } });
   if (!res.ok) return fail(res.status, `WP publish failed: ${describeError(res)}`);
   return win({
