@@ -10,7 +10,9 @@ require.cache[authPath] = { id: authPath, filename: authPath, loaded: true, expo
 const icp = require.resolve(path.join(FN, '_lib/international-config.js'));
 const realIcp = require(icp);
 require.cache[icp].exports = { ...realIcp,
-  getMarketsForBrandAsync: async () => ([{ key:'bonbird_pakistan', marketSlug:'pk' }, { key:'bonbird_oman', marketSlug:'om' }]),
+  // Real shape: an OBJECT keyed by market key (acc[m.key]=m), NOT an array. Mocking it as
+  // an array hid the .find()-on-object TypeError that broke venue scaffolding in prod (v7.9.65).
+  getMarketsForBrandAsync: async () => ({ bonbird_pakistan:{ key:'bonbird_pakistan', marketSlug:'pk' }, bonbird_oman:{ key:'bonbird_oman', marketSlug:'om' } }),
   citiesForMarketAsync: async (key) => key==='bonbird_pakistan'
     ? [{ city:'Lahore', slug:'lahore', venues:[{name:'Cue Cinemas, Gulberg',city:'Lahore'},{name:'Dolmen Mall, DHA',city:'Lahore'},{name:'Johar Town',city:'Lahore'}] }]
     : [] };

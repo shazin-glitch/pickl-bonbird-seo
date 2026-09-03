@@ -29,8 +29,12 @@ function _venueExists(venueName, existingTitles) {
 // Resolve the market KEY (e.g. bonbird_pakistan) from brand + a market slug (e.g. 'pk').
 async function resolveMarketKey(brand, market, marketSlug) {
   if (market && market.includes('_')) return market;                 // already a key
-  const list = await getMarketsForBrandAsync(brand).catch(() => []);
-  const hit = (list || []).find(m => _norm(m.marketSlug) === _norm(marketSlug || market));
+  // getMarketsForBrandAsync returns an OBJECT keyed by market key ({bonbird_oman:{…}}),
+  // NOT an array — calling .find() on it threw a TypeError that killed this background
+  // handler after it had already 202'd, so a hub published via Approve/Publish (which pass
+  // the market SLUG, not a key) silently scaffolded no venues. Use Object.values. (v7.9.65)
+  const map = await getMarketsForBrandAsync(brand).catch(() => ({}));
+  const hit = Object.values(map || {}).find(m => _norm(m.marketSlug) === _norm(marketSlug || market));
   return hit ? hit.key : null;
 }
 
