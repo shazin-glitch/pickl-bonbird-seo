@@ -83,7 +83,8 @@ const cityHub = { id:'itm1', status:'pending', type:'page_creation', brand:'bonb
 
   console.log('\n── ownership guard reaches the prompt (franchise market) ──');
   ok('system carries brand voice', /BRANDVOICE/.test(lastSystem));
-  ok('franchise guard present (forbids homegrown, origin is a footnote)', /never call it.*homegrown/i.test(lastSystem) && /footnote, not the story/i.test(lastSystem), lastSystem.slice(-320));
+  ok('franchise guard present (forbids homegrown outright, origin is a footnote)', /never use the words.*homegrown/i.test(lastSystem) && /footnote, not the story/i.test(lastSystem), lastSystem.slice(-360));
+  ok('bans even "homegrown in Dubai"', /not even "homegrown in dubai"/i.test(lastSystem), lastSystem.slice(-360));
   ok('bans the "drive to Dubai" one-off crutch', /no need to drive to dubai/i.test(lastSystem), lastSystem.slice(-320));
   ok('names the franchised market (Oman)', /Oman/.test(lastSystem));
 
