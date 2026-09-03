@@ -83,14 +83,15 @@ const cityHub = { id:'itm1', status:'pending', type:'page_creation', brand:'bonb
 
   console.log('\n── ownership guard reaches the prompt (franchise market) ──');
   ok('system carries brand voice', /BRANDVOICE/.test(lastSystem));
-  ok('franchise guard present ("NEVER describe … homegrown")', /NEVER describe .*homegrown/i.test(lastSystem), lastSystem.slice(-260));
+  ok('franchise guard present (forbids homegrown, origin is a footnote)', /never call it.*homegrown/i.test(lastSystem) && /footnote, not the story/i.test(lastSystem), lastSystem.slice(-320));
+  ok('bans the "drive to Dubai" one-off crutch', /no need to drive to dubai/i.test(lastSystem), lastSystem.slice(-320));
   ok('names the franchised market (Oman)', /Oman/.test(lastSystem));
 
   console.log('\n── home market keeps homegrown pride ──');
   const homeItem = { ...cityHub, payload:{ ...cityHub.payload, wpParent:'ae' } };
   await A.rewriteWithClaude(homeItem, 'tighten intro');
   ok('home directive present (UAE home market)', /homegrown in its UAE home market/i.test(lastSystem), lastSystem.slice(-260));
-  ok('no franchise guard on home copy', !/NEVER describe/i.test(lastSystem));
+  ok('no franchise guard on home copy', !/franchise\/expansion market/i.test(lastSystem));
 
   console.log('\n── itemToGenerateParams maps an item → generator call (v7.9.59) ──');
   const seebItem = { id:'itm_seeb', status:'pending', type:'page_creation', brand:'bonbird',

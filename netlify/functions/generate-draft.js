@@ -308,7 +308,7 @@ function buildOwnershipDirective(market, mkt, brandName) {
   const ownership = (mkt && mkt.ownership) || 'franchise';
   if (ownership === 'corporate') return '';
   const label = (mkt && mkt.label) || market;
-  return `\n\nORIGIN & OWNERSHIP: ${brandName} is a UAE-born brand now operating in ${label} as a franchise / expansion market. NEVER describe ${brandName} as "homegrown", "local", or "not a franchise" in ${label}, and never imply it originated in ${label}. Frame it as a UAE-born brand bringing its food to ${label}.`;
+  return `\n\nORIGIN & OWNERSHIP: ${brandName} operates in ${label} as a franchise/expansion market. HARD RULES: never call it "homegrown", "local", or "not a franchise" in ${label}, and never imply it originated in ${label}. The UAE/Dubai origin is a LIGHT, OPTIONAL signal — mention it AT MOST ONCE and only if it earns its place; NEVER build the page around it. Do not open with it, do not use a "born in Dubai → now in ${label}" hook, and NEVER use "no need to drive to Dubai"-style lines (that was a one-off, not a template). LEAD with the food, the flavour system, and genuine local ${label} relevance — origin is a footnote, not the story.`;
 }
 
 // A term that is table stakes in this market differentiates nothing — leading with it
