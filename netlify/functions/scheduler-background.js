@@ -396,6 +396,25 @@ async function trackPublishedItems(brand, gscRows) {
     try {
       const id = item.id;
       if (!['pushed', 'published'].includes(item.status)) continue;
+
+      // Reconcile WP-admin publishes (v7.9.66): if the Nest still says 'pushed' but the page
+      // is actually LIVE in WP (published directly in wp-admin, which never notifies the Nest),
+      // flip it to 'published' so the UI + the index-check below reflect reality. One cheap
+      // internal WP read per pushed item.
+      let reconciledPublished = false;
+      if (item.status === 'pushed') {
+        const wpId = item.pushResult && (item.pushResult.id || item.pushResult.postId);
+        if (wpId) {
+          try {
+            const wr = await fetch(`${SITE_URL}/.netlify/functions/wordpress`, {
+              method: 'POST', headers: internalHeaders({ 'Content-Type': 'application/json' }),
+              body: JSON.stringify({ action: 'get_post', brand, postId: wpId }),
+            });
+            const wd = await wr.json().catch(() => ({}));
+            if (wd && wd.post && wd.post.status === 'publish') { item.status = 'published'; reconciledPublished = true; }
+          } catch { /* best-effort reconcile */ }
+        }
+      }
       // Match the UI's eligibility exactly: fall back to the payload keyword so items
       // pushed before trackingKeyword existed (or where it wasn't captured) still get
       // tracked, instead of showing in the UI but never updating.
@@ -480,6 +499,11 @@ async function trackPublishedItems(brand, gscRows) {
       merged.positionDelta  = patch.positionDelta  != null ? patch.positionDelta  : null;
       merged.clicksLatest   = patch.clicksLatest   != null ? patch.clicksLatest   : null;
       if (patch.clusterPositions) merged.clusterPositions = patch.clusterPositions;   // per-variant ranks (v7.9.60)
+      if (reconciledPublished) {   // WP-admin publish detected → sync the Nest status (v7.9.66)
+        merged.status = 'published';
+        merged.publishedAt = fresh.publishedAt || Date.now();
+        merged.publishResult = Object.assign({ ok: true }, fresh.publishResult || {});
+      }
       if (patch.indexStatus)             merged.indexStatus    = patch.indexStatus;
       await s.set(`approvals:item:${id}`, JSON.stringify(merged));
     } catch { /* skip individual failures */ }
