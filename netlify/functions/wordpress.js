@@ -83,7 +83,7 @@ exports.handler = async (event) => {
   try {
     switch (action) {
       case 'test':           return await handleTest(creds);
-      case 'create_draft':   return await handleCreateDraft(creds, body.payload || {});
+      case 'create_draft':   return await handleCreateDraft(creds, body.payload || {}, brand);
       case 'create_page':    return await handleCreatePage(creds, body.payload || {}, brand);
       case 'update_content': return await handleUpdateContent(creds, body.payload || {}, brand);
       case 'update_meta':      return await handleUpdateMeta(creds, body.payload || {});
@@ -224,7 +224,7 @@ async function bodyWritable(brand, url, creds, postId, postType) {
 }
 
 // ── create blog POST draft ───────────────────────────────────────
-async function handleCreateDraft(creds, payload) {
+async function handleCreateDraft(creds, payload, brand) {
   // Accept the body under EITHER key: generate-draft writes payload.content, the older
   // batch pipeline wrote payload.body. The mismatch silently broke every Nest-generated
   // publish (create_draft/create_page updated title+meta only; update_content no-op'd the
@@ -232,11 +232,18 @@ async function handleCreateDraft(creds, payload) {
   const bodyHtml = payload.body || payload.content;
   if (!payload.title || !bodyHtml) return fail(400, 'title and body are required');
   const meta = buildSeoMeta(payload);
+  // A journal/blog post renders UNSTYLED without its post template — set it from brand
+  // config (rule 12: config-driven, no brand literal here) so EVERY future Nest-published
+  // blog gets it, not just the one a human fixes by hand. Bonbird's theme registers it with
+  // `Template Post Type: post`, so the REST `template` field accepts it on a post. (v7.9.67)
+  const cfg = await getBrand(brand).catch(() => null);
+  const blogTemplate = payload.template || (cfg && cfg.blogTemplate) || undefined;
   // Custom taxonomies (e.g. { market:['om'] }) — required for Bonbird journal posts.
   const { fields: taxFields, unresolved } = await buildTaxonomies(creds, payload);
   const post = {
     title: payload.title, content: bodyHtml, excerpt: payload.excerpt || '',
     slug: sanitizeSlug(payload.slug), status: 'draft', meta,
+    ...(blogTemplate ? { template: blogTemplate } : {}),
     categories: payload.categoryIds || undefined,
     tags: payload.tagIds || undefined,
     ...taxFields,

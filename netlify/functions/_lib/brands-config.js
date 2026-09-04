@@ -201,6 +201,10 @@ const BRAND_SEED = {
     // CLOBBERS the live page. This template allow-list is authoritative over the
     // path deny-list below. (The /ae/ homepage incident on 20 Aug is exactly this.)
     writableTemplates: ['template-location.php', 'template-product.php'],
+    // Journal/blog POSTS must render on the styled blog template, or they publish unstyled.
+    // The theme registers it with `Template Post Type: post`, so create_draft sets it via the
+    // REST `template` field. Config-driven so a new brand ships its own (or none). (v7.9.67)
+    blogTemplate: 'bonbird-blog-post-template.php',
     // COMMODITY TERMS — table stakes in this brand's markets, so NEVER an SEO angle.
     // Every Bonbird market (UAE, Pakistan, Qatar, Oman) is Muslim-majority: literally
     // every competitor is halal too, so "halal fried chicken" is not a differentiator —
