@@ -371,7 +371,7 @@ const INTERNATIONAL_MARKETS = {
     locations:       ['West Walk, Doha', 'District One, Doha'],
     venues: [
       { name: 'West Walk',  city: 'Doha', type: 'dine_in' },
-      { name: 'District One', city: 'Doha', type: 'dine_in' },
+      { name: 'District One', city: 'Doha', type: 'dark_kitchen' }, // pickup/delivery only — no dine-in (Shazin, 2026-09)
     ],
     seedKeywords: {
       en: [
