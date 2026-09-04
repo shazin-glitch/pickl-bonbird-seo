@@ -14,6 +14,7 @@
 const { authorizeJob, internalHeaders } = require('./_lib/auth');
 const { citiesForMarketAsync, getMarketsForBrandAsync } = require('./_lib/international-config');
 const { getBrand, getVertical } = require('./_lib/brands-config');
+const { listApprovals } = require('./_lib/store');
 const { generateDraftCore } = require('./generate-draft');
 
 const SITE = process.env.URL || process.env.NETLIFY_URL || 'https://yolkseo.netlify.app';
@@ -66,6 +67,20 @@ exports.handler = async (event) => {
     const j = await r.json().catch(() => null);
     existing = ((j && j.children) || []).map(c => _norm(c.title));
   } catch (e) { console.warn('[scaffold-venues] child list failed (continuing, may duplicate):', e.message); }
+
+  // ALSO dedup against venue drafts already in the NEST queue for this hub (v7.9.68). A hub
+  // published via "Save & Publish Live" triggers this scaffold TWICE (edit_approve + publish),
+  // and the first run's venues are pending Nest drafts — NOT yet WP children — so the WP
+  // list_children check above can't see them. Without this, run #2 duplicates every venue.
+  try {
+    const items = await listApprovals({ brand });
+    for (const it of (items || [])) {
+      const p = it.payload || {};
+      if (Number(p.parentId) === Number(hubPostId) && ['pending', 'approved', 'pushed', 'published'].includes(it.status)) {
+        existing.push(_norm(p.pageTitle || String(it.title || '').replace(/^venue page:\s*/i, '')));
+      }
+    }
+  } catch (e) { console.warn('[scaffold-venues] nest-draft dedup failed (continuing):', e.message); }
 
   const cuisine = await getBrand(brand).then(bc => (bc && bc.cuisine) || getVertical(bc && bc.vertical).menuSummary || 'food').catch(() => 'food');
 

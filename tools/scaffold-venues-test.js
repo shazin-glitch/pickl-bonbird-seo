@@ -21,6 +21,12 @@ const bc = require.resolve(path.join(FN, '_lib/brands-config.js'));
 const realBc = require(bc);
 require.cache[bc].exports = { ...realBc, getBrand: async () => ({ slug:'bonbird', cuisine:'fried chicken', vertical:'restaurant' }), getVertical: realBc.getVertical };
 
+// mock store.listApprovals — the scaffolder now dedups against NEST venue drafts too (v7.9.68)
+const st = require.resolve(path.join(FN, '_lib/store.js'));
+const realSt = require(st);
+let NEST_ITEMS = [];
+require.cache[st].exports = { ...realSt, listApprovals: async () => NEST_ITEMS };
+
 // mock generate-draft's generateDraftCore
 const gd = require.resolve(path.join(FN, 'generate-draft.js'));
 const GEN = [];
@@ -52,6 +58,16 @@ const run = (body) => scaffolder.handler({ httpMethod:'POST', headers:{}, body: 
   ok('each gen is a venue create parented to the hub', GEN.every(g=>g.pageKind==='venue' && g.actionType==='page_creation' && g.parentId===47054));
   ok('each gen carries the venue name as pageTitle', GEN.some(g=>g.pageTitle==='Johar Town') && GEN.some(g=>g.pageTitle==='Dolmen Mall, DHA'));
   ok('market resolved from slug pk → bonbird_pakistan', GEN.every(g=>g.market==='bonbird_pakistan'));
+
+  console.log('\n── Dedup vs pending NEST venue drafts (the double-scaffold bug, v7.9.68) ──');
+  // No WP children yet (first run's venues are pending Nest drafts, not WP children), but a
+  // Johar Town venue draft is already queued for this hub → a 2nd scaffold must NOT re-make it.
+  CHILDREN = []; GEN.length = 0;
+  NEST_ITEMS = [{ status:'pending', type:'page_creation', payload:{ parentId:47054, pageTitle:'Johar Town' } }];
+  r = JSON.parse((await run({ brand:'bonbird', hubPostId:47054, city:'lahore', marketSlug:'pk' })).body);
+  ok('Johar Town (pending Nest draft) → not regenerated', !GEN.some(g=>g.pageTitle==='Johar Town'), GEN.map(g=>g.pageTitle));
+  ok('the other two still generate', GEN.length === 2);
+  NEST_ITEMS = [];
 
   console.log('\n── Idempotent: all children exist → nothing generated ──');
   CHILDREN = [{title:'Cue Cinemas'},{title:'Dolmen Mall'},{title:'Johar Town'}]; GEN.length=0;
