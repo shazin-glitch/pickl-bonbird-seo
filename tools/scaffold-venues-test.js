@@ -19,7 +19,7 @@ require.cache[icp].exports = { ...realIcp,
 
 const bc = require.resolve(path.join(FN, '_lib/brands-config.js'));
 const realBc = require(bc);
-require.cache[bc].exports = { ...realBc, getBrand: async () => ({ slug:'bonbird', cuisine:'fried chicken', vertical:'restaurant' }), getVertical: realBc.getVertical };
+require.cache[bc].exports = { ...realBc, getBrand: async () => ({ slug:'bonbird', cuisine:'halal fried chicken', commodityTerms:['halal'], vertical:'restaurant' }), getVertical: realBc.getVertical };
 
 // mock store.listApprovals — the scaffolder now dedups against NEST venue drafts too (v7.9.68)
 const st = require.resolve(path.join(FN, '_lib/store.js'));
@@ -58,6 +58,7 @@ const run = (body) => scaffolder.handler({ httpMethod:'POST', headers:{}, body: 
   ok('each gen is a venue create parented to the hub', GEN.every(g=>g.pageKind==='venue' && g.actionType==='page_creation' && g.parentId===47054));
   ok('each gen carries the venue name as pageTitle', GEN.some(g=>g.pageTitle==='Johar Town') && GEN.some(g=>g.pageTitle==='Dolmen Mall, DHA'));
   ok('market resolved from slug pk → bonbird_pakistan', GEN.every(g=>g.market==='bonbird_pakistan'));
+  ok('venue keyword strips the commodity term (no "halal")', GEN.every(g=>!/halal/i.test(g.keyword)) && GEN.some(g=>g.keyword==='fried chicken Lahore'), GEN.map(g=>g.keyword));
 
   console.log('\n── Dedup vs pending NEST venue drafts (the double-scaffold bug, v7.9.68) ──');
   // No WP children yet (first run's venues are pending Nest drafts, not WP children), but a

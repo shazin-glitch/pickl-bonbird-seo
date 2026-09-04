@@ -82,7 +82,15 @@ exports.handler = async (event) => {
     }
   } catch (e) { console.warn('[scaffold-venues] nest-draft dedup failed (continuing):', e.message); }
 
-  const cuisine = await getBrand(brand).then(bc => (bc && bc.cuisine) || getVertical(bc && bc.vertical).menuSummary || 'food').catch(() => 'food');
+  // Build the venue keyword from the brand cuisine, but STRIP commodity terms (e.g. 'halal')
+  // first — otherwise the keyword becomes "halal fried chicken Doha" and the generator leads
+  // with a table-stakes term on the venue page (every competitor is halal too). (v7.9.69)
+  const _bc = await getBrand(brand).catch(() => null);
+  let cuisine = (_bc && _bc.cuisine) || getVertical(_bc && _bc.vertical).menuSummary || 'food';
+  for (const t of ((_bc && _bc.commodityTerms) || [])) {
+    cuisine = cuisine.replace(new RegExp(`\\b${String(t).replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}\\b`, 'ig'), ' ');
+  }
+  cuisine = cuisine.replace(/\s+/g, ' ').trim() || 'food';
 
   const results = [];
   for (const v of venues) {
