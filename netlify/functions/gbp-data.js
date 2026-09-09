@@ -44,8 +44,9 @@ exports.handler = async (event) => {
   }
 
   // Cache v10 — adds full venue fields (phone, website, hours, fullAddress, placeId,
-  // primaryPhoto URL) for the venue export; bump invalidates the v9 summary cache. (v7.9.71)
-  const cacheKey = `gbpCache:${brand}:v10`;
+  // primaryPhoto URL) for the venue export; bump invalidates the older summary cache — v11 picks
+  // up the clean 12h hours format + real venue photo (non-logo) selection. (v7.9.72)
+  const cacheKey = `gbpCache:${brand}:v11`;
   try {
     const cached = await store.get(cacheKey, { type: 'json' });
     if (cached?.cachedAt && (Date.now() - cached.cachedAt) < CACHE_TTL_MS && cached.locations) {
@@ -162,16 +163,28 @@ exports.handler = async (event) => {
               console.warn('[gbp-data] Reviews failed for', loc.name, ':', e.message);
             }
 
-            // Media → total photo count + a primary photo URL (prefer PROFILE, then COVER,
-            // else the most recent). googleUrl is a viewable Google-hosted image. (v7.9.71)
+            // Media → total photo count + a primary photo URL. Pick a REAL venue photo, not the
+            // brand logo: PROFILE/LOGO are the logo and COVER is often the logo banner too, so we
+            // prefer EXTERIOR → INTERIOR → FOOD_AND_DRINK → COVER → any other non-logo item, and
+            // fall back to PROFILE only if nothing else exists. googleUrl is a viewable Google-hosted
+            // image. (v7.9.72 — was returning logos)
             try {
               const mres = await fetch(`${REVIEW_BASE}/${loc.v4Name}/media?pageSize=100`, { headers: { Authorization: auth } });
               if (mres.ok) {
                 const md = await mres.json();
                 if (typeof md.totalMediaItemCount === 'number') out.photoCount = md.totalMediaItemCount;
                 const items = md.mediaItems || [];
-                const pick = items.find(m => m.locationAssociation?.category === 'PROFILE')
-                          || items.find(m => m.locationAssociation?.category === 'COVER')
+                const cat = m => m.locationAssociation?.category || '';
+                const LOGOISH = new Set(['PROFILE', 'LOGO', 'COVER']);
+                const byCat = c => items.find(m => cat(m) === c);
+                const pick = byCat('EXTERIOR')
+                          || byCat('INTERIOR')
+                          || byCat('FOOD_AND_DRINK')
+                          || byCat('AT_WORK')
+                          || byCat('ADDITIONAL')
+                          || items.find(m => m.mediaFormat === 'PHOTO' && !LOGOISH.has(cat(m)))
+                          || items.find(m => !LOGOISH.has(cat(m)))
+                          || byCat('COVER')
                           || items[0];
                 out.primaryPhoto = (pick && (pick.googleUrl || pick.thumbnailUrl || pick.sourceUrl)) || null;
               } else {
@@ -253,13 +266,47 @@ exports.handler = async (event) => {
   }
 };
 
-// Format GBP regularHours into a compact readable string (v7.9.71 — for the venue export).
-const _DAYS = { MONDAY:'Mon', TUESDAY:'Tue', WEDNESDAY:'Wed', THURSDAY:'Thu', FRIDAY:'Fri', SATURDAY:'Sat', SUNDAY:'Sun' };
+// Format GBP regularHours into a clean, human 12-hour string grouped by identical days,
+// e.g. "Mon–Thu: 12 pm – 12 am; Fri–Sat: 12 pm – 4 am; Sun: 11 am – 12 am". Merges a
+// period that closes at midnight (24:00) with the next day's 00:00 opener (late-night
+// spillover), so a shop open till 4am reads "… – 4 am" not two ugly rows. (v7.9.72)
+const _DNUM = { SUNDAY:0, MONDAY:1, TUESDAY:2, WEDNESDAY:3, THURSDAY:4, FRIDAY:5, SATURDAY:6 };
+const _DABBR = ['Sun','Mon','Tue','Wed','Thu','Fri','Sat'];
+function _h12(t) {
+  let h = (t && t.hours) || 0; const m = (t && t.minutes) || 0;
+  if (h === 24) h = 0;
+  const ap = h < 12 ? 'am' : 'pm';
+  let hh = h % 12; if (hh === 0) hh = 12;
+  return m ? `${hh}:${String(m).padStart(2,'0')} ${ap}` : `${hh} ${ap}`;
+}
 function formatHours(regularHours) {
-  const periods = regularHours?.periods || [];
-  if (!periods.length) return '';
-  const t = x => x == null ? '' : `${String(x.hours ?? 0).padStart(2,'0')}:${String(x.minutes ?? 0).padStart(2,'0')}`;
-  return periods.map(p => `${_DAYS[p.openDay] || p.openDay || ''} ${t(p.openTime)}–${t(p.closeTime)}`).join('; ');
+  const P = regularHours?.periods || [];
+  if (!P.length) return '';
+  const mins = t => (((t && t.hours) || 0) * 60) + ((t && t.minutes) || 0);
+  const byDay = {};
+  for (const p of P) { const d = _DNUM[p.openDay]; if (d == null) continue; (byDay[d] = byDay[d] || []).push(p); }
+  const spillClose = d => { const sp = (byDay[d] || []).find(p => mins(p.openTime) === 0); return sp ? sp.closeTime : null; };
+  const perDay = {};
+  for (let d = 0; d < 7; d++) {
+    const arr = (byDay[d] || []).slice().sort((a,b) => mins(a.openTime) - mins(b.openTime));
+    if (!arr.length) { perDay[d] = 'Closed'; continue; }
+    if (arr.find(p => mins(p.openTime) === 0 && mins(p.closeTime) >= 1440)) { perDay[d] = 'Open 24 hours'; continue; }
+    const main = arr.find(p => mins(p.openTime) > 0);
+    if (!main) { perDay[d] = ''; continue; }          // only late-night spillover from prev day
+    let close = main.closeTime;
+    if (mins(close) >= 1440) { const nc = spillClose((d + 1) % 7); if (nc) close = nc; }
+    perDay[d] = `${_h12(main.openTime)} – ${_h12(close)}`;
+  }
+  // Group consecutive days (Mon→Sun order) with identical hours into ranges.
+  const order = [1,2,3,4,5,6,0];
+  const out = []; let i = 0;
+  while (i < order.length) {
+    const v = perDay[order[i]]; if (v === '') { i++; continue; }
+    let j = i; while (j + 1 < order.length && perDay[order[j+1]] === v) j++;
+    const label = i === j ? _DABBR[order[i]] : `${_DABBR[order[i]]}–${_DABBR[order[j]]}`;
+    out.push(`${label}: ${v}`); i = j + 1;
+  }
+  return out.join('; ');
 }
 
 function parseLocation(loc, accountName, brandDefs = []) {
