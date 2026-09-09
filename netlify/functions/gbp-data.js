@@ -43,8 +43,9 @@ exports.handler = async (event) => {
     return { statusCode: 200, headers: CORS, body: JSON.stringify({ notConnected: true }) };
   }
 
-  // Cache v9 — adds photoCount (v4 media) + per-review locationAddr; newest-first
-  const cacheKey = `gbpCache:${brand}:v9`;
+  // Cache v10 — adds full venue fields (phone, website, hours, fullAddress, placeId,
+  // primaryPhoto URL) for the venue export; bump invalidates the v9 summary cache. (v7.9.71)
+  const cacheKey = `gbpCache:${brand}:v10`;
   try {
     const cached = await store.get(cacheKey, { type: 'json' });
     if (cached?.cachedAt && (Date.now() - cached.cachedAt) < CACHE_TTL_MS && cached.locations) {
@@ -145,7 +146,7 @@ exports.handler = async (event) => {
 
         const perLocation = await Promise.all(
           brandLocations.map(async (loc) => {
-            const out = { loc, data: null, photoCount: null };
+            const out = { loc, data: null, photoCount: null, primaryPhoto: null };
 
             // Reviews → ratings, counts, unanswered queue
             try {
@@ -161,12 +162,18 @@ exports.handler = async (event) => {
               console.warn('[gbp-data] Reviews failed for', loc.name, ':', e.message);
             }
 
-            // Media → total photo count
+            // Media → total photo count + a primary photo URL (prefer PROFILE, then COVER,
+            // else the most recent). googleUrl is a viewable Google-hosted image. (v7.9.71)
             try {
-              const mres = await fetch(`${REVIEW_BASE}/${loc.v4Name}/media?pageSize=1`, { headers: { Authorization: auth } });
+              const mres = await fetch(`${REVIEW_BASE}/${loc.v4Name}/media?pageSize=100`, { headers: { Authorization: auth } });
               if (mres.ok) {
                 const md = await mres.json();
                 if (typeof md.totalMediaItemCount === 'number') out.photoCount = md.totalMediaItemCount;
+                const items = md.mediaItems || [];
+                const pick = items.find(m => m.locationAssociation?.category === 'PROFILE')
+                          || items.find(m => m.locationAssociation?.category === 'COVER')
+                          || items[0];
+                out.primaryPhoto = (pick && (pick.googleUrl || pick.thumbnailUrl || pick.sourceUrl)) || null;
               } else {
                 console.warn(`[gbp-data] Media ${mres.status} for ${loc.name}`);
               }
@@ -178,8 +185,9 @@ exports.handler = async (event) => {
           })
         );
 
-        for (const { loc, data, photoCount } of perLocation) {
+        for (const { loc, data, photoCount, primaryPhoto } of perLocation) {
           if (photoCount != null) loc.photoCount = photoCount;
+          if (primaryPhoto) loc.primaryPhoto = primaryPhoto;
           if (!data) continue;
           reviewsApiPending = false;
 
@@ -245,11 +253,28 @@ exports.handler = async (event) => {
   }
 };
 
+// Format GBP regularHours into a compact readable string (v7.9.71 — for the venue export).
+const _DAYS = { MONDAY:'Mon', TUESDAY:'Tue', WEDNESDAY:'Wed', THURSDAY:'Thu', FRIDAY:'Fri', SATURDAY:'Sat', SUNDAY:'Sun' };
+function formatHours(regularHours) {
+  const periods = regularHours?.periods || [];
+  if (!periods.length) return '';
+  const t = x => x == null ? '' : `${String(x.hours ?? 0).padStart(2,'0')}:${String(x.minutes ?? 0).padStart(2,'0')}`;
+  return periods.map(p => `${_DAYS[p.openDay] || p.openDay || ''} ${t(p.openTime)}–${t(p.closeTime)}`).join('; ');
+}
+
 function parseLocation(loc, accountName, brandDefs = []) {
+  const sa = loc.storefrontAddress || {};
   const address = [
-    ...(loc.storefrontAddress?.addressLines || []),
-    loc.storefrontAddress?.locality,
-    loc.storefrontAddress?.administrativeArea,
+    ...(sa.addressLines || []),
+    sa.locality,
+    sa.administrativeArea,
+  ].filter(Boolean).join(', ');
+  const fullAddress = [
+    ...(sa.addressLines || []),
+    sa.locality,
+    sa.administrativeArea,
+    sa.postalCode,
+    sa.regionCode,
   ].filter(Boolean).join(', ');
 
   const hasHours = !!(loc.regularHours?.periods?.length);
@@ -283,11 +308,19 @@ function parseLocation(loc, accountName, brandDefs = []) {
     name:             title,
     brand,
     address,
+    fullAddress,
+    country:          sa.regionCode || null,
+    postalCode:       sa.postalCode || null,
+    phone:            loc.phoneNumbers?.primaryPhone || null,
+    website:          loc.websiteUri || null,
+    hours:            formatHours(loc.regularHours),
+    placeId:          loc.metadata?.placeId || null,
     rating:           null,
     totalReviews:     null,
     unansweredReviews: 0,
     hasHours,
     photoCount:       null,
+    primaryPhoto:     null,   // filled from the media fetch below (v7.9.71)
     health,
     flags,
     googleMapsUri:    loc.metadata?.mapsUri || null,

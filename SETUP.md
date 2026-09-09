@@ -5172,6 +5172,9 @@ Publishing a page directly in wp-admin never notified the Nest, so its approval 
 ### v7.9.67 — Nest-published blogs were unstyled: create_draft never set the post template
 A journal/blog post published via the Nest rendered with no template → unstyled. `handleCreateDraft` set title/body/meta/taxonomy but never the post template. Fix (config-driven, rule 12): `brandsConfig.<brand>.blogTemplate` (Bonbird = `bonbird-blog-post-template.php`, which the theme registers with `Template Post Type: post`), and create_draft now sets the REST `template` field from it — so every future Nest blog gets the styled template automatically. A brand without `blogTemplate` is unaffected (no template field sent). Verified against the theme header; node --check + genjob 22 green.
 
+### v7.9.71 — gbp-data: surface full venue fields (phone/website/hours/fullAddress/placeId + primaryPhoto URL)
+The /api/gbp-data summary dropped the phone/hours/website it already fetched and only counted photos. Added them to parseLocation + a formatHours() helper, and the media fetch now returns a primaryPhoto googleUrl (PROFILE → COVER → most recent). Cache bumped v9→v10 to invalidate the old summary. Enables a per-brand venue export (name/address/phone/hours/maps/photo).
+
 ### v7.9.70 — District One is takeout/delivery only (was mis-typed dine_in → venue copy implied dine-in)
 District One (Doha) is a dark kitchen (pickup/delivery, no seating), but config had it as `dine_in`, so regenerated venue copy implied dine-in and overwrote a human edit that had corrected it. Fixed the type to `dark_kitchen` in BOTH the live Blobs config (save_market) and the seed. Regenerated the live District One page (#47191) via update_content — now states "takeout and delivery only, no seating", no dine-in, no West Walk mentions, no halal; stayed published. (West Walk remains dine_in — correct.)
 
