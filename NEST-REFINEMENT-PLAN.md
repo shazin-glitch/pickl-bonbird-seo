@@ -81,6 +81,7 @@ Each phase is independently shippable and leaves the tool working. We do **one p
 - 0.2 ~~Schedule `onpage-audit-background` weekly~~ **DROPPED — wrong call.** `onpage-audit-background` hits the metered DataForSEO OnPage API and its own header says *"Manual trigger or monthly cron — NEVER weekly"* (cost; CLAUDE.md rule #5). The registry does not need a weekly paid crawl. **Instead:** Phase 1 seeds the live-page list from the **sitemap** (`/page-sitemap.xml` + `/post-sitemap.xml`, free, always current) and the GSC page list; the paid OnPage crawl stays **monthly** for audit depth only.
 - 0.3 ✅ **DONE — CEO scorecard delivered** (`BONBIRD-CEO-REPORT-2026-09-14.md` + shareable page) with per-page URLs, impressions/clicks/positions, verified live.
 - **Done when:** index-inspection fix is deployed and verified against a known-indexed page (e.g. `/pk/lahore/cue-cinemas/`); CEO has the numbers (done).
+- ✅ **STATUS: DONE (v7.9.73/74, live-verified 2026-09-14).** Index-inspection siteUrl fix shipped.
 
 ### Phase 1 — The spine: Page Inventory as source of truth (risk: LOW, additive · effort: M)
 *Goal: the tool knows what's actually live.*
@@ -88,6 +89,7 @@ Each phase is independently shippable and leaves the tool working. We do **one p
 - Enrich each page: `market` (via `marketForUrlAsync`), `pageType`, `indexed`/`robots` (a stray `noindex` like `/om/chicken-tenders/` should surface here the day it happens), `firstSeen`/`lastSeen`, and `nestCreated` (join approval records by URL).
 - Expose a read endpoint; nothing else changes yet.
 - **Done when:** the registry lists all ~198 live Bonbird pages with market + indexed status, including the ~190 the queue never knew about, and flags the noindex page automatically.
+- ✅ **STATUS: DONE (v7.9.73/74, live-verified 2026-09-14).** `pageRegistry:<brand>` built for both brands from sitemaps + GSC + approvals: **Bonbird 205 live pages**, **Pickl 224 across 7 markets**, correct market attribution + pageType, and `/om/chicken-tenders/` auto-flagged `noindex`. Endpoints: `page-registry-background` (builder, weekly via `cron-weekly-background`) + `/api/page-registry` (read/rebuild). KNOWN LIMITATION: only flags a noindex page the registry can *see* (in sitemap ∪ GSC ∪ approvals); a noindex page with no trace is invisible — a future config-vs-live cross-check (configured venues/products missing from the registry) would close that gap.
 
 ### Phase 2 — One attribution model + real trend (risk: MED · effort: M)
 *Goal: one number per question, and a per-page time-series.*
