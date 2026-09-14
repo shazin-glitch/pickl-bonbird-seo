@@ -21,7 +21,13 @@ exports.handler = async (event) => {
   const store = getStore({ name: 'seo-tool', siteID: process.env.NETLIFY_SITE_ID, token: process.env.NETLIFY_AUTH_TOKEN });
 
   if (event.httpMethod === 'GET') {
-    const brand = (event.queryStringParameters || {}).brand || 'pickl';
+    const qs = event.queryStringParameters || {};
+    const brand = qs.brand || 'pickl';
+    // ?snapshot=<YYYY-Www> → that week's per-page trend snapshot (Phase 2 series).
+    if (qs.snapshot) {
+      const snap = await store.get(`pageSnapshot:${brand}:${qs.snapshot}`, { type: 'json' }).catch(() => null);
+      return json(200, snap || { brand, week: qs.snapshot, pages: [], note: 'no snapshot for that week' });
+    }
     const data = await store.get(`pageRegistry:${brand}`, { type: 'json' }).catch(() => null);
     if (!data) return json(200, { brand, pages: [], summary: {}, builtAt: null, note: 'not built yet — POST to build' });
     return json(200, data);
