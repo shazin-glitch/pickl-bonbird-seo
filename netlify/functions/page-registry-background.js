@@ -35,6 +35,16 @@ function normUrl(u) {
 }
 function pathOf(u) { try { return new URL(u).pathname.toLowerCase(); } catch { return u; } }
 
+// ISO week key (YYYY-Www) so a same-week rerun overwrites rather than piling up docs.
+function isoWeek(d) {
+  const dt = new Date(Date.UTC(d.getUTCFullYear(), d.getUTCMonth(), d.getUTCDate()));
+  const day = (dt.getUTCDay() + 6) % 7;
+  dt.setUTCDate(dt.getUTCDate() - day + 3);
+  const firstThu = new Date(Date.UTC(dt.getUTCFullYear(), 0, 4));
+  const week = 1 + Math.round(((dt - firstThu) / 86400000 - 3 + ((firstThu.getUTCDay() + 6) % 7)) / 7);
+  return `${dt.getUTCFullYear()}-W${String(week).padStart(2, '0')}`;
+}
+
 // --- market attribution (same whole-segment token match as onpage-audit) ---
 function urlMatchesTokens(url, tokens) {
   if (!url || !tokens || !tokens.length) return false;
@@ -202,8 +212,15 @@ async function buildBrand(brand, store, token) {
   }
 
   await store.set(`pageRegistry:${brand}`, JSON.stringify({ brand, domain, builtAt: now, summary, pages }));
-  console.log(`${tag} ${pages.length} live pages (${summary.inSitemap} in sitemap, ${summary.withTraffic} with traffic, ${summary.noindexFlags} noindex, ${summary.nestCreated} nest-created)`);
-  return { brand, ...summary };
+
+  // Phase 2 (additive): per-page WEEKLY snapshot → the trend series the Monday view needs.
+  // Compact rows (url/clicks/impr/pos/market); keyed by ISO week so reruns overwrite.
+  const week = isoWeek(new Date());
+  const snap = pages.map(p => ({ u: p.url, m: p.market, c: p.clicks, i: p.impressions, p: p.position }));
+  await store.set(`pageSnapshot:${brand}:${week}`, JSON.stringify({ brand, week, builtAt: now, pages: snap }));
+
+  console.log(`${tag} ${pages.length} live pages (${summary.inSitemap} in sitemap, ${summary.withTraffic} with traffic, ${summary.noindexFlags} noindex, ${summary.nestCreated} nest-created) · snapshot ${week}`);
+  return { brand, week, ...summary };
 }
 
 exports.handler = async (event) => {
