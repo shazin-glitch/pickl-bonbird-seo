@@ -89,16 +89,25 @@ async function fetchText(url) {
   } catch { return null; }
 }
 function locs(xml) { return xml ? [...xml.matchAll(/<loc>\s*([^<\s]+)\s*<\/loc>/gi)].map(m => m[1]) : []; }
+// Parse <url> entries into {loc, lastmod} — Yoast stamps <lastmod> on every page, so
+// this gives us each page's modified date for free (drives the SEO event log).
+function urlEntries(xml) {
+  if (!xml) return [];
+  return [...xml.matchAll(/<url>([\s\S]*?)<\/url>/gi)].map(m => ({
+    loc:     (m[1].match(/<loc>\s*([^<\s]+)\s*<\/loc>/i) || [])[1] || null,
+    lastmod: (m[1].match(/<lastmod>\s*([^<\s]+)\s*<\/lastmod>/i) || [])[1] || null,
+  })).filter(e => e.loc);
+}
 
-async function collectSitemapUrls(domain) {
+// Returns Map(normUrl → lastmod|null).
+async function collectSitemap(domain) {
   const index = await fetchText(`https://${domain}/sitemap_index.xml`);
   const subs = locs(index).filter(u => /\.xml($|\?)/i.test(u));
-  const out = new Set();
+  const out = new Map();
   // If no index (some sites expose a flat sitemap.xml), fall back to that.
   const sitemaps = subs.length ? subs : [`https://${domain}/sitemap.xml`];
   for (const sm of sitemaps) {
-    const xml = await fetchText(sm);
-    for (const u of locs(xml)) { const n = normUrl(u); if (n) out.add(n); }
+    for (const e of urlEntries(await fetchText(sm))) { const n = normUrl(e.loc); if (n && !out.has(n)) out.set(n, e.lastmod); }
   }
   return out;
 }
@@ -132,13 +141,14 @@ async function buildBrand(brand, store, token) {
   if (!domain) { console.warn(`${tag} no domain`); return { error: 'no domain' }; }
   const site = (await gscPropertyFor(brand)) || `https://${domain}/`;
 
-  const [sitemapUrls, gscRes, marketsMap, nestUrls, prior] = await Promise.all([
-    collectSitemapUrls(domain),
+  const [sitemapMap, gscRes, marketsMap, nestUrls, prior] = await Promise.all([
+    collectSitemap(domain),
     token ? fetchGscPageOnly(site, token, { days: 90 }) : Promise.resolve({ rows: [] }),
     getMarketsForBrandAsync(brand),
     nestCreatedUrls(brand),
     store.get(`pageRegistry:${brand}`, { type: 'json' }).catch(() => null),
   ]);
+  const sitemapUrls = new Set(sitemapMap.keys());
 
   const marketSlugs = new Set(Object.values(marketsMap).map(m => m.marketSlug).filter(Boolean));
   const citySlugs = new Set();
@@ -195,6 +205,7 @@ async function buildBrand(brand, store, token) {
       position: g ? g.position : null,
       nestCreated: nestUrls.has(url),
       status,
+      lastmod: sitemapMap.get(url) || null,
       firstSeen: priorSeen.get(url) || now,
       lastSeen: now,
     };
@@ -220,6 +231,38 @@ async function buildBrand(brand, store, token) {
   const week = isoWeek(new Date());
   const snap = pages.map(p => ({ u: p.url, m: p.market, c: p.clicks, i: p.impressions, p: p.position }));
   await store.set(`pageSnapshot:${brand}:${week}`, JSON.stringify({ brand, week, builtAt: now, pages: snap }));
+
+  // Phase 7a (additive): SEO EVENT LOG — the "work done" side of the outcome loop.
+  // Detects work by diffing against the prior registry: a NEW content page = "published",
+  // a page whose sitemap lastmod ADVANCED = "edited" — capturing ALL work (manual WP edits
+  // AND Nest publishes) for free from the sitemap's <lastmod>. First run backfills our
+  // already-shipped pages so the Outcomes view isn't empty. Append-only, capped.
+  try {
+    const isContent = u => !/\/wp-content\//i.test(u) && !/\.(pdf|jpe?g|png|gif|webp|svg|zip|docx?|xlsx?|csv)(\?|$)/i.test(u);
+    const log = (await store.get(`seoEvents:${brand}`, { type: 'json' }).catch(() => null)) || { brand, events: [] };
+    const firstTime = !log.events.length;
+    const priorByUrl = new Map((prior?.pages || []).map(p => [p.url, p]));
+    const ev = [];
+    for (const p of pages) {
+      if (!isContent(p.url)) continue;
+      const pr = priorByUrl.get(p.url);
+      if (firstTime) {
+        // one-time seed: our shipped pages, dated by sitemap lastmod (the recent Nest work)
+        if (p.nestCreated) ev.push({ type: 'published', url: p.url, market: p.market, pageType: p.pageType, at: p.lastmod || p.firstSeen || now, nestCreated: true, backfill: true });
+      } else if (!pr) {
+        ev.push({ type: 'published', url: p.url, market: p.market, pageType: p.pageType, at: p.lastmod || now, nestCreated: p.nestCreated });
+      } else if (p.lastmod && pr.lastmod && p.lastmod > pr.lastmod) {
+        ev.push({ type: 'edited', url: p.url, market: p.market, pageType: p.pageType, at: p.lastmod, nestCreated: p.nestCreated });
+      }
+    }
+    if (ev.length) {
+      const seen = new Set(log.events.map(e => `${e.type}|${e.url}|${e.at}`));
+      for (const e of ev) { const k = `${e.type}|${e.url}|${e.at}`; if (!seen.has(k)) { log.events.push({ ...e, loggedAt: now }); seen.add(k); } }
+      log.events = log.events.slice(-1000);
+      await store.set(`seoEvents:${brand}`, JSON.stringify(log));
+      console.log(`${tag} logged ${ev.length} SEO event(s)${firstTime ? ' (first-run backfill)' : ''}`);
+    }
+  } catch (e) { console.warn(`${tag} event log failed:`, e.message); }
 
   console.log(`${tag} ${pages.length} live pages (${summary.inSitemap} in sitemap, ${summary.withTraffic} with traffic, ${summary.noindexFlags} noindex, ${summary.nestCreated} nest-created) · snapshot ${week}`);
   return { brand, week, ...summary };

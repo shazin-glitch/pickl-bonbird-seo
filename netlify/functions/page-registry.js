@@ -28,6 +28,11 @@ exports.handler = async (event) => {
       const snap = await store.get(`pageSnapshot:${brand}:${qs.snapshot}`, { type: 'json' }).catch(() => null);
       return json(200, snap || { brand, week: qs.snapshot, pages: [], note: 'no snapshot for that week' });
     }
+    // ?events=1 → the SEO work log (published/edited events) for the Outcomes view (Phase 7a).
+    if (qs.events) {
+      const log = await store.get(`seoEvents:${brand}`, { type: 'json' }).catch(() => null);
+      return json(200, log || { brand, events: [] });
+    }
     const data = await store.get(`pageRegistry:${brand}`, { type: 'json' }).catch(() => null);
     if (!data) return json(200, { brand, pages: [], summary: {}, builtAt: null, note: 'not built yet — POST to build' });
     return json(200, data);
