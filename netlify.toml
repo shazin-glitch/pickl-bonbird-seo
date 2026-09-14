@@ -194,6 +194,11 @@
   status = 200
 
 [[redirects]]
+  from = "/api/page-registry"
+  to = "/.netlify/functions/page-registry"
+  status = 200
+
+[[redirects]]
   from = "/api/business-priority"
   to = "/.netlify/functions/business-priority"
   status = 200

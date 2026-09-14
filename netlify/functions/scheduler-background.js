@@ -384,8 +384,12 @@ async function trackPublishedItems(brand, gscRows) {
   // Load GSC token for URL Inspection (fetchGscDirect already refreshed it earlier this run)
   const gscTokenData = await s.get('gscTokens', { type: 'json' }).catch(() => null);
   const gscToken     = gscTokenData?.access_token || null;
-  // URL Inspection siteUrl = the brand's domain-form property (config-driven).
-  const siteUrl      = ((BRANDS[brand] && BRANDS[brand].domain) || (await getBrand(brand))?.domain || '') + '/';
+  // URL Inspection siteUrl MUST be a verified GSC property. Use the brand's canonical
+  // gscProperty (handles both sc-domain: and https:// forms) — the domain-form fallback
+  // silently 403'd every Bonbird inspection because its property is sc-domain: (v7.9.73).
+  const siteUrl      = (BRANDS[brand] && BRANDS[brand].gsc)
+    || (await getBrand(brand))?.gscProperty
+    || (((BRANDS[brand] && BRANDS[brand].domain) || (await getBrand(brand))?.domain || '') + '/');
 
   // Get all approval items for this brand (prefix-scan via the shared queue — the
   // approvals:index blob was retired in P1.1; listApprovals already filters by brand).

@@ -34,5 +34,18 @@ exports.handler = async (event) => {
   } catch (e) {
     console.error('[cron-weekly] failed to fire scheduler-background:', e.message);
   }
-  return { statusCode: 200, body: JSON.stringify({ ok: true, fired: 'scheduler-background' }) };
+
+  // Rebuild the live-page registry (Phase 1). FREE sources only (sitemaps + GSC page
+  // list) — safe to run weekly, unlike the metered OnPage crawl.
+  console.log('[cron-weekly] firing page-registry-background (all brands)');
+  try {
+    await fetch(`${SITE}/.netlify/functions/page-registry-background`, {
+      method: 'POST', headers: internalHeaders({ 'Content-Type': 'application/json' }),
+      body: JSON.stringify({}),
+    });
+  } catch (e) {
+    console.error('[cron-weekly] failed to fire page-registry-background:', e.message);
+  }
+
+  return { statusCode: 200, body: JSON.stringify({ ok: true, fired: ['scheduler-background', 'page-registry-background'] }) };
 };
