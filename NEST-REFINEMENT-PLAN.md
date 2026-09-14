@@ -106,6 +106,7 @@ Each phase is independently shippable and leaves the tool working. We do **one p
 - **Surface `contentOutcomes`** (endpoint already exists) — close the loop.
 - Collapse the triple-stacked Rankings tab into this; fix/replace the dead PDF export.
 - **Done when:** you open one tab, pick Bonbird, and screenshot the CEO story.
+- ✅ **STATUS: DONE (v7.9.76, live-verified 2026-09-14).** New Analytics → **State of SEO** sub-tab (first tab), reads `pageRegistry` + `content-outcomes`. Bonbird view live-verified: tiles (205 pages / 46% indexable / 9,680 clicks / 8.7 avg pos / 1 noindex flag), by-market rollup, filtered page table. content-outcomes now surfaced in the UI (first time ever). Weekly trend deltas fill in from week 2 of snapshots.
 
 ### Phase 4 — Opportunities relevance gate (risk: LOW, isolated · effort: S–M)
 *Goal: the Opportunities tab stops lying.*
