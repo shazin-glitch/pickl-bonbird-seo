@@ -125,6 +125,7 @@ Each phase is independently shippable and leaves the tool working. We do **one p
 *Goal: findings become tracked work automatically.*
 - Cross-module → Perch hook: relevance-gated opportunities, GBP health flags, speed regressions, rejected approvals, and audit findings spawn tracked Perch tasks (impact×effort ranked; high-touch → Perch, low-touch → content queue).
 - **Done when:** nothing important lives only in a dashboard you have to remember to check.
+- ✅ **STATUS: DONE (v7.9.79/79c/79d, live-verified 2026-09-14).** `perch-sync-background` turns registry findings into tracked Perch tasks (noindex, missing-sitemap[0-impr], indexed-but-0-clicks[top-5, assets excluded], GBP gaps per non-UAE venue market, ranking drops[activate at 2+ snapshots]). Guardrails: dedup by `sourceId` (all statuses), 30/run cap, severity→priority. Chained off the registry build + fired weekly by `cron-weekly-background`. Slack `perch_autosync` ping per run **lists every task** (fires only on new work; verified `{sent:true}`). Board cleared + requeued clean (4 high + 10 medium). DEFERRED: curated top-keyword-target promotion. NOTE: dedup spans done tasks, so a fixed-then-regressed issue won't re-alert — switch to open-only dedup if regression alerts are wanted.
 
 ### Phase 7 — Consolidate & tidy (risk: LOW · effort: S)
 - Collapse 5 audit buttons → 1, 3 review surfaces → 1, 3 opportunity surfaces → 1 canonical each.
