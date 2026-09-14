@@ -112,6 +112,7 @@ Each phase is independently shippable and leaves the tool working. We do **one p
 *Goal: the Opportunities tab stops lying.*
 - Config-driven relevance: positive anchor from `cuisine`/`menuCategories`; merged vertical + brand `offMenu` negatives; treat `near me`/intent/location as **modifiers, not qualifiers**; run GSC candidates through the same gate; change the Claude gate from fail-open to fail-safe on obvious-noise batches.
 - **Done when:** "bowling near me" / "cafes near me" no longer appear for Bonbird, and the list reads like a fried-chicken growth list.
+- ✅ **STATUS: DONE (v7.9.77 + v7.9.78, live-verified 2026-09-14).** Removed intent/location tokens from `VERTICALS.restaurant`/`.cafe` roots + merged brand `offMenu` in `relevanceConfigFor`. Also un-trapped `keyword-discovery-background` (it had its own `schedule` → the on-demand regenerate was silently 403'd; now fired via the dispatcher, HTTP-invocable). Live regen: bad keywords 11→3, count 115→101, "bowling/cafes/cafeteria/breakfast/bbq near me" + "chicken salad near me" all gone; top opps now chicken-fry/burger-near-me/best-burger-dubai. Residual: one Arabic "diet restaurant near me" slipped the ARABIC path in competitor-matrix (accepts مطعم) — minor follow-up, same treatment as the EN gate.
 
 ### Phase 5 — Pipeline unification (risk: MED-HIGH · effort: M-L) — the existing P4
 *Goal: one brand×market pipeline.*
