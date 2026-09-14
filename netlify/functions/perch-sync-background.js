@@ -15,7 +15,9 @@
 
 const { store, getSetting, setSetting, newId, logAudit } = require('./_lib/store');
 const { getBrandSlugs } = require('./_lib/brands-config');
-const { authorizeJob } = require('./_lib/auth');
+const { authorizeJob, internalHeaders } = require('./_lib/auth');
+
+const SITE = process.env.URL || process.env.NETLIFY_URL || 'https://yolkseo.netlify.app';
 
 const MAX_NEW_PER_RUN = 30;   // never flood Perch in one run
 const MIN_IMPR_OPTIMIZE = 25; // "indexed but 0 clicks" only matters above some exposure
@@ -134,6 +136,20 @@ exports.handler = async (event) => {
   if (created.length) {
     await setSetting('perchIndex', index);
     await logAudit({ action: 'perch_autosync', actor: 'system', details: { created: created.length, brands } });
+    // ONE Slack summary per run (only when there's genuinely new work — dedup means a
+    // re-run with nothing new stays silent). Not per-task, so it's signal not spam.
+    try {
+      await fetch(`${SITE}/.netlify/functions/slack-notify`, {
+        method: 'POST', headers: internalHeaders({ 'Content-Type': 'application/json' }),
+        body: JSON.stringify({
+          type: 'perch_autosync',
+          created: created.length,
+          high: created.filter(t => t.priority === 'high').length,
+          medium: created.filter(t => t.priority === 'medium').length,
+          highlights: created.filter(t => t.priority === 'high').map(t => t.title).slice(0, 5),
+        }),
+      });
+    } catch (e) { console.warn('[perch-sync] slack notify failed:', e.message); }
   }
 
   console.log(`[perch-sync] candidates=${candidates.length} new=${created.length} (capped at ${MAX_NEW_PER_RUN})`);

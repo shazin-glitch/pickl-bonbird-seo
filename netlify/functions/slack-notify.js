@@ -50,6 +50,7 @@ exports.handler = async (event) => {
     else if (type === 'calendar_manual_reminder')   payload = buildCalendarManualReminder(body);
     else if (type === 'planner_run')         payload = buildPlannerRun(body);
     else if (type === 'draft_queued')        payload = buildDraftQueued(body);
+    else if (type === 'perch_autosync')      payload = buildPerchAutosync(body);
     else                                     payload = buildGeneric(body);
 
     const slackRes = await fetch(webhookUrl, {
@@ -428,6 +429,26 @@ function buildPlannerRun(body) {
       ...(queued > 0 ? [{ type: 'actions', elements: [{ type: 'button',
         text: { type: 'plain_text', text: 'Open Approvals →' }, style: 'primary',
         url: `${siteUrl || 'https://yolkseo.netlify.app'}/?tab=approvals` }] }] : []),
+    ],
+  };
+}
+
+// Perch auto-sync — ONE summary per run (not per task), so a batch of auto-created SEO
+// findings is a single useful ping, never spam. Only sent when new tasks were created.
+function buildPerchAutosync({ created = 0, high = 0, medium = 0, highlights = [] }) {
+  const head = `🪺 ${created} new SEO task${created !== 1 ? 's' : ''} added to The Perch`;
+  const bits = [];
+  if (high)   bits.push(`🔴 ${high} high`);
+  if (medium) bits.push(`🟡 ${medium} medium`);
+  const list = highlights.slice(0, 5).map(t => `• ${t}`).join('\n');
+  return {
+    text: head,
+    blocks: [
+      { type: 'header', text: { type: 'plain_text', text: head, emoji: true } },
+      { type: 'section', text: { type: 'mrkdwn', text: [bits.join('  ·  '), list].filter(Boolean).join('\n\n') || 'New tasks added.' } },
+      { type: 'context', elements: [{ type: 'mrkdwn', text: 'Auto-generated from live SEO findings (noindex, GBP gaps, pages to optimize).' }] },
+      { type: 'divider' },
+      { type: 'actions', elements: [{ type: 'button', text: { type: 'plain_text', text: 'Open The Perch →' }, style: 'primary', url: SITE_URL }] },
     ],
   };
 }
