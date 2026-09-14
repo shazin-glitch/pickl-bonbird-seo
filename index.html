@@ -970,7 +970,8 @@ body { font-family: var(--font-sans); background: var(--bg-base); color: var(--t
 
       <!-- Tab bar (shown when inside a section) -->
       <div class="admin-tabs" id="analytics-tabs" style="display:none;margin:0 0 0">
-        <button class="admin-tab active" data-atab="rankings" onclick="switchAnalyticsTab('rankings',this)">Rankings</button>
+        <button class="admin-tab active" data-atab="stateofseo" onclick="switchAnalyticsTab('stateofseo',this)">State of SEO</button>
+        <button class="admin-tab" data-atab="rankings" onclick="switchAnalyticsTab('rankings',this)">Rankings</button>
         <button class="admin-tab" data-atab="competitors" onclick="switchAnalyticsTab('competitors',this)">Competitors</button>
         <button class="admin-tab" data-atab="opportunities" onclick="switchAnalyticsTab('opportunities',this)">Opportunities</button>
         <button class="admin-tab" data-atab="backlinks" onclick="switchAnalyticsTab('backlinks',this)">Backlinks</button>
@@ -980,6 +981,10 @@ body { font-family: var(--font-sans); background: var(--bg-base); color: var(--t
       </div>
 
       <!-- RANKINGS TAB PANEL -->
+      <div id="atab-stateofseo" class="analytics-tab-panel" style="display:none">
+        <div id="stateofseo-content"><div style="padding:24px;color:var(--text-muted)">Loading…</div></div>
+      </div>
+
       <div id="atab-rankings" class="analytics-tab-panel" style="display:none">
 
         <!-- ── ORGANIC TRAFFIC BY MARKET (GSC) ─────────────────────────── -->
@@ -3468,6 +3473,7 @@ function switchAnalyticsTab(tab, btn) {
   const panel = document.getElementById('atab-' + tab);
   if (panel) panel.style.display = 'block';
   // Trigger data loads
+  if (tab === 'stateofseo')   loadStateOfSeo();
   if (tab === 'rankings')     { if (!gscLoaded) loadGscIfNeeded(); else renderGscTable(); initMtDates(); if (!mtState.loaded) loadMarketTraffic(); if (!rtState.loaded) loadRankTracker(); }
   if (tab === 'competitors')  { loadAuditHistory(); if (window.competitorMatrix?.init) window.competitorMatrix.init(); }
   if (tab === 'opportunities') loadKeywordOpportunities();
@@ -3511,6 +3517,91 @@ function renderAnalyticsCards() {
       <div style="font-size:12px;color:${c.color};font-weight:500;margin-bottom:6px">${c.sub}</div>
       <div style="font-size:11px;color:var(--text-muted)">${c.desc}</div>
     </div>`).join('');
+}
+
+// ── State of SEO (Phase 3 — the "Monday view"; NEST-REFINEMENT-PLAN) ─────────
+// One place that answers "what's live and is it working", per brand × market, off
+// the live-page registry (pageRegistry) + content outcomes. No triple-stack, one source.
+const sosState = { brand: null, market: 'all', data: null, outcomes: null };
+async function loadStateOfSeo() {
+  const brands = window.NEST_BRANDS || [];
+  if (!sosState.brand) sosState.brand = (brands[0] && brands[0].slug) || 'bonbird';
+  const el = document.getElementById('stateofseo-content');
+  if (el) el.innerHTML = '<div style="padding:24px;color:var(--text-muted)">Loading live-page registry…</div>';
+  try {
+    const [regRes, outRes] = await Promise.all([
+      fetch('/api/page-registry?brand=' + encodeURIComponent(sosState.brand), { credentials: 'include' }),
+      fetch('/api/content-outcomes?brand=' + encodeURIComponent(sosState.brand), { credentials: 'include' }).catch(() => null),
+    ]);
+    sosState.data = await regRes.json();
+    sosState.outcomes = (outRes && outRes.ok) ? await outRes.json() : null;
+  } catch (e) {
+    if (el) el.innerHTML = '<div style="padding:24px;color:var(--text-muted)">Could not load registry: ' + esc(e.message) + '</div>';
+    return;
+  }
+  renderStateOfSeo();
+}
+function sosSelectBrand(slug) { sosState.brand = slug; sosState.market = 'all'; loadStateOfSeo(); }
+function sosSelectMarket(m) { sosState.market = m; renderStateOfSeo(); }
+async function sosRebuild() {
+  await fetch('/api/page-registry', { method: 'POST', credentials: 'include', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ brand: sosState.brand }) });
+  const el = document.getElementById('stateofseo-content');
+  if (el) el.innerHTML = '<div style="padding:24px;color:var(--text-muted)">Rebuilding the registry (~1 min). <button onclick="loadStateOfSeo()" style="background:none;border:0;color:var(--accent);cursor:pointer;padding:0">Refresh</button> in a moment.</div>';
+}
+function renderStateOfSeo() {
+  const el = document.getElementById('stateofseo-content'); if (!el) return;
+  const d = sosState.data || {}, pages = d.pages || [], sum = d.summary || {};
+  const brands = window.NEST_BRANDS || [];
+  const brandTabs = brands.map(b => '<button class="admin-tab ' + (b.slug === sosState.brand ? 'active' : '') + '" onclick="sosSelectBrand(\'' + b.slug + '\')">' + esc(b.name) + '</button>').join('');
+  if (!d.builtAt) {
+    el.innerHTML = '<div class="admin-tabs" style="margin-bottom:16px">' + brandTabs + '</div><div style="padding:24px;color:var(--text-muted)">No registry built yet for this brand. <button onclick="sosRebuild()" style="background:none;border:0;color:var(--accent);cursor:pointer;padding:0">Build now</button> (~1 min).</div>';
+    return;
+  }
+  const markets = sum.byMarket || {}, mkKeys = Object.keys(markets).sort((a, b) => (markets[b].clicks || 0) - (markets[a].clicks || 0));
+  const totalClicks = pages.reduce((s, p) => s + (p.clicks || 0), 0);
+  const withImpr = pages.filter(p => p.position != null && p.impressions > 0);
+  const avgPos = withImpr.length ? withImpr.reduce((s, p) => s + p.position * p.impressions, 0) / withImpr.reduce((s, p) => s + p.impressions, 0) : 0;
+  const indexedPct = sum.total ? Math.round(100 * (sum.inSitemap || 0) / sum.total) : 0;
+  const tile = (v, l, c) => '<div class="card" style="padding:16px"><div style="font-size:26px;font-weight:700;line-height:1;' + (c ? 'color:' + c : '') + '">' + v + '</div><div style="font-size:12px;color:var(--text-muted);margin-top:6px">' + l + '</div></div>';
+  const tiles = '<div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(140px,1fr));gap:12px;margin:16px 0">'
+    + tile((sum.total || 0), 'live pages')
+    + tile(indexedPct + '%', 'in sitemap / indexable')
+    + tile(totalClicks.toLocaleString(), 'clicks · 90d')
+    + tile(avgPos ? avgPos.toFixed(1) : '—', 'avg position')
+    + tile((sum.noindexFlags || 0), 'noindex flags', (sum.noindexFlags > 0) ? '#dc2626' : '')
+    + '</div>';
+  const th = (h, r) => '<th style="text-align:' + (r ? 'right' : 'left') + ';padding:8px 10px;border-bottom:1px solid var(--border);font-size:11px;text-transform:uppercase;letter-spacing:.04em;color:var(--text-muted)">' + h + '</th>';
+  const td = (v, r) => '<td style="padding:8px 10px;border-bottom:1px solid var(--border);' + (r ? 'text-align:right;font-variant-numeric:tabular-nums' : '') + '">' + v + '</td>';
+  const rollup = '<table style="width:100%;border-collapse:collapse;font-size:13px;margin:8px 0 20px">'
+    + '<thead><tr>' + th('Market') + th('Pages', 1) + th('Clicks', 1) + th('Impressions', 1) + '</tr></thead><tbody>'
+    + mkKeys.map(k => '<tr>' + td(esc(k)) + td(markets[k].pages, 1) + td((markets[k].clicks || 0).toLocaleString(), 1) + td((markets[k].impressions || 0).toLocaleString(), 1) + '</tr>').join('')
+    + '</tbody></table>';
+  const mkChips = ['all'].concat(mkKeys).map(m => '<button class="admin-tab ' + (sosState.market === m ? 'active' : '') + '" onclick="sosSelectMarket(\'' + m + '\')">' + (m === 'all' ? 'All markets' : esc(m)) + '</button>').join('');
+  const stColor = s => ({ ranking: '#16a34a', indexed: '#2563eb', new: '#ea580c', noindex: '#dc2626' }[s] || 'var(--text-muted)');
+  const filtered = pages.filter(p => sosState.market === 'all' || p.market === sosState.market).slice(0, 400);
+  const rows = filtered.map(p => '<tr>'
+    + td('<a href="' + esc(p.url) + '" target="_blank" style="color:var(--accent);text-decoration:none">' + esc(p.url.replace(/^https?:\/\/[^/]+/, '')) + '</a>')
+    + td('<span style="color:var(--text-muted)">' + esc(p.pageType) + '</span>')
+    + td((p.impressions || 0).toLocaleString(), 1)
+    + td((p.clicks || 0).toLocaleString(), 1)
+    + td(p.position != null ? p.position : '—', 1)
+    + td('<span style="font-size:11px;font-weight:600;color:' + stColor(p.status) + '">' + esc(p.status) + '</span>')
+    + '</tr>').join('');
+  const pageTable = '<table style="width:100%;border-collapse:collapse;font-size:13px">'
+    + '<thead><tr>' + th('Page') + th('Type') + th('Impr', 1) + th('Clicks', 1) + th('Pos', 1) + th('Status') + '</tr></thead>'
+    + '<tbody>' + (rows || '<tr><td colspan="6" style="padding:16px;color:var(--text-muted)">No pages in this market</td></tr>') + '</tbody></table>';
+  let outHtml = '';
+  const ob = sosState.outcomes && sosState.outcomes[sosState.brand];
+  if (ob && ob.outcomes && ob.outcomes.length) {
+    const imp = ob.outcomes.filter(o => o.verdict === 'improved').length, dec = ob.outcomes.filter(o => o.verdict === 'declined').length;
+    outHtml = '<h3 style="font-size:13px;text-transform:uppercase;letter-spacing:.05em;color:var(--text-muted);margin:26px 0 8px">Content outcomes</h3>'
+      + '<div style="font-size:13px">' + imp + ' improved · ' + dec + ' declined · ' + ob.outcomes.length + ' measured <span style="color:var(--text-muted)">(vs position at publish)</span></div>';
+  }
+  el.innerHTML = '<div class="admin-tabs" style="margin-bottom:4px">' + brandTabs + '</div>'
+    + '<div style="font-size:11px;color:var(--text-muted);margin:6px 0 0">Live-page registry · built ' + esc(new Date(d.builtAt).toLocaleString()) + ' · <button onclick="sosRebuild()" style="background:none;border:0;color:var(--accent);cursor:pointer;padding:0;font-size:11px">rebuild</button></div>'
+    + tiles
+    + '<h3 style="font-size:13px;text-transform:uppercase;letter-spacing:.05em;color:var(--text-muted);margin:8px 0">By market</h3>' + rollup
+    + '<div class="admin-tabs" style="margin-bottom:8px">' + mkChips + '</div>' + pageTable + outHtml;
 }
 
 function updateDashboardMetrics() {

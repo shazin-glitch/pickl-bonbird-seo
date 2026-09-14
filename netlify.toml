@@ -199,6 +199,11 @@
   status = 200
 
 [[redirects]]
+  from = "/api/content-outcomes"
+  to = "/.netlify/functions/content-outcomes"
+  status = 200
+
+[[redirects]]
   from = "/api/business-priority"
   to = "/.netlify/functions/business-priority"
   status = 200
