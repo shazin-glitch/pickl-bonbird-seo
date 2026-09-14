@@ -14,7 +14,7 @@
 
 const { getStore } = require('@netlify/blobs');
 const { getGscAccessToken, fetchGscPageOnly } = require('./_lib/gsc');
-const { getMarketsForBrandAsync, getMarketPageTokens } = require('./_lib/international-config');
+const { getMarketsForBrandAsync, getMarketPageTokens, citiesForMarketAsync } = require('./_lib/international-config');
 const { getBrandSlugs, ownDomainFor, gscPropertyFor } = require('./_lib/brands-config');
 const { listApprovals } = require('./_lib/store');
 const { authorizeJob } = require('./_lib/auth');
@@ -52,7 +52,7 @@ function attributeMarket(url, markets) {
 const KNOWN = { order:'order', menu:'menu', locations:'locations', journal:'journal',
   franchise:'franchise', 'contact-us':'contact', philosophy:'philosophy', games:'games',
   'join-us':'careers', 'uae-menu':'menu', 'pakistan-menu':'menu' };
-function classify(url, marketSlugs) {
+function classify(url, marketSlugs, citySlugs) {
   const segs = pathOf(url).split('/').filter(Boolean);
   if (!segs.length) return 'home';
   if (KNOWN[segs[0]]) return KNOWN[segs[0]];
@@ -61,8 +61,8 @@ function classify(url, marketSlugs) {
     if (rest.length === 0) return 'market_home';
     if (KNOWN[rest[0]]) return KNOWN[rest[0]];
     if (rest[0] === 'journal') return 'journal';
-    if (rest.length === 1) return 'page';        // product/other single page under a market
-    if (rest.length === 2) return 'city_hub';
+    // market/{city}/ = city hub; market/{other}/ = a product/other page (config decides)
+    if (rest.length === 1) return citySlugs.has(rest[0]) ? 'city_hub' : 'product';
     return 'venue';                              // market/city/venue(/...)
   }
   return 'page';
@@ -129,6 +129,11 @@ async function buildBrand(brand, store, token) {
   ]);
 
   const marketSlugs = new Set(Object.values(marketsMap).map(m => m.marketSlug).filter(Boolean));
+  const citySlugs = new Set();
+  await Promise.all(Object.keys(marketsMap).map(async key => {
+    const cities = await citiesForMarketAsync(key).catch(() => []);
+    for (const c of (cities || [])) if (c && c.slug) citySlugs.add(String(c.slug).toLowerCase());
+  }));
   const gscByUrl = new Map();
   for (const r of (gscRes.rows || [])) { const n = normUrl(r.page); if (n) gscByUrl.set(n, r); }
   const priorSeen = new Map((prior?.pages || []).map(p => [p.url, p.firstSeen]));
@@ -137,14 +142,17 @@ async function buildBrand(brand, store, token) {
   // universe = everything we can see is live: sitemap ∪ GSC pages ∪ Nest-created URLs
   const universe = new Set([...sitemapUrls, ...gscByUrl.keys(), ...nestUrls]);
 
-  // confirm indexability by fetching robots ONLY where it's in doubt (not in sitemap but
-  // known to exist) — bounded. In-sitemap ⇒ indexable (Yoast excludes noindex).
-  const doubtful = [...universe].filter(u => !sitemapUrls.has(u));
+  // Confirm indexability by fetching robots ONLY where it's genuinely in doubt: a page
+  // missing from the sitemap AND absent from GSC (0 impressions). A page with impressions
+  // is obviously indexed (no fetch needed); an in-sitemap page is indexable (Yoast drops
+  // noindex from the sitemap). Nest-created pages checked first, bounded by the cap — this
+  // is what catches a stray noindex like /om/chicken-tenders/.
+  const candidates = [...universe].filter(u => !sitemapUrls.has(u) && !gscByUrl.has(u));
+  candidates.sort((a, b) => (nestUrls.has(b) ? 1 : 0) - (nestUrls.has(a) ? 1 : 0));
   const robotsMap = new Map();
   let fetched = 0;
-  for (const u of doubtful) {
+  for (const u of candidates) {
     if (fetched >= ROBOTS_FETCH_CAP) break;
-    if (!nestUrls.has(u) && !gscByUrl.has(u)) continue; // only spend fetches on pages that matter
     robotsMap.set(u, await robotsIndexable(u));
     fetched++;
   }
@@ -155,6 +163,7 @@ async function buildBrand(brand, store, token) {
     const rb = robotsMap.get(url);
     let indexable, indexNote;
     if (inSitemap) { indexable = true; indexNote = 'in-sitemap'; }
+    else if (g) { indexable = true; indexNote = 'has-impressions'; }
     else if (rb) { indexable = rb.indexable; indexNote = rb.status; }
     else { indexable = null; indexNote = 'unknown'; }
     const impressions = g ? g.impressions : 0;
@@ -167,7 +176,7 @@ async function buildBrand(brand, store, token) {
     return {
       url,
       market: attributeMarket(url, marketsMap),
-      pageType: classify(url, marketSlugs),
+      pageType: classify(url, marketSlugs, citySlugs),
       inSitemap,
       indexable, indexNote,
       impressions, clicks,
