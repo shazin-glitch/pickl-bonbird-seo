@@ -46,7 +46,9 @@ const VERTICALS = {
       'chicken', 'fried chicken', 'crispy chicken', 'broaster', 'nugget', 'tender', 'wing',
       'sando', 'sandwich', 'wrap', 'fries', 'shake', 'hot dog', 'meal', 'combo',
       'fast food', 'fast-food', 'halal food', 'plant based', 'plant-based', 'impossible burger',
-      'restaurant', 'delivery', 'dine', 'takeaway', 'takeout', 'near me',
+      // NB: generic intent/location tokens (restaurant, delivery, dine, takeaway, near me)
+      // are DELIBERATELY NOT roots — they let "bowling near me"/"cafes near me" through.
+      // A keyword must carry a product/food signal; location/intent only MODIFIES it. (v7.9.77)
       // Arabic / Urdu food roots
       'برغر', 'برجر', 'دجاج', 'ساندويتش', 'مطعم', 'وجبات', 'توصيل', 'فرايز',
     ],
@@ -73,7 +75,7 @@ const VERTICALS = {
       'americano', 'cortado', 'macchiato', 'mocha', 'cold brew', 'iced coffee',
       'matcha', 'tea', 'chai', 'pastry', 'croissant', 'bakery', 'cake', 'brunch',
       'breakfast', 'dessert', 'roastery', 'beans', 'specialty coffee', 'barista',
-      'coffee shop', 'delivery', 'near me', 'takeaway',
+      'coffee shop',   // intent/location tokens (delivery, near me, takeaway) are NOT roots (v7.9.77)
       // Arabic
       'قهوة', 'كافيه', 'مقهى', 'إسبريسو', 'لاتيه', 'كابتشينو', 'فطور', 'حلويات',
     ],
@@ -428,9 +430,15 @@ async function gbpIdsFor(slug) {
 }
 
 // The vertical relevance config for a brand (keyword-discovery vertical adaptation).
+// Merges the brand's OWN off-menu negatives into the vertical's, so brand-specific
+// off-brand terms (e.g. Bonbird's peri-peri/salad/catering) are filtered by the
+// opportunities engine too — not just the planner (rule #2). Positive roots stay from
+// the vertical; the returned offMenu is a fresh array (originals never mutated). (v7.9.77)
 async function relevanceConfigFor(slug) {
   const b = await getBrand(slug);
-  return getVertical(b ? b.vertical : 'restaurant');
+  const v = getVertical(b ? b.vertical : 'restaurant');
+  const brandOff = (b && Array.isArray(b.offMenu)) ? b.offMenu : [];
+  return brandOff.length ? { ...v, offMenu: [...(v.offMenu || []), ...brandOff] } : v;
 }
 
 module.exports = {
