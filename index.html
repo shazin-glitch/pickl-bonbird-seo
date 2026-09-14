@@ -970,7 +970,8 @@ body { font-family: var(--font-sans); background: var(--bg-base); color: var(--t
 
       <!-- Tab bar (shown when inside a section) -->
       <div class="admin-tabs" id="analytics-tabs" style="display:none;margin:0 0 0">
-        <button class="admin-tab active" data-atab="stateofseo" onclick="switchAnalyticsTab('stateofseo',this)">State of SEO</button>
+        <button class="admin-tab active" data-atab="outcomes" onclick="switchAnalyticsTab('outcomes',this)">Outcomes</button>
+        <button class="admin-tab" data-atab="stateofseo" onclick="switchAnalyticsTab('stateofseo',this)">State of SEO</button>
         <button class="admin-tab" data-atab="rankings" onclick="switchAnalyticsTab('rankings',this)">Rankings</button>
         <button class="admin-tab" data-atab="competitors" onclick="switchAnalyticsTab('competitors',this)">Competitors</button>
         <button class="admin-tab" data-atab="opportunities" onclick="switchAnalyticsTab('opportunities',this)">Opportunities</button>
@@ -981,6 +982,10 @@ body { font-family: var(--font-sans); background: var(--bg-base); color: var(--t
       </div>
 
       <!-- RANKINGS TAB PANEL -->
+      <div id="atab-outcomes" class="analytics-tab-panel" style="display:none">
+        <div id="outcomes-content"><div style="padding:24px;color:var(--text-muted)">Loading…</div></div>
+      </div>
+
       <div id="atab-stateofseo" class="analytics-tab-panel" style="display:none">
         <div id="stateofseo-content"><div style="padding:24px;color:var(--text-muted)">Loading…</div></div>
       </div>
@@ -3473,6 +3478,7 @@ function switchAnalyticsTab(tab, btn) {
   const panel = document.getElementById('atab-' + tab);
   if (panel) panel.style.display = 'block';
   // Trigger data loads
+  if (tab === 'outcomes')     loadOutcomes();
   if (tab === 'stateofseo')   loadStateOfSeo();
   if (tab === 'rankings')     { if (!gscLoaded) loadGscIfNeeded(); else renderGscTable(); initMtDates(); if (!mtState.loaded) loadMarketTraffic(); if (!rtState.loaded) loadRankTracker(); }
   if (tab === 'competitors')  { loadAuditHistory(); if (window.competitorMatrix?.init) window.competitorMatrix.init(); }
@@ -3517,6 +3523,71 @@ function renderAnalyticsCards() {
       <div style="font-size:12px;color:${c.color};font-weight:500;margin-bottom:6px">${c.sub}</div>
       <div style="font-size:11px;color:var(--text-muted)">${c.desc}</div>
     </div>`).join('');
+}
+
+// ── Outcomes (Phase 7 — "did our work produce results?"; NEST-REPORTING-PLAN) ─
+// The results lens: pages we published/edited (from the seoEvents log) joined to where
+// each stands now (registry). Position movement since ship fills in as weekly snapshots
+// accrue. Added alongside the existing tabs (consolidate later).
+const outState = { brand: null, registry: null, events: null };
+async function loadOutcomes() {
+  const brands = window.NEST_BRANDS || [];
+  if (!outState.brand) outState.brand = (brands[0] && brands[0].slug) || 'bonbird';
+  const el = document.getElementById('outcomes-content');
+  if (el) el.innerHTML = '<div style="padding:24px;color:var(--text-muted)">Loading outcomes…</div>';
+  try {
+    const b = encodeURIComponent(outState.brand);
+    const [reg, ev] = await Promise.all([
+      fetch('/api/page-registry?brand=' + b, { credentials: 'include' }).then(r => r.json()),
+      fetch('/api/page-registry?events=1&brand=' + b, { credentials: 'include' }).then(r => r.json()),
+    ]);
+    outState.registry = reg; outState.events = ev;
+  } catch (e) { if (el) el.innerHTML = '<div style="padding:24px;color:var(--text-muted)">Could not load: ' + esc(e.message) + '</div>'; return; }
+  renderOutcomes();
+}
+function outSelectBrand(s) { outState.brand = s; loadOutcomes(); }
+function renderOutcomes() {
+  const el = document.getElementById('outcomes-content'); if (!el) return;
+  const brands = window.NEST_BRANDS || [];
+  const brandTabs = brands.map(b => '<button class="admin-tab ' + (b.slug === outState.brand ? 'active' : '') + '" onclick="outSelectBrand(\'' + b.slug + '\')">' + esc(b.name) + '</button>').join('');
+  const events = (outState.events && outState.events.events) || [];
+  const pages = (outState.registry && outState.registry.pages) || [];
+  const byUrl = new Map(pages.map(p => [p.url, p]));
+  if (!events.length) {
+    el.innerHTML = '<div class="admin-tabs" style="margin-bottom:16px">' + brandTabs + '</div><div style="padding:24px;color:var(--text-muted)">No work logged yet. The event log records pages as they\'re published or edited (read from the sitemap) — it fills in from the next registry build. <button onclick="loadOutcomes()" style="background:none;border:0;color:var(--accent);cursor:pointer;padding:0">Refresh</button></div>';
+    return;
+  }
+  const items = [...events].sort((a, b) => new Date(b.at) - new Date(a.at)).map(e => {
+    const p = byUrl.get(e.url) || {};
+    return { ...e, pos: p.position != null ? p.position : null, clicks: p.clicks || 0, cur: p.status || null };
+  });
+  const shipped = items.length;
+  const ranking = items.filter(i => i.pos != null && i.pos <= 10).length;
+  const clicks = items.reduce((s, i) => s + (i.clicks || 0), 0);
+  const pub = items.filter(i => i.type === 'published').length;
+  const edi = items.filter(i => i.type === 'edited').length;
+  const tile = (v, l) => '<div class="card" style="padding:16px"><div style="font-size:26px;font-weight:700;line-height:1">' + v + '</div><div style="font-size:12px;color:var(--text-muted);margin-top:6px">' + l + '</div></div>';
+  const tiles = '<div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(140px,1fr));gap:12px;margin:16px 0">'
+    + tile(shipped, 'changes shipped') + tile(pub + ' / ' + edi, 'published / edited')
+    + tile(ranking, 'now ranking (top 10)') + tile(clicks.toLocaleString(), 'clicks they drive · 90d') + '</div>';
+  const byType = {};
+  items.forEach(i => { const t = i.pageType || 'page'; (byType[t] = byType[t] || { n: 0, rank: 0 }); byType[t].n++; if (i.pos != null && i.pos <= 10) byType[t].rank++; });
+  const seg = Object.entries(byType).sort((a, b) => b[1].n - a[1].n)
+    .map(([t, v]) => '<span style="display:inline-block;margin:0 16px 6px 0;font-size:13px"><b>' + esc(t) + '</b>: ' + v.rank + '/' + v.n + ' ranking</span>').join('');
+  const stColor = s => ({ ranking: '#16a34a', indexed: '#2563eb', new: '#ea580c', noindex: '#dc2626' }[s] || 'var(--text-muted)');
+  const th = (h, r) => '<th style="text-align:' + (r ? 'right' : 'left') + ';padding:8px 10px;border-bottom:1px solid var(--border);font-size:11px;text-transform:uppercase;letter-spacing:.04em;color:var(--text-muted)">' + h + '</th>';
+  const td = (v, r) => '<td style="padding:8px 10px;border-bottom:1px solid var(--border);' + (r ? 'text-align:right;font-variant-numeric:tabular-nums' : '') + '">' + v + '</td>';
+  const fmtDate = d => { try { return new Date(d).toLocaleDateString('en-GB', { day: 'numeric', month: 'short' }); } catch { return '—'; } };
+  const trs = items.slice(0, 200).map(i => '<tr>'
+    + td(fmtDate(i.at)) + td('<span style="color:var(--text-muted)">' + esc(i.type) + '</span>')
+    + td('<a href="' + esc(i.url) + '" target="_blank" style="color:var(--accent);text-decoration:none">' + esc(i.url.replace(/^https?:\/\/[^/]+/, '')) + '</a>')
+    + td(esc(i.market || '')) + td(i.pos != null ? i.pos : '—', 1) + td((i.clicks || 0).toLocaleString(), 1)
+    + td('<span style="font-size:11px;font-weight:600;color:' + stColor(i.cur) + '">' + esc(i.cur || '—') + '</span>') + '</tr>').join('');
+  el.innerHTML = '<div class="admin-tabs" style="margin-bottom:4px">' + brandTabs + '</div>'
+    + '<div style="font-size:12px;color:var(--text-muted);margin:6px 0 0">What our work produced — pages published/edited (detected from the sitemap) and where each stands now. Position movement since ship fills in as weekly snapshots accrue.</div>'
+    + tiles
+    + (seg ? '<h3 style="font-size:13px;text-transform:uppercase;letter-spacing:.05em;color:var(--text-muted);margin:8px 0">What\'s working</h3><div style="margin-bottom:16px">' + seg + '</div>' : '')
+    + '<table style="width:100%;border-collapse:collapse;font-size:13px"><thead><tr>' + th('Shipped') + th('Action') + th('Page') + th('Market') + th('Pos', 1) + th('Clicks', 1) + th('Status') + '</tr></thead><tbody>' + trs + '</tbody></table>';
 }
 
 // ── State of SEO (Phase 3 — the "Monday view"; NEST-REFINEMENT-PLAN) ─────────
