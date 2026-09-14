@@ -17,7 +17,9 @@ const { getGscAccessToken, fetchGscPageOnly } = require('./_lib/gsc');
 const { getMarketsForBrandAsync, getMarketPageTokens, citiesForMarketAsync } = require('./_lib/international-config');
 const { getBrandSlugs, ownDomainFor, gscPropertyFor } = require('./_lib/brands-config');
 const { listApprovals } = require('./_lib/store');
-const { authorizeJob } = require('./_lib/auth');
+const { authorizeJob, internalHeaders } = require('./_lib/auth');
+
+const SITE = process.env.URL || process.env.NETLIFY_URL || 'https://yolkseo.netlify.app';
 
 const ROBOTS_FETCH_CAP = 40; // bound live page fetches (noindex confirmation) for cost/time
 
@@ -237,5 +239,13 @@ exports.handler = async (event) => {
     try { results[brand] = await buildBrand(brand, store, token); }
     catch (e) { console.error(`[registry] ${brand} failed:`, e.message); results[brand] = { error: e.message }; }
   }
+
+  // Chain Perch sync (Phase 6) so findings become tracked tasks off the FRESH registry.
+  try {
+    await fetch(`${SITE}/.netlify/functions/perch-sync-background`, {
+      method: 'POST', headers: internalHeaders({ 'Content-Type': 'application/json' }), body: '{}',
+    });
+  } catch (e) { console.error('[registry] failed to fire perch-sync:', e.message); }
+
   return { statusCode: 200, headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ ok: true, gscConnected: !!token, results }) };
 };
