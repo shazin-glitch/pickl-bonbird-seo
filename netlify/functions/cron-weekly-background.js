@@ -47,5 +47,17 @@ exports.handler = async (event) => {
     console.error('[cron-weekly] failed to fire page-registry-background:', e.message);
   }
 
-  return { statusCode: 200, body: JSON.stringify({ ok: true, fired: ['scheduler-background', 'page-registry-background'] }) };
+  // Keyword discovery (Opportunities). Its own schedule was removed (403 trap broke the
+  // on-demand regenerate) — fire it here to keep the weekly refresh. Runs all brands.
+  console.log('[cron-weekly] firing keyword-discovery-background (all brands)');
+  try {
+    await fetch(`${SITE}/.netlify/functions/keyword-discovery-background`, {
+      method: 'POST', headers: internalHeaders({ 'Content-Type': 'application/json' }),
+      body: JSON.stringify({}),
+    });
+  } catch (e) {
+    console.error('[cron-weekly] failed to fire keyword-discovery-background:', e.message);
+  }
+
+  return { statusCode: 200, body: JSON.stringify({ ok: true, fired: ['scheduler-background', 'page-registry-background', 'keyword-discovery-background'] }) };
 };

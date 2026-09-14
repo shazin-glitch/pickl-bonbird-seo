@@ -292,8 +292,13 @@
 [functions."ai-overview-background"]
   schedule = "0 4 * * 1"
 
+# keyword-discovery-background — schedule DISABLED 2026-09-14 so it's HTTP-invocable on
+# demand (Netlify 403s any HTTP call to a scheduled function; that silently broke the
+# Opportunities "regenerate" POST → data only ever refreshed on the cron). Now fired
+# weekly by cron-weekly-background (dispatcher) via internalHeaders(), same pattern as
+# scheduler-background + page-registry. On-demand regenerate works now. (v7.9.78)
 [functions."keyword-discovery-background"]
-  schedule = "0 4 * * 1"
+  # schedule = "0 4 * * 1"   # OFF — fired by cron-weekly-background dispatcher instead
 
 # Weekly GBP + speed snapshots for monthly-report trend history — Mon 6am UTC (after the 4am jobs)
 [functions."snapshots-background"]
