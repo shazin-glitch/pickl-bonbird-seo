@@ -22,6 +22,9 @@ const MIN_IMPR_OPTIMIZE = 25; // "indexed but 0 clicks" only matters above some 
 const DROP_MIN = 3;           // positions dropped WoW to flag
 
 const pathOf = u => { try { return new URL(u).pathname; } catch { return u; } };
+// A real content page (not a PDF/image/asset or /wp-content/ upload) — assets aren't
+// "optimize the title/meta" candidates.
+const isContentPage = u => !/\/wp-content\//i.test(u) && !/\.(pdf|jpe?g|png|gif|webp|svg|zip|docx?|xlsx?|csv)(\?|$)/i.test(u);
 
 function findingsForBrand(reg) {
   const pages = (reg && reg.pages) || [];
@@ -32,14 +35,16 @@ function findingsForBrand(reg) {
       title: `Fix noindex — ${pathOf(p.url)}`,
       description: `${p.url}\n\nThis page is set to noindex, so Google can't index or rank it (it's also excluded from the sitemap). Set Yoast to "index" and request indexing in Search Console.` });
   }
-  // 2) missing from sitemap — our page is live but Google may never discover it
-  for (const p of pages.filter(x => x.nestCreated && !x.inSitemap && x.status !== 'noindex')) {
+  // 2) missing from sitemap — our page is live but Google may never discover it. ONLY
+  // flag when it also has zero impressions: a page with impressions is clearly discovered
+  // regardless of the sitemap (avoids false-positiving the homepage / high-traffic pages).
+  for (const p of pages.filter(x => x.nestCreated && !x.inSitemap && x.status !== 'noindex' && (x.impressions || 0) === 0)) {
     out.push({ priority: 'high', sourceId: `sitemap:${reg.brand}:${pathOf(p.url)}`,
       title: `Not in sitemap — ${pathOf(p.url)}`,
-      description: `${p.url}\n\nThis page is live but missing from the XML sitemap, so Google may not discover it. Confirm it's indexable and included in the sitemap.` });
+      description: `${p.url}\n\nThis page is live but missing from the XML sitemap and has no search impressions, so Google may not have discovered it. Confirm it's indexable and included in the sitemap, then request indexing.` });
   }
-  // 3) indexed but 0 clicks — ready for an optimization push (top by exposure)
-  const optz = pages.filter(x => x.status === 'indexed' && (x.clicks || 0) === 0 && (x.impressions || 0) >= MIN_IMPR_OPTIMIZE)
+  // 3) indexed but 0 clicks — ready for an optimization push (top real pages by exposure)
+  const optz = pages.filter(x => x.status === 'indexed' && (x.clicks || 0) === 0 && (x.impressions || 0) >= MIN_IMPR_OPTIMIZE && isContentPage(x.url))
     .sort((a, b) => b.impressions - a.impressions).slice(0, 5);
   for (const p of optz) {
     out.push({ priority: 'medium', sourceId: `optimize:${reg.brand}:${pathOf(p.url)}`,
