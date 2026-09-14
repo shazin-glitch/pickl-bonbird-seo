@@ -435,18 +435,27 @@ function buildPlannerRun(body) {
 
 // Perch auto-sync — ONE summary per run (not per task), so a batch of auto-created SEO
 // findings is a single useful ping, never spam. Only sent when new tasks were created.
-function buildPerchAutosync({ created = 0, high = 0, medium = 0, highlights = [] }) {
+function buildPerchAutosync({ created = 0, tasks = [] }) {
   const head = `🪺 ${created} new SEO task${created !== 1 ? 's' : ''} added to The Perch`;
-  const bits = [];
-  if (high)   bits.push(`🔴 ${high} high`);
-  if (medium) bits.push(`🟡 ${medium} medium`);
-  const list = highlights.slice(0, 5).map(t => `• ${t}`).join('\n');
+  const pr = p => (p === 'high' ? '🔴' : p === 'medium' ? '🟡' : '🟢');
+  const brandTag = b => (b === 'pickl' ? 'Pickl' : b === 'bonbird' ? 'Bonbird' : (b || ''));
+  // Every task listed (high first), split across sections so we never exceed Slack's
+  // 3000-char/section limit on a big batch.
+  const ordered = [...tasks].sort((a, b) => (a.priority === 'high' ? 0 : 1) - (b.priority === 'high' ? 0 : 1));
+  const lines = ordered.map(t => `${pr(t.priority)} *${t.title}*${t.brand ? `  _(${brandTag(t.brand)})_` : ''}`);
+  const sections = [];
+  let buf = '';
+  for (const ln of lines) {
+    if ((buf + '\n' + ln).length > 2800) { sections.push(buf); buf = ln; }
+    else buf = buf ? buf + '\n' + ln : ln;
+  }
+  if (buf) sections.push(buf);
   return {
     text: head,
     blocks: [
       { type: 'header', text: { type: 'plain_text', text: head, emoji: true } },
-      { type: 'section', text: { type: 'mrkdwn', text: [bits.join('  ·  '), list].filter(Boolean).join('\n\n') || 'New tasks added.' } },
-      { type: 'context', elements: [{ type: 'mrkdwn', text: 'Auto-generated from live SEO findings (noindex, GBP gaps, pages to optimize).' }] },
+      ...sections.map(s => ({ type: 'section', text: { type: 'mrkdwn', text: s } })),
+      { type: 'context', elements: [{ type: 'mrkdwn', text: 'Auto-generated weekly from live SEO findings (noindex, GBP gaps, pages to optimize, ranking drops).' }] },
       { type: 'divider' },
       { type: 'actions', elements: [{ type: 'button', text: { type: 'plain_text', text: 'Open The Perch →' }, style: 'primary', url: SITE_URL }] },
     ],

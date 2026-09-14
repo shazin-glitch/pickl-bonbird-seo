@@ -144,9 +144,7 @@ exports.handler = async (event) => {
         body: JSON.stringify({
           type: 'perch_autosync',
           created: created.length,
-          high: created.filter(t => t.priority === 'high').length,
-          medium: created.filter(t => t.priority === 'medium').length,
-          highlights: created.filter(t => t.priority === 'high').map(t => t.title).slice(0, 5),
+          tasks: created.map(t => ({ title: t.title, priority: t.priority, brand: t.brand })),
         }),
       });
     } catch (e) { console.warn('[perch-sync] slack notify failed:', e.message); }
