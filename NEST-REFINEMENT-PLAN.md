@@ -98,6 +98,7 @@ Each phase is independently shippable and leaves the tool working. We do **one p
 - Give the orphan `gbpSnapshot`/`speedSnapshot`/`onpageSnapshot` a reader.
 - Fix the `gscCache` dual-writer (25000-row `{rows,pages}` vs 500-row `{rows}` clobber).
 - **Done when:** a keyword shows ONE position everywhere; "how is Bonbird trending since we linked it" is answerable per page/market.
+- 🟡 **STATUS: additive slice DONE (v7.9.75, live-verified 2026-09-14).** Per-page weekly snapshot `pageSnapshot:<brand>:<YYYY-Www>` written by the registry builder (205 Bonbird rows, market-attributed) + read via `/api/page-registry?snapshot=<week>`. DEFERRED (the risky part): retiring the market-blind query-only path in `scheduler-background`/`content-outcomes` — do it when Phase 3 consumes the page-attributed model, so no surface breaks mid-flight.
 
 ### Phase 3 — The Monday view (risk: MED · effort: M) ← the headline deliverable
 *Goal: the single screen that answers "what happened + is it working," per brand × market, exportable.*
