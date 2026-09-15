@@ -3627,8 +3627,83 @@ function renderTrends() {
     + '<div id="tr-legend" class="tr-legend"></div>'
     + '<div style="overflow-x:auto"><svg id="tr-chart" viewBox="0 0 760 230" width="100%" style="min-width:560px;display:block"></svg></div>'
     + '<div class="tr-sec"><h3>By market — ' + trMonthLabel(latest.month) + ' vs ' + (prev ? trMonthLabel(prev.month) : '—') + '</h3><span class="line"></span></div>'
-    + '<div style="overflow-x:auto">' + trMarketTable(latest, prev) + '</div>';
-  trLegend(); trChart();
+    + '<div style="overflow-x:auto">' + trMarketTable(latest, prev) + '</div>'
+    + '<div class="tr-sec"><h3>Traffic value &amp; AI presence</h3><span class="line"></span></div><div id="tr-value" style="color:var(--text-muted);font-size:12px">Loading…</div>'
+    + '<div class="tr-sec"><h3>Position distribution</h3><span class="line"></span><span class="tag">non-branded keywords</span></div><div id="tr-dist" style="color:var(--text-muted);font-size:12px">Loading…</div>'
+    + '<div class="tr-sec"><h3>Rank movers this week</h3><span class="line"></span><span class="tag">tracked keywords · weekly Δ</span></div><div id="tr-movers" style="color:var(--text-muted);font-size:12px">Loading…</div>';
+  trLegend(); trChart(); trLoadExtras(trState.brand);
+}
+// Migrated from the Report tab (7c): position distribution + traffic value + AI presence
+// (from GSC rows + ai-overview/llm-mentions) and rank movers (from rank-tracker). Fetched
+// once per brand load; renders into stable containers so chart toggles don't refetch.
+function trLoadExtras(brand) {
+  fetch('/api/gsc-data', { method: 'POST', credentials: 'include', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ site_url: gscPropertyForBrand(brand) }) })
+    .then(r => r.json()).then(d => { if (trState.brand === brand) trRenderDist(brand, d.rows || []); }).catch(() => { const e = document.getElementById('tr-dist'); if (e) e.innerHTML = '<span style="color:var(--text-muted)">GSC data unavailable.</span>'; });
+  trLoadMovers(brand);
+  trLoadAI(brand);
+}
+function trRenderDist(brand, rows) {
+  const bt = brandTermsFor(brand).map(t => String(t).toLowerCase());
+  const nb = rows.filter(r => r.keyword && !bt.some(t => r.keyword.toLowerCase().includes(t)));
+  const bands = [['1–3', '#1e874b', r => r.position <= 3], ['4–10', '#2563a8', r => r.position > 3 && r.position <= 10], ['11–20', '#b45309', r => r.position > 10 && r.position <= 20], ['21–50', '#e8560d', r => r.position > 20 && r.position <= 50], ['51+', '#dc2626', r => r.position > 50]];
+  const counts = bands.map(b => nb.filter(b[2]).length);
+  const bar = '<div style="display:flex;height:24px;border-radius:8px;overflow:hidden;font-size:11px;font-weight:700;color:#fff">' + bands.map((b, i) => counts[i] ? '<div style="flex:' + counts[i] + ';background:' + b[1] + ';display:flex;align-items:center;justify-content:center;min-width:26px">' + counts[i] + '</div>' : '').join('') + '</div>';
+  const legend = '<div style="display:flex;gap:16px;flex-wrap:wrap;margin-top:10px;font-size:12px;color:var(--text-muted)">' + bands.map((b, i) => '<span><i style="display:inline-block;width:9px;height:9px;border-radius:2px;background:' + b[1] + ';margin-right:5px"></i>' + b[0] + ' <b style="color:var(--text-main)">' + counts[i] + '</b></span>').join('') + '</div>';
+  const dEl = document.getElementById('tr-dist'); if (dEl) dEl.innerHTML = nb.length ? bar + legend : '<span style="color:var(--text-muted)">No ranking keywords yet.</span>';
+  // traffic value (non-branded clicks × CPC, AED)
+  const AED = 3.67;
+  const tv = Math.round(nb.reduce((s, r) => s + (r.clicks || 0) * (r.cpc_aed != null ? r.cpc_aed : (r.cpc_usd != null ? r.cpc_usd * AED : 5)), 0));
+  const nbClicks = nb.reduce((s, r) => s + (r.clicks || 0), 0);
+  trState.value = { tv, nbClicks };
+  trRenderValue();
+}
+function trRenderValue() {
+  const el = document.getElementById('tr-value'); if (!el) return;
+  const v = trState.value || {}, ai = trState.ai || {};
+  const card = (n, l) => '<div class="card tr-kpi"><div class="n">' + n + '</div><div class="l">' + l + '</div></div>';
+  el.innerHTML = '<div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:12px">'
+    + card('AED ' + (v.tv != null ? v.tv.toLocaleString() : '—'), 'est. traffic value · 90d')
+    + card(v.nbClicks != null ? v.nbClicks.toLocaleString() : '—', 'non-branded clicks · 90d')
+    + card(ai.aio != null ? ai.aio + '%' : '—', 'keywords with AI Overview')
+    + card(ai.llm != null ? ai.llm : '—', 'AI assistant mentions')
+    + '</div>';
+}
+async function trLoadMovers(brand) {
+  const box = document.getElementById('tr-movers'); if (!box) return;
+  try {
+    const first = await fetch('/api/rank-tracker?brand=' + brand + '&market=uae', { credentials: 'include' }).then(r => r.json());
+    if (trState.brand !== brand) return;
+    const markets = (first.markets || [{ key: 'uae' }]).map(m => m.key).filter(k => k !== 'uae');
+    const rest = await Promise.all(markets.map(k => fetch('/api/rank-tracker?brand=' + brand + '&market=' + k, { credentials: 'include' }).then(r => r.json()).catch(() => null)));
+    if (trState.brand !== brand) return;
+    const all = [first, ...rest.filter(Boolean)];
+    const labelFor = {}; (first.markets || []).forEach(m => labelFor[m.key] = (m.flag || '') + ' ' + (m.label || m.key));
+    let nb = []; for (const d of all) (d.keywords || []).filter(k => !k.branded).forEach(k => nb.push({ ...k, market: d.market }));
+    const movers = nb.filter(k => k.delta != null && k.delta > 0).sort((a, b) => b.delta - a.delta).slice(0, 5);
+    const drops = nb.filter(k => k.delta != null && k.delta < 0).sort((a, b) => a.delta - b.delta).slice(0, 5);
+    const row = (k, up) => '<div style="display:flex;justify-content:space-between;gap:8px;padding:5px 0;font-size:12.5px;border-bottom:1px solid var(--border)"><span>' + esc(k.keyword) + ' <span style="color:var(--text-muted);font-size:10px">' + esc(labelFor[k.market] || k.market || '') + '</span></span><span style="white-space:nowrap;color:' + (up ? '#16a34a' : '#dc2626') + '">' + (up ? '▲' : '▼') + Math.abs(k.delta) + ' → #' + k.current + '</span></div>';
+    const col = (title, arr, up, empty) => '<div><div style="font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.05em;color:var(--text-muted);margin-bottom:8px">' + title + '</div>' + (arr.length ? arr.map(k => row(k, up)).join('') : '<div style="font-size:12px;color:var(--text-muted)">' + empty + '</div>') + '</div>';
+    box.innerHTML = '<div style="display:grid;grid-template-columns:1fr 1fr;gap:22px">' + col('▲ Top movers', movers, true, 'Awaiting a second weekly snapshot.') + col('▼ Needs attention', drops, false, 'No declines.') + '</div>';
+  } catch (e) { box.innerHTML = '<span style="color:var(--text-muted)">Rank tracker unavailable.</span>'; }
+}
+async function trLoadAI(brand) {
+  // AI presence — defensive on shape (fields verified live before relying on them).
+  try {
+    const [ao, lm] = await Promise.all([
+      fetch('/api/ai-overview?brand=' + brand, { credentials: 'include' }).then(r => r.json()).catch(() => null),
+      fetch('/api/llm-mentions?brand=' + brand, { credentials: 'include' }).then(r => r.json()).catch(() => null),
+    ]);
+    if (trState.brand !== brand) return;
+    trState.ai = {};
+    const aod = ao && ao[brand] && Array.isArray(ao[brand].data) ? ao[brand].data : null;
+    if (aod && aod.length) {
+      const hit = aod.filter(x => x && (x.triggered || x.present || x.hasAiOverview || x.ai_overview || x.appears)).length;
+      trState.ai.aio = Math.round(100 * hit / aod.length);
+    }
+    const lmd = lm && lm[brand] && lm[brand].latest ? lm[brand].latest : null;
+    if (lmd) { const m = lmd.mentions != null ? lmd.mentions : (lmd.totalMentions != null ? lmd.totalMentions : (lmd.score != null ? lmd.score : null)); if (m != null) trState.ai.llm = m; }
+    trRenderValue();
+  } catch (e) { /* leave AI cells as — */ }
 }
 function trSetWin(w, btn) { trState.win = w; if (btn) [...btn.parentNode.children].forEach(c => c.classList.toggle('on', c === btn)); trChart(); }
 function trToggle(k) { trState.active[k] = !trState.active[k]; trLegend(); trChart(); }
