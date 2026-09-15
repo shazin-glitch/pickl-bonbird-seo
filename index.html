@@ -3701,7 +3701,10 @@ async function trLoadAI(brand) {
       trState.ai.aio = Math.round(100 * hit / aod.length);
     }
     const lmd = lm && lm[brand] && lm[brand].latest ? lm[brand].latest : null;
-    if (lmd) { const m = lmd.mentions != null ? lmd.mentions : (lmd.totalMentions != null ? lmd.totalMentions : (lmd.score != null ? lmd.score : null)); if (m != null) trState.ai.llm = m; }
+    if (lmd && Array.isArray(lmd.results) && lmd.results.length) {
+      const men = lmd.results.filter(r => r && r.mentioned).length;
+      trState.ai.llm = men + ' / ' + lmd.results.length;
+    }
     trRenderValue();
   } catch (e) { /* leave AI cells as — */ }
 }
