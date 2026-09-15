@@ -59,5 +59,16 @@ exports.handler = async (event) => {
     console.error('[cron-weekly] failed to fire keyword-discovery-background:', e.message);
   }
 
-  return { statusCode: 200, body: JSON.stringify({ ok: true, fired: ['scheduler-background', 'page-registry-background', 'keyword-discovery-background'] }) };
+  // Monthly per-market organic trend (Phase 7c). FREE (GSC only) — refreshes recent months.
+  console.log('[cron-weekly] firing monthly-trend-background (all brands)');
+  try {
+    await fetch(`${SITE}/.netlify/functions/monthly-trend-background`, {
+      method: 'POST', headers: internalHeaders({ 'Content-Type': 'application/json' }),
+      body: JSON.stringify({}),
+    });
+  } catch (e) {
+    console.error('[cron-weekly] failed to fire monthly-trend-background:', e.message);
+  }
+
+  return { statusCode: 200, body: JSON.stringify({ ok: true, fired: ['scheduler-background', 'page-registry-background', 'keyword-discovery-background', 'monthly-trend-background'] }) };
 };

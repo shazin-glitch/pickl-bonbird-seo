@@ -33,6 +33,11 @@ exports.handler = async (event) => {
       const log = await store.get(`seoEvents:${brand}`, { type: 'json' }).catch(() => null);
       return json(200, log || { brand, events: [] });
     }
+    // ?monthly=1 → monthly per-market organic trend for the Trends tab (Phase 7c).
+    if (qs.monthly) {
+      const t = await store.get(`monthlyTrend:${brand}`, { type: 'json' }).catch(() => null);
+      return json(200, t || { brand, months: [] });
+    }
     const data = await store.get(`pageRegistry:${brand}`, { type: 'json' }).catch(() => null);
     if (!data) return json(200, { brand, pages: [], summary: {}, builtAt: null, note: 'not built yet — POST to build' });
     return json(200, data);
