@@ -3677,12 +3677,19 @@ function ocSeg() {
 }
 function ocAtt() {
   const d = ocWinData();
-  const nox = d.filter(x => x.status === 'noindex').length, drop = d.filter(x => x.delta != null && x.delta <= -1.5).length, stall = d.filter(x => x.status === 'indexed' && x.clicks === 0).length;
+  const nox = d.filter(x => x.status === 'noindex');
+  const drop = d.filter(x => x.delta != null && x.delta <= -1.5).sort((a, b) => a.delta - b.delta);
+  const stall = d.filter(x => x.status === 'indexed' && x.clicks === 0).sort((a, b) => b.pos - a.pos);
+  const links = (arr, extra) => arr.slice(0, 5).map(x => '<a href="' + esc(x.url) + '" target="_blank" onclick="event.stopPropagation()" style="display:block;color:var(--accent);text-decoration:none;font-size:12px;padding:1px 0">' + esc(x.url.replace(/^https?:\/\/[^/]+/, '')) + (extra ? extra(x) : '') + '</a>').join('')
+    + (arr.length > 5 ? '<div style="font-size:11px;color:var(--text-muted);margin-top:3px">+' + (arr.length - 5) + ' more</div>' : '');
+  const card = (cls, title, sub, body, filter) => '<div class="oc-attcard ' + cls + '"' + (filter ? ' style="cursor:pointer" title="Click to filter the table" onclick="ocSetStatus(\'' + filter + '\')"' : '') + '>'
+    + '<div style="font-size:13px;font-weight:700">' + title + '</div>'
+    + '<div style="font-size:12px;color:var(--text-muted);margin:3px 0 8px">' + sub + '</div>' + body + '</div>';
   const A = [];
-  if (nox) A.push(['', nox + ' page' + (nox > 1 ? 's' : '') + ' set to noindex', 'Blocked from Google — fix to let them rank.']);
-  if (drop) A.push(['warn', drop + ' ranking drop' + (drop > 1 ? 's' : '') + ' this week', 'Fell ≥1.5 positions — check for changes or new competition.']);
-  if (stall) A.push(['info', stall + ' indexed, earning no clicks', 'Getting impressions but no clicks — a title/meta or intent fix.']);
-  document.getElementById('oc-att').innerHTML = A.map(x => '<div class="oc-attcard ' + x[0] + '"><div style="font-size:13px;font-weight:700">' + x[1] + '</div><div style="font-size:12px;color:var(--text-muted);margin-top:3px">' + x[2] + '</div></div>').join('') || '<div style="color:var(--text-muted);font-size:13px;padding:2px">Nothing needs attention in this window.</div>';
+  if (nox.length) A.push(card('', nox.length + ' page' + (nox.length > 1 ? 's' : '') + ' set to noindex', 'Blocked from Google — flip to “index” in Yoast, then request indexing.', links(nox), 'noindex'));
+  if (drop.length) A.push(card('warn', drop.length + ' ranking drop' + (drop.length > 1 ? 's' : '') + ' this week', 'Fell ≥1.5 positions — check for changes or new competition.', links(drop, x => ' <span style="color:var(--text-muted)">▼' + Math.abs(x.delta).toFixed(1) + ' → #' + x.pos + '</span>'), ''));
+  if (stall.length) A.push(card('info', stall.length + ' indexed, earning no clicks', 'Shown by Google but no clicks — a title/meta or intent fix.', links(stall, x => ' <span style="color:var(--text-muted)">#' + (x.pos != null ? x.pos : '—') + '</span>'), 'indexed'));
+  document.getElementById('oc-att').innerHTML = A.join('') || '<div style="color:var(--text-muted);font-size:13px;padding:2px">Nothing needs attention in this window.</div>';
 }
 function ocFiltered() {
   let d = ocWinData();
