@@ -972,6 +972,7 @@ body { font-family: var(--font-sans); background: var(--bg-base); color: var(--t
       <div class="admin-tabs" id="analytics-tabs" style="display:none;margin:0 0 0">
         <button class="admin-tab active" data-atab="outcomes" onclick="switchAnalyticsTab('outcomes',this)">Outcomes</button>
         <button class="admin-tab" data-atab="stateofseo" onclick="switchAnalyticsTab('stateofseo',this)">State of SEO</button>
+        <button class="admin-tab" data-atab="trends" onclick="switchAnalyticsTab('trends',this)">Trends</button>
         <button class="admin-tab" data-atab="rankings" onclick="switchAnalyticsTab('rankings',this)">Rankings</button>
         <button class="admin-tab" data-atab="competitors" onclick="switchAnalyticsTab('competitors',this)">Competitors</button>
         <button class="admin-tab" data-atab="opportunities" onclick="switchAnalyticsTab('opportunities',this)">Opportunities</button>
@@ -988,6 +989,10 @@ body { font-family: var(--font-sans); background: var(--bg-base); color: var(--t
 
       <div id="atab-stateofseo" class="analytics-tab-panel" style="display:none">
         <div id="stateofseo-content"><div style="padding:24px;color:var(--text-muted)">Loading…</div></div>
+      </div>
+
+      <div id="atab-trends" class="analytics-tab-panel" style="display:none">
+        <div id="trends-content"><div style="padding:24px;color:var(--text-muted)">Loading…</div></div>
       </div>
 
       <div id="atab-rankings" class="analytics-tab-panel" style="display:none">
@@ -3480,6 +3485,7 @@ function switchAnalyticsTab(tab, btn) {
   // Trigger data loads
   if (tab === 'outcomes')     loadOutcomes();
   if (tab === 'stateofseo')   loadStateOfSeo();
+  if (tab === 'trends')       loadTrends();
   if (tab === 'rankings')     { if (!gscLoaded) loadGscIfNeeded(); else renderGscTable(); initMtDates(); if (!mtState.loaded) loadMarketTraffic(); if (!rtState.loaded) loadRankTracker(); }
   if (tab === 'competitors')  { loadAuditHistory(); if (window.competitorMatrix?.init) window.competitorMatrix.init(); }
   if (tab === 'opportunities') loadKeywordOpportunities();
@@ -3523,6 +3529,143 @@ function renderAnalyticsCards() {
       <div style="font-size:12px;color:${c.color};font-weight:500;margin-bottom:6px">${c.sub}</div>
       <div style="font-size:11px;color:var(--text-muted)">${c.desc}</div>
     </div>`).join('');
+}
+
+// ── Trends (Phase 7c — the CEO's month-on-month tracker; impressions-first, overall +
+// per market, toggle-compare). Reads monthlyTrend (backfilled from GSC). Added alongside
+// Rankings/Report (nothing retired). ────────────────────────────────────────────────
+const TR_PALETTE = ['#2563a8', '#e8560d', '#1e874b', '#b45309', '#7c3aed', '#0891b2', '#db2777', '#65a30d', '#c2410c'];
+const trState = { brand: null, data: null, win: 12, active: {} };
+let trStyled = false;
+function trEnsureStyles() {
+  if (trStyled) return; trStyled = true;
+  const s = document.createElement('style'); s.id = 'tr-styles';
+  s.textContent = [
+    '#trends-content .tr-kpis{display:grid;grid-template-columns:repeat(4,1fr);gap:12px;margin:16px 0}',
+    '#trends-content .tr-kpi{padding:15px 16px}',
+    '#trends-content .tr-kpi.hero{background:var(--accent);border-color:var(--accent)}',
+    '#trends-content .tr-kpi.hero .n,#trends-content .tr-kpi.hero .l,#trends-content .tr-kpi.hero .d{color:#fff}',
+    '#trends-content .tr-kpi .n{font-size:25px;font-weight:800;letter-spacing:-.02em;line-height:1;font-variant-numeric:tabular-nums}',
+    '#trends-content .tr-kpi .l{font-size:11.5px;color:var(--text-muted);margin-top:6px}',
+    '#trends-content .tr-kpi .d{font-size:11.5px;font-weight:700;margin-top:5px}',
+    '#trends-content .tr-sec{display:flex;align-items:center;gap:12px;margin:24px 0 12px}',
+    '#trends-content .tr-sec h3{font-family:var(--font-sans);font-weight:800;font-size:12px;text-transform:uppercase;letter-spacing:.08em;margin:0}',
+    '#trends-content .tr-sec .line{flex:1;height:1px;background:var(--border)}',
+    '#trends-content .tr-sec .tag{font-size:11px;color:var(--text-muted);font-style:italic}',
+    '#trends-content .tr-legend{display:flex;gap:8px;flex-wrap:wrap;margin:2px 0 14px}',
+    '#trends-content .tr-chip{display:inline-flex;align-items:center;gap:7px;border:1px solid var(--border);background:transparent;font:inherit;font-size:12px;font-weight:600;color:var(--text-muted);padding:6px 12px;border-radius:99px;cursor:pointer}',
+    '#trends-content .tr-chip .sw{width:10px;height:10px;border-radius:99px;opacity:.35}#trends-content .tr-chip.on .sw{opacity:1}',
+    '#trends-content .tr-chip.on{color:var(--text-main)}',
+    '#trends-content #tr-chart text{fill:var(--text-muted);font-size:11px}#trends-content #tr-chart .grid{stroke:var(--border);stroke-width:1}',
+    '#trends-content table.tr-tbl{width:100%;border-collapse:collapse;font-size:13px}',
+    '#trends-content .tr-tbl th{font-size:10.5px;text-transform:uppercase;letter-spacing:.05em;color:var(--text-muted);font-weight:700;text-align:right;padding:9px 8px;border-bottom:1px solid var(--border)}',
+    '#trends-content .tr-tbl th.l{text-align:left}',
+    '#trends-content .tr-tbl td{padding:9px 8px;border-bottom:1px solid var(--border);text-align:right;font-variant-numeric:tabular-nums}',
+    '#trends-content .tr-tbl td.l{text-align:left}#trends-content .tr-tbl tr:last-child td{border-bottom:0}',
+    '#trends-content .tr-win{display:inline-flex;gap:3px;background:rgba(128,128,128,.12);border-radius:9px;padding:3px}',
+    '#trends-content .tr-win button{border:0;background:none;font:inherit;font-size:12.5px;font-weight:600;color:var(--text-muted);padding:6px 12px;border-radius:7px;cursor:pointer}',
+    '#trends-content .tr-win button.on{background:var(--card-bg,rgba(128,128,128,.28));color:var(--text-main)}',
+  ].join('');
+  document.head.appendChild(s);
+}
+const trUp = 'color:#16a34a', trDown = 'color:#dc2626';
+function trMonthLabel(ym) { const p = (ym || '').split('-'); if (p.length < 2) return ym; return ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'][+p[1] - 1] + " '" + p[0].slice(2); }
+function trFmtK(n) { return n >= 1000 ? (n / 1000).toFixed(n >= 10000 ? 0 : 1) + 'K' : String(n); }
+function trPct(cur, prev) { if (!prev) return null; return Math.round(100 * (cur - prev) / prev); }
+function trDelta(cur, prev) { const p = trPct(cur, prev); if (p == null) return ''; return '<span style="' + (p >= 0 ? trUp : trDown) + '">' + (p >= 0 ? '▲' : '▼') + Math.abs(p) + '% MoM</span>'; }
+
+async function loadTrends() {
+  trEnsureStyles();
+  const brands = window.NEST_BRANDS || [];
+  if (!trState.brand) trState.brand = (brands[0] && brands[0].slug) || 'bonbird';
+  const el = document.getElementById('trends-content');
+  if (el) el.innerHTML = '<div style="padding:24px;color:var(--text-muted)">Loading monthly trend…</div>';
+  try {
+    trState.data = await fetch('/api/page-registry?monthly=1&brand=' + encodeURIComponent(trState.brand), { credentials: 'include' }).then(r => r.json());
+  } catch (e) { if (el) el.innerHTML = '<div style="padding:24px;color:var(--text-muted)">Could not load: ' + esc(e.message) + '</div>'; return; }
+  // default active series: Total + top-3 markets by latest impressions
+  const months = trState.data.months || [];
+  const keys = trMarketKeys(months);
+  const last = months[months.length - 1] || { byMarket: {} };
+  const top = keys.slice().sort((a, b) => (last.byMarket[b]?.impressions || 0) - (last.byMarket[a]?.impressions || 0)).slice(0, 3);
+  trState.active = { __total: true }; top.forEach(k => trState.active[k] = true); keys.forEach(k => { if (!(k in trState.active)) trState.active[k] = false; });
+  renderTrends();
+}
+function trSelectBrand(s) { trState.brand = s; trState.active = {}; loadTrends(); }
+function trMarketKeys(months) { const set = new Set(); months.forEach(m => Object.keys(m.byMarket || {}).forEach(k => set.add(k))); return [...set]; }
+function trWinMonths() { const m = trState.data.months || []; return m.slice(-trState.win); }
+
+function renderTrends() {
+  const el = document.getElementById('trends-content'); if (!el) return;
+  const brands = window.NEST_BRANDS || [];
+  const brandTabs = brands.map(b => '<button class="admin-tab ' + (b.slug === trState.brand ? 'active' : '') + '" onclick="trSelectBrand(\'' + b.slug + '\')">' + esc(b.name) + '</button>').join('');
+  const allMonths = trState.data.months || [];
+  if (!allMonths.length) {
+    el.innerHTML = '<div class="admin-tabs" style="margin-bottom:16px">' + brandTabs + '</div><div style="padding:24px;color:var(--text-muted)">No monthly data yet — it backfills from Search Console on the next run. <button onclick="loadTrends()" style="background:none;border:0;color:var(--accent);cursor:pointer;padding:0">Refresh</button></div>';
+    return;
+  }
+  const nowYM = new Date().toISOString().slice(0, 7);
+  const partial = allMonths[allMonths.length - 1].month === nowYM;
+  const complete = partial ? allMonths.slice(0, -1) : allMonths;
+  const latest = complete[complete.length - 1] || allMonths[allMonths.length - 1];
+  const prev = complete[complete.length - 2];
+  const lt = latest.total, pt = prev ? prev.total : null;
+  const winBtn = w => '<button class="' + (trState.win === w ? 'on' : '') + '" onclick="trSetWin(' + w + ',this)">' + w + ' months</button>';
+  const kpi = (cls, n, l, d) => '<div class="card tr-kpi ' + cls + '"><div class="n">' + n + '</div><div class="l">' + l + '</div>' + (d ? '<div class="d">' + d + '</div>' : '') + '</div>';
+  el.innerHTML =
+    '<div class="admin-tabs" style="margin-bottom:6px">' + brandTabs + '</div>'
+    + '<div style="display:flex;justify-content:space-between;align-items:center;gap:12px;flex-wrap:wrap;margin:4px 0 0">'
+    + '<div style="font-size:12px;color:var(--text-muted)">Organic search, month on month · latest complete month <b>' + trMonthLabel(latest.month) + '</b>' + (partial ? ' · ' + trMonthLabel(nowYM) + ' in progress' : '') + '</div>'
+    + '<div class="tr-win">' + winBtn(6) + winBtn(12) + '</div></div>'
+    + '<div class="tr-kpis">'
+    + kpi('hero', trFmtK(lt.impressions), 'Impressions · ' + trMonthLabel(latest.month), pt ? trDelta(lt.impressions, pt.impressions) : '')
+    + kpi('', lt.clicks.toLocaleString(), 'Clicks', pt ? trDelta(lt.clicks, pt.clicks) : '')
+    + kpi('', lt.position != null ? lt.position : '—', 'Avg position', (pt && pt.position != null && lt.position != null) ? '<span style="' + (lt.position <= pt.position ? trUp : trDown) + '">' + (lt.position <= pt.position ? '▲' : '▼') + ' from ' + pt.position + '</span>' : '')
+    + kpi('', trMarketKeys(allMonths).length, 'markets tracked', '')
+    + '</div>'
+    + '<div class="tr-sec"><h3>Organic impressions, month on month</h3><span class="line"></span><span class="tag">toggle markets to compare</span></div>'
+    + '<div id="tr-legend" class="tr-legend"></div>'
+    + '<div style="overflow-x:auto"><svg id="tr-chart" viewBox="0 0 760 230" width="100%" style="min-width:560px;display:block"></svg></div>'
+    + '<div class="tr-sec"><h3>By market — ' + trMonthLabel(latest.month) + ' vs ' + (prev ? trMonthLabel(prev.month) : '—') + '</h3><span class="line"></span></div>'
+    + '<div style="overflow-x:auto">' + trMarketTable(latest, prev) + '</div>';
+  trLegend(); trChart();
+}
+function trSetWin(w, btn) { trState.win = w; if (btn) [...btn.parentNode.children].forEach(c => c.classList.toggle('on', c === btn)); trChart(); }
+function trToggle(k) { trState.active[k] = !trState.active[k]; trLegend(); trChart(); }
+function trSeriesColor(k, keys) { return k === '__total' ? 'var(--text-main)' : TR_PALETTE[keys.indexOf(k) % TR_PALETTE.length]; }
+function trLegend() {
+  const keys = trMarketKeys(trState.data.months || []);
+  const chip = (k, label) => '<button class="tr-chip ' + (trState.active[k] ? 'on' : '') + '" onclick="trToggle(\'' + k + '\')" style="' + (trState.active[k] ? 'border-color:' + trSeriesColor(k, keys) : '') + '"><span class="sw" style="background:' + trSeriesColor(k, keys) + '"></span>' + label + '</button>';
+  document.getElementById('tr-legend').innerHTML = chip('__total', 'Total') + keys.map(k => chip(k, ocMkt(k))).join('');
+}
+function trChart() {
+  const svg = document.getElementById('tr-chart'); if (!svg) return;
+  const months = trWinMonths(); const keys = trMarketKeys(trState.data.months || []);
+  const x0 = 44, yTop = 12, cw = 760 - x0 - 14, ch = 230 - yTop - 28, yB = yTop + ch, n = months.length;
+  const series = [];
+  if (trState.active.__total) series.push({ k: '__total', vals: months.map(m => m.total.impressions) });
+  keys.forEach(k => { if (trState.active[k]) series.push({ k, vals: months.map(m => (m.byMarket[k] ? m.byMarket[k].impressions : 0)) }); });
+  const maxV = Math.max(1, ...series.flatMap(s => s.vals));
+  const niceMax = Math.ceil(maxV / 10000) * 10000 || 10000;
+  const X = i => x0 + (n <= 1 ? cw / 2 : i / (n - 1) * cw), Y = v => yTop + (1 - v / niceMax) * ch;
+  let g = '';
+  for (let t = 0; t <= 4; t++) { const val = niceMax * t / 4, y = Y(val); g += '<line class="grid" x1="' + x0 + '" y1="' + y + '" x2="' + (x0 + cw) + '" y2="' + y + '"/><text x="' + (x0 - 8) + '" y="' + (y + 3) + '" text-anchor="end">' + trFmtK(val) + '</text>'; }
+  const step = n > 8 ? 2 : 1;
+  months.forEach((m, i) => { if (i % step === 0 || i === n - 1) g += '<text x="' + X(i) + '" y="' + (yB + 16) + '" text-anchor="middle">' + trMonthLabel(m.month) + '</text>'; });
+  series.forEach(s => { const c = trSeriesColor(s.k, keys); const pts = s.vals.map((v, i) => X(i) + ',' + Y(v)).join(' '); g += '<polyline points="' + pts + '" style="fill:none;stroke:' + c + ';stroke-width:' + (s.k === '__total' ? 2.6 : 1.8) + '"/>'; s.vals.forEach((v, i) => { g += '<circle cx="' + X(i) + '" cy="' + Y(v) + '" r="2.4" style="fill:' + c + '"/>'; }); });
+  svg.innerHTML = g;
+}
+function trMarketTable(latest, prev) {
+  const keys = trMarketKeys(trState.data.months || []).sort((a, b) => (latest.byMarket[b]?.impressions || 0) - (latest.byMarket[a]?.impressions || 0));
+  const th = (h, r) => '<th' + (r ? '' : ' class="l"') + '>' + h + '</th>';
+  const td = (v, r) => '<td' + (r ? '' : ' class="l"') + '>' + v + '</td>';
+  const rows = keys.map(k => {
+    const c = latest.byMarket[k] || { impressions: 0, clicks: 0, position: null };
+    const p = prev ? (prev.byMarket[k] || { impressions: 0 }) : null;
+    return '<tr>' + td(esc(ocMkt(k))) + td((c.impressions || 0).toLocaleString(), 1) + td(p ? trDelta(c.impressions, p.impressions) || '—' : '—', 1)
+      + td((c.clicks || 0).toLocaleString(), 1) + td(c.position != null ? c.position : '—', 1) + '</tr>';
+  }).join('');
+  return '<table class="tr-tbl"><thead><tr>' + th('Market') + th('Impressions', 1) + th('MoM', 1) + th('Clicks', 1) + th('Avg pos', 1) + '</tr></thead><tbody>' + rows + '</tbody></table>';
 }
 
 // ── Outcomes (Phase 7 — "did our work produce results?"; NEST-REPORTING-PLAN) ─
