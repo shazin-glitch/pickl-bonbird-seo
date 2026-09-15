@@ -53,7 +53,18 @@ function findingsForBrand(reg) {
       title: `Optimize — ${pathOf(p.url)} (${p.impressions} impr, 0 clicks)`,
       description: `${p.url}\n\nIndexed and shown ${p.impressions}× in 90 days but earning no clicks (avg position ${p.position != null ? p.position : 'n/a'}). Improve the title/meta or search-intent match, or push the ranking.` });
   }
-  // 4) local GBP gaps — non-UAE markets with venue pages need Google Business Profiles
+  // 4) CTR gap (7d) — ranks page-one with real impressions but few clicks = a title/meta
+  // problem, not a ranking one. Requires clicks>=1 (0-click pages are the "optimize" finding
+  // above) so the two don't double-flag the same page.
+  const ctr = pages.filter(x => x.status !== 'noindex' && x.position != null && x.position <= 10 && (x.impressions || 0) >= 200 && (x.clicks || 0) >= 1 && (x.clicks / x.impressions) < 0.02 && isContentPage(x.url))
+    .sort((a, b) => b.impressions - a.impressions).slice(0, 5);
+  for (const p of ctr) {
+    const rate = (p.clicks / p.impressions * 100).toFixed(1);
+    out.push({ priority: 'medium', sourceId: `ctr:${reg.brand}:${pathOf(p.url)}`,
+      title: `Low CTR — ${pathOf(p.url)} (#${p.position}, ${rate}%)`,
+      description: `${p.url}\n\nRanks #${p.position} with ${(p.impressions || 0).toLocaleString()} impressions but only ${p.clicks} clicks (${rate}% CTR). A page ranking this high should earn more clicks — rewrite the title tag and meta description to be more compelling and better match search intent.` });
+  }
+  // 5) local GBP gaps — non-UAE markets with venue pages need Google Business Profiles
   const venMarkets = [...new Set(pages.filter(x => x.pageType === 'venue' && x.market && x.market !== 'uae').map(x => x.market))];
   for (const m of venMarkets) {
     out.push({ priority: 'high', sourceId: `gbp:${reg.brand}:${m}`,
