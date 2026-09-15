@@ -3526,69 +3526,200 @@ function renderAnalyticsCards() {
 }
 
 // ── Outcomes (Phase 7 — "did our work produce results?"; NEST-REPORTING-PLAN) ─
-// The results lens: pages we published/edited (from the seoEvents log) joined to where
-// each stands now (registry). Position movement since ship fills in as weekly snapshots
-// accrue. Added alongside the existing tabs (consolidate later).
-const outState = { brand: null, registry: null, events: null };
+// Polished, scale-ready: summary → attention → detail. Reads the seoEvents work log
+// joined to the registry (current perf) + the last two weekly snapshots (position Δ).
+// Rolls hundreds of pages into segment summaries you drill into; the full list is
+// searchable / status-filterable / sortable / paginated. Styling injected once.
+const OC_PER = 12;
+const outState = { brand: null, all: [], delta: new Map(), win: 90, grp: 'market', status: '', q: '', sort: 'clicks', dir: -1, page: 0, openSeg: null };
+const OC_STMAP = { ranking: ['rank', 'Ranking'], indexed: ['idx', 'Indexed'], new: ['new', 'New'], noindex: ['fix', 'Noindex'] };
+function ocMkt(k) { return k === 'uae' ? 'UAE' : (k || '').replace(/^[a-z]+_/, '').split(/[-_]/).map(w => w.charAt(0).toUpperCase() + w.slice(1)).join(' ') || '—'; }
+function ocTy(t) { return (t || 'page').split(/[-_]/).map(w => w.charAt(0).toUpperCase() + w.slice(1)).join(' '); }
+function ocIsoWeek(d) { const t = new Date(Date.UTC(d.getUTCFullYear(), d.getUTCMonth(), d.getUTCDate())); const day = (t.getUTCDay() + 6) % 7; t.setUTCDate(t.getUTCDate() - day + 3); const f = new Date(Date.UTC(t.getUTCFullYear(), 0, 4)); const w = 1 + Math.round(((t - f) / 864e5 - 3 + ((f.getUTCDay() + 6) % 7)) / 7); return t.getUTCFullYear() + '-W' + String(w).padStart(2, '0'); }
+function ocEnsureStyles() {
+  if (document.getElementById('oc-styles')) return;
+  const s = document.createElement('style'); s.id = 'oc-styles';
+  s.textContent = [
+    '#outcomes-content .oc-seg-toggle,#outcomes-content .oc-win{display:inline-flex;gap:3px;background:rgba(128,128,128,.12);border-radius:9px;padding:3px}',
+    '#outcomes-content .oc-win button,#outcomes-content .oc-seg-toggle button{border:0;background:none;font:inherit;font-size:12.5px;font-weight:600;color:var(--text-muted);padding:6px 12px;border-radius:7px;cursor:pointer}',
+    '#outcomes-content .oc-win button.on,#outcomes-content .oc-seg-toggle button.on{background:var(--card-bg,rgba(128,128,128,.28));color:var(--text-main)}',
+    '#outcomes-content .oc-kpis{display:grid;grid-template-columns:repeat(4,1fr);gap:12px;margin:16px 0 4px}',
+    '#outcomes-content .oc-kpi .n{font-size:27px;font-weight:800;letter-spacing:-.02em;line-height:1;font-variant-numeric:tabular-nums}',
+    '#outcomes-content .oc-kpi .l{font-size:12px;color:var(--text-muted);margin-top:7px}',
+    '#outcomes-content .oc-kpi .d{font-size:11.5px;font-weight:700;margin-top:5px}',
+    '#outcomes-content .oc-sec{display:flex;align-items:center;gap:12px;margin:26px 0 12px}',
+    '#outcomes-content .oc-sec h3{font-size:12px;font-weight:800;text-transform:uppercase;letter-spacing:.08em;margin:0;color:var(--text-main)}',
+    '#outcomes-content .oc-sec .line{flex:1;height:1px;background:var(--border)}',
+    '#outcomes-content .oc-segrow{display:grid;grid-template-columns:170px 1fr 92px 88px 30px;align-items:center;gap:14px;padding:12px 14px;border-bottom:1px solid var(--border);cursor:pointer}',
+    '#outcomes-content .oc-segrow:last-child{border-bottom:0}',
+    '#outcomes-content .oc-segrow:hover,#outcomes-content .oc-segrow.open{background:rgba(128,128,128,.06)}',
+    '#outcomes-content .oc-segname{font-weight:700;font-size:14px}',
+    '#outcomes-content .oc-segname small{display:block;font-weight:400;font-size:11px;color:var(--text-muted);margin-top:1px}',
+    '#outcomes-content .oc-stack{height:10px;border-radius:99px;background:rgba(128,128,128,.18);display:flex;overflow:hidden}',
+    '#outcomes-content .oc-stack i{display:block;height:100%}',
+    '#outcomes-content .oc-chev{color:var(--text-muted);text-align:center;transition:transform .15s}',
+    '#outcomes-content .oc-segrow.open .oc-chev{transform:rotate(90deg)}',
+    '#outcomes-content .oc-drill{padding:2px 14px 10px;background:rgba(128,128,128,.05)}',
+    '#outcomes-content .oc-att{display:grid;grid-template-columns:repeat(auto-fit,minmax(240px,1fr));gap:10px}',
+    '#outcomes-content .oc-attcard{border:1px solid var(--border);border-left:3px solid #dc2626;border-radius:10px;padding:12px 14px}',
+    '#outcomes-content .oc-attcard.warn{border-left-color:#b45309}#outcomes-content .oc-attcard.info{border-left-color:#2563a8}',
+    '#outcomes-content .oc-chip{border:1px solid var(--border);background:transparent;font:inherit;font-size:11.5px;font-weight:600;color:var(--text-muted);padding:6px 11px;border-radius:99px;cursor:pointer}',
+    '#outcomes-content .oc-chip.on{background:var(--accent);color:#fff;border-color:var(--accent)}',
+    '#outcomes-content .oc-search{flex:1;min-width:180px;border:1px solid var(--border);border-radius:8px;background:transparent;padding:8px 12px;font:inherit;font-size:13px;color:var(--text-main)}',
+    '#outcomes-content table.oc-tbl{width:100%;border-collapse:collapse;font-size:13px;min-width:640px}',
+    '#outcomes-content .oc-tbl thead th{font-size:10.5px;text-transform:uppercase;letter-spacing:.05em;color:var(--text-muted);font-weight:700;text-align:right;padding:9px 10px;border-bottom:1px solid var(--border);cursor:pointer;white-space:nowrap}',
+    '#outcomes-content .oc-tbl thead th.l{text-align:left}',
+    '#outcomes-content .oc-tbl tbody td{padding:9px 10px;border-bottom:1px solid var(--border);text-align:right;font-variant-numeric:tabular-nums}',
+    '#outcomes-content .oc-tbl tbody td.l{text-align:left}#outcomes-content .oc-tbl tbody tr:last-child td{border-bottom:0}',
+    '#outcomes-content .oc-st{display:inline-block;font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.02em;padding:3px 8px;border-radius:99px;white-space:nowrap}',
+    '#outcomes-content .oc-pager{display:flex;justify-content:space-between;align-items:center;margin-top:12px;font-size:12.5px;color:var(--text-muted)}',
+    '#outcomes-content .oc-pager button{border:1px solid var(--border);background:transparent;font:inherit;font-size:12.5px;color:var(--text-main);padding:6px 12px;border-radius:8px;cursor:pointer}',
+    '#outcomes-content .oc-pager button:disabled{opacity:.4;cursor:default}',
+  ].join('');
+  document.head.appendChild(s);
+}
+const OC_STYLE = { rank: 'background:rgba(22,163,74,.15);color:#16a34a', idx: 'background:rgba(37,99,168,.15);color:#3b82f6', new: 'background:rgba(232,86,13,.15);color:#ea580c', fix: 'background:rgba(220,38,38,.15);color:#dc2626' };
+const OC_BAR = { rank: '#16a34a', idx: '#b45309', new: '#b45309', fix: '#dc2626' };
+
 async function loadOutcomes() {
+  ocEnsureStyles();
   const brands = window.NEST_BRANDS || [];
   if (!outState.brand) outState.brand = (brands[0] && brands[0].slug) || 'bonbird';
   const el = document.getElementById('outcomes-content');
   if (el) el.innerHTML = '<div style="padding:24px;color:var(--text-muted)">Loading outcomes…</div>';
+  const b = encodeURIComponent(outState.brand);
   try {
-    const b = encodeURIComponent(outState.brand);
-    const [reg, ev] = await Promise.all([
+    const wk = ocIsoWeek(new Date()), pv = ocIsoWeek(new Date(Date.now() - 7 * 864e5));
+    const [reg, ev, snapC, snapP] = await Promise.all([
       fetch('/api/page-registry?brand=' + b, { credentials: 'include' }).then(r => r.json()),
       fetch('/api/page-registry?events=1&brand=' + b, { credentials: 'include' }).then(r => r.json()),
+      fetch('/api/page-registry?brand=' + b + '&snapshot=' + wk, { credentials: 'include' }).then(r => r.json()).catch(() => null),
+      fetch('/api/page-registry?brand=' + b + '&snapshot=' + pv, { credentials: 'include' }).then(r => r.json()).catch(() => null),
     ]);
-    outState.registry = reg; outState.events = ev;
+    // position Δ from the last two weekly snapshots (positive = improved)
+    outState.delta = new Map();
+    if (snapC && snapP && snapC.pages && snapP.pages) {
+      const pm = new Map(snapP.pages.map(x => [x.u, x.p]));
+      for (const x of snapC.pages) { const pp = pm.get(x.u); if (pp != null && x.p != null) outState.delta.set(x.u, +(pp - x.p).toFixed(1)); }
+    }
+    // one row per shipped page: earliest event = shipped date, joined to current perf
+    const byUrl = new Map((reg.pages || []).map(p => [p.url, p]));
+    const evByUrl = new Map();
+    for (const e of (ev.events || [])) { const c = evByUrl.get(e.url); if (!c || new Date(e.at) < new Date(c.at)) evByUrl.set(e.url, e); }
+    outState.all = [...evByUrl.values()].map(e => {
+      const p = byUrl.get(e.url) || {};
+      return { url: e.url, market: e.market || p.market || '', type: e.pageType || p.pageType || 'page', at: e.at, pos: p.position != null ? p.position : null, clicks: p.clicks || 0, status: p.status || 'new', delta: outState.delta.has(e.url) ? outState.delta.get(e.url) : null };
+    });
   } catch (e) { if (el) el.innerHTML = '<div style="padding:24px;color:var(--text-muted)">Could not load: ' + esc(e.message) + '</div>'; return; }
-  renderOutcomes();
+  outState.page = 0; outState.openSeg = null;
+  ocRenderShell();
 }
 function outSelectBrand(s) { outState.brand = s; loadOutcomes(); }
-function renderOutcomes() {
+function ocWinData() { const w = outState.win; if (w === 'all') return outState.all; const cut = Date.now() - w * 864e5; return outState.all.filter(x => new Date(x.at).getTime() >= cut); }
+
+function ocRenderShell() {
   const el = document.getElementById('outcomes-content'); if (!el) return;
   const brands = window.NEST_BRANDS || [];
   const brandTabs = brands.map(b => '<button class="admin-tab ' + (b.slug === outState.brand ? 'active' : '') + '" onclick="outSelectBrand(\'' + b.slug + '\')">' + esc(b.name) + '</button>').join('');
-  const events = (outState.events && outState.events.events) || [];
-  const pages = (outState.registry && outState.registry.pages) || [];
-  const byUrl = new Map(pages.map(p => [p.url, p]));
-  if (!events.length) {
-    el.innerHTML = '<div class="admin-tabs" style="margin-bottom:16px">' + brandTabs + '</div><div style="padding:24px;color:var(--text-muted)">No work logged yet. The event log records pages as they\'re published or edited (read from the sitemap) — it fills in from the next registry build. <button onclick="loadOutcomes()" style="background:none;border:0;color:var(--accent);cursor:pointer;padding:0">Refresh</button></div>';
+  if (!outState.all.length) {
+    el.innerHTML = '<div class="admin-tabs" style="margin-bottom:16px">' + brandTabs + '</div><div style="padding:24px;color:var(--text-muted)">No work logged yet — the event log fills in from the next registry build (it records pages as they\'re published or edited). <button onclick="loadOutcomes()" style="background:none;border:0;color:var(--accent);cursor:pointer;padding:0">Refresh</button></div>';
     return;
   }
-  const items = [...events].sort((a, b) => new Date(b.at) - new Date(a.at)).map(e => {
-    const p = byUrl.get(e.url) || {};
-    return { ...e, pos: p.position != null ? p.position : null, clicks: p.clicks || 0, cur: p.status || null };
-  });
-  const shipped = items.length;
-  const ranking = items.filter(i => i.pos != null && i.pos <= 10).length;
-  const clicks = items.reduce((s, i) => s + (i.clicks || 0), 0);
-  const pub = items.filter(i => i.type === 'published').length;
-  const edi = items.filter(i => i.type === 'edited').length;
-  const tile = (v, l) => '<div class="card" style="padding:16px"><div style="font-size:26px;font-weight:700;line-height:1">' + v + '</div><div style="font-size:12px;color:var(--text-muted);margin-top:6px">' + l + '</div></div>';
-  const tiles = '<div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(140px,1fr));gap:12px;margin:16px 0">'
-    + tile(shipped, 'changes shipped') + tile(pub + ' / ' + edi, 'published / edited')
-    + tile(ranking, 'now ranking (top 10)') + tile(clicks.toLocaleString(), 'clicks they drive · 90d') + '</div>';
-  const byType = {};
-  items.forEach(i => { const t = i.pageType || 'page'; (byType[t] = byType[t] || { n: 0, rank: 0 }); byType[t].n++; if (i.pos != null && i.pos <= 10) byType[t].rank++; });
-  const seg = Object.entries(byType).sort((a, b) => b[1].n - a[1].n)
-    .map(([t, v]) => '<span style="display:inline-block;margin:0 16px 6px 0;font-size:13px"><b>' + esc(t) + '</b>: ' + v.rank + '/' + v.n + ' ranking</span>').join('');
-  const stColor = s => ({ ranking: '#16a34a', indexed: '#2563eb', new: '#ea580c', noindex: '#dc2626' }[s] || 'var(--text-muted)');
-  const th = (h, r) => '<th style="text-align:' + (r ? 'right' : 'left') + ';padding:8px 10px;border-bottom:1px solid var(--border);font-size:11px;text-transform:uppercase;letter-spacing:.04em;color:var(--text-muted)">' + h + '</th>';
-  const td = (v, r) => '<td style="padding:8px 10px;border-bottom:1px solid var(--border);' + (r ? 'text-align:right;font-variant-numeric:tabular-nums' : '') + '">' + v + '</td>';
-  const fmtDate = d => { try { return new Date(d).toLocaleDateString('en-GB', { day: 'numeric', month: 'short' }); } catch { return '—'; } };
-  const trs = items.slice(0, 200).map(i => '<tr>'
-    + td(fmtDate(i.at)) + td('<span style="color:var(--text-muted)">' + esc(i.type) + '</span>')
-    + td('<a href="' + esc(i.url) + '" target="_blank" style="color:var(--accent);text-decoration:none">' + esc(i.url.replace(/^https?:\/\/[^/]+/, '')) + '</a>')
-    + td(esc(i.market || '')) + td(i.pos != null ? i.pos : '—', 1) + td((i.clicks || 0).toLocaleString(), 1)
-    + td('<span style="font-size:11px;font-weight:600;color:' + stColor(i.cur) + '">' + esc(i.cur || '—') + '</span>') + '</tr>').join('');
-  el.innerHTML = '<div class="admin-tabs" style="margin-bottom:4px">' + brandTabs + '</div>'
-    + '<div style="font-size:12px;color:var(--text-muted);margin:6px 0 0">What our work produced — pages published/edited (detected from the sitemap) and where each stands now. Position movement since ship fills in as weekly snapshots accrue.</div>'
-    + tiles
-    + (seg ? '<h3 style="font-size:13px;text-transform:uppercase;letter-spacing:.05em;color:var(--text-muted);margin:8px 0">What\'s working</h3><div style="margin-bottom:16px">' + seg + '</div>' : '')
-    + '<table style="width:100%;border-collapse:collapse;font-size:13px"><thead><tr>' + th('Shipped') + th('Action') + th('Page') + th('Market') + th('Pos', 1) + th('Clicks', 1) + th('Status') + '</tr></thead><tbody>' + trs + '</tbody></table>';
+  const winBtn = w => '<button class="' + (outState.win === w ? 'on' : '') + '" onclick="ocSetWin(\'' + w + '\',this)">' + (w === 'all' ? 'All time' : 'Last ' + w + 'd') + '</button>';
+  const grpBtn = (g, l) => '<button class="' + (outState.grp === g ? 'on' : '') + '" onclick="ocSetGrp(\'' + g + '\',this)">' + l + '</button>';
+  const chip = (v, l) => '<button class="oc-chip ' + (outState.status === v ? 'on' : '') + '" onclick="ocSetStatus(\'' + v + '\')">' + l + '</button>';
+  el.innerHTML =
+    '<div class="admin-tabs" style="margin-bottom:6px">' + brandTabs + '</div>'
+    + '<div style="display:flex;justify-content:space-between;align-items:center;gap:12px;flex-wrap:wrap;margin:4px 0 0">'
+    + '<div style="font-size:12px;color:var(--text-muted);max-width:60ch">What our work produced — every page published or edited, and where each stands now. Position Δ fills in as weekly snapshots accrue.</div>'
+    + '<div class="oc-win">' + winBtn(30) + winBtn(90) + winBtn('all') + '</div></div>'
+    + '<div class="oc-kpis" id="oc-kpis"></div>'
+    + '<div class="oc-sec"><h3>What\'s working</h3><span class="line"></span><div class="oc-seg-toggle">' + grpBtn('market', 'By market') + grpBtn('type', 'By page type') + '</div></div>'
+    + '<div class="card" id="oc-seg" style="padding:0;overflow:hidden"></div>'
+    + '<div class="oc-sec"><h3>Needs attention</h3><span class="line"></span></div><div class="oc-att" id="oc-att"></div>'
+    + '<div class="oc-sec"><h3>All shipped pages</h3><span class="line"></span></div>'
+    + '<div style="display:flex;gap:10px;align-items:center;flex-wrap:wrap;margin-bottom:12px"><input class="oc-search" id="oc-q" placeholder="Search pages…" oninput="ocSetSearch(this.value)"><div style="display:flex;gap:6px;flex-wrap:wrap">'
+    + chip('', 'All') + chip('ranking', 'Ranking') + chip('indexed', 'Indexed') + chip('new', 'New') + chip('noindex', 'Noindex') + '</div></div>'
+    + '<div class="card" style="padding:0;overflow-x:auto"><table class="oc-tbl"><thead><tr>'
+    + '<th class="l" onclick="ocSort(\'url\')">Page</th><th class="l" onclick="ocSort(\'market\')">Market</th><th class="l" onclick="ocSort(\'type\')">Type</th>'
+    + '<th onclick="ocSort(\'at\')">Shipped</th><th onclick="ocSort(\'pos\')">Pos</th><th onclick="ocSort(\'delta\')">Δ wk</th><th onclick="ocSort(\'clicks\')">Clicks</th><th class="l" onclick="ocSort(\'status\')">Status</th>'
+    + '</tr></thead><tbody id="oc-rows"></tbody></table></div>'
+    + '<div class="oc-pager"><span id="oc-count"></span><span><button onclick="ocPage(-1)" id="oc-prev">‹ Prev</button> <button onclick="ocPage(1)" id="oc-next">Next ›</button></span></div>';
+  ocKpis(); ocSeg(); ocAtt(); ocRows();
 }
+function ocKpis() {
+  const d = ocWinData();
+  const ship = d.length, rank = d.filter(x => x.status === 'ranking').length, clicks = d.reduce((a, b) => a + b.clicks, 0);
+  const ranked = d.filter(x => x.status === 'ranking' && x.pos != null); const avg = ranked.length ? (ranked.reduce((a, b) => a + b.pos, 0) / ranked.length).toFixed(1) : '—';
+  const K = (n, l, dd) => '<div class="card oc-kpi" style="padding:15px 16px"><div class="n">' + n + '</div><div class="l">' + l + '</div>' + (dd ? '<div class="d" style="color:#16a34a">' + dd + '</div>' : '') + '</div>';
+  document.getElementById('oc-kpis').innerHTML =
+    K(ship, 'changes shipped', '') + K(rank, 'now ranking (top 10)', ship ? Math.round(100 * rank / ship) + '% of shipped' : '')
+    + K(clicks.toLocaleString(), 'clicks they drive', '') + K(avg, 'avg position of ranked', '');
+}
+function ocSeg() {
+  const d = ocWinData(), key = outState.grp, groups = {};
+  d.forEach(x => { const g = x[key] || '—'; (groups[g] = groups[g] || []).push(x); });
+  const order = Object.keys(groups).sort((a, b) => groups[b].length - groups[a].length);
+  document.getElementById('oc-seg').innerHTML = order.map(g => {
+    const arr = groups[g], n = arr.length, rk = arr.filter(x => x.status === 'ranking').length, fx = arr.filter(x => x.status === 'noindex').length, bd = n - rk - fx;
+    const clk = arr.reduce((a, b) => a + b.clicks, 0), open = outState.openSeg === key + ':' + g;
+    const lab = key === 'market' ? ocMkt(g) : ocTy(g);
+    const drill = open ? '<div class="oc-drill">' + arr.slice().sort((a, b) => b.clicks - a.clicks).slice(0, 6).map(x =>
+      '<div style="display:flex;justify-content:space-between;gap:10px;padding:6px 0;font-size:12.5px;border-bottom:1px solid var(--border)"><a href="' + esc(x.url) + '" target="_blank" style="color:var(--accent);text-decoration:none">' + esc(x.url.replace(/^https?:\/\/[^/]+/, '')) + '</a><span style="white-space:nowrap;color:var(--text-muted)">' + (x.pos != null ? '#' + x.pos : '—') + ' · ' + x.clicks + ' clk</span></div>').join('')
+      + (arr.length > 6 ? '<div style="font-size:11px;color:var(--text-muted);padding-top:8px">+' + (arr.length - 6) + ' more — see the table below</div>' : '') + '</div>' : '';
+    return '<div class="oc-segrow ' + (open ? 'open' : '') + '" onclick="ocToggleSeg(\'' + key + ':' + g + '\')">'
+      + '<div class="oc-segname">' + esc(lab) + '<small>' + n + ' shipped</small></div>'
+      + '<div class="oc-stack"><i style="width:' + (100 * rk / n) + '%;background:' + OC_BAR.rank + '"></i><i style="width:' + (100 * bd / n) + '%;background:' + OC_BAR.new + '"></i><i style="width:' + (100 * fx / n) + '%;background:' + OC_BAR.fix + '"></i></div>'
+      + '<div style="text-align:right"><div style="font-weight:700;font-variant-numeric:tabular-nums">' + rk + '/' + n + '</div><div style="font-size:11px;color:var(--text-muted)">ranking</div></div>'
+      + '<div style="text-align:right"><div style="font-weight:700;font-variant-numeric:tabular-nums">' + clk.toLocaleString() + '</div><div style="font-size:11px;color:var(--text-muted)">clicks</div></div>'
+      + '<div class="oc-chev">›</div></div>' + drill;
+  }).join('');
+}
+function ocAtt() {
+  const d = ocWinData();
+  const nox = d.filter(x => x.status === 'noindex').length, drop = d.filter(x => x.delta != null && x.delta <= -1.5).length, stall = d.filter(x => x.status === 'indexed' && x.clicks === 0).length;
+  const A = [];
+  if (nox) A.push(['', nox + ' page' + (nox > 1 ? 's' : '') + ' set to noindex', 'Blocked from Google — fix to let them rank.']);
+  if (drop) A.push(['warn', drop + ' ranking drop' + (drop > 1 ? 's' : '') + ' this week', 'Fell ≥1.5 positions — check for changes or new competition.']);
+  if (stall) A.push(['info', stall + ' indexed, earning no clicks', 'Getting impressions but no clicks — a title/meta or intent fix.']);
+  document.getElementById('oc-att').innerHTML = A.map(x => '<div class="oc-attcard ' + x[0] + '"><div style="font-size:13px;font-weight:700">' + x[1] + '</div><div style="font-size:12px;color:var(--text-muted);margin-top:3px">' + x[2] + '</div></div>').join('') || '<div style="color:var(--text-muted);font-size:13px;padding:2px">Nothing needs attention in this window.</div>';
+}
+function ocFiltered() {
+  let d = ocWinData();
+  if (outState.status) d = d.filter(x => x.status === outState.status);
+  if (outState.openSeg) { const p = outState.openSeg.split(':'); d = d.filter(x => (x[p[0]] || '—') === p[1]); }
+  if (outState.q) { const q = outState.q.toLowerCase(); d = d.filter(x => x.url.toLowerCase().includes(q) || ocMkt(x.market).toLowerCase().includes(q) || (x.type || '').includes(q)); }
+  const dir = outState.dir, s = outState.sort;
+  return d.slice().sort((a, b) => { let av = a[s], bv = b[s]; if (av == null) av = dir < 0 ? -Infinity : Infinity; if (bv == null) bv = dir < 0 ? -Infinity : Infinity; return av < bv ? -dir : av > bv ? dir : 0; });
+}
+function ocRows() {
+  const all = ocFiltered(), pages = Math.max(1, Math.ceil(all.length / OC_PER));
+  if (outState.page >= pages) outState.page = pages - 1;
+  const rows = all.slice(outState.page * OC_PER, outState.page * OC_PER + OC_PER);
+  const fmtDate = d => { try { return new Date(d).toLocaleDateString('en-GB', { day: 'numeric', month: 'short' }); } catch { return '—'; } };
+  const td = (v, r) => '<td' + (r ? '' : ' class="l"') + '>' + v + '</td>';
+  document.getElementById('oc-rows').innerHTML = rows.map(x => {
+    const sm = OC_STMAP[x.status] || ['new', x.status]; const dl = x.delta;
+    const dcell = dl == null ? '—' : dl > 0.3 ? '<span style="color:#16a34a;font-weight:700">▲' + dl.toFixed(1) + '</span>' : dl < -0.3 ? '<span style="color:#dc2626;font-weight:700">▼' + Math.abs(dl).toFixed(1) + '</span>' : '—';
+    return '<tr>'
+      + td('<a href="' + esc(x.url) + '" target="_blank" style="color:var(--accent);text-decoration:none;font-size:12px">' + esc(x.url.replace(/^https?:\/\/[^/]+/, '')) + '</a>')
+      + td(esc(ocMkt(x.market))) + td('<span style="color:var(--text-muted)">' + esc(ocTy(x.type)) + '</span>')
+      + td(fmtDate(x.at), 1) + td(x.pos != null ? x.pos : '—', 1) + td(dcell, 1) + td((x.clicks || 0).toLocaleString(), 1)
+      + td('<span class="oc-st" style="' + (OC_STYLE[sm[0]] || '') + '">' + sm[1] + '</span>') + '</tr>';
+  }).join('') || '<tr><td colspan="8" style="padding:16px;color:var(--text-muted)">No pages match.</td></tr>';
+  document.getElementById('oc-count').textContent = 'Showing ' + (all.length ? outState.page * OC_PER + 1 : 0) + '–' + Math.min((outState.page + 1) * OC_PER, all.length) + ' of ' + all.length;
+  document.getElementById('oc-prev').disabled = outState.page <= 0;
+  document.getElementById('oc-next').disabled = outState.page >= pages - 1;
+}
+function ocSetWin(w, btn) { outState.win = w === 'all' ? 'all' : +w; outState.page = 0; if (btn) [...btn.parentNode.children].forEach(c => c.classList.toggle('on', c === btn)); ocKpis(); ocSeg(); ocAtt(); ocRows(); }
+function ocSetGrp(g, btn) { outState.grp = g; outState.openSeg = null; if (btn) [...btn.parentNode.children].forEach(c => c.classList.toggle('on', c === btn)); ocSeg(); ocRows(); }
+function ocToggleSeg(id) { outState.openSeg = outState.openSeg === id ? null : id; outState.page = 0; ocSeg(); ocRows(); }
+function ocSetStatus(v) { outState.status = v; outState.page = 0; document.querySelectorAll('#outcomes-content .oc-chip').forEach(c => c.classList.toggle('on', (c.textContent === 'All' && !v) || c.textContent.toLowerCase() === (OC_STMAP[v] ? OC_STMAP[v][1].toLowerCase() : '~'))); ocRows(); }
+function ocSetSearch(v) { outState.q = v; outState.page = 0; ocRows(); }
+function ocSort(s) { if (outState.sort === s) outState.dir *= -1; else { outState.sort = s; outState.dir = -1; } ocRows(); }
+function ocPage(d) { outState.page += d; ocRows(); }
+
+// ── State of SEO (Phase 3 — the "Monday view"; NEST-REFINEMENT-PLAN) ─────────
 
 // ── State of SEO (Phase 3 — the "Monday view"; NEST-REFINEMENT-PLAN) ─────────
 // One place that answers "what's live and is it working", per brand × market, off
