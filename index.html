@@ -3922,24 +3922,27 @@ function renderStateOfSeo() {
   }
   const markets = sum.byMarket || {}, mkKeys = Object.keys(markets).sort((a, b) => (markets[b].clicks || 0) - (markets[a].clicks || 0));
   const totalClicks = pages.reduce((s, p) => s + (p.clicks || 0), 0);
+  const totalImpr = pages.reduce((s, p) => s + (p.impressions || 0), 0);
+  const fmtK = n => n >= 1000 ? (n / 1000).toFixed(n >= 10000 ? 0 : 1) + 'K' : String(n);
   const withImpr = pages.filter(p => p.position != null && p.impressions > 0);
   const avgPos = withImpr.length ? withImpr.reduce((s, p) => s + p.position * p.impressions, 0) / withImpr.reduce((s, p) => s + p.impressions, 0) : 0;
   const indexedPct = sum.total ? Math.round(100 * (sum.inSitemap || 0) / sum.total) : 0;
   const tile = (v, l, c) => '<div class="card" style="padding:16px"><div style="font-size:26px;font-weight:700;line-height:1;' + (c ? 'color:' + c : '') + '">' + v + '</div><div style="font-size:12px;color:var(--text-muted);margin-top:6px">' + l + '</div></div>';
   const tiles = '<div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(140px,1fr));gap:12px;margin:16px 0">'
     + tile((sum.total || 0), 'live pages')
-    + tile(indexedPct + '%', 'in sitemap / indexable')
+    + tile(fmtK(totalImpr), 'impressions · 90d')
     + tile(totalClicks.toLocaleString(), 'clicks · 90d')
     + tile(avgPos ? avgPos.toFixed(1) : '—', 'avg position')
+    + tile(indexedPct + '%', 'in sitemap / indexable')
     + tile((sum.noindexFlags || 0), 'noindex flags', (sum.noindexFlags > 0) ? '#dc2626' : '')
     + '</div>';
   const th = (h, r) => '<th style="text-align:' + (r ? 'right' : 'left') + ';padding:8px 10px;border-bottom:1px solid var(--border);font-size:11px;text-transform:uppercase;letter-spacing:.04em;color:var(--text-muted)">' + h + '</th>';
   const td = (v, r) => '<td style="padding:8px 10px;border-bottom:1px solid var(--border);' + (r ? 'text-align:right;font-variant-numeric:tabular-nums' : '') + '">' + v + '</td>';
   const rollup = '<table style="width:100%;border-collapse:collapse;font-size:13px;margin:8px 0 20px">'
     + '<thead><tr>' + th('Market') + th('Pages', 1) + th('Clicks', 1) + th('Impressions', 1) + '</tr></thead><tbody>'
-    + mkKeys.map(k => '<tr>' + td(esc(k)) + td(markets[k].pages, 1) + td((markets[k].clicks || 0).toLocaleString(), 1) + td((markets[k].impressions || 0).toLocaleString(), 1) + '</tr>').join('')
+    + mkKeys.map(k => '<tr>' + td(esc(ocMkt(k))) + td(markets[k].pages, 1) + td((markets[k].clicks || 0).toLocaleString(), 1) + td((markets[k].impressions || 0).toLocaleString(), 1) + '</tr>').join('')
     + '</tbody></table>';
-  const mkChips = ['all'].concat(mkKeys).map(m => '<button class="admin-tab ' + (sosState.market === m ? 'active' : '') + '" onclick="sosSelectMarket(\'' + m + '\')">' + (m === 'all' ? 'All markets' : esc(m)) + '</button>').join('');
+  const mkChips = ['all'].concat(mkKeys).map(m => '<button class="admin-tab ' + (sosState.market === m ? 'active' : '') + '" onclick="sosSelectMarket(\'' + m + '\')">' + (m === 'all' ? 'All markets' : esc(ocMkt(m))) + '</button>').join('');
   const stColor = s => ({ ranking: '#16a34a', indexed: '#2563eb', new: '#ea580c', noindex: '#dc2626' }[s] || 'var(--text-muted)');
   const filtered = pages.filter(p => sosState.market === 'all' || p.market === sosState.market).slice(0, 400);
   const rows = filtered.map(p => '<tr>'
