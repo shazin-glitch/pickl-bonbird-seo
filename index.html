@@ -5,6 +5,32 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>The Nest — Yolk Brands</title>
 <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@tabler/icons-webfont@latest/dist/tabler-icons.min.css">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Archivo:wght@600;700;800;900&family=Hanken+Grotesk:wght@400;500;600;700&display=swap">
+<style>
+/* ─── Reporting design system (7c redesign — shared by all reporting lenses) ─── */
+.rep-frame{border:1px solid var(--border);border-radius:16px;background:var(--card-bg,var(--bg-surface,#fff));box-shadow:0 1px 2px rgba(0,0,0,.04),0 10px 26px -14px rgba(0,0,0,.16);padding:22px 24px}
+.rep-tiles{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:12px;margin:16px 0}
+.rep-tile{border:1px solid var(--border);border-radius:12px;padding:15px 16px;background:var(--card-bg,transparent)}
+.rep-tile.hero{background:var(--accent);border-color:var(--accent)}
+.rep-tile.hero .n,.rep-tile.hero .l,.rep-tile.hero .d{color:#fff}
+.rep-tile .n{font-family:'Archivo',var(--font-sans);font-weight:800;font-size:26px;letter-spacing:-.02em;line-height:1;font-variant-numeric:tabular-nums}
+.rep-tile .l{font-size:12px;color:var(--text-muted);margin-top:6px}
+.rep-tile .d{font-size:11.5px;font-weight:700;margin-top:5px}
+.rep-sec{display:flex;align-items:center;gap:12px;margin:24px 0 12px}
+.rep-sec h3{font-family:'Archivo',var(--font-sans);font-weight:800;font-size:12px;text-transform:uppercase;letter-spacing:.08em;margin:0;color:var(--text-main)}
+.rep-sec .line{flex:1;height:1px;background:var(--border)}
+.rep-sec .tag{font-size:11px;color:var(--text-muted);font-style:italic}
+.rep-controls{display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin:8px 0 14px}
+.rep-controls .grp{display:inline-flex;gap:3px;background:rgba(128,128,128,.12);border-radius:9px;padding:3px}
+.rep-controls .grp button{border:0;background:none;font:inherit;font-size:12.5px;font-weight:600;color:var(--text-muted);padding:6px 11px;border-radius:7px;cursor:pointer}
+.rep-controls .grp button.on{background:var(--card-bg,var(--bg-surface,rgba(128,128,128,.3)));color:var(--text-main);box-shadow:0 1px 2px rgba(0,0,0,.08)}
+.rep-controls .rep-select,.rep-controls .rep-date{border:1px solid var(--border);border-radius:8px;background:transparent;color:var(--text-main);font:inherit;font-size:12.5px;padding:6px 10px}
+.rep-controls .spacer{flex:1 1 12px}
+.rep-controls .lbl{font-size:11px;color:var(--text-muted);text-transform:uppercase;letter-spacing:.04em}
+.rep-display{font-family:'Archivo',var(--font-sans)}
+</style>
 <style>
 /* ─── Design Tokens ─────────────────────────────────────────────── */
 :root {
@@ -972,7 +998,7 @@ body { font-family: var(--font-sans); background: var(--bg-base); color: var(--t
       <div class="admin-tabs" id="analytics-tabs" style="display:none;margin:0 0 0">
         <button class="admin-tab active" data-atab="outcomes" onclick="switchAnalyticsTab('outcomes',this)">Outcomes</button>
         <button class="admin-tab" data-atab="stateofseo" onclick="switchAnalyticsTab('stateofseo',this)">State of SEO</button>
-        <button class="admin-tab" data-atab="trends" onclick="switchAnalyticsTab('trends',this)">Trends</button>
+        <button class="admin-tab" data-atab="trends" onclick="switchAnalyticsTab('trends',this)">Performance</button>
         <button class="admin-tab" data-atab="rankings" onclick="switchAnalyticsTab('rankings',this)">Rankings</button>
         <button class="admin-tab" data-atab="competitors" onclick="switchAnalyticsTab('competitors',this)">Competitors</button>
         <button class="admin-tab" data-atab="opportunities" onclick="switchAnalyticsTab('opportunities',this)">Opportunities</button>
@@ -3535,7 +3561,12 @@ function renderAnalyticsCards() {
 // per market, toggle-compare). Reads monthlyTrend (backfilled from GSC). Added alongside
 // Rankings/Report (nothing retired). ────────────────────────────────────────────────
 const TR_PALETTE = ['#2563a8', '#e8560d', '#1e874b', '#b45309', '#7c3aed', '#0891b2', '#db2777', '#65a30d', '#c2410c'];
-const trState = { brand: null, data: null, win: 12, active: {} };
+const trState = { brand: null, data: null, win: 12, active: {}, seg: 'all' };
+// Segment accessors — the branded/non-branded split now lives in monthlyTrend (v7.9.89).
+// Non-branded impressions = the real SEO signal (new demand); branded = awareness.
+function trImp(o) { if (!o) return 0; const s = trState.seg; if (s === 'branded') return (o.branded && o.branded.impressions) || 0; if (s === 'nonBranded') return (o.nonBranded && o.nonBranded.impressions) || 0; return o.impressions || 0; }
+function trClk(o) { if (!o) return 0; const s = trState.seg; if (s === 'branded') return (o.branded && o.branded.clicks) || 0; if (s === 'nonBranded') return (o.nonBranded && o.nonBranded.clicks) || 0; return o.clicks || 0; }
+function trSegLabel() { return trState.seg === 'branded' ? 'Branded' : trState.seg === 'nonBranded' ? 'Non-branded' : 'All'; }
 let trStyled = false;
 function trEnsureStyles() {
   if (trStyled) return; trStyled = true;
@@ -3545,11 +3576,11 @@ function trEnsureStyles() {
     '#trends-content .tr-kpi{padding:15px 16px}',
     '#trends-content .tr-kpi.hero{background:var(--accent);border-color:var(--accent)}',
     '#trends-content .tr-kpi.hero .n,#trends-content .tr-kpi.hero .l,#trends-content .tr-kpi.hero .d{color:#fff}',
-    '#trends-content .tr-kpi .n{font-size:25px;font-weight:800;letter-spacing:-.02em;line-height:1;font-variant-numeric:tabular-nums}',
+    '#trends-content .tr-kpi .n{font-family:\'Archivo\',var(--font-sans);font-size:25px;font-weight:800;letter-spacing:-.02em;line-height:1;font-variant-numeric:tabular-nums}',
     '#trends-content .tr-kpi .l{font-size:11.5px;color:var(--text-muted);margin-top:6px}',
     '#trends-content .tr-kpi .d{font-size:11.5px;font-weight:700;margin-top:5px}',
     '#trends-content .tr-sec{display:flex;align-items:center;gap:12px;margin:24px 0 12px}',
-    '#trends-content .tr-sec h3{font-family:var(--font-sans);font-weight:800;font-size:12px;text-transform:uppercase;letter-spacing:.08em;margin:0}',
+    '#trends-content .tr-sec h3{font-family:\'Archivo\',var(--font-sans);font-weight:800;font-size:12px;text-transform:uppercase;letter-spacing:.08em;margin:0}',
     '#trends-content .tr-sec .line{flex:1;height:1px;background:var(--border)}',
     '#trends-content .tr-sec .tag{font-size:11px;color:var(--text-muted);font-style:italic}',
     '#trends-content .tr-legend{display:flex;gap:8px;flex-wrap:wrap;margin:2px 0 14px}',
@@ -3611,19 +3642,24 @@ function renderTrends() {
   const prev = complete[complete.length - 2];
   const lt = latest.total, pt = prev ? prev.total : null;
   const winBtn = w => '<button class="' + (trState.win === w ? 'on' : '') + '" onclick="trSetWin(' + w + ',this)">' + w + ' months</button>';
+  const segBtn = (s, lbl) => '<button class="' + (trState.seg === s ? 'on' : '') + '" onclick="trSetSeg(\'' + s + '\')">' + lbl + '</button>';
   const kpi = (cls, n, l, d) => '<div class="card tr-kpi ' + cls + '"><div class="n">' + n + '</div><div class="l">' + l + '</div>' + (d ? '<div class="d">' + d + '</div>' : '') + '</div>';
+  const li = trImp(lt), pi = pt ? trImp(pt) : null, lc = trClk(lt), pc = pt ? trClk(pt) : null;
+  const segNote = trState.seg === 'nonBranded' ? ' · <b>non-branded</b> = SEO creating new demand' : trState.seg === 'branded' ? ' · <b>branded</b> = brand awareness' : '';
   el.innerHTML =
     '<div class="admin-tabs" style="margin-bottom:6px">' + brandTabs + '</div>'
-    + '<div style="display:flex;justify-content:space-between;align-items:center;gap:12px;flex-wrap:wrap;margin:4px 0 0">'
-    + '<div style="font-size:12px;color:var(--text-muted)">Organic search, month on month · latest complete month <b>' + trMonthLabel(latest.month) + '</b>' + (partial ? ' · ' + trMonthLabel(nowYM) + ' in progress' : '') + '</div>'
+    + '<div class="rep-controls" style="margin:6px 0 2px">'
+    + '<span class="lbl">Segment</span><div class="grp">' + segBtn('all', 'All') + segBtn('nonBranded', 'Non-branded') + segBtn('branded', 'Branded') + '</div>'
+    + '<span class="spacer"></span>'
     + '<div class="tr-win">' + winBtn(6) + winBtn(12) + '</div></div>'
+    + '<div style="font-size:12px;color:var(--text-muted);margin:2px 0 0">Organic search, month on month · latest complete month <b>' + trMonthLabel(latest.month) + '</b>' + (partial ? ' · ' + trMonthLabel(nowYM) + ' in progress' : '') + segNote + '</div>'
     + '<div class="tr-kpis">'
-    + kpi('hero', trFmtK(lt.impressions), 'Impressions · ' + trMonthLabel(latest.month), pt ? trDelta(lt.impressions, pt.impressions) : '')
-    + kpi('', lt.clicks.toLocaleString(), 'Clicks', pt ? trDelta(lt.clicks, pt.clicks) : '')
-    + kpi('', lt.position != null ? lt.position : '—', 'Avg position', (pt && pt.position != null && lt.position != null) ? '<span style="' + (lt.position <= pt.position ? trUp : trDown) + '">' + (lt.position <= pt.position ? '▲' : '▼') + ' from ' + pt.position + '</span>' : '')
+    + kpi('hero', trFmtK(li), trSegLabel() + ' impressions · ' + trMonthLabel(latest.month), pi != null ? trDelta(li, pi) : '')
+    + kpi('', lc.toLocaleString(), trSegLabel() + ' clicks', pc != null ? trDelta(lc, pc) : '')
+    + kpi('', lt.position != null ? lt.position : '—', 'Avg position · all', (pt && pt.position != null && lt.position != null) ? '<span style="' + (lt.position <= pt.position ? trUp : trDown) + '">' + (lt.position <= pt.position ? '▲' : '▼') + ' from ' + pt.position + '</span>' : '')
     + kpi('', trMarketKeys(allMonths).length, 'markets tracked', '')
     + '</div>'
-    + '<div class="tr-sec"><h3>Organic impressions, month on month</h3><span class="line"></span><span class="tag">toggle markets to compare</span></div>'
+    + '<div class="tr-sec"><h3>' + trSegLabel() + ' impressions, month on month</h3><span class="line"></span><span class="tag">toggle markets to compare</span></div>'
     + '<div id="tr-legend" class="tr-legend"></div>'
     + '<div style="overflow-x:auto"><svg id="tr-chart" viewBox="0 0 760 230" width="100%" style="min-width:560px;display:block"></svg></div>'
     + '<div class="tr-sec"><h3>By market — ' + trMonthLabel(latest.month) + ' vs ' + (prev ? trMonthLabel(prev.month) : '—') + '</h3><span class="line"></span></div>'
@@ -3709,6 +3745,7 @@ async function trLoadAI(brand) {
   } catch (e) { /* leave AI cells as — */ }
 }
 function trSetWin(w, btn) { trState.win = w; if (btn) [...btn.parentNode.children].forEach(c => c.classList.toggle('on', c === btn)); trChart(); }
+function trSetSeg(s) { trState.seg = s; renderTrends(); } // seg changes KPIs + table + chart labels → full re-render
 function trToggle(k) { trState.active[k] = !trState.active[k]; trLegend(); trChart(); }
 function trSeriesColor(k, keys) { return k === '__total' ? 'var(--text-main)' : TR_PALETTE[keys.indexOf(k) % TR_PALETTE.length]; }
 function trLegend() {
@@ -3721,8 +3758,8 @@ function trChart() {
   const months = trWinMonths(); const keys = trMarketKeys(trState.data.months || []);
   const x0 = 44, yTop = 12, cw = 760 - x0 - 14, ch = 230 - yTop - 28, yB = yTop + ch, n = months.length;
   const series = [];
-  if (trState.active.__total) series.push({ k: '__total', vals: months.map(m => m.total.impressions) });
-  keys.forEach(k => { if (trState.active[k]) series.push({ k, vals: months.map(m => (m.byMarket[k] ? m.byMarket[k].impressions : 0)) }); });
+  if (trState.active.__total) series.push({ k: '__total', vals: months.map(m => trImp(m.total)) });
+  keys.forEach(k => { if (trState.active[k]) series.push({ k, vals: months.map(m => trImp(m.byMarket[k])) }); });
   const maxV = Math.max(1, ...series.flatMap(s => s.vals));
   const niceMax = Math.ceil(maxV / 10000) * 10000 || 10000;
   const X = i => x0 + (n <= 1 ? cw / 2 : i / (n - 1) * cw), Y = v => yTop + (1 - v / niceMax) * ch;
@@ -3745,16 +3782,16 @@ function trChart() {
   svg.innerHTML = g;
 }
 function trMarketTable(latest, prev) {
-  const keys = trMarketKeys(trState.data.months || []).sort((a, b) => (latest.byMarket[b]?.impressions || 0) - (latest.byMarket[a]?.impressions || 0));
+  const keys = trMarketKeys(trState.data.months || []).sort((a, b) => trImp(latest.byMarket[b]) - trImp(latest.byMarket[a]));
   const th = (h, r) => '<th' + (r ? '' : ' class="l"') + '>' + h + '</th>';
   const td = (v, r) => '<td' + (r ? '' : ' class="l"') + '>' + v + '</td>';
   const rows = keys.map(k => {
-    const c = latest.byMarket[k] || { impressions: 0, clicks: 0, position: null };
-    const p = prev ? (prev.byMarket[k] || { impressions: 0 }) : null;
-    return '<tr>' + td(esc(ocMkt(k))) + td((c.impressions || 0).toLocaleString(), 1) + td(p ? trDelta(c.impressions, p.impressions) || '—' : '—', 1)
-      + td((c.clicks || 0).toLocaleString(), 1) + td(c.position != null ? c.position : '—', 1) + '</tr>';
+    const c = latest.byMarket[k] || {};
+    const p = prev ? (prev.byMarket[k] || {}) : null;
+    return '<tr>' + td(esc(ocMkt(k))) + td(trImp(c).toLocaleString(), 1) + td(p ? trDelta(trImp(c), trImp(p)) || '—' : '—', 1)
+      + td(trClk(c).toLocaleString(), 1) + td(c.position != null ? c.position : '—', 1) + '</tr>';
   }).join('');
-  return '<table class="tr-tbl"><thead><tr>' + th('Market') + th('Impressions', 1) + th('MoM', 1) + th('Clicks', 1) + th('Avg pos', 1) + '</tr></thead><tbody>' + rows + '</tbody></table>';
+  return '<table class="tr-tbl"><thead><tr>' + th('Market') + th(trSegLabel() + ' impr', 1) + th('MoM', 1) + th(trSegLabel() + ' clicks', 1) + th('Avg pos', 1) + '</tr></thead><tbody>' + rows + '</tbody></table>';
 }
 
 // ── Outcomes (Phase 7 — "did our work produce results?"; NEST-REPORTING-PLAN) ─
