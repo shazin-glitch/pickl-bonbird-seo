@@ -10,9 +10,10 @@
 // Read via /api/page-registry?monthly=1&brand=<brand>. Config-driven (markets from accessors).
 
 const { getStore } = require('@netlify/blobs');
-const { getGscAccessToken, fetchGscPageOnly } = require('./_lib/gsc');
+const { getGscAccessToken, fetchGscPageOnly, fetchGscPageQuery } = require('./_lib/gsc');
 const { getMarketsForBrandAsync, getMarketPageTokens } = require('./_lib/international-config');
 const { getBrandSlugs, gscPropertyFor } = require('./_lib/brands-config');
+const { getBrandContext, isBrandedQuery } = require('./_lib/brand');
 const { authorizeJob } = require('./_lib/auth');
 
 const BACKFILL_MONTHS = 13; // first run: build this many months of history
@@ -38,18 +39,35 @@ function attributeMarket(url, markets) {
   return 'uae';
 }
 
-async function buildMonth(site, token, markets, y, m) {
+function blankAcc() { return { impr: 0, clicks: 0, posw: 0, bImpr: 0, bClicks: 0, nbImpr: 0, nbClicks: 0 }; }
+// Total impressions/clicks/position from PAGE-ONLY (accurate — no anonymised-query drop).
+// Branded/non-branded split from PAGE+QUERY (needs the query text; slightly undercounts) —
+// same locked methodology as market-traffic. Non-branded is the real SEO KPI.
+async function buildMonth(site, token, markets, brandCtx, y, m) {
   const { startDate, endDate } = monthRange(y, m);
-  const { rows } = await fetchGscPageOnly(site, token, { startDate, endDate });
-  const total = { impr: 0, clicks: 0, posw: 0 };
+  const [po, pq] = await Promise.all([
+    fetchGscPageOnly(site, token, { startDate, endDate }),
+    fetchGscPageQuery(site, token, { startDate, endDate }),
+  ]);
+  const total = blankAcc();
   const byMarket = {};
-  for (const r of (rows || [])) {
+  for (const r of (po.rows || [])) {
     const mk = attributeMarket(r.page, markets);
-    const b = byMarket[mk] || (byMarket[mk] = { impr: 0, clicks: 0, posw: 0 });
+    const b = byMarket[mk] || (byMarket[mk] = blankAcc());
     b.impr += r.impressions; b.clicks += r.clicks; b.posw += r.position * r.impressions;
     total.impr += r.impressions; total.clicks += r.clicks; total.posw += r.position * r.impressions;
   }
-  const fin = o => ({ impressions: o.impr, clicks: o.clicks, position: o.impr ? +(o.posw / o.impr).toFixed(1) : null });
+  for (const r of (pq.rows || [])) {
+    const mk = attributeMarket(r.page, markets);
+    const b = byMarket[mk] || (byMarket[mk] = blankAcc());
+    const branded = isBrandedQuery(r.keyword, brandCtx);
+    if (branded) { b.bImpr += r.impressions; b.bClicks += r.clicks; total.bImpr += r.impressions; total.bClicks += r.clicks; }
+    else { b.nbImpr += r.impressions; b.nbClicks += r.clicks; total.nbImpr += r.impressions; total.nbClicks += r.clicks; }
+  }
+  const fin = o => ({
+    impressions: o.impr, clicks: o.clicks, position: o.impr ? +(o.posw / o.impr).toFixed(1) : null,
+    branded: { impressions: o.bImpr, clicks: o.bClicks }, nonBranded: { impressions: o.nbImpr, clicks: o.nbClicks },
+  });
   const bm = {}; for (const k in byMarket) bm[k] = fin(byMarket[k]);
   return { month: monthKey(new Date(Date.UTC(y, m, 1))), total: fin(total), byMarket: bm };
 }
@@ -59,6 +77,7 @@ async function buildBrand(brand, store, token) {
   const site = (await gscPropertyFor(brand)) || null;
   if (!site || !token) { console.warn(`${tag} no gsc`); return { error: 'no gsc' }; }
   const markets = await getMarketsForBrandAsync(brand);
+  const brandCtx = await getBrandContext(brand).catch(() => ({ brand }));
   const prior = await store.get(`monthlyTrend:${brand}`, { type: 'json' }).catch(() => null);
   const now = new Date();
   const count = prior ? REFRESH_MONTHS : BACKFILL_MONTHS;
@@ -67,7 +86,7 @@ async function buildBrand(brand, store, token) {
 
   const map = new Map((prior?.months || []).map(x => [x.month, x]));
   for (const [y, m] of toBuild) {
-    try { const r = await buildMonth(site, token, markets, y, m); map.set(r.month, r); }
+    try { const r = await buildMonth(site, token, markets, brandCtx, y, m); map.set(r.month, r); }
     catch (e) { console.warn(`${tag} ${y}-${m + 1} failed:`, e.message); }
   }
   const months = [...map.values()].sort((a, b) => (a.month < b.month ? -1 : 1)).slice(-KEEP_MONTHS);

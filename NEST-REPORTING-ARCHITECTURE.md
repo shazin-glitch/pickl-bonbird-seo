@@ -119,9 +119,11 @@ So new data work = **one thing**: branded/non-branded in the monthly layer. Ever
 
 ---
 
-## 7. Open decisions for Shazin
+## 7. Decisions (confirmed 2026-09-16)
 
-1. **Lens count** — 5 as above, or do you want Backlinks and/or Technical SEO to stay as their *own* tabs rather than folding into State of SEO?
-2. **Report tab** — becomes the **PDF export of the Performance lens** (no separate tab), agreed?
-3. **Markets tab** — retire (its per-market view is now in every lens's market breakdown), agreed?
-4. **Sequence** — start with the shared foundation (control bar + visual system) as step 1, so date-range + branded/non-branded land everywhere at once — or do you want the Performance lens fully first?
+1. **Technical SEO stays its own tab; Backlinks stays its own tab.** State of SEO gets a **backlink *summary*** (referring domains + score + Δ) linking out to the full Backlinks tab. Lenses = Performance · State of SEO (incl. backlink summary) · Outcomes · Keywords · Competitors — plus standalone **Technical SEO** + **Backlinks** tabs and **Perch**.
+2. ✅ **Report tab → PDF export of the Performance lens** (separate Report tab retires).
+3. ✅ **Retire the Markets tab.**
+4. ✅ **Shared foundation first.**
+
+**Build order (as a unit):** (A) branded/non-branded in `monthlyTrend` [data gap] → (B) shared control bar + visual system [foundation] → (C) Performance lens on it (incl. PDF export) → (D) State of SEO (+ backlink summary) → (E) Keywords → (F) restyle Outcomes + Competitors to the visual system → (G) migrate + retire (Report, Markets, Rankings triple-stack, dup top-10 cards), verifying each.
