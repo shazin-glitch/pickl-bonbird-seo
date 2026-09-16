@@ -72,7 +72,7 @@ async function buildMonth(site, token, markets, brandCtx, y, m) {
   return { month: monthKey(new Date(Date.UTC(y, m, 1))), total: fin(total), byMarket: bm };
 }
 
-async function buildBrand(brand, store, token) {
+async function buildBrand(brand, store, token, full) {
   const tag = `[monthly/${brand}]`;
   const site = (await gscPropertyFor(brand)) || null;
   if (!site || !token) { console.warn(`${tag} no gsc`); return { error: 'no gsc' }; }
@@ -80,7 +80,7 @@ async function buildBrand(brand, store, token) {
   const brandCtx = await getBrandContext(brand).catch(() => ({ brand }));
   const prior = await store.get(`monthlyTrend:${brand}`, { type: 'json' }).catch(() => null);
   const now = new Date();
-  const count = prior ? REFRESH_MONTHS : BACKFILL_MONTHS;
+  const count = (prior && !full) ? REFRESH_MONTHS : BACKFILL_MONTHS; // ?full=1 rebuilds all months
   const toBuild = [];
   for (let i = count - 1; i >= 0; i--) { const d = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth() - i, 1)); toBuild.push([d.getUTCFullYear(), d.getUTCMonth()]); }
 
@@ -102,9 +102,10 @@ exports.handler = async (event) => {
   const token = await getGscAccessToken(store);
   const qs = event.queryStringParameters || {};
   const brands = qs.brand ? [qs.brand] : await getBrandSlugs();
+  const full = qs.full === '1' || qs.full === 'true';
   const results = {};
   for (const brand of brands) {
-    try { results[brand] = await buildBrand(brand, store, token); }
+    try { results[brand] = await buildBrand(brand, store, token, full); }
     catch (e) { console.error(`[monthly] ${brand} failed:`, e.message); results[brand] = { error: e.message }; }
   }
   return { statusCode: 200, headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ ok: true, gscConnected: !!token, results }) };
