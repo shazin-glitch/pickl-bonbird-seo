@@ -219,35 +219,44 @@ async function runPageSpeed(url, strategy) {
   // so the other categories were wasted work. (Verified: no consumer of a11y/BP/SEO.)
   const apiUrl = `https://www.googleapis.com/pagespeedonline/v5/runPagespeed?url=${encodeURIComponent(url)}&strategy=${strategy}&category=performance${key}`;
 
-  // PSI's lighthouseError and abort/timeouts are transient — retry a couple of times
-  // with a short backoff before giving up.
-  const MAX_TRIES = 3;
-  let data, lastErr;
+  // Timeout: a generous 90s. Live-verified that heavy pages (Bonbird UAE home,
+  // menu, locations) took LONGER than the old 45s to return even performance-only
+  // from Netlify's environment, so 45s aborted them mid-analysis. This runs inside a
+  // background function (15-min budget) over pages SERIALLY, so a big single-call
+  // window is affordable.
+  const TIMEOUT_MS = 90000;
+  // Retry policy: PSI's "lighthouseError / Something went wrong" (500) is transient
+  // and returns FAST, so retrying it is cheap and often succeeds — retry those up to
+  // 2x with a real pause. A genuine TIMEOUT is NOT retried: it already had the full
+  // 90s, a re-run would just burn another 90s (× every slow page) and risk blowing the
+  // whole function budget before the audit finishes. The larger window is the timeout
+  // mitigation; the retry is the lighthouseError mitigation.
+  const FAST_RETRY_BACKOFF = [5000, 10000]; // ms before retry 2 and 3
+  const MAX_TRIES = FAST_RETRY_BACKOFF.length + 1;
+  let data;
   for (let attempt = 1; attempt <= MAX_TRIES; attempt++) {
+    let res;
     try {
-      const res = await fetch(apiUrl, { signal: AbortSignal.timeout(45000) });
-      if (!res.ok) {
-        const body = (await res.text().catch(() => '')).slice(0, 300);
-        const transient = res.status >= 500 || /lighthouseError|something went wrong|timeout/i.test(body);
-        if (transient && attempt < MAX_TRIES) { lastErr = new Error(`PSI ${res.status}: ${body}`); await sleep(2500 * attempt); continue; }
-        throw new Error(`PSI ${res.status}: ${body}`);
-      }
-      data = await res.json();
-      if (data.error) {
-        const msg = data.error.message || 'PSI API error';
-        const transient = (data.error.code >= 500) || /lighthouseError|something went wrong|timeout/i.test(msg);
-        if (transient && attempt < MAX_TRIES) { lastErr = new Error(msg); data = null; await sleep(2500 * attempt); continue; }
-        throw new Error(msg);
-      }
-      break; // success
+      res = await fetch(apiUrl, { signal: AbortSignal.timeout(TIMEOUT_MS) });
     } catch (e) {
-      // AbortError (timeout) and network errors are transient too.
-      const transient = e.name === 'AbortError' || e.name === 'TimeoutError' || /timeout|aborted|network|fetch failed/i.test(e.message || '');
-      if (transient && attempt < MAX_TRIES) { lastErr = e; await sleep(2500 * attempt); continue; }
-      throw e;
+      // AbortError/TimeoutError = the 90s window elapsed. Do not retry (see above).
+      throw new Error(`PSI request failed: ${e.message || e.name}`);
     }
+    if (res.ok) {
+      data = await res.json();
+      if (!data.error) break; // success
+      const msg = data.error.message || 'PSI API error';
+      const fastTransient = (data.error.code >= 500) || /lighthouseError|something went wrong/i.test(msg);
+      if (fastTransient && attempt < MAX_TRIES) { await sleep(FAST_RETRY_BACKOFF[attempt - 1]); data = null; continue; }
+      throw new Error(msg);
+    }
+    // non-ok HTTP
+    const body = (await res.text().catch(() => '')).slice(0, 300);
+    const fastTransient = res.status >= 500 || /lighthouseError|something went wrong/i.test(body);
+    if (fastTransient && attempt < MAX_TRIES) { await sleep(FAST_RETRY_BACKOFF[attempt - 1]); continue; }
+    throw new Error(`PSI ${res.status}: ${body}`);
   }
-  if (!data) throw (lastErr || new Error('PSI failed after retries'));
+  if (!data) throw new Error('PSI failed after retries (lighthouseError persisted)');
 
   const lh = data.lighthouseResult;
   if (!lh?.categories?.performance) throw new Error('No performance data in PSI response');
