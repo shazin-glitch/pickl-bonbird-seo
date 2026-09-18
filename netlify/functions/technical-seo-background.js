@@ -208,15 +208,46 @@ function getInternationalPages(brand, domain) {
 
 // ── PageSpeed Insights ────────────────────────────────────────────────────────
 
+const sleep = ms => new Promise(r => setTimeout(r, ms));
+
 async function runPageSpeed(url, strategy) {
   const key    = process.env.GOOGLE_PAGESPEED_KEY ? `&key=${process.env.GOOGLE_PAGESPEED_KEY}` : '';
-  const apiUrl = `https://www.googleapis.com/pagespeedonline/v5/runPagespeed?url=${encodeURIComponent(url)}&strategy=${strategy}${key}`;
+  // category=performance ONLY. Without it PSI runs the FULL Lighthouse (a11y +
+  // best-practices + SEO + PWA), which is much heavier and made heavy pages (home,
+  // menu, locations) exceed the window or trip PSI's transient "lighthouseError".
+  // The dashboard consumes only the performance score + LCP/CLS/TBT + field data,
+  // so the other categories were wasted work. (Verified: no consumer of a11y/BP/SEO.)
+  const apiUrl = `https://www.googleapis.com/pagespeedonline/v5/runPagespeed?url=${encodeURIComponent(url)}&strategy=${strategy}&category=performance${key}`;
 
-  const res = await fetch(apiUrl, { signal: AbortSignal.timeout(45000) });
-  if (!res.ok) throw new Error(`PSI ${res.status}: ${(await res.text().catch(() => '')).slice(0, 300)}`);
-
-  const data = await res.json();
-  if (data.error) throw new Error(data.error.message || 'PSI API error');
+  // PSI's lighthouseError and abort/timeouts are transient — retry a couple of times
+  // with a short backoff before giving up.
+  const MAX_TRIES = 3;
+  let data, lastErr;
+  for (let attempt = 1; attempt <= MAX_TRIES; attempt++) {
+    try {
+      const res = await fetch(apiUrl, { signal: AbortSignal.timeout(45000) });
+      if (!res.ok) {
+        const body = (await res.text().catch(() => '')).slice(0, 300);
+        const transient = res.status >= 500 || /lighthouseError|something went wrong|timeout/i.test(body);
+        if (transient && attempt < MAX_TRIES) { lastErr = new Error(`PSI ${res.status}: ${body}`); await sleep(2500 * attempt); continue; }
+        throw new Error(`PSI ${res.status}: ${body}`);
+      }
+      data = await res.json();
+      if (data.error) {
+        const msg = data.error.message || 'PSI API error';
+        const transient = (data.error.code >= 500) || /lighthouseError|something went wrong|timeout/i.test(msg);
+        if (transient && attempt < MAX_TRIES) { lastErr = new Error(msg); data = null; await sleep(2500 * attempt); continue; }
+        throw new Error(msg);
+      }
+      break; // success
+    } catch (e) {
+      // AbortError (timeout) and network errors are transient too.
+      const transient = e.name === 'AbortError' || e.name === 'TimeoutError' || /timeout|aborted|network|fetch failed/i.test(e.message || '');
+      if (transient && attempt < MAX_TRIES) { lastErr = e; await sleep(2500 * attempt); continue; }
+      throw e;
+    }
+  }
+  if (!data) throw (lastErr || new Error('PSI failed after retries'));
 
   const lh = data.lighthouseResult;
   if (!lh?.categories?.performance) throw new Error('No performance data in PSI response');
