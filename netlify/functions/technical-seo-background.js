@@ -43,7 +43,10 @@ exports.handler = async (event) => {
   const corePages = await getCorePages(brand, domain, brandCfg);
   console.log(`[tech-seo] ${brand}: ${corePages.length} core pages to audit`);
 
-  for (const page of corePages) {
+  // Parallelised (mapLimit) so the run finishes inside the 15-min budget even with
+  // retries. Each page still runs mobile+desktop concurrently; PSI_CONCURRENCY pages
+  // are in flight at once. Results are pushed as each page settles (live progress).
+  await mapLimit(corePages, PSI_CONCURRENCY, async (page) => {
     console.log(`[tech-seo] PSI: ${page.url}`);
     try {
       const [mobile, desktop] = await Promise.all([
@@ -58,7 +61,7 @@ exports.handler = async (event) => {
       audit.results.push({ url: page.url, label: page.label, error: e.message, checkedAt: Date.now() });
       await setSetting(`technicalSeo:${brand}`, { ...audit });
     }
-  }
+  });
 
   // ── PART 2: Health check + PSI on ALL international pages ───────────────
   // Health check first (fast), then always run mobile PSI regardless.
@@ -66,7 +69,7 @@ exports.handler = async (event) => {
   const intlPages = getInternationalPages(brand, domain);
   console.log(`[tech-seo] ${brand}: ${intlPages.length} international pages to audit`);
 
-  for (const page of intlPages) {
+  await mapLimit(intlPages, PSI_CONCURRENCY, async (page) => {
     try {
       const health = await runHealthCheck(page.url);
       const result = { url: page.url, label: page.label, market: page.market, health, checkedAt: Date.now() };
@@ -92,7 +95,7 @@ exports.handler = async (event) => {
       console.error(`[tech-seo] Error for ${page.url}:`, e.message);
       audit.intlResults.push({ url: page.url, label: page.label, market: page.market, error: e.message, checkedAt: Date.now() });
     }
-  }
+  });
 
   // ── PART 3: Site-level checks (non-fatal — never discard the PSI results) ──
   try { audit.technicalChecks = await runSiteChecks(domain); }
@@ -210,6 +213,26 @@ function getInternationalPages(brand, domain) {
 
 const sleep = ms => new Promise(r => setTimeout(r, ms));
 
+// Run async `fn` over `items` with at most `limit` in flight. Used to parallelise the
+// per-page PSI audit so the whole run finishes well inside the 15-min background-function
+// budget even with retries — which in turn makes retrying the occasional slow page
+// affordable. Preserves input order in the returned array; never rejects (fn must handle
+// its own errors and return a result object).
+async function mapLimit(items, limit, fn) {
+  const out = new Array(items.length);
+  let next = 0;
+  const worker = async () => {
+    while (true) {
+      const i = next++;
+      if (i >= items.length) return;
+      out[i] = await fn(items[i], i);
+    }
+  };
+  await Promise.all(Array.from({ length: Math.min(limit, items.length) }, worker));
+  return out;
+}
+const PSI_CONCURRENCY = 4; // pages in flight; ×2 strategies = ≤8 PSI calls, safe under quota
+
 async function runPageSpeed(url, strategy) {
   const key    = process.env.GOOGLE_PAGESPEED_KEY ? `&key=${process.env.GOOGLE_PAGESPEED_KEY}` : '';
   // category=performance ONLY. Without it PSI runs the FULL Lighthouse (a11y +
@@ -219,27 +242,28 @@ async function runPageSpeed(url, strategy) {
   // so the other categories were wasted work. (Verified: no consumer of a11y/BP/SEO.)
   const apiUrl = `https://www.googleapis.com/pagespeedonline/v5/runPagespeed?url=${encodeURIComponent(url)}&strategy=${strategy}&category=performance${key}`;
 
-  // Timeout: a generous 90s. Live-verified that heavy pages (Bonbird UAE home,
-  // menu, locations) took LONGER than the old 45s to return even performance-only
-  // from Netlify's environment, so 45s aborted them mid-analysis. This runs inside a
-  // background function (15-min budget) over pages SERIALLY, so a big single-call
-  // window is affordable.
+  // Timeout: a generous 90s per attempt. Heavy pages (Bonbird UAE home, menu,
+  // locations) take longer than the old 45s to return even performance-only from
+  // Netlify's environment, and their PSI response time VARIES run to run (sometimes
+  // <90s, sometimes over). So a timeout is retried too — but only ONCE, and the whole
+  // audit now runs pages concurrently (mapLimit), which keeps total wall-clock well
+  // inside the 15-min budget even when the slow pages each take two 90s attempts.
   const TIMEOUT_MS = 90000;
-  // Retry policy: PSI's "lighthouseError / Something went wrong" (500) is transient
-  // and returns FAST, so retrying it is cheap and often succeeds — retry those up to
-  // 2x with a real pause. A genuine TIMEOUT is NOT retried: it already had the full
-  // 90s, a re-run would just burn another 90s (× every slow page) and risk blowing the
-  // whole function budget before the audit finishes. The larger window is the timeout
-  // mitigation; the retry is the lighthouseError mitigation.
-  const FAST_RETRY_BACKOFF = [5000, 10000]; // ms before retry 2 and 3
-  const MAX_TRIES = FAST_RETRY_BACKOFF.length + 1;
-  let data;
-  for (let attempt = 1; attempt <= MAX_TRIES; attempt++) {
+  // Fast failures — PSI's "lighthouseError / Something went wrong" (500) and other 5xx —
+  // return quickly and are usually transient, so retry up to 2x with a real pause.
+  // Timeouts get 1 retry (2 attempts) after a short pause.
+  const MAX_TRIES = 3;         // cap for fast (lighthouseError/5xx) failures
+  const MAX_TIMEOUT_TRIES = 2; // cap for abort/timeout — bounds worst-case wall-clock
+  const FAST_BACKOFF = [5000, 10000]; // ms before fast-failure retry 2 and 3
+  let data, timeoutTries = 0, fastTries = 0;
+  for (let attempt = 1; ; attempt++) {
     let res;
     try {
       res = await fetch(apiUrl, { signal: AbortSignal.timeout(TIMEOUT_MS) });
     } catch (e) {
-      // AbortError/TimeoutError = the 90s window elapsed. Do not retry (see above).
+      // AbortError/TimeoutError = the 90s window elapsed. Retry once (page may be faster).
+      timeoutTries++;
+      if (timeoutTries < MAX_TIMEOUT_TRIES) { await sleep(3000); continue; }
       throw new Error(`PSI request failed: ${e.message || e.name}`);
     }
     if (res.ok) {
@@ -247,16 +271,18 @@ async function runPageSpeed(url, strategy) {
       if (!data.error) break; // success
       const msg = data.error.message || 'PSI API error';
       const fastTransient = (data.error.code >= 500) || /lighthouseError|something went wrong/i.test(msg);
-      if (fastTransient && attempt < MAX_TRIES) { await sleep(FAST_RETRY_BACKOFF[attempt - 1]); data = null; continue; }
+      fastTries++;
+      if (fastTransient && fastTries < MAX_TRIES) { await sleep(FAST_BACKOFF[fastTries - 1] || 10000); data = null; continue; }
       throw new Error(msg);
     }
     // non-ok HTTP
     const body = (await res.text().catch(() => '')).slice(0, 300);
     const fastTransient = res.status >= 500 || /lighthouseError|something went wrong/i.test(body);
-    if (fastTransient && attempt < MAX_TRIES) { await sleep(FAST_RETRY_BACKOFF[attempt - 1]); continue; }
+    fastTries++;
+    if (fastTransient && fastTries < MAX_TRIES) { await sleep(FAST_BACKOFF[fastTries - 1] || 10000); continue; }
     throw new Error(`PSI ${res.status}: ${body}`);
   }
-  if (!data) throw new Error('PSI failed after retries (lighthouseError persisted)');
+  if (!data) throw new Error('PSI failed after retries');
 
   const lh = data.lighthouseResult;
   if (!lh?.categories?.performance) throw new Error('No performance data in PSI response');
