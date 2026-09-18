@@ -97,6 +97,34 @@ exports.handler = async (event) => {
     }
   });
 
+  // ── PART 2b: Re-pass errored pages once ──────────────────────────────────
+  // PSI's "lighthouseError / Something went wrong" is transient and moves around run
+  // to run. The whole rest of the audit has elapsed since these pages first failed, so
+  // a fresh attempt now (in parallel, only the failures) usually succeeds — this is
+  // what cuts the residual "errors here and there". On success we replace the error
+  // entry in place with real scores; on repeat failure we keep the recorded error.
+  const coreRetry = audit.results.filter(r => r.error);
+  const intlRetry = audit.intlResults.filter(r => r.error || r.psiError);
+  if (coreRetry.length || intlRetry.length) {
+    console.log(`[tech-seo] re-pass: ${coreRetry.length} core + ${intlRetry.length} intl errored page(s)`);
+    await mapLimit(coreRetry, PSI_CONCURRENCY, async (r) => {
+      try {
+        const [mobile, desktop] = await Promise.all([runPageSpeed(r.url, 'mobile'), runPageSpeed(r.url, 'desktop')]);
+        r.mobile = mobile; r.desktop = desktop; delete r.error; r.checkedAt = Date.now();
+        await createIssuesFromPsi(brand, { url: r.url, label: r.label }, mobile, desktop);
+        await setSetting(`technicalSeo:${brand}`, { ...audit });
+      } catch (e) { console.warn(`[tech-seo] re-pass still failed ${r.url}:`, e.message); }
+    });
+    await mapLimit(intlRetry, PSI_CONCURRENCY, async (r) => {
+      try {
+        r.mobile = await runPageSpeed(r.url, 'mobile');
+        delete r.error; delete r.psiError; r.checkedAt = Date.now();
+        await createIssuesFromPsi(brand, { url: r.url, label: r.label }, r.mobile, r.mobile);
+        await setSetting(`technicalSeo:${brand}`, { ...audit });
+      } catch (e) { console.warn(`[tech-seo] re-pass still failed ${r.url}:`, e.message); }
+    });
+  }
+
   // ── PART 3: Site-level checks (non-fatal — never discard the PSI results) ──
   try { audit.technicalChecks = await runSiteChecks(domain); }
   catch (e) { console.warn('[tech-seo] site checks failed:', e.message); audit.technicalChecks = null; }
