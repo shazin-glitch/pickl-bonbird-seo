@@ -74,6 +74,15 @@ function findingsForBrand(reg) {
       title: `Set up / verify Google Business Profiles — ${m} venues`,
       description: `Venue pages for ${m} are live but local rankings need Google Business Profiles — the main driver of "near me" and Google Maps traffic. Claim, categorise, photograph and link each venue's GBP to its page.` });
   }
+  // 6) stuck — not indexed / not serving: live + set-to-index + in the sitemap but ZERO
+  // impressions for 3+ weeks (the durable signal from the registry, not the lagging
+  // URL-Inspection verdict). Either it isn't indexed or it's indexed but ranks for nothing.
+  for (const c of ((reg.summary && reg.summary.indexingConcernUrls) || [])) {
+    const detail = c.lastCrawlVerdict ? ` Google's last crawl reported: "${c.lastCrawlVerdict}" (may lag the live check).` : '';
+    out.push({ priority: 'high', sourceId: `notindexed:${reg.brand}:${pathOf(c.url)}`,
+      title: `Not indexed / not serving — ${pathOf(c.url)} (${c.ageDays}d)`,
+      description: `${c.url}\n\nLive and set to index for ${c.ageDays} days but still has zero search impressions — it's likely not indexed, or indexed but ranking for nothing.${detail}\n\nIn Search Console: URL Inspection → Test Live URL → Request Indexing. Then make sure it has internal links from a page that already ranks, and enough unique content to be worth indexing.` });
+  }
   return out;
 }
 

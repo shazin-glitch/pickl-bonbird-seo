@@ -23,6 +23,7 @@ const SITE = process.env.URL || process.env.NETLIFY_URL || 'https://yolkseo.netl
 
 const ROBOTS_FETCH_CAP = 40; // bound live page fetches (noindex confirmation) for cost/time
 const INDEX_INSPECT_CAP = 400; // bound URL-Inspection calls/brand/run (GSC quota = 2000/day)
+const STUCK_INDEX_DAYS = 14;   // live + should-index + 0 impressions for this long = indexing concern (Google usually indexes within ~2 weeks)
 const INDEX_CONCURRENCY = 5;   // parallel URL-Inspection calls (quota = 600/min)
 
 // Run async fn over items with at most `limit` in flight; preserves order; never rejects.
@@ -286,9 +287,25 @@ async function buildBrand(brand, store, token) {
     console.log(`${tag} URL-inspected ${capped.length} zero-impression page(s)${toInspect.length > capped.length ? ` (capped from ${toInspect.length})` : ''}`);
   }
 
-  // A page is "not indexed" only when Google was actually asked and said so (indexState
-  // present and indexed===false) AND it's meant to be indexed (indexable, not a redirect).
-  const notIndexed = pages.filter(p => p.indexable !== false && p.indexNote !== 'redirect' && p.indexState && p.indexState.indexed === false);
+  // ── The DURABLE indexing signal (what the alert + State-of-SEO trust) ──────
+  // The URL-Inspection verdict is Google's LAST-KNOWN state and can lag the live GSC UI
+  // (it reported "Submitted and indexed" for pages the live check showed as not indexed),
+  // so we never treat it as truth on its own. The robust signal is behavioural + aged: a
+  // page that is meant to be indexed (indexable + in the sitemap) but has pulled ZERO
+  // impressions after being live for STUCK_INDEX_DAYS is an indexing concern — it either
+  // isn't indexed or isn't serving, and either way needs a human look. The Inspection
+  // verdict rides along as supporting detail, labelled last-crawl.
+  const DAY = 864e5;
+  // Age from the EARLIEST evidence the page was live — the older of its sitemap <lastmod>
+  // (publish/update date) and firstSeen (first registry sighting). firstSeen alone
+  // undercounts pages that were live before the registry started tracking them.
+  const ageDays = p => {
+    const ts = [p.lastmod, p.firstSeen].map(x => x ? new Date(x).getTime() : NaN).filter(x => !isNaN(x));
+    const oldest = ts.length ? Math.min(...ts) : new Date(now).getTime();
+    return Math.max(0, Math.floor((Date.now() - oldest) / DAY));
+  };
+  const concerns = pages.filter(p => p.indexable === true && p.inSitemap && p.impressions === 0 && ageDays(p) >= STUCK_INDEX_DAYS);
+  for (const p of concerns) p.indexConcern = true;
 
   const summary = {
     total: pages.length,
@@ -297,8 +314,12 @@ async function buildBrand(brand, store, token) {
     noindexFlags: pages.filter(p => p.status === 'noindex').length,
     indexChecked: pages.filter(p => p.indexState).length,
     indexed: pages.filter(p => p.indexState && p.indexState.indexed).length,
-    notIndexed: notIndexed.length,
-    notIndexedUrls: notIndexed.map(p => ({ url: p.url, market: p.market, pageType: p.pageType, reason: p.indexState.coverageState, nestCreated: p.nestCreated })),
+    // durable indexing concerns (the trusted signal): live + should-index + 0 impr + aged
+    indexingConcerns: concerns.length,
+    indexingConcernUrls: concerns.map(p => ({
+      url: p.url, market: p.market, pageType: p.pageType, ageDays: ageDays(p), nestCreated: p.nestCreated,
+      lastCrawlVerdict: p.indexState ? (p.indexState.coverageState || p.indexState.verdict) : null, // supporting detail, may lag
+    })),
     nestCreated: pages.filter(p => p.nestCreated).length,
     byMarket: {},
   };

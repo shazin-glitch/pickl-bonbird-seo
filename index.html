@@ -4100,8 +4100,24 @@ function renderStateOfSeo() {
     + tile(totalClicks.toLocaleString(), 'clicks · 90d')
     + tile(avgPos ? avgPos.toFixed(1) : '—', 'avg position')
     + tile(indexedPct + '%', 'in sitemap / indexable')
+    + tile((sum.indexingConcerns || 0), 'not indexed / stuck', (sum.indexingConcerns > 0) ? '#dc2626' : '')
     + tile((sum.noindexFlags || 0), 'noindex flags', (sum.noindexFlags > 0) ? '#dc2626' : '')
     + '</div>';
+  // Indexing concerns drill-down: live + should-index + 0 impressions for 3+ weeks.
+  const concernUrls = sum.indexingConcernUrls || [];
+  const concernsBlock = concernUrls.length ? (
+    '<h3 style="font-size:13px;text-transform:uppercase;letter-spacing:.05em;color:#dc2626;margin:22px 0 8px">⚠ Indexing concerns (' + concernUrls.length + ')</h3>'
+    + '<div style="font-size:12px;color:var(--text-muted);margin:-2px 0 8px">Live and set to index, but zero impressions for 3+ weeks — likely not indexed or ranking for nothing. Request indexing in Search Console + add internal links.</div>'
+    + '<table style="width:100%;border-collapse:collapse;font-size:13px;margin-bottom:20px"><thead><tr>'
+    + th('Page') + th('Market') + th('Age', 1) + th('Google last-crawl') + '</tr></thead><tbody>'
+    + concernUrls.map(c => '<tr>'
+      + td('<a href="' + esc(c.url) + '" target="_blank" style="color:var(--accent);text-decoration:none">' + esc(c.url.replace(/^https?:\/\/[^/]+/, '')) + '</a>' + (c.nestCreated ? ' <span style="font-size:10px;color:var(--text-muted)">(Nest)</span>' : ''))
+      + td('<span style="color:var(--text-muted)">' + esc(ocMkt(c.market)) + '</span>')
+      + td(c.ageDays + 'd', 1)
+      + td('<span style="color:var(--text-muted)">' + esc(c.lastCrawlVerdict || '—') + '</span>')
+      + '</tr>').join('')
+    + '</tbody></table>'
+  ) : '';
   const th = (h, r) => '<th style="text-align:' + (r ? 'right' : 'left') + ';padding:8px 10px;border-bottom:1px solid var(--border);font-size:11px;text-transform:uppercase;letter-spacing:.04em;color:var(--text-muted)">' + h + '</th>';
   const td = (v, r) => '<td style="padding:8px 10px;border-bottom:1px solid var(--border);' + (r ? 'text-align:right;font-variant-numeric:tabular-nums' : '') + '">' + v + '</td>';
   const rollup = '<table style="width:100%;border-collapse:collapse;font-size:13px;margin:8px 0 20px">'
@@ -4132,6 +4148,7 @@ function renderStateOfSeo() {
   el.innerHTML = '<div class="admin-tabs" style="margin-bottom:4px">' + brandTabs + '</div>'
     + '<div style="font-size:11px;color:var(--text-muted);margin:6px 0 0">Live-page registry · built ' + esc(new Date(d.builtAt).toLocaleString()) + ' · <button onclick="sosRebuild()" style="background:none;border:0;color:var(--accent);cursor:pointer;padding:0;font-size:11px">rebuild</button></div>'
     + tiles
+    + concernsBlock
     + '<h3 style="font-size:13px;text-transform:uppercase;letter-spacing:.05em;color:var(--text-muted);margin:8px 0">By market</h3>' + rollup
     + '<div class="admin-tabs" style="margin-bottom:8px">' + mkChips + '</div>' + pageTable + outHtml;
 }
