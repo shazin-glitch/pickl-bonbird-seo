@@ -113,7 +113,18 @@ async function collectSitemap(domain) {
 }
 
 async function robotsIndexable(url) {
-  const html = await fetchText(url);
+  let r;
+  try { r = await fetch(url, { redirect: 'follow' }); }
+  catch { return { fetched: false, indexable: null, status: 'unreachable' }; }
+  // A URL that REDIRECTS is not a live page — its canonical target is what belongs
+  // in the sitemap (and is there). Flagging it as "live but missing from sitemap" is a
+  // false positive; mark it 'redirect' so it's excluded from that check. Catches the
+  // ISO-market redirects (/, /dubai/, /oman/, /sharjah/aljada/ → /ae/… , /om/…).
+  if (r.redirected || (r.status >= 300 && r.status < 400)) {
+    return { fetched: true, indexable: false, status: 'redirect' };
+  }
+  if (!r.ok) return { fetched: false, indexable: null, status: 'unreachable' };
+  const html = await r.text().catch(() => null);
   if (html == null) return { fetched: false, indexable: null, status: 'unreachable' };
   const m = html.match(/<meta[^>]+name=["']robots["'][^>]*>/i);
   const content = m ? ((m[0].match(/content=["']([^"']+)["']/i) || [])[1] || '').toLowerCase() : '';
@@ -191,7 +202,8 @@ async function buildBrand(brand, store, token) {
     const impressions = g ? g.impressions : 0;
     const clicks = g ? g.clicks : 0;
     let status;
-    if (indexable === false) status = 'noindex';
+    if (indexNote === 'redirect') status = 'redirect';
+    else if (indexable === false) status = 'noindex';
     else if (clicks > 1) status = 'ranking';
     else if (impressions > 0) status = 'indexed';
     else status = 'new';

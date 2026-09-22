@@ -40,7 +40,10 @@ function findingsForBrand(reg) {
   // 2) missing from sitemap — our page is live but Google may never discover it. ONLY
   // flag when it also has zero impressions: a page with impressions is clearly discovered
   // regardless of the sitemap (avoids false-positiving the homepage / high-traffic pages).
-  for (const p of pages.filter(x => x.nestCreated && !x.inSitemap && x.status !== 'noindex' && (x.impressions || 0) === 0)) {
+  // Require indexNote === 'index' — i.e. a CONFIRMED live, 200, indexable page. This excludes
+  // redirects (a 301 URL belongs out of the sitemap; its target is in it — see the ISO-market
+  // /→/ae/, /dubai/→/ae/dubai/, /oman/→/om/ false positives), plus unreachable/unknown/noindex.
+  for (const p of pages.filter(x => x.nestCreated && !x.inSitemap && x.indexNote === 'index' && (x.impressions || 0) === 0)) {
     out.push({ priority: 'high', sourceId: `sitemap:${reg.brand}:${pathOf(p.url)}`,
       title: `Not in sitemap — ${pathOf(p.url)}`,
       description: `${p.url}\n\nThis page is live but missing from the XML sitemap and has no search impressions, so Google may not have discovered it. Confirm it's indexable and included in the sitemap, then request indexing.` });
