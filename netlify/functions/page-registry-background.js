@@ -22,6 +22,44 @@ const { authorizeJob, internalHeaders } = require('./_lib/auth');
 const SITE = process.env.URL || process.env.NETLIFY_URL || 'https://yolkseo.netlify.app';
 
 const ROBOTS_FETCH_CAP = 40; // bound live page fetches (noindex confirmation) for cost/time
+const INDEX_INSPECT_CAP = 400; // bound URL-Inspection calls/brand/run (GSC quota = 2000/day)
+const INDEX_CONCURRENCY = 5;   // parallel URL-Inspection calls (quota = 600/min)
+
+// Run async fn over items with at most `limit` in flight; preserves order; never rejects.
+async function mapLimit(items, limit, fn) {
+  const out = new Array(items.length);
+  let next = 0;
+  const worker = async () => { while (true) { const i = next++; if (i >= items.length) return; out[i] = await fn(items[i], i); } };
+  await Promise.all(Array.from({ length: Math.min(limit, items.length) }, worker));
+  return out;
+}
+
+// Ask Google the ACTUAL index state of a URL (not just "is it indexable"). Returns
+// { verdict, coverageState, lastCrawlTime, indexed, checkedAt } or null on error.
+// verdict 'PASS' = the URL is on Google (indexed); anything else = not indexed, with
+// coverageState giving the human reason ("Crawled - currently not indexed", "Discovered
+// - currently not indexed", "URL is unknown to Google", …).
+async function inspectIndex(site, token, url) {
+  try {
+    const res = await fetch('https://searchconsole.googleapis.com/v1/urlInspection/index:inspect', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+      body: JSON.stringify({ inspectionUrl: url, siteUrl: site }),
+      signal: AbortSignal.timeout(20000),
+    });
+    if (!res.ok) return null;
+    const data = await res.json();
+    const idx = data?.inspectionResult?.indexStatusResult;
+    if (!idx) return null;
+    return {
+      verdict: idx.verdict || null,
+      coverageState: idx.coverageState || null,
+      lastCrawlTime: idx.lastCrawlTime || null,
+      indexed: idx.verdict === 'PASS',
+      checkedAt: Date.now(),
+    };
+  } catch { return null; }
+}
 
 // --- URL helpers -----------------------------------------------------------
 function normUrl(u) {
@@ -223,11 +261,45 @@ async function buildBrand(brand, store, token) {
     };
   }).sort((a, b) => (b.clicks - a.clicks) || (b.impressions - a.impressions));
 
+  // ── Real Google index status (URL Inspection) ────────────────────────────
+  // "indexable" only says the page ALLOWS indexing; it does NOT mean Google indexed it.
+  // Ask Google directly so the Nest can report pages that are live + allowed but NOT in
+  // the index (the common "in sitemap for weeks, still 0 impressions" case). Quota-savvy:
+  // reuse a prior PASS verdict when the page is unchanged (lastmod same) — only (re)inspect
+  // pages that are new, previously-not-indexed, or edited, so we keep watching the ones that
+  // still need to land. Skips noindex/redirect pages (deliberately out of the index).
+  if (token) {
+    const priorIdx = new Map((prior?.pages || []).map(p => [p.url, { indexState: p.indexState, lastmod: p.lastmod }]));
+    const toInspect = [];
+    for (const p of pages) {
+      if (p.indexable === false || p.indexNote === 'redirect') { p.indexState = null; continue; }
+      const pr = priorIdx.get(p.url);
+      const unchanged = pr && pr.lastmod === p.lastmod;
+      if (unchanged && pr.indexState && pr.indexState.indexed === true) { p.indexState = pr.indexState; continue; } // still indexed, skip
+      toInspect.push(p);
+    }
+    const capped = toInspect.slice(0, INDEX_INSPECT_CAP);
+    await mapLimit(capped, INDEX_CONCURRENCY, async (p) => {
+      const r = await inspectIndex(site, token, p.url);
+      // on API failure keep any prior reading rather than blanking it
+      p.indexState = r || (priorIdx.get(p.url)?.indexState) || null;
+    });
+    console.log(`${tag} URL-inspected ${capped.length} page(s)${toInspect.length > capped.length ? ` (capped from ${toInspect.length})` : ''}`);
+  }
+
+  // A page is "not indexed" only when Google was actually asked and said so (indexState
+  // present and indexed===false) AND it's meant to be indexed (indexable, not a redirect).
+  const notIndexed = pages.filter(p => p.indexable !== false && p.indexNote !== 'redirect' && p.indexState && p.indexState.indexed === false);
+
   const summary = {
     total: pages.length,
     inSitemap: pages.filter(p => p.inSitemap).length,
     withTraffic: pages.filter(p => p.clicks > 0).length,
     noindexFlags: pages.filter(p => p.status === 'noindex').length,
+    indexChecked: pages.filter(p => p.indexState).length,
+    indexed: pages.filter(p => p.indexState && p.indexState.indexed).length,
+    notIndexed: notIndexed.length,
+    notIndexedUrls: notIndexed.map(p => ({ url: p.url, market: p.market, pageType: p.pageType, reason: p.indexState.coverageState, nestCreated: p.nestCreated })),
     nestCreated: pages.filter(p => p.nestCreated).length,
     byMarket: {},
   };
