@@ -261,30 +261,29 @@ async function buildBrand(brand, store, token) {
     };
   }).sort((a, b) => (b.clicks - a.clicks) || (b.impressions - a.impressions));
 
-  // ── Real Google index status (URL Inspection) ────────────────────────────
+  // ── Real Google index status ─────────────────────────────────────────────
   // "indexable" only says the page ALLOWS indexing; it does NOT mean Google indexed it.
-  // Ask Google directly so the Nest can report pages that are live + allowed but NOT in
-  // the index (the common "in sitemap for weeks, still 0 impressions" case). Quota-savvy:
-  // reuse a prior PASS verdict when the page is unchanged (lastmod same) — only (re)inspect
-  // pages that are new, previously-not-indexed, or edited, so we keep watching the ones that
-  // still need to land. Skips noindex/redirect pages (deliberately out of the index).
+  // KEY shortcut: a page with impressions is BY DEFINITION indexed (it appeared in search
+  // results), so it needs no API call — only 0-impression pages raise the real "is it in
+  // the index?" question. So we URL-Inspect ONLY indexable, non-redirect, 0-impression
+  // pages (typically a handful — the "in sitemap for weeks, still nothing" cases). This
+  // keeps the job fast + far under GSC quota. Reuses a prior reading when unchanged.
   if (token) {
     const priorIdx = new Map((prior?.pages || []).map(p => [p.url, { indexState: p.indexState, lastmod: p.lastmod }]));
     const toInspect = [];
     for (const p of pages) {
-      if (p.indexable === false || p.indexNote === 'redirect') { p.indexState = null; continue; }
+      if (p.impressions > 0) { p.indexState = { indexed: true, verdict: 'PASS', coverageState: 'Serving impressions', inferred: true, checkedAt: Date.now() }; continue; }
+      if (p.indexable === false || p.indexNote === 'redirect') { p.indexState = null; continue; } // deliberately out of index
       const pr = priorIdx.get(p.url);
-      const unchanged = pr && pr.lastmod === p.lastmod;
-      if (unchanged && pr.indexState && pr.indexState.indexed === true) { p.indexState = pr.indexState; continue; } // still indexed, skip
+      if (pr && pr.lastmod === p.lastmod && pr.indexState && pr.indexState.indexed === true && !pr.indexState.inferred) { p.indexState = pr.indexState; continue; }
       toInspect.push(p);
     }
     const capped = toInspect.slice(0, INDEX_INSPECT_CAP);
     await mapLimit(capped, INDEX_CONCURRENCY, async (p) => {
       const r = await inspectIndex(site, token, p.url);
-      // on API failure keep any prior reading rather than blanking it
-      p.indexState = r || (priorIdx.get(p.url)?.indexState) || null;
+      p.indexState = r || (priorIdx.get(p.url)?.indexState) || null; // keep prior reading on API failure
     });
-    console.log(`${tag} URL-inspected ${capped.length} page(s)${toInspect.length > capped.length ? ` (capped from ${toInspect.length})` : ''}`);
+    console.log(`${tag} URL-inspected ${capped.length} zero-impression page(s)${toInspect.length > capped.length ? ` (capped from ${toInspect.length})` : ''}`);
   }
 
   // A page is "not indexed" only when Google was actually asked and said so (indexState
