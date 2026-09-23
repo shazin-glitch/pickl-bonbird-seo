@@ -51,6 +51,7 @@ exports.handler = async (event) => {
     else if (type === 'planner_run')         payload = buildPlannerRun(body);
     else if (type === 'draft_queued')        payload = buildDraftQueued(body);
     else if (type === 'perch_autosync')      payload = buildPerchAutosync(body);
+    else if (type === 'seo_work')            payload = buildSeoWork(body);
     else                                     payload = buildGeneric(body);
 
     const slackRes = await fetch(webhookUrl, {
@@ -66,6 +67,29 @@ exports.handler = async (event) => {
     return { statusCode: 500, headers, body: JSON.stringify({ error: err.message }) };
   }
 };
+
+// ─── Live SEO work completed — CEO-facing "the Nest is doing things" update ───
+// Fired by the live-write paths (meta/content/publish) so progress is visible in Slack.
+function buildSeoWork({ brand, items = [] }) {
+  const brandLabel = brand === 'pickl' ? '🟡 Pickl' : brand === 'bonbird' ? '🔴 Bonbird' : '🪺 The Nest';
+  const date = new Date().toLocaleDateString('en-GB', { weekday: 'short', day: 'numeric', month: 'short' });
+  const actionLabel = a => ({ meta_update: '✏️ Meta updated', update_content: '📝 Content updated', publish: '🚀 Published', create_page: '➕ Page created' }[a] || '✅ Updated');
+  const path = u => { try { return u.replace(/^https?:\/\/[^/]+/, '') || u; } catch { return u; } };
+  const blocks = [
+    { type: 'header', text: { type: 'plain_text', text: `🪺 The Nest — live SEO work` } },
+    { type: 'section', text: { type: 'mrkdwn', text: `*${brandLabel}* · ${date} · ${items.length} change${items.length !== 1 ? 's' : ''} live` } },
+    { type: 'divider' },
+  ];
+  for (const it of items.slice(0, 20)) {
+    let line = `${actionLabel(it.action)} — <${it.url}|${path(it.url)}>`;
+    if (it.before && it.after) line += `\n> *Before:* ${it.before}\n> *After:* ${it.after}`;
+    else if (it.after) line += `\n> ${it.after}`;
+    else if (it.summary) line += `\n> ${it.summary}`;
+    blocks.push({ type: 'section', text: { type: 'mrkdwn', text: line } });
+  }
+  blocks.push({ type: 'context', elements: [{ type: 'mrkdwn', text: `Tracked in The Nest → Analytics & Reports → Outcomes` }] });
+  return { blocks };
+}
 
 // ─── Queue summary: one message per brand, full per-item detail ──────────────
 function buildQueueSummary({ brand, items = [], count }) {

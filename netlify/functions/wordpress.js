@@ -17,8 +17,33 @@
 //   list_scaffolds  draft pages with empty/near-empty bodies (template scaffolds awaiting content)
 //   get_post        get single item by ID
 
-const { authorize } = require('./_lib/auth');
+const { getStore } = require('@netlify/blobs');
+const { authorize, internalHeaders } = require('./_lib/auth');
 const { getBrand } = require('./_lib/brands-config');
+
+const NEST_SITE = process.env.URL || 'https://yolkseo.netlify.app';
+
+// Record a live change to the work log (so Outcomes/Performance can track it over time)
+// AND post a Slack update (so progress is visible). Best-effort — never fails the write.
+async function recordAndNotify({ brand, action, url, before, after, summary, market, pageType }) {
+  if (!brand || !url) return;
+  // 1) append to seoEvents:<brand> (the work log the Outcomes view reads)
+  try {
+    const store = getStore({ name: 'seo-tool', siteID: process.env.NETLIFY_SITE_ID, token: process.env.NETLIFY_AUTH_TOKEN });
+    const key = `seoEvents:${brand}`;
+    const log = (await store.get(key, { type: 'json' }).catch(() => null)) || { brand, events: [] };
+    log.events.push({ type: 'optimized', action, url, market: market || null, pageType: pageType || null, at: new Date().toISOString(), nestCreated: false, detail: { before: before || null, after: after || null, summary: summary || null }, loggedAt: new Date().toISOString() });
+    log.events = log.events.slice(-1000);
+    await store.set(key, JSON.stringify(log));
+  } catch (e) { console.warn('[wp] work-log append failed:', e.message); }
+  // 2) Slack — visible progress for the team/CEO
+  try {
+    await fetch(`${NEST_SITE}/.netlify/functions/slack-notify`, {
+      method: 'POST', headers: internalHeaders({ 'Content-Type': 'application/json' }),
+      body: JSON.stringify({ type: 'seo_work', brand, items: [{ action, url, before, after, summary }] }),
+    });
+  } catch (e) { console.warn('[wp] slack notify failed:', e.message); }
+}
 
 const CORS = {
   'Access-Control-Allow-Origin': '*',
@@ -86,9 +111,9 @@ exports.handler = async (event) => {
       case 'create_draft':   return await handleCreateDraft(creds, body.payload || {}, brand);
       case 'create_page':    return await handleCreatePage(creds, body.payload || {}, brand);
       case 'update_content': return await handleUpdateContent(creds, body.payload || {}, brand);
-      case 'update_meta':      return await handleUpdateMeta(creds, body.payload || {});
+      case 'update_meta':      return await handleUpdateMeta(creds, body.payload || {}, brand);
       case 'get_current_meta': return await handleGetCurrentMeta(creds, body.payload || {});
-      case 'publish':          return await handlePublish(creds, body.payload || {});
+      case 'publish':          return await handlePublish(creds, body.payload || {}, brand);
       case 'list_posts':       return await handleListPosts(creds, body);
       case 'list_market_pages': return await handleListMarketPages(creds, body.payload || {});
       case 'list_scaffolds':    return await handleListScaffolds(creds, body.payload || {});
@@ -378,6 +403,7 @@ async function handleUpdateContent(creds, payload, brand) {
 
   const res = await wpFetch(creds, `/wp/v2/${endpoint}/${postId}`, { method: 'POST', body: updates });
   if (!res.ok) return fail(res.status, `WP update content failed: ${describeError(res)}`);
+  await recordAndNotify({ brand, action: 'update_content', url: res.data.link, summary: payload.title || (bodyHtml ? 'page content updated' : 'meta updated') });
   return win({
     ok: true, id: postId, postType: endpoint, ref: res.data.link,
     editUrl: `${creds.base}/wp-admin/post.php?post=${postId}&action=edit`,
@@ -388,7 +414,7 @@ async function handleUpdateContent(creds, payload, brand) {
 }
 
 // ── update SEO meta only ─────────────────────────────────────────
-async function handleUpdateMeta(creds, payload) {
+async function handleUpdateMeta(creds, payload, brand) {
   let { postId, postType } = payload;
   if (!postId && payload.url) {
     const found = await findPostByUrl(creds, normalizeUrl(payload.url, creds.base));
@@ -396,6 +422,15 @@ async function handleUpdateMeta(creds, payload) {
     postId = found.id; postType = found.type;
   }
   if (!postId) return fail(400, 'postId or url required');
+
+  // Capture the CURRENT title/desc BEFORE writing — for the before→after record + a
+  // clean rollback trail (verify-first, rule #13).
+  let beforeMeta = null;
+  try {
+    const cur = await handleGetCurrentMeta(creds, { postId, postType });
+    const cb = cur && cur.body ? JSON.parse(cur.body) : null;
+    if (cb && cb.found) beforeMeta = { title: cb.currentTitle, description: cb.currentDesc };
+  } catch { /* non-fatal */ }
 
   const updates = {};
   if (payload.excerpt) updates.excerpt = payload.excerpt;
@@ -413,6 +448,16 @@ async function handleUpdateMeta(creds, payload) {
   const writtenMeta  = verify.ok ? (verify.data?.meta || {}) : null;
   const writtenTitle = writtenMeta?.rank_math_title || writtenMeta?._yoast_wpseo_title || null;
   const metaWritten  = writtenTitle === payload.title;
+
+  // Track + announce the live change (best-effort; only when the write actually landed).
+  if (metaWritten) {
+    await recordAndNotify({
+      brand, action: 'meta_update', url: res.data.link,
+      before: beforeMeta ? beforeMeta.title : null,
+      after: payload.title || (payload.description ? 'meta description updated' : null),
+      summary: payload.description ? `desc: ${payload.description}` : null,
+    });
+  }
 
   return win({
     ok: true, id: postId, postType: endpoint, ref: res.data.link,
@@ -455,7 +500,7 @@ async function handleGetCurrentMeta(creds, payload) {
 // ── publish ──────────────────────────────────────────────────────
 // Flips any draft post or page to published status.
 // Called by "Approve & Publish" button or "publish this" Claude command.
-async function handlePublish(creds, payload) {
+async function handlePublish(creds, payload, brand) {
   let { postId, postType } = payload;
   if (!postId && payload.url) {
     const found = await findPostByUrl(creds, normalizeUrl(payload.url, creds.base));
@@ -467,6 +512,7 @@ async function handlePublish(creds, payload) {
   const endpoint = (postType === 'pages' || postType === 'page') ? 'pages' : 'posts';   // WP + create_page return singular 'page'; publish/update on /posts/<pageId> → "Invalid post ID" (v7.9.63)
   const res = await wpFetch(creds, `/wp/v2/${endpoint}/${postId}`, { method: 'POST', body: { status: 'publish' } });
   if (!res.ok) return fail(res.status, `WP publish failed: ${describeError(res)}`);
+  await recordAndNotify({ brand, action: 'publish', url: res.data.link, summary: res.data?.title?.rendered || null });
   return win({
     ok: true, id: postId, postType: endpoint,
     ref: res.data.link,
