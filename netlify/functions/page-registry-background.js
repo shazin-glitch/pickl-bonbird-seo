@@ -21,7 +21,8 @@ const { authorizeJob, internalHeaders } = require('./_lib/auth');
 
 const SITE = process.env.URL || process.env.NETLIFY_URL || 'https://yolkseo.netlify.app';
 
-const ROBOTS_FETCH_CAP = 40; // bound live page fetches (noindex confirmation) for cost/time
+const HTTP_CHECK_CAP = 150; // bound out-of-sitemap HTTP checks (redirect/noindex detection)
+const HTTP_CONCURRENCY = 8;  // parallel out-of-sitemap fetches
 const INDEX_INSPECT_CAP = 400; // bound URL-Inspection calls/brand/run (GSC quota = 2000/day)
 const STUCK_INDEX_DAYS = 14;   // live + should-index + 0 impressions for this long = indexing concern (Google usually indexes within ~2 weeks)
 const INDEX_CONCURRENCY = 5;   // parallel URL-Inspection calls (quota = 600/min)
@@ -160,7 +161,7 @@ async function robotsIndexable(url) {
   // false positive; mark it 'redirect' so it's excluded from that check. Catches the
   // ISO-market redirects (/, /dubai/, /oman/, /sharjah/aljada/ → /ae/… , /om/…).
   if (r.redirected || (r.status >= 300 && r.status < 400)) {
-    return { fetched: true, indexable: false, status: 'redirect' };
+    return { fetched: true, indexable: false, status: 'redirect', finalUrl: (r.url && r.url !== url) ? r.url : (r.headers.get('location') || null) };
   }
   if (!r.ok) return { fetched: false, indexable: null, status: 'unreachable' };
   const html = await r.text().catch(() => null);
@@ -214,28 +215,31 @@ async function buildBrand(brand, store, token) {
   // universe = everything we can see is live: sitemap ∪ GSC pages ∪ Nest-created URLs
   const universe = new Set([...sitemapUrls, ...gscByUrl.keys(), ...nestUrls]);
 
-  // Confirm indexability by fetching robots ONLY where it's genuinely in doubt: a page
-  // missing from the sitemap AND absent from GSC (0 impressions). A page with impressions
-  // is obviously indexed (no fetch needed); an in-sitemap page is indexable (Yoast drops
-  // noindex from the sitemap). Nest-created pages checked first, bounded by the cap — this
-  // is what catches a stray noindex like /om/chicken-tenders/.
-  const candidates = [...universe].filter(u => !sitemapUrls.has(u) && !gscByUrl.has(u));
-  candidates.sort((a, b) => (nestUrls.has(b) ? 1 : 0) - (nestUrls.has(a) ? 1 : 0));
+  // HTTP-verify every out-of-sitemap URL. The Yoast sitemap is the authoritative list of
+  // live 200 canonical pages, so an out-of-sitemap URL is one of: (a) a 301'd legacy URL
+  // that GSC STILL reports impressions for (migration lag — Google keeps the old URL for
+  // months after a redirect) — this must be marked 'redirect', NOT shown as a live
+  // duplicate that double-counts impressions; (b) a genuinely live page missing from the
+  // sitemap; or (c) a noindex page. The old code skipped URLs that had impressions, so the
+  // 301'd legacy URLs (/dubai/, /uae-menu/, …) were listed as live pages — the bug that
+  // produced a false "cannibalization" reading. Prioritise by impressions (the ones that
+  // distort the numbers most), then Nest-created; bounded + parallel.
+  const outOfSitemap = [...universe].filter(u => !sitemapUrls.has(u));
+  outOfSitemap.sort((a, b) =>
+    ((gscByUrl.get(b)?.impressions || 0) - (gscByUrl.get(a)?.impressions || 0))
+    || ((nestUrls.has(b) ? 1 : 0) - (nestUrls.has(a) ? 1 : 0)));
   const robotsMap = new Map();
-  let fetched = 0;
-  for (const u of candidates) {
-    if (fetched >= ROBOTS_FETCH_CAP) break;
-    robotsMap.set(u, await robotsIndexable(u));
-    fetched++;
-  }
+  await mapLimit(outOfSitemap.slice(0, HTTP_CHECK_CAP), HTTP_CONCURRENCY, async (u) => { robotsMap.set(u, await robotsIndexable(u)); });
 
-  const pages = [...universe].map(url => {
+  const allPages = [...universe].map(url => {
     const g = gscByUrl.get(url) || null;
     const inSitemap = sitemapUrls.has(url);
     const rb = robotsMap.get(url);
-    let indexable, indexNote;
+    let indexable, indexNote, redirectTo = null;
     if (inSitemap) { indexable = true; indexNote = 'in-sitemap'; }
-    else if (g) { indexable = true; indexNote = 'has-impressions'; }
+    else if (rb && rb.status === 'redirect') { indexable = false; indexNote = 'redirect'; redirectTo = rb.finalUrl || null; } // 301'd — checked FIRST, before impressions
+    else if (rb && (rb.status === 'noindex' || rb.status === 'index')) { indexable = rb.indexable; indexNote = rb.status; }
+    else if (g) { indexable = true; indexNote = 'has-impressions'; } // in GSC, not HTTP-checked (past cap) — assume live
     else if (rb) { indexable = rb.indexable; indexNote = rb.status; }
     else { indexable = null; indexNote = 'unknown'; }
     const impressions = g ? g.impressions : 0;
@@ -251,7 +255,7 @@ async function buildBrand(brand, store, token) {
       market: attributeMarket(url, marketsMap),
       pageType: classify(url, marketSlugs, citySlugs),
       inSitemap,
-      indexable, indexNote,
+      indexable, indexNote, redirectTo,
       impressions, clicks,
       position: g ? g.position : null,
       nestCreated: nestUrls.has(url),
@@ -261,6 +265,13 @@ async function buildBrand(brand, store, token) {
       lastSeen: now,
     };
   }).sort((a, b) => (b.clicks - a.clicks) || (b.impressions - a.impressions));
+
+  // A 301'd URL is NOT a live page — exclude it from the registry entirely so it can't be
+  // shown as a live duplicate or double-count its (migration-lag) impressions in the market
+  // totals. Its traffic belongs to the redirect target, which is separately in the registry.
+  const redirectPages = allPages.filter(p => p.status === 'redirect');
+  const pages = allPages.filter(p => p.status !== 'redirect');
+  if (redirectPages.length) console.log(`${tag} excluded ${redirectPages.length} redirect(s) from the live registry (e.g. ${redirectPages.slice(0, 3).map(p => p.url.replace(/^https?:\/\/[^/]+/, '')).join(', ')})`);
 
   // ── Real Google index status ─────────────────────────────────────────────
   // "indexable" only says the page ALLOWS indexing; it does NOT mean Google indexed it.
@@ -312,6 +323,7 @@ async function buildBrand(brand, store, token) {
     inSitemap: pages.filter(p => p.inSitemap).length,
     withTraffic: pages.filter(p => p.clicks > 0).length,
     noindexFlags: pages.filter(p => p.status === 'noindex').length,
+    redirectsExcluded: redirectPages.length,
     indexChecked: pages.filter(p => p.indexState).length,
     indexed: pages.filter(p => p.indexState && p.indexState.indexed).length,
     // durable indexing concerns (the trusted signal): live + should-index + 0 impr + aged
