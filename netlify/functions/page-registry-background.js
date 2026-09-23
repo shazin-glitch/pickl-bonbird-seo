@@ -266,12 +266,22 @@ async function buildBrand(brand, store, token) {
     };
   }).sort((a, b) => (b.clicks - a.clicks) || (b.impressions - a.impressions));
 
-  // A 301'd URL is NOT a live page — exclude it from the registry entirely so it can't be
-  // shown as a live duplicate or double-count its (migration-lag) impressions in the market
-  // totals. Its traffic belongs to the redirect target, which is separately in the registry.
+  // A 301'd URL is NOT a live page — drop it from the registry so it's never shown as a
+  // live duplicate. But its impressions are REAL demand (GSC still attributes them to the
+  // old URL for months post-migration), so FOLD them into the redirect TARGET rather than
+  // dropping them — otherwise the market total collapses during the transition. Result: no
+  // duplicate rows AND accurate totals, attributed to the live page.
   const redirectPages = allPages.filter(p => p.status === 'redirect');
   const pages = allPages.filter(p => p.status !== 'redirect');
-  if (redirectPages.length) console.log(`${tag} excluded ${redirectPages.length} redirect(s) from the live registry (e.g. ${redirectPages.slice(0, 3).map(p => p.url.replace(/^https?:\/\/[^/]+/, '')).join(', ')})`);
+  const byUrl = new Map(pages.map(p => [p.url, p]));
+  let folded = 0;
+  for (const rp of redirectPages) {
+    if (!rp.impressions && !rp.clicks) continue;
+    const target = rp.redirectTo ? byUrl.get(normUrl(rp.redirectTo)) : null;
+    if (target) { target.impressions += rp.impressions; target.clicks += rp.clicks; target.foldedFromRedirect = (target.foldedFromRedirect || 0) + rp.impressions; folded++; }
+  }
+  pages.sort((a, b) => (b.clicks - a.clicks) || (b.impressions - a.impressions)); // re-sort after folding
+  if (redirectPages.length) console.log(`${tag} excluded ${redirectPages.length} redirect(s), folded ${folded} into their targets`);
 
   // ── Real Google index status ─────────────────────────────────────────────
   // "indexable" only says the page ALLOWS indexing; it does NOT mean Google indexed it.
