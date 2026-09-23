@@ -4139,11 +4139,33 @@ function renderStateOfSeo() {
     + '<thead><tr>' + th('Page') + th('Type') + th('Impr', 1) + th('Clicks', 1) + th('Pos', 1) + th('Status') + '</tr></thead>'
     + '<tbody>' + (rows || '<tr><td colspan="6" style="padding:16px;color:var(--text-muted)">No pages in this market</td></tr>') + '</tbody></table>';
   let outHtml = '';
-  const ob = sosState.outcomes && sosState.outcomes[sosState.brand];
+  const oc = sosState.outcomes && (sosState.outcomes[sosState.brand] || sosState.outcomes);
+  const ob = oc;
   if (ob && ob.outcomes && ob.outcomes.length) {
     const imp = ob.outcomes.filter(o => o.verdict === 'improved').length, dec = ob.outcomes.filter(o => o.verdict === 'declined').length;
     outHtml = '<h3 style="font-size:13px;text-transform:uppercase;letter-spacing:.05em;color:var(--text-muted);margin:26px 0 8px">Content outcomes</h3>'
       + '<div style="font-size:13px">' + imp + ' improved · ' + dec + ' declined · ' + ob.outcomes.length + ' measured <span style="color:var(--text-muted)">(vs position at publish)</span></div>';
+  }
+  // Optimization results — did our live meta/content edits move CTR? (v7.9.104)
+  const mr = (oc && oc.metaResults) || [];
+  if (mr.length) {
+    const graded = mr.filter(r => ['improved', 'declined', 'flat'].includes(r.verdict));
+    const maturing = mr.filter(r => r.verdict === 'maturing' || r.verdict === 'pending').length;
+    const vColor = v => v === 'improved' ? '#16a34a' : v === 'declined' ? '#dc2626' : 'var(--text-muted)';
+    const vArrow = v => v === 'improved' ? '▲' : v === 'declined' ? '▼' : '▬';
+    outHtml += '<h3 style="font-size:13px;text-transform:uppercase;letter-spacing:.05em;color:var(--text-muted);margin:26px 0 8px">Optimization results <span style="text-transform:none;font-weight:400">· did our edits move CTR?</span></h3>';
+    if (graded.length) {
+      outHtml += '<div style="overflow-x:auto"><table style="width:100%;border-collapse:collapse;font-size:13px"><thead><tr>'
+        + th('Page') + th('Change') + th('CTR before', 1) + th('CTR now', 1) + th('Result', 1) + '</tr></thead><tbody>'
+        + graded.map(r => '<tr>'
+          + td('<a href="' + esc(r.url) + '" target="_blank" style="color:var(--accent);text-decoration:none">' + esc(r.url.replace(/^https?:\/\/[^/]+/, '')) + '</a>')
+          + td('<span style="color:var(--text-muted)">' + esc((r.action || '').replace(/_/g, ' ')) + '</span>')
+          + td(r.baseline.ctr + '%', 1) + td(r.current.ctr + '%', 1)
+          + td('<span style="font-weight:600;color:' + vColor(r.verdict) + '">' + vArrow(r.verdict) + ' ' + esc(r.verdict) + '</span>', 1)
+          + '</tr>').join('')
+        + '</tbody></table></div>';
+    }
+    if (maturing) outHtml += '<div style="font-size:12px;color:var(--text-muted);margin-top:8px">' + maturing + ' recent change' + (maturing !== 1 ? 's' : '') + ' still being measured — results appear ~2–4 weeks after each edit.</div>';
   }
   el.innerHTML = '<div class="admin-tabs" style="margin-bottom:4px">' + brandTabs + '</div>'
     + '<div style="font-size:11px;color:var(--text-muted);margin:6px 0 0">Live-page registry · built ' + esc(new Date(d.builtAt).toLocaleString()) + ' · <button onclick="sosRebuild()" style="background:none;border:0;color:var(--accent);cursor:pointer;padding:0;font-size:11px">rebuild</button></div>'
