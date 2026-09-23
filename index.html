@@ -999,9 +999,9 @@ body { font-family: var(--font-sans); background: var(--bg-base); color: var(--t
         <button class="admin-tab active" data-atab="outcomes" onclick="switchAnalyticsTab('outcomes',this)">Outcomes</button>
         <button class="admin-tab" data-atab="stateofseo" onclick="switchAnalyticsTab('stateofseo',this)">State of SEO</button>
         <button class="admin-tab" data-atab="trends" onclick="switchAnalyticsTab('trends',this)">Performance</button>
+        <button class="admin-tab" data-atab="keywords" onclick="switchAnalyticsTab('keywords',this)">Keywords</button>
         <button class="admin-tab" data-atab="rankings" onclick="switchAnalyticsTab('rankings',this)">Rankings</button>
         <button class="admin-tab" data-atab="competitors" onclick="switchAnalyticsTab('competitors',this)">Competitors</button>
-        <button class="admin-tab" data-atab="opportunities" onclick="switchAnalyticsTab('opportunities',this)">Opportunities</button>
         <button class="admin-tab" data-atab="backlinks" onclick="switchAnalyticsTab('backlinks',this)">Backlinks</button>
         <button class="admin-tab" data-atab="markets" onclick="switchAnalyticsTab('markets',this)">Markets</button>
         <button class="admin-tab" data-atab="report" onclick="switchAnalyticsTab('report',this)">Report</button>
@@ -1085,8 +1085,8 @@ body { font-family: var(--font-sans); background: var(--bg-base); color: var(--t
           </div>
         </div>
 
-        <!-- ── RANK TRACKER ─────────────────────────────────────────────── -->
-        <div class="card" style="margin-bottom:24px">
+        <!-- ── RANK TRACKER (relocated into the Keywords lens at runtime) ──── -->
+        <div class="card" style="margin-bottom:24px" id="rt-card">
           <div style="display:flex;justify-content:space-between;align-items:flex-start;gap:12px;flex-wrap:wrap;margin-bottom:6px">
             <div>
               <div style="font-weight:600;font-size:15px">📊 Rank Tracker</div>
@@ -1173,6 +1173,14 @@ body { font-family: var(--font-sans); background: var(--bg-base); color: var(--t
             </table>
           </div>
         </div>
+      </div>
+
+      <!-- KEYWORDS TAB PANEL (unifies Rank Tracker + Opportunities; sections relocated here at runtime) -->
+      <div id="atab-keywords" class="analytics-tab-panel" style="display:none">
+        <div class="rep-sec" style="display:flex;align-items:center;gap:12px;margin:4px 0 12px"><h3 class="rep-h" style="font-size:12px;text-transform:uppercase;letter-spacing:.08em;margin:0">Tracked keywords</h3><span style="flex:1;height:1px;background:var(--border)"></span><span style="font-size:11px;color:var(--text-muted);font-style:italic">what we're tracking</span></div>
+        <div id="kw-tracker-mount"></div>
+        <div class="rep-sec" style="display:flex;align-items:center;gap:12px;margin:28px 0 12px"><h3 class="rep-h" style="font-size:12px;text-transform:uppercase;letter-spacing:.08em;margin:0">Keyword opportunities</h3><span style="flex:1;height:1px;background:var(--border)"></span><span style="font-size:11px;color:var(--text-muted);font-style:italic">what to target next</span></div>
+        <div id="kw-opps-mount"></div>
       </div>
 
       <!-- COMPETITORS TAB PANEL -->
@@ -3504,6 +3512,9 @@ function switchAnalyticsTab(tab, btn) {
   document.querySelectorAll('#analytics-tabs .admin-tab').forEach(b => b.classList.remove('active'));
   const activeBtn = btn || document.querySelector(`#analytics-tabs [data-atab="${tab}"]`);
   if (activeBtn) activeBtn.classList.add('active');
+  // Keywords lens (E): relocate the Rank Tracker + Opportunities sections into one home
+  // (idempotent — moves the existing nodes so their IDs/handlers keep working).
+  keywordsLensRelocate();
   // Switch panel
   document.querySelectorAll('.analytics-tab-panel').forEach(p => p.style.display = 'none');
   const panel = document.getElementById('atab-' + tab);
@@ -3512,12 +3523,26 @@ function switchAnalyticsTab(tab, btn) {
   if (tab === 'outcomes')     loadOutcomes();
   if (tab === 'stateofseo')   loadStateOfSeo();
   if (tab === 'trends')       loadTrends();
-  if (tab === 'rankings')     { if (!gscLoaded) loadGscIfNeeded(); else renderGscTable(); initMtDates(); if (!mtState.loaded) loadMarketTraffic(); if (!rtState.loaded) loadRankTracker(); }
+  if (tab === 'keywords')     { if (!rtState.loaded) loadRankTracker(); loadKeywordOpportunities(); }
+  if (tab === 'rankings')     { if (!gscLoaded) loadGscIfNeeded(); else renderGscTable(); initMtDates(); if (!mtState.loaded) loadMarketTraffic(); }
   if (tab === 'competitors')  { loadAuditHistory(); if (window.competitorMatrix?.init) window.competitorMatrix.init(); }
   if (tab === 'opportunities') loadKeywordOpportunities();
   if (tab === 'backlinks')    loadBacklinksIfNeeded();
   if (tab === 'markets')      loadIntlDashboard();
   if (tab === 'report')       loadReports();
+}
+
+// Move the Rank Tracker card + Opportunities panel into the Keywords lens (once).
+// Nodes keep their IDs, so loadRankTracker()/loadKeywordOpportunities() render as before.
+function keywordsLensRelocate() {
+  try {
+    const rt = document.getElementById('rt-card');
+    const km = document.getElementById('kw-tracker-mount');
+    if (rt && km && rt.parentElement !== km) km.appendChild(rt);
+    const po = document.getElementById('panel-opportunities');
+    const om = document.getElementById('kw-opps-mount');
+    if (po && om && po.parentElement !== om) om.appendChild(po);
+  } catch (e) { /* non-fatal */ }
 }
 
 function showAnalyticsOverview() {
