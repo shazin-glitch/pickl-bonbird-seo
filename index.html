@@ -4051,19 +4051,25 @@ function ocPage(d) { outState.page += d; ocRows(); }
 // ── State of SEO (Phase 3 — the "Monday view"; NEST-REFINEMENT-PLAN) ─────────
 // One place that answers "what's live and is it working", per brand × market, off
 // the live-page registry (pageRegistry) + content outcomes. No triple-stack, one source.
-const sosState = { brand: null, market: 'all', data: null, outcomes: null };
+const sosState = { brand: null, market: 'all', data: null, outcomes: null, backlinks: null, tech: null };
 async function loadStateOfSeo() {
   const brands = window.NEST_BRANDS || [];
   if (!sosState.brand) sosState.brand = (brands[0] && brands[0].slug) || 'bonbird';
   const el = document.getElementById('stateofseo-content');
   if (el) el.innerHTML = '<div style="padding:24px;color:var(--text-muted)">Loading live-page registry…</div>';
+  const b = encodeURIComponent(sosState.brand);
   try {
-    const [regRes, outRes] = await Promise.all([
-      fetch('/api/page-registry?brand=' + encodeURIComponent(sosState.brand), { credentials: 'include' }),
-      fetch('/api/content-outcomes?brand=' + encodeURIComponent(sosState.brand), { credentials: 'include' }).catch(() => null),
+    // Registry is required; the health/authority/outcomes summaries are best-effort add-ons.
+    const [regRes, outRes, blRes, techRes] = await Promise.all([
+      fetch('/api/page-registry?brand=' + b, { credentials: 'include' }),
+      fetch('/api/content-outcomes?brand=' + b, { credentials: 'include' }).catch(() => null),
+      fetch('/api/backlinks?brand=' + b, { credentials: 'include' }).catch(() => null),
+      fetch('/api/technical-seo?brand=' + b, { credentials: 'include' }).catch(() => null),
     ]);
     sosState.data = await regRes.json();
     sosState.outcomes = (outRes && outRes.ok) ? await outRes.json() : null;
+    sosState.backlinks = (blRes && blRes.ok) ? await blRes.json() : null;
+    sosState.tech = (techRes && techRes.ok) ? await techRes.json() : null;
   } catch (e) {
     if (el) el.innerHTML = '<div style="padding:24px;color:var(--text-muted)">Could not load registry: ' + esc(e.message) + '</div>';
     return;
@@ -4135,6 +4141,26 @@ function renderStateOfSeo() {
       + '</tr>').join('')
     + '</tbody></table>'
   ) : '';
+  // Health & authority summary (D) — condensed, linking out to the full tabs.
+  const tech = sosState.tech && sosState.tech.summary;
+  const blBrand = sosState.backlinks && (sosState.backlinks[sosState.brand] || sosState.backlinks);
+  const blOwn = blBrand && blBrand.own;
+  let healthBlock = '';
+  if (tech || blOwn) {
+    const cwvLabel = ({ good: '✓ Good', 'needs-improvement': '△ Needs work', poor: '✗ Poor' })[tech && tech.cwvOverall] || '—';
+    const haCard = (title, body, onclick) => '<div class="card" style="padding:16px;cursor:pointer" onclick="' + onclick + '"><div style="font-size:11px;text-transform:uppercase;letter-spacing:.05em;color:var(--text-muted);margin-bottom:8px">' + title + '<span style="float:right;color:var(--accent);text-transform:none">View →</span></div>' + body + '</div>';
+    const healthBody = tech
+      ? '<div style="font-size:22px;font-weight:800;font-family:\'Archivo\',var(--font-sans)">' + (tech.avgMobile != null ? tech.avgMobile : '—') + '<span style="font-size:12px;font-weight:400;color:var(--text-muted)"> mobile</span> · ' + (tech.avgDesktop != null ? tech.avgDesktop : '—') + '<span style="font-size:12px;font-weight:400;color:var(--text-muted)"> desktop</span></div><div style="font-size:12px;color:var(--text-muted);margin-top:4px">Core Web Vitals: ' + cwvLabel + (tech.techIssues && tech.techIssues.length ? ' · ' + esc(tech.techIssues.join(', ')) : '') + '</div>'
+      : '<div style="color:var(--text-muted);font-size:13px">No audit yet — run Technical SEO</div>';
+    const dl = blBrand && blBrand.delta && blBrand.delta.referringDelta;
+    const blBody = blOwn
+      ? '<div style="font-size:22px;font-weight:800;font-family:\'Archivo\',var(--font-sans)">' + (blOwn.referringDomains || 0).toLocaleString() + '<span style="font-size:12px;font-weight:400;color:var(--text-muted)"> referring domains</span>' + (dl ? ' <span style="font-size:12px;color:' + (dl > 0 ? '#16a34a' : '#dc2626') + '">' + (dl > 0 ? '+' : '') + dl + '</span>' : '') + '</div><div style="font-size:12px;color:var(--text-muted);margin-top:4px">Domain score ' + (blOwn.domainScore != null ? blOwn.domainScore : '—') + (blOwn.dofollowPct != null ? ' · ' + blOwn.dofollowPct + '% dofollow' : '') + '</div>'
+      : '<div style="color:var(--text-muted);font-size:13px">No backlink data yet</div>';
+    healthBlock = '<div class="rep-tiles" style="grid-template-columns:1fr 1fr">'
+      + haCard('Site health', healthBody, "switchView('techseo')")
+      + haCard('Authority (backlinks)', blBody, "switchAnalyticsTab('backlinks',document.querySelector('[data-atab=backlinks]'))")
+      + '</div>';
+  }
   const pageTable = '<table style="width:100%;border-collapse:collapse;font-size:13px">'
     + '<thead><tr>' + th('Page') + th('Type') + th('Impr', 1) + th('Clicks', 1) + th('Pos', 1) + th('Status') + '</tr></thead>'
     + '<tbody>' + (rows || '<tr><td colspan="6" style="padding:16px;color:var(--text-muted)">No pages in this market</td></tr>') + '</tbody></table>';
@@ -4170,6 +4196,7 @@ function renderStateOfSeo() {
   el.innerHTML = '<div class="admin-tabs" style="margin-bottom:4px">' + brandTabs + '</div>'
     + '<div style="font-size:11px;color:var(--text-muted);margin:6px 0 0">Live-page registry · built ' + esc(new Date(d.builtAt).toLocaleString()) + ' · <button onclick="sosRebuild()" style="background:none;border:0;color:var(--accent);cursor:pointer;padding:0;font-size:11px">rebuild</button></div>'
     + tiles
+    + healthBlock
     + concernsBlock
     + '<h3 style="font-size:13px;text-transform:uppercase;letter-spacing:.05em;color:var(--text-muted);margin:8px 0">By market</h3>' + rollup
     + '<div class="admin-tabs" style="margin-bottom:8px">' + mkChips + '</div>' + pageTable + outHtml;
