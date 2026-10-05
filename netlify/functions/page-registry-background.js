@@ -22,7 +22,7 @@ const { authorizeJob, internalHeaders } = require('./_lib/auth');
 const SITE = process.env.URL || process.env.NETLIFY_URL || 'https://yolkseo.netlify.app';
 
 const HTTP_CHECK_CAP = 150; // bound out-of-sitemap HTTP checks (redirect/noindex detection)
-const HTTP_CONCURRENCY = 8;  // parallel out-of-sitemap fetches
+const HTTP_CONCURRENCY = 4;  // parallel out-of-sitemap fetches (8 tripped the site CDN rate-limit → inconclusive checks)
 const INDEX_INSPECT_CAP = 400; // bound URL-Inspection calls/brand/run (GSC quota = 2000/day)
 const STUCK_INDEX_DAYS = 14;   // live + should-index + 0 impressions for this long = indexing concern (Google usually indexes within ~2 weeks)
 const INDEX_CONCURRENCY = 5;   // parallel URL-Inspection calls (quota = 600/min)
@@ -156,7 +156,7 @@ async function collectSitemap(domain) {
 async function robotsIndexable(url) {
   let r;
   try { r = await fetch(url, { redirect: 'follow' }); }
-  catch { return { fetched: false, indexable: null, status: 'unreachable' }; }
+  catch (e) { return { fetched: false, indexable: null, status: 'unreachable', httpStatus: 'neterr:' + (e.cause?.code || e.name || 'error') }; }
   // A URL that REDIRECTS is not a live page — its canonical target is what belongs
   // in the sitemap (and is there). Flagging it as "live but missing from sitemap" is a
   // false positive; mark it 'redirect' so it's excluded from that check. Catches the
@@ -168,7 +168,7 @@ async function robotsIndexable(url) {
   // (that lag makes a dead URL look "indexed" via has-impressions). Mark it 'gone' so it's
   // excluded from the live registry, same as a redirect. (5xx/other = transient → keep.)
   if (r.status === 404 || r.status === 410) return { fetched: true, indexable: false, status: 'gone', httpStatus: r.status };
-  if (!r.ok) return { fetched: false, indexable: null, status: 'unreachable' };
+  if (!r.ok) return { fetched: false, indexable: null, status: 'unreachable', httpStatus: r.status }; // 429/403/5xx — inconclusive, NOT live
   const html = await r.text().catch(() => null);
   if (html == null) return { fetched: false, indexable: null, status: 'unreachable' };
   const m = html.match(/<meta[^>]+name=["']robots["'][^>]*>/i);
@@ -284,6 +284,20 @@ async function buildBrand(brand, store, token) {
     || ((nestUrls.has(b) ? 1 : 0) - (nestUrls.has(a) ? 1 : 0)));
   const robotsMap = new Map();
   await mapLimit(outOfSitemap.slice(0, HTTP_CHECK_CAP), HTTP_CONCURRENCY, async (u) => { robotsMap.set(u, await robotsIndexable(u)); });
+  // Inconclusive checks (CDN rate-limit 429, 5xx, network) get ONE gentle retry — a burst
+  // of checks from Netlify can trip the site's Cloudflare limits, and an inconclusive result
+  // used to fall through to "GSC has data → assume live" (44 dead/301'd Bonbird URLs listed
+  // as live pages on 2026-10-05).
+  const inconclusive = [...robotsMap].filter(([, r]) => r.status === 'unreachable').map(([u]) => u);
+  if (inconclusive.length) {
+    await new Promise(r => setTimeout(r, 3000));
+    await mapLimit(inconclusive, 2, async (u) => { robotsMap.set(u, await robotsIndexable(u)); });
+  }
+  const httpCheck = { checked: robotsMap.size, unchecked: Math.max(0, outOfSitemap.length - HTTP_CHECK_CAP), retried: inconclusive.length, stillInconclusive: {} };
+  for (const r of robotsMap.values()) if (r.status === 'unreachable') { const k = String(r.httpStatus || 'unknown'); httpCheck.stillInconclusive[k] = (httpCheck.stillInconclusive[k] || 0) + 1; }
+  if (Object.keys(httpCheck.stillInconclusive).length) console.warn(`${tag} HTTP checks still inconclusive after retry:`, JSON.stringify(httpCheck.stillInconclusive));
+  // Remembered fates from earlier runs — used when today's check is inconclusive.
+  const priorRedirects = prior?.redirects || {}, priorGone = new Set(prior?.gone || []);
 
   const allPages = [...universe].map(url => {
     const g = gscByUrl.get(url) || null;
@@ -294,7 +308,10 @@ async function buildBrand(brand, store, token) {
     else if (inSitemap) { indexable = true; indexNote = 'in-sitemap'; }
     else if (rb && rb.status === 'redirect') { indexable = false; indexNote = 'redirect'; redirectTo = rb.finalUrl || null; } // 301'd — checked before impressions
     else if (rb && (rb.status === 'noindex' || rb.status === 'index')) { indexable = rb.indexable; indexNote = rb.status; }
-    else if (g) { indexable = true; indexNote = 'has-impressions'; } // in GSC, not HTTP-checked (past cap) — assume live
+    // today's check was inconclusive/skipped → trust what an earlier run PROVED about this URL
+    else if (priorGone.has(url)) { indexable = false; indexNote = 'gone'; }
+    else if (priorRedirects[url]) { indexable = false; indexNote = 'redirect'; redirectTo = priorRedirects[url]; }
+    else if (g) { indexable = true; indexNote = rb ? 'unverified' : 'has-impressions'; } // in GSC; check inconclusive (unverified) or past cap — assume live
     else if (rb) { indexable = rb.indexable; indexNote = rb.status; }
     else { indexable = null; indexNote = 'unknown'; }
     const impressions = g ? g.impressions : 0;
@@ -354,7 +371,9 @@ async function buildBrand(brand, store, token) {
   const gone = new Set(prior?.gone || []);
   for (const rp of redirectPages) { const to = canon(rp.redirectTo); if (to && to !== rp.url) redirects[rp.url] = to; }
   for (const gp of gonePages) gone.add(gp.url);
-  for (const p of pages) { delete redirects[p.url]; gone.delete(p.url); } // live again → forget the old fate
+  // PROVEN live again (in sitemap / fetched 200) → forget the old fate. An unverified "live"
+  // page must not erase memory, or one rate-limited run would wipe the redirect map.
+  for (const p of pages) if (p.inSitemap || p.indexNote === 'index' || p.indexNote === 'noindex') { delete redirects[p.url]; gone.delete(p.url); }
   const unplaced = [...new Set(((eventLog && eventLog.events) || []).map(e => canon(e.url)).filter(Boolean))]
     .filter(u => !byUrl.has(u) && !redirects[u] && !gone.has(u));
   const toResolve = unplaced.slice(0, EVENT_RESOLVE_CAP);
@@ -426,6 +445,7 @@ async function buildBrand(brand, store, token) {
     })),
     nestCreated: pages.filter(p => p.nestCreated).length,
     redirectsKnown: Object.keys(redirects).length,
+    httpCheck, // out-of-sitemap verification health — stillInconclusive {code: n} means some "live" pages are unverified
     hostAlias, // null = no twin-host traffic; else { host, httpStatus, ok, … } — ok:false is a live site fault
     byMarket: {},
   };
