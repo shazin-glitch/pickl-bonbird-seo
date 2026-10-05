@@ -26,7 +26,10 @@ const DROP_MIN = 3;           // positions dropped WoW to flag
 const pathOf = u => { try { return new URL(u).pathname; } catch { return u; } };
 // A real content page (not a PDF/image/asset or /wp-content/ upload) — assets aren't
 // "optimize the title/meta" candidates.
-const isContentPage = u => !/\/wp-content\//i.test(u) && !/\.(pdf|jpe?g|png|gif|webp|svg|zip|docx?|xlsx?|csv)(\?|$)/i.test(u);
+// Exclude assets AND legal/utility/functional pages — a ranking wobble on a
+// terms/privacy/giveaway/contact page isn't an actionable SEO signal.
+const UTIL_RE = /(privacy|terms|conditions|cookie|legal|giveaway|competition|sweepstake|contest|\/contact|\/careers|\/faqs?|\/sitemap|\/login|\/account|\/cart|\/checkout|thank-you|unsubscribe|\/games\/?$|\/order\/?$)/i;
+const isContentPage = u => !/\/wp-content\//i.test(u) && !/\.(pdf|jpe?g|png|gif|webp|svg|zip|docx?|xlsx?|csv)(\?|$)/i.test(u) && !UTIL_RE.test(u);
 
 function findingsForBrand(reg) {
   const pages = (reg && reg.pages) || [];
