@@ -222,6 +222,20 @@ function isBrandedQuery(query, brandCtxOrName) {
   return brandedTermsFor(brandCtxOrName).some(t => q.includes(t));
 }
 
+// ── Excluded-query filter (junk searches) ────────────────────────
+// Single source of truth for "is this GSC query NOT real demand for the brand?" — e.g.
+// Spanish dish searches ("best fricasé de pollo near me") that GSC attributes to a
+// Bonbird page with zero clicks. Every report applies it BEFORE the branded/non-branded
+// split so junk never inflates non-branded numbers or reaches a keyword list.
+// Terms come from brandsConfig.excludedQueryTerms (Settings → Brands). Matching is
+// accent-insensitive and on whole words/phrases ("pollo" won't match "apollo").
+const _fold = s => String(s || '').toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '');
+function isExcludedQuery(query, terms) {
+  if (!query || !Array.isArray(terms) || !terms.length) return false;
+  const q = ' ' + _fold(query).replace(/[^\p{L}\p{N}]+/gu, ' ') + ' ';
+  return terms.some(t => { const f = _fold(t).trim(); return f && q.includes(' ' + f + ' '); });
+}
+
 // ── Public API ────────────────────────────────────────────────────
 
 // Neutral skeleton for a brand that has NO built-in default (Southpour, Yolk, …).
@@ -593,4 +607,4 @@ function hardStripBannedTokens(content) {
     .replace(/ {2,}/g, ' ');
 }
 
-module.exports = { getBrandContext, setBrandContext, getBrandExamples, getBrandFeedback, buildBrandPrompt, runBrandVoiceCheck, fixBrandVoice, hardStripBannedTokens, isBrandedQuery, brandedTermsFor, PICKL_DEFAULT, BONBIRD_DEFAULT };
+module.exports = { getBrandContext, setBrandContext, getBrandExamples, getBrandFeedback, buildBrandPrompt, runBrandVoiceCheck, fixBrandVoice, hardStripBannedTokens, isBrandedQuery, brandedTermsFor, isExcludedQuery, PICKL_DEFAULT, BONBIRD_DEFAULT };

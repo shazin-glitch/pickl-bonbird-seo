@@ -12,8 +12,8 @@
 const { getStore } = require('@netlify/blobs');
 const { getGscAccessToken, fetchGscPageOnly, fetchGscPageQuery } = require('./_lib/gsc');
 const { getMarketsForBrandAsync, getMarketPageTokens } = require('./_lib/international-config');
-const { getBrandSlugs, gscPropertyFor } = require('./_lib/brands-config');
-const { getBrandContext, isBrandedQuery } = require('./_lib/brand');
+const { getBrandSlugs, gscPropertyFor, getBrand } = require('./_lib/brands-config');
+const { getBrandContext, isBrandedQuery, isExcludedQuery } = require('./_lib/brand');
 const { authorizeJob } = require('./_lib/auth');
 
 const BACKFILL_MONTHS = 13; // first run: build this many months of history
@@ -39,7 +39,7 @@ function attributeMarket(url, markets) {
   return 'uae';
 }
 
-function blankAcc() { return { impr: 0, clicks: 0, posw: 0, bImpr: 0, bClicks: 0, nbImpr: 0, nbClicks: 0 }; }
+function blankAcc() { return { impr: 0, clicks: 0, posw: 0, bImpr: 0, bClicks: 0, nbImpr: 0, nbClicks: 0, xImpr: 0, xClicks: 0 }; }
 // Total impressions/clicks/position from PAGE-ONLY (accurate — no anonymised-query drop).
 // Branded/non-branded split from PAGE+QUERY (needs the query text; slightly undercounts) —
 // same locked methodology as market-traffic. Non-branded is the real SEO KPI.
@@ -64,6 +64,8 @@ async function buildMonth(site, token, markets, brandCtx, y, m) {
   for (const r of (pq.rows || [])) {
     const mk = attributeMarket(r.page, markets);
     const b = byMarket[mk] || (byMarket[mk] = blankAcc());
+    // Junk searches (brandsConfig.excludedQueryTerms) never count as branded OR non-branded.
+    if (isExcludedQuery(r.keyword, brandCtx.excludedQueryTerms)) { b.xImpr += r.impressions; b.xClicks += r.clicks; total.xImpr += r.impressions; total.xClicks += r.clicks; continue; }
     const branded = isBrandedQuery(r.keyword, brandCtx);
     if (branded) { b.bImpr += r.impressions; b.bClicks += r.clicks; total.bImpr += r.impressions; total.bClicks += r.clicks; }
     else { b.nbImpr += r.impressions; b.nbClicks += r.clicks; total.nbImpr += r.impressions; total.nbClicks += r.clicks; }
@@ -71,6 +73,7 @@ async function buildMonth(site, token, markets, brandCtx, y, m) {
   const fin = o => ({
     impressions: o.impr, clicks: o.clicks, position: o.impr ? +(o.posw / o.impr).toFixed(1) : null,
     branded: { impressions: o.bImpr, clicks: o.bClicks }, nonBranded: { impressions: o.nbImpr, clicks: o.nbClicks },
+    excluded: { impressions: o.xImpr, clicks: o.xClicks },
   });
   const bm = {}; for (const k in byMarket) bm[k] = fin(byMarket[k]);
   return { month: monthKey(new Date(Date.UTC(y, m, 1))), total: fin(total), byMarket: bm };
@@ -82,6 +85,7 @@ async function buildBrand(brand, store, token, full) {
   if (!site || !token) { console.warn(`${tag} no gsc`); return { error: 'no gsc' }; }
   const markets = await getMarketsForBrandAsync(brand);
   const brandCtx = await getBrandContext(brand).catch(() => ({ brand }));
+  brandCtx.excludedQueryTerms = (await getBrand(brand).catch(() => null))?.excludedQueryTerms || [];
   const prior = await store.get(`monthlyTrend:${brand}`, { type: 'json' }).catch(() => null);
   const now = new Date();
   const count = (prior && !full) ? REFRESH_MONTHS : BACKFILL_MONTHS; // ?full=1 rebuilds all months

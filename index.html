@@ -1921,6 +1921,7 @@ body { font-family: var(--font-sans); background: var(--bg-base); color: var(--t
                   <div class="form-group" style="grid-column:1 / -1"><label class="form-label">Positioning <span style="color:var(--text-muted)">(what the brand is / sells)</span></label><textarea id="bf-positioning" class="form-input" rows="2" style="font-family:var(--font-sans)"></textarea></div>
                   <div class="form-group" style="grid-column:1 / -1"><label class="form-label">Brand voice sample</label><textarea id="bf-voice" class="form-input" rows="2" style="font-family:var(--font-sans)"></textarea></div>
                   <div class="form-group" style="grid-column:1 / -1"><label class="form-label">Branded terms (comma-separated)</label><input id="bf-terms" class="form-input" style="font-family:var(--font-sans)"></div>
+                  <div class="form-group" style="grid-column:1 / -1"><label class="form-label">Excluded searches (comma-separated words or phrases)</label><input id="bf-excluded" class="form-input" style="font-family:var(--font-sans)" placeholder="e.g. pollo, empanada"><div style="font-size:11px;color:var(--text-muted);margin-top:4px">Searches containing these are not real demand for this brand. They are left out of every report: non-branded totals, query lists and AI Overview keywords.</div></div>
                   <div class="form-group" style="grid-column:1 / -1"><label class="form-label">Competitors (one per line — Name | domain.com)</label><textarea id="bf-competitors" class="form-input" rows="4" style="font-family:var(--font-sans)"></textarea></div>
                   <div class="form-group" style="grid-column:1 / -1"><label class="form-label">Seed keywords (comma-separated)</label><input id="bf-seeds" class="form-input" style="font-family:var(--font-sans)"></div>
                 </div>
@@ -5734,7 +5735,7 @@ function closeBrandWizard() {
 function editBrand(b) {
   openBrandWizard();
   fillReview({
-    slug: b.slug, identity: { name: b.name, vertical: b.vertical, positioning: b.positioning || '', voiceSample: '', brandedTerms: b.brandedTerms || [] },
+    slug: b.slug, identity: { name: b.name, vertical: b.vertical, positioning: b.positioning || '', voiceSample: '', brandedTerms: b.brandedTerms || [], excludedQueryTerms: b.excludedQueryTerms || [] },
     domain: b.domain, gscProperty: b.gscProperty, wpEnvPrefix: b.wpEnvPrefix, flag: b.flag, color: b.color,
     seedKeywords: b.keywordSeeds || [], competitors: b.competitors || [],
   }, `Editing ${b.name}.`);
@@ -5757,6 +5758,7 @@ function fillReview(d, note) {
   set('bf-positioning', id.positioning || '');
   set('bf-voice', id.voiceSample || '');
   set('bf-terms', (id.brandedTerms || []).join(', '));
+  set('bf-excluded', (id.excludedQueryTerms || []).join(', '));
   document.getElementById('bf-competitors').value = (d.competitors || []).map(c => `${c.name} | ${c.domain}`).join('\n');
   set('bf-seeds', (d.seedKeywords || []).join(', '));
   const noteEl = document.getElementById('bw-found-note');
@@ -5813,6 +5815,7 @@ async function onboardApprove() {
     flag: document.getElementById('bf-flag').value.trim(),
     color: document.getElementById('bf-color').value.trim(),
     brandedTerms: document.getElementById('bf-terms').value.split(',').map(s => s.trim()).filter(Boolean),
+    excludedQueryTerms: document.getElementById('bf-excluded').value.split(',').map(s => s.trim()).filter(Boolean),
     competitors,
     keywordSeeds: document.getElementById('bf-seeds').value.split(',').map(s => s.trim()).filter(Boolean),
     active: true,

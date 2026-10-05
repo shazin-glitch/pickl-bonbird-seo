@@ -22,9 +22,9 @@
 const { getStore } = require('@netlify/blobs');
 const { getGscAccessToken, fetchGscPageOnly, fetchGscPageQuery } = require('./_lib/gsc');
 const { INTERNATIONAL_MARKETS, marketForUrl, getMarketsMapAsync, marketForUrlAsync } = require('./_lib/international-config');
-const { getBrandContext, isBrandedQuery } = require('./_lib/brand');
+const { getBrandContext, isBrandedQuery, isExcludedQuery } = require('./_lib/brand');
 const { authorize, denied } = require('./_lib/auth');
-const { gscPropertyFor } = require('./_lib/brands-config');
+const { gscPropertyFor, getBrand } = require('./_lib/brands-config');
 
 const CORS = {
   'Access-Control-Allow-Origin':  '*',
@@ -56,6 +56,8 @@ exports.handler = async (event) => {
 
     // Brand context drives the branded-term classifier (config-driven, scalable).
     const brandCtx = await getBrandContext(brand).catch(() => ({ brand }));
+    // Junk searches (brandsConfig.excludedQueryTerms) are split out BEFORE branded/non-branded.
+    const excludedTerms = (await getBrand(brand).catch(() => null))?.excludedQueryTerms || [];
 
     // Two pulls in parallel: page-only (accurate Total) + page+query (branded split).
     const [pageOnly, pageQuery] = await Promise.all([
@@ -65,10 +67,10 @@ exports.handler = async (event) => {
     if (pageOnly.error)  return json(200, { brand, markets: [], totals: null, error: pageOnly.error });
     if (pageQuery.error) return json(200, { brand, markets: [], totals: null, error: pageQuery.error });
 
-    // Per-market, per-segment accumulators. seg: total | branded | nonBranded.
+    // Per-market, per-segment accumulators. seg: total | branded | nonBranded | excluded (junk searches).
     const blank = () => ({ clicks: 0, impressions: 0, posWeighted: 0, pages: new Set() });
     const agg = {}; // key → { total, branded, nonBranded }
-    const seed = (k) => { if (!agg[k]) agg[k] = { total: blank(), branded: blank(), nonBranded: blank() }; };
+    const seed = (k) => { if (!agg[k]) agg[k] = { total: blank(), branded: blank(), nonBranded: blank(), excluded: blank() }; };
     seed('uae');
     const intlMarketsMap = await getMarketsMapAsync();
     for (const [key, m] of Object.entries(intlMarketsMap)) if (m.brand === brand) seed(key);
@@ -102,10 +104,11 @@ exports.handler = async (event) => {
     for (const r of (pageQuery.rows || [])) {
       const key = await marketForUrlAsync(r.page, brand);
       seed(key);
-      const branded = isBrandedQuery(r.keyword, brandCtx);
-      if (queryMarket && key === queryMarket) queryRows.push({ query: r.keyword, page: r.page, impressions: r.impressions, clicks: r.clicks, position: r.position, branded });
-      add(branded ? agg[key].branded : agg[key].nonBranded, r);
-      if (wantPages && !branded) { const e = pg(r.page, key); e.nbI += r.impressions || 0; e.nbC += r.clicks || 0; }
+      const excluded = isExcludedQuery(r.keyword, excludedTerms);
+      const branded = !excluded && isBrandedQuery(r.keyword, brandCtx);
+      if (queryMarket && key === queryMarket && !excluded) queryRows.push({ query: r.keyword, page: r.page, impressions: r.impressions, clicks: r.clicks, position: r.position, branded });
+      add(excluded ? agg[key].excluded : branded ? agg[key].branded : agg[key].nonBranded, r);
+      if (wantPages && !branded && !excluded) { const e = pg(r.page, key); e.nbI += r.impressions || 0; e.nbC += r.clicks || 0; }
     }
 
     const finalize = (b) => ({
@@ -122,12 +125,13 @@ exports.handler = async (event) => {
       total:      finalize(a.total),
       branded:    finalize(a.branded),
       nonBranded: finalize(a.nonBranded),
+      excluded:   finalize(a.excluded),
     })).sort((x, y) => y.total.clicks - x.total.clicks || y.total.impressions - x.total.impressions);
 
     const sumSeg = (seg) => markets.reduce((t, m) => ({
       clicks: t.clicks + m[seg].clicks, impressions: t.impressions + m[seg].impressions,
     }), { clicks: 0, impressions: 0 });
-    const totals = { total: sumSeg('total'), branded: sumSeg('branded'), nonBranded: sumSeg('nonBranded') };
+    const totals = { total: sumSeg('total'), branded: sumSeg('branded'), nonBranded: sumSeg('nonBranded'), excluded: sumSeg('excluded') };
 
     return json(200, {
       brand,

@@ -255,6 +255,11 @@ const BRAND_SEED = {
     ],
     brandedTerms:  ['bon bird', 'بونبيرد', 'بون بيرد'],
     brandTerms:    ['bonbird', 'bon bird'],
+    // Searches that are NOT real demand for this brand — excluded from every report
+    // (non-branded totals, query lists, AI Overview keyword picks). Editable in
+    // Settings → Brands. Seed: Spanish dish searches GSC attributes to /ae/dubai/
+    // (~5K impr/mo, zero clicks since Jun 2026) that inflated UAE non-branded numbers.
+    excludedQueryTerms: ['pollo', 'fricase', 'fricasé', 'empanada', 'ensalada', 'guisado', 'chilindron', 'chilindrón', 'verdeo', 'maduros', 'arroz con', 'milanesa', 'picadillo', 'ananas', 'ananá'],
     competitors: [
       { name: "Raising Cane's",     domain: 'raisingcanes.com'    },
       { name: 'Jailbird',           domain: 'jailbirddubai.com'   },
@@ -309,6 +314,7 @@ function _normalize(rec) {
   if (!merged.color)         merged.color = '#64748b';
   if (!merged.flag)          merged.flag = '🏳️';
   if (!Array.isArray(merged.brandedTerms)) merged.brandedTerms = [];
+  if (!Array.isArray(merged.excludedQueryTerms)) merged.excludedQueryTerms = [];
   if (!Array.isArray(merged.brandTerms))   merged.brandTerms = [merged.slug, merged.name.toLowerCase()];
   if (!Array.isArray(merged.competitors))  merged.competitors = [];
   if (!Array.isArray(merged.keywordSeeds)) merged.keywordSeeds = [];
@@ -332,7 +338,10 @@ async function _load() {
   for (const slug of allSlugs) {
     let rec = null;
     try { rec = await s.get(RECORD_KEY(slug), { type: 'json' }); } catch { /* fall to seed */ }
-    const normalized = _normalize(rec || BRAND_SEED[slug] || { slug });
+    // Stored record wins field-by-field, but fields it lacks fall back to the seed. Before,
+    // ANY stored record replaced the seed wholesale, so a brand saved in Settings before a
+    // seed field existed (e.g. excludedQueryTerms, v7.9.122) silently got the empty default.
+    const normalized = _normalize(rec ? { ...(BRAND_SEED[slug] || {}), ...rec } : (BRAND_SEED[slug] || { slug }));
     if (normalized) out[slug] = normalized;
   }
   _cache = out;

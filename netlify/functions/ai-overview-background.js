@@ -14,6 +14,7 @@ const { getStore } = require('@netlify/blobs');
 const { authorizeJob } = require('./_lib/auth');
 const { getBrand, getBrandSlugs } = require('./_lib/brands-config');
 const { getLocationCodes } = require('./_lib/markets-config');
+const { isExcludedQuery } = require('./_lib/brand');
 const { marketForUrlAsync } = require('./_lib/international-config');
 
 const DATAFORSEO_POST_URL = 'https://api.dataforseo.com/v3/serp/google/organic/task_post';
@@ -59,6 +60,7 @@ async function brandCfg(slug) {
     brandName:  b.name,
     ownDomain:  b.ownDomain,
     brandTerms: b.brandTerms,
+    excludedQueryTerms: b.excludedQueryTerms || [],
   };
 }
 
@@ -77,6 +79,7 @@ async function getTopKeywords(brand, store) {
   // Top 10 non-branded GSC keywords
   const top = rows
     .filter(r => r.keyword && !config.brandTerms.some(t => r.keyword.toLowerCase().includes(t)))
+    .filter(r => !isExcludedQuery(r.keyword, config.excludedQueryTerms)) // junk searches never take a keyword slot
     .sort((a, b) => (b.impressions || 0) - (a.impressions || 0))
     .slice(0, 10);
   // Each keyword is checked from ITS market's country (was hardcoded to Dubai for every
