@@ -3882,7 +3882,7 @@ const SEO_ST_LABEL = { ranking: 'Earning clicks', indexed: 'Visible, no clicks',
 const OC_STMAP = { ranking: ['rank', SEO_ST_LABEL.ranking], indexed: ['idx', SEO_ST_LABEL.indexed], new: ['new', SEO_ST_LABEL.new], noindex: ['fix', SEO_ST_LABEL.noindex] };
 function ocMkt(k) { return k === 'uae' ? 'UAE' : (k || '').replace(/^[a-z]+_/, '').split(/[-_]/).map(w => w.charAt(0).toUpperCase() + w.slice(1)).join(' ') || '—'; }
 function ocTy(t) { return (t || 'page').split(/[-_]/).map(w => w.charAt(0).toUpperCase() + w.slice(1)).join(' '); }
-function ocIsoWeek(d) { const t = new Date(Date.UTC(d.getUTCFullYear(), d.getUTCMonth(), d.getUTCDate())); const day = (t.getUTCDay() + 6) % 7; t.setUTCDate(t.getUTCDate() - day + 3); const f = new Date(Date.UTC(t.getUTCFullYear(), 0, 4)); const w = 1 + Math.round(((t - f) / 864e5 - 3 + ((f.getUTCDay() + 6) % 7)) / 7); return t.getUTCFullYear() + '-W' + String(w).padStart(2, '0'); }
+function ocFmtWin(w) { const f = d => new Date(d + 'T00:00:00Z').toLocaleDateString('en-GB', { day: 'numeric', month: 'short', timeZone: 'UTC' }); return f(w[0]) + '–' + f(w[1]); }
 function ocEnsureStyles() {
   if (document.getElementById('oc-styles')) return;
   const s = document.createElement('style'); s.id = 'oc-styles';
@@ -3926,6 +3926,7 @@ function ocEnsureStyles() {
   document.head.appendChild(s);
 }
 const OC_STYLE = { rank: 'background:rgba(22,163,74,.15);color:#16a34a', idx: 'background:rgba(37,99,168,.15);color:#3b82f6', new: 'background:rgba(232,86,13,.15);color:#ea580c', fix: 'background:rgba(220,38,38,.15);color:#dc2626' };
+const OC_WK_MIN = 10; // min impressions in EACH week before a weekly position Δ is shown
 const OC_BAR = { rank: '#16a34a', idx: '#3b82f6', new: '#b45309', fix: '#dc2626' };
 
 async function loadOutcomes() {
@@ -3936,12 +3937,9 @@ async function loadOutcomes() {
   if (el) el.innerHTML = '<div style="padding:24px;color:var(--text-muted)">Loading outcomes…</div>';
   const b = encodeURIComponent(outState.brand);
   try {
-    const wk = ocIsoWeek(new Date()), pv = ocIsoWeek(new Date(Date.now() - 7 * 864e5));
-    const [reg, ev, snapC, snapP] = await Promise.all([
+    const [reg, ev] = await Promise.all([
       fetch('/api/page-registry?brand=' + b, { credentials: 'include' }).then(r => r.json()),
       fetch('/api/page-registry?events=1&brand=' + b, { credentials: 'include' }).then(r => r.json()),
-      fetch('/api/page-registry?brand=' + b + '&snapshot=' + wk, { credentials: 'include' }).then(r => r.json()).catch(() => null),
-      fetch('/api/page-registry?brand=' + b + '&snapshot=' + pv, { credentials: 'include' }).then(r => r.json()).catch(() => null),
     ]);
     // The work log is keyed by the URL at the time of the work; pages since migrated
     // (/pakistan/ → /pk/) or served on the twin host (www.) must be resolved to the LIVE
@@ -3952,19 +3950,14 @@ async function loadOutcomes() {
     const byUrl = new Map((reg.pages || []).map(p => [p.url, p]));
     const redir = reg.redirects || {}, gone = new Set(reg.gone || []);
     const resolve = u => { u = canonU(u); for (let i = 0; i < 5 && !byUrl.has(u) && redir[u]; i++) u = canonU(redir[u]); return u; };
-    // position Δ from the last two weekly snapshots (positive = improved). Same URL only
-    // (host-canonicalised, NOT redirect-resolved): comparing an old URL's legacy position to
-    // its new URL's position manufactured 9 fake "drops" (/sharjah/aljada/ #1 → /ae/… #11.5).
-    // Rows that canonicalise to the same URL (old snapshots hold www.* junk rows, e.g. www /pk/
-    // at #1 with 1 impression) are MERGED impression-weighted — last-wins let the junk row set a
-    // fake #1 baseline. Clicks ride along so a "drop" can require that traffic didn't grow.
-    const snapMap = s => { const m = new Map(); for (const x of s.pages) { const k = canonU(x.u), e = m.get(k) || { pi: 0, i: 0, c: 0 }; if (x.p != null) e.pi += x.p * Math.max(1, x.i || 0); e.w = (e.w || 0) + (x.p != null ? Math.max(1, x.i || 0) : 0); e.i += x.i || 0; e.c += x.c || 0; m.set(k, e); } for (const e of m.values()) e.p = e.w ? e.pi / e.w : null; return m; };
-    outState.delta = new Map(); outState.clkUp = new Set();
-    // Only compare snapshots built with correct merging (v2, from v7.9.115) — older ones hold fake
-    // positions (redirect fold kept a 1-impression #1), which showed City Walk "▼9.3 from #1".
-    if (snapC && snapP && snapC.pages && snapP.pages && snapC.v >= 2 && snapP.v >= 2) {
-      const pm = snapMap(snapP), cm = snapMap(snapC);
-      for (const [k, x] of cm) { const pp = pm.get(k); if (!pp || pp.p == null || x.p == null) continue; outState.delta.set(k, +(pp.p - x.p).toFixed(1)); if (x.c > pp.c) outState.clkUp.add(k); }
+    // Weekly position Δ (positive = improved) from the registry's per-page `wk`: GSC last 7 days
+    // vs the 7 before, merged to the live page server-side. (Replaces diffing stored 90-day
+    // snapshots, which barely move and turned any old merge bug into a fake "drop".) Only shown
+    // when BOTH weeks have ≥ OC_WK_MIN impressions — a position from a handful of impressions is noise.
+    outState.delta = new Map(); outState.clkUp = new Set(); outState.wkWin = (reg.summary || {}).weekWindow || null;
+    for (const p of (reg.pages || [])) {
+      const w = p.wk; if (!w || w.p == null || w.pp == null || w.i < OC_WK_MIN || w.pi < OC_WK_MIN) continue;
+      outState.delta.set(p.url, +(w.pp - w.p).toFixed(1)); if (w.c > w.pc) outState.clkUp.add(p.url);
     }
     // one row per LIVE page: every logged URL that resolves to it merges in; the earliest
     // event = shipped date. Logged URLs that resolve to nothing live (404'd / removed) are
@@ -3980,7 +3973,7 @@ async function loadOutcomes() {
       const p = byUrl.get(u);
       if (!p) { outState.retired.push({ url: u, at: e.at, gone: gone.has(u) }); continue; }
       // the live page's market/type win — legacy URLs were often attributed to the wrong market
-      outState.all.push({ url: u, via: [...via].filter(v => canonU(v) !== u), market: p.market || e.market || '', type: p.pageType || e.pageType || 'page', at: e.at, pos: p.position != null ? p.position : null, clicks: p.clicks || 0, impr: p.impressions || 0, status: p.status || 'new', live: true, delta: outState.delta.has(u) ? outState.delta.get(u) : null });
+      outState.all.push({ url: u, via: [...via].filter(v => canonU(v) !== u), market: p.market || e.market || '', type: p.pageType || e.pageType || 'page', at: e.at, pos: p.position != null ? p.position : null, clicks: p.clicks || 0, impr: p.impressions || 0, status: p.status || 'new', live: true, wk: p.wk || null, delta: outState.delta.has(u) ? outState.delta.get(u) : null });
     }
   } catch (e) { if (el) el.innerHTML = '<div style="padding:24px;color:var(--text-muted)">Could not load: ' + esc(e.message) + '</div>'; return; }
   outState.page = 0; outState.openSeg = null;
@@ -4003,7 +3996,7 @@ function ocRenderShell() {
   el.innerHTML =
     '<div class="admin-tabs" style="margin-bottom:6px">' + brandTabs + '</div>'
     + '<div style="display:flex;justify-content:space-between;align-items:center;gap:12px;flex-wrap:wrap;margin:4px 0 0">'
-    + '<div style="font-size:12px;color:var(--text-muted);max-width:60ch">What our work produced — every page published or edited, and where each stands now. Position Δ fills in as weekly snapshots accrue.</div>'
+    + '<div style="font-size:12px;color:var(--text-muted);max-width:60ch">What our work produced — every page published or edited, and where each stands now. Pos = 90-day average · Δ wk = position change, last 7 days vs the 7 before' + (outState.wkWin ? ' (' + ocFmtWin(outState.wkWin.prev) + ' → ' + ocFmtWin(outState.wkWin.cur) + ')' : '') + '.</div>'
     + '<div class="oc-win">' + winBtn(30) + winBtn(90) + winBtn('all') + '</div></div>'
     + '<div class="oc-kpis" id="oc-kpis"></div>'
     + '<div class="oc-sec"><h3>What\'s working</h3><span class="line"></span><div class="oc-seg-toggle">' + grpBtn('market', 'By market') + grpBtn('type', 'By page type') + '</div></div>'
@@ -4071,7 +4064,7 @@ function ocAtt() {
     + '<div style="font-size:12px;color:var(--text-muted);margin:3px 0 8px">' + sub + '</div>' + body + '</div>';
   const A = [];
   if (nox.length) A.push(card('', nox.length + ' page' + (nox.length > 1 ? 's' : '') + ' set to noindex', 'Blocked from Google — flip to “index” in Yoast, then request indexing.', links(nox), 'noindex'));
-  if (drop.length) A.push(card('warn', drop.length + ' ranking drop' + (drop.length > 1 ? 's' : '') + ' this week', 'Fell ≥1.5 positions — check for changes or new competition.', links(drop, x => ' <span style="color:var(--text-muted)">▼' + Math.abs(x.delta).toFixed(1) + ' → #' + x.pos + '</span>'), ''));
+  if (drop.length) A.push(card('warn', drop.length + ' ranking drop' + (drop.length > 1 ? 's' : '') + ' this week', 'Fell ≥1.5 positions week-on-week and clicks didn\'t grow — check for changes or new competition.', links(drop, x => ' <span style="color:var(--text-muted)">#' + x.wk.pp + ' → #' + x.wk.p + ' · clicks ' + x.wk.pc + ' → ' + x.wk.c + '</span>'), ''));
   if (stall.length) A.push(card('info', stall.length + ' indexed, earning no clicks', 'Shown by Google but no clicks — a title/meta or intent fix.', links(stall, x => ' <span style="color:var(--text-muted)">#' + (x.pos != null ? x.pos : '—') + '</span>'), 'indexed'));
   document.getElementById('oc-att').innerHTML = A.join('') || '<div style="color:var(--text-muted);font-size:13px;padding:2px">Nothing needs attention in this window.</div>';
 }
@@ -4091,7 +4084,8 @@ function ocRows() {
   const td = (v, r) => '<td' + (r ? '' : ' class="l"') + '>' + v + '</td>';
   document.getElementById('oc-rows').innerHTML = rows.map(x => {
     const sm = OC_STMAP[x.status] || ['new', x.status]; const dl = x.delta;
-    const dcell = dl == null ? '—' : dl > 0.3 ? '<span style="color:#16a34a;font-weight:700">▲' + dl.toFixed(1) + '</span>' : dl < -0.3 ? '<span style="color:#dc2626;font-weight:700">▼' + Math.abs(dl).toFixed(1) + '</span>' : '—';
+    const wt = x.wk && dl != null ? ' title="#' + x.wk.pp + ' → #' + x.wk.p + ' (last 7 days vs the 7 before)"' : '';
+    const dcell = dl == null ? '—' : dl > 0.3 ? '<span' + wt + ' style="color:#16a34a;font-weight:700">▲' + dl.toFixed(1) + '</span>' : dl < -0.3 ? '<span' + wt + ' style="color:#dc2626;font-weight:700">▼' + Math.abs(dl).toFixed(1) + '</span>' : '<span' + wt + '>—</span>';
     return '<tr>'
       + td('<a href="' + esc(x.url) + '" target="_blank" style="color:var(--accent);text-decoration:none;font-size:12px">' + esc(x.url.replace(/^https?:\/\/[^/]+/, '')) + '</a>')
       + td(esc(ocMkt(x.market))) + td('<span style="color:var(--text-muted)">' + esc(ocTy(x.type)) + '</span>')

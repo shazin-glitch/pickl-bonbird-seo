@@ -10,10 +10,10 @@
 //   • severity → priority so the board is pre-triaged
 // Sources (this build): registry health flags (noindex / missing-from-sitemap /
 // indexed-but-0-clicks), local GBP gaps (non-UAE markets with venue pages), and ranking
-// drops (self-activates once ≥2 weekly pageSnapshots exist). Fired after the registry
+// drops (registry `wk`: GSC last 7 days vs the 7 before). Fired after the registry
 // build (chained) + HTTP-invocable; no own schedule (avoids the 403 trap).
 
-const { store, getSetting, setSetting, newId, logAudit } = require('./_lib/store');
+const { getSetting, setSetting, newId, logAudit } = require('./_lib/store');
 const { getBrandSlugs } = require('./_lib/brands-config');
 const { authorizeJob, internalHeaders } = require('./_lib/auth');
 
@@ -90,38 +90,29 @@ function findingsForBrand(reg) {
 }
 
 // Ranking drops (self-activates once ≥2 weekly snapshots exist; produces nothing before).
+// Ranking drops from the registry's per-page `wk` (GSC last 7 days vs the 7 before, merged to
+// the live page server-side) — the same source the Outcomes card uses, so tasks and dashboard
+// agree. (Replaces diffing stored 90-day snapshots: they barely move, and an old snapshot's
+// merge bug became a fake "drop" — 5 false tasks on 2026-10-05.)
+const isoWeekOf = d => { const t = new Date(Date.UTC(d.getUTCFullYear(), d.getUTCMonth(), d.getUTCDate())); const day = (t.getUTCDay() + 6) % 7; t.setUTCDate(t.getUTCDate() - day + 3); const f = new Date(Date.UTC(t.getUTCFullYear(), 0, 4)); return t.getUTCFullYear() + '-W' + String(1 + Math.round(((t - f) / 864e5 - 3 + ((f.getUTCDay() + 6) % 7)) / 7)).padStart(2, '0'); };
 async function dropFindings(brand, reg) {
   const out = [];
-  try {
-    const { blobs } = await store().list({ prefix: `pageSnapshot:${brand}:` });
-    const keys = (blobs || []).map(b => b.key).sort();
-    if (keys.length < 2) return out;
-    const curr = await store().get(keys[keys.length - 1], { type: 'json' }).catch(() => null);
-    const prev = await store().get(keys[keys.length - 2], { type: 'json' }).catch(() => null);
-    if (!curr || !prev) return out;
-    if (!(curr.v >= 2 && prev.v >= 2)) return out; // pre-v2 snapshots hold fake positions (see page-registry fold) — no drop alerts off them
-    // Only count drops on pages that are STILL LIVE content. A 404'd/redirected legacy URL
-    // lingers in GSC (and the snapshot) for weeks, producing phantom "ranking drops" — so
-    // require the URL to exist in the current live registry and be a content page.
-    const liveUrls = new Set((reg?.pages || []).map(p => p.url));
-    const prevMap = new Map((prev.pages || []).map(p => [p.u, p]));
-    const drops = (curr.pages || []).map(p => {
-      const pr = prevMap.get(p.u);
-      if (!pr || p.p == null || pr.p == null) return null;
-      if (!liveUrls.has(p.u) || !isContentPage(p.u)) return null;   // skip dead/legacy/utility URLs
-      const delta = p.p - pr.p;                       // positive = worse (dropped)
-      // Avg position also falls when a page starts showing for MORE/broader queries (e.g. a
-      // 301 consolidating the old URL's queries onto it: /ae/dubai/ #1→#7.1 while clicks rose
-      // 172→310). That's growth, not a drop — require that clicks did NOT grow.
-      if ((p.c || 0) > (pr.c || 0)) return null;
-      return (delta >= DROP_MIN && (p.i || 0) >= 20) ? { p, pr, delta } : null;
-    }).filter(Boolean).sort((a, b) => b.delta - a.delta).slice(0, 5);
-    for (const d of drops) {
-      out.push({ priority: 'high', sourceId: `drop:${brand}:${pathOf(d.p.u)}:${curr.week}`,
-        title: `Ranking drop — ${pathOf(d.p.u)} (#${d.pr.p}→#${d.p.p})`,
-        description: `${d.p.u}\n\nFell ${d.delta.toFixed(1)} positions week-over-week (${curr.week}). Check for a content/technical change or new competition.` });
-    }
-  } catch (e) { console.warn(`[perch-sync/${brand}] drop scan failed:`, e.message); }
+  const win = reg?.summary?.weekWindow;
+  if (!win) return out;                                   // registry predates weekly movement
+  const week = isoWeekOf(new Date(win.cur[1] + 'T00:00:00Z'));
+  const drops = (reg.pages || []).map(p => {
+    const w = p.wk;
+    if (!w || w.p == null || w.pp == null || !isContentPage(p.url)) return null;
+    if (w.i < 20 || w.pi < 20) return null;               // too few impressions for a stable position
+    if (w.c > w.pc) return null;                          // clicks grew → broader queries, not a loss
+    const delta = w.p - w.pp;                             // positive = worse (dropped)
+    return delta >= DROP_MIN ? { p, w, delta } : null;
+  }).filter(Boolean).sort((a, b) => b.delta - a.delta).slice(0, 5);
+  for (const d of drops) {
+    out.push({ priority: 'high', sourceId: `drop:${brand}:${pathOf(d.p.url)}:${week}`,
+      title: `Ranking drop — ${pathOf(d.p.url)} (#${d.w.pp}→#${d.w.p})`,
+      description: `${d.p.url}\n\nAverage position fell ${d.delta.toFixed(1)} week-on-week (${win.prev[0]}–${win.prev[1]} vs ${win.cur[0]}–${win.cur[1]}, Google Search Console); clicks ${d.w.pc} → ${d.w.c}. Check for a content/technical change or new competition.` });
+  }
   return out;
 }
 

@@ -393,6 +393,42 @@ async function buildBrand(brand, store, token) {
   });
   if (toResolve.length) console.log(`${tag} resolved ${toResolve.length} unplaced work-log URL(s)${unplaced.length > toResolve.length ? ` (capped from ${unplaced.length})` : ''}`);
 
+  // ── Weekly movement: last 7 days vs the 7 before, straight from GSC ──────────
+  // Diffing stored 90-day snapshots was a poor movement signal (a 90-day average barely moves
+  // week to week, and any merge bug in an old snapshot became a fake "drop"). GSC returns any
+  // date range, so measure the two weeks directly. dataState=final lags ~2–3 days → windows end
+  // 3 days ago. Rows are merged exactly like the main pull (twin host + redirect → live page,
+  // impression-weighted position), so the comparison is always the same live page.
+  const DAY_MS = 864e5, fmtD = d => new Date(d).toISOString().slice(0, 10);
+  const curEnd = Date.now() - 3 * DAY_MS, curStart = curEnd - 6 * DAY_MS, prevEnd = curStart - DAY_MS, prevStart = prevEnd - 6 * DAY_MS;
+  const weekWindow = { cur: [fmtD(curStart), fmtD(curEnd)], prev: [fmtD(prevStart), fmtD(prevEnd)] };
+  const [wkCur, wkPrev] = await Promise.all([
+    fetchGscPageOnly(site, token, { startDate: weekWindow.cur[0], endDate: weekWindow.cur[1] }),
+    fetchGscPageOnly(site, token, { startDate: weekWindow.prev[0], endDate: weekWindow.prev[1] }),
+  ]);
+  const toLive = u => { let x = canon(u); for (let i = 0; i < 5 && x && !byUrl.has(x) && redirects[x]; i++) x = canon(redirects[x]); return x; };
+  const weekMap = res => {
+    const m = new Map();
+    for (const r of (res.rows || [])) {
+      const k = toLive(r.page); if (!k || !byUrl.has(k)) continue;
+      const e = m.get(k) || { i: 0, c: 0, pw: 0 };
+      e.i += r.impressions || 0; e.c += r.clicks || 0; e.pw += (r.position || 0) * (r.impressions || 0);
+      m.set(k, e);
+    }
+    return m;
+  };
+  if (!wkCur.error && !wkPrev.error) {
+    const cm = weekMap(wkCur), pm = weekMap(wkPrev);
+    for (const p of pages) {
+      const c = cm.get(p.url), q = pm.get(p.url);
+      if (!c && !q) continue;
+      p.wk = {
+        i: c ? c.i : 0, c: c ? c.c : 0, p: c && c.i ? +(c.pw / c.i).toFixed(1) : null,
+        pi: q ? q.i : 0, pc: q ? q.c : 0, pp: q && q.i ? +(q.pw / q.i).toFixed(1) : null,
+      };
+    }
+  } else console.warn(`${tag} weekly movement skipped — GSC error: ${wkCur.error || wkPrev.error}`);
+
   // ── Real Google index status ─────────────────────────────────────────────
   // "indexable" only says the page ALLOWS indexing; it does NOT mean Google indexed it.
   // KEY shortcut: a page with impressions is BY DEFINITION indexed (it appeared in search
@@ -454,6 +490,7 @@ async function buildBrand(brand, store, token) {
     })),
     nestCreated: pages.filter(p => p.nestCreated).length,
     redirectsKnown: Object.keys(redirects).length,
+    weekWindow, // dates behind every page's `wk` {i,c,p | pi,pc,pp} = this week vs last week
     httpCheck, // out-of-sitemap verification health — stillInconclusive {code: n} means some "live" pages are unverified
     hostAlias, // null = no twin-host traffic; else { host, httpStatus, ok, … } — ok:false is a live site fault
     byMarket: {},
