@@ -70,5 +70,19 @@ exports.handler = async (event) => {
     console.error('[cron-weekly] failed to fire monthly-trend-background:', e.message);
   }
 
-  return { statusCode: 200, body: JSON.stringify({ ok: true, fired: ['scheduler-background', 'page-registry-background', 'keyword-discovery-background', 'monthly-trend-background'] }) };
+  // Visibility jobs that used to carry their own `schedule` (which 403'd their on-demand
+  // Refresh buttons). Fired here instead (v7.9.121). All brands each.
+  const visibility = ['backlinks-background', 'ai-overview-background', 'llm-mentions-background', 'citations-background'];
+  for (const fn of visibility) {
+    console.log(`[cron-weekly] firing ${fn} (all brands)`);
+    try {
+      await fetch(`${SITE}/.netlify/functions/${fn}`, {
+        method: 'POST', headers: internalHeaders({ 'Content-Type': 'application/json' }), body: JSON.stringify({}),
+      });
+    } catch (e) {
+      console.error(`[cron-weekly] failed to fire ${fn}:`, e.message);
+    }
+  }
+
+  return { statusCode: 200, body: JSON.stringify({ ok: true, fired: ['scheduler-background', 'page-registry-background', 'keyword-discovery-background', 'monthly-trend-background', ...visibility] }) };
 };

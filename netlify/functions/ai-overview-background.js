@@ -13,6 +13,8 @@
 const { getStore } = require('@netlify/blobs');
 const { authorizeJob } = require('./_lib/auth');
 const { getBrand, getBrandSlugs } = require('./_lib/brands-config');
+const { getLocationCodes } = require('./_lib/markets-config');
+const { marketForUrlAsync } = require('./_lib/international-config');
 
 const DATAFORSEO_POST_URL = 'https://api.dataforseo.com/v3/serp/google/organic/task_post';
 const DATAFORSEO_GET_URL  = 'https://api.dataforseo.com/v3/serp/google/organic/task_get/advanced';
@@ -73,15 +75,20 @@ async function getTopKeywords(brand, store) {
   const rows    = cached?.rows || [];
 
   // Top 10 non-branded GSC keywords
-  const gscKeywords = rows
+  const top = rows
     .filter(r => r.keyword && !config.brandTerms.some(t => r.keyword.toLowerCase().includes(t)))
     .sort((a, b) => (b.impressions || 0) - (a.impressions || 0))
-    .slice(0, 10)
-    .map(r => ({ keyword: r.keyword, ourPosition: r.position || null, impressions: r.impressions || 0, source: 'gsc' }));
+    .slice(0, 10);
+  // Each keyword is checked from ITS market's country (was hardcoded to Dubai for every
+  // keyword, so Pakistan/Oman/Qatar searches were checked from the wrong location).
+  const gscKeywords = await Promise.all(top.map(async r => ({
+    keyword: r.keyword, ourPosition: r.position || null, impressions: r.impressions || 0, source: 'gsc',
+    market: r.page ? await marketForUrlAsync(r.page, brand).catch(() => 'uae') : 'uae',
+  })));
 
   // 10 curated conversational queries (known AI Overview triggers)
   const conversational = (CONVERSATIONAL_QUERIES[brand] || [])
-    .map(kw => ({ keyword: kw, ourPosition: null, impressions: 0, source: 'conversational' }));
+    .map(kw => ({ keyword: kw, ourPosition: null, impressions: 0, source: 'conversational', market: 'uae' })); // seeds are Dubai queries
 
   const combined = [...gscKeywords, ...conversational];
   console.log(`[ai-overview-bg] ${brand} — ${gscKeywords.length} GSC keywords + ${conversational.length} conversational queries = ${combined.length} total`);
@@ -90,12 +97,16 @@ async function getTopKeywords(brand, store) {
 
 // ── Submit all keywords as a single batch POST ───────────────────────────────
 async function submitBatch(keywords, authHeader) {
+  const locs = await getLocationCodes(); // config-driven marketKey → DataForSEO location
   const tasks = keywords.map(k => ({
     keyword:       k.keyword,
-    location_code: 21191, // Dubai
+    location_code: locs[k.market] || locs.uae,
     language_code: 'en',
     device:        'desktop',
     depth:         100,
+    // Google often loads the AI Overview AFTER the page renders; without this flag
+    // DataForSEO returns no ai_overview item for those SERPs (+$0.0006/task).
+    load_async_ai_overview: true,
   }));
 
   const res  = await fetch(DATAFORSEO_POST_URL, {
@@ -150,7 +161,9 @@ function extractAiOverviewContent(aiItem) {
 // Cheaper than polling each task individually every 5s
 const DATAFORSEO_READY_URL = 'https://api.dataforseo.com/v3/serp/google/organic/tasks_ready';
 
-async function pollAll(taskMap, authHeader, maxWaitMs = 120000) {
+// Standard-queue tasks routinely take >2 min; the old 120s cap marked unfinished tasks as
+// "no AI Overview". Background fn has 15 min — wait up to 8.
+async function pollAll(taskMap, authHeader, maxWaitMs = 480000) {
   const taskIdSet    = new Set(Object.keys(taskMap));
   const results      = {};
   const pollInterval = 20000; // check every 20s
@@ -217,6 +230,12 @@ async function processBrand(brand, store, authHeader) {
     const kwObj = taskMap[taskId];
     if (!kwObj) continue;
 
+    // A task that never returned is UNCHECKED — not "no AI Overview" (that conflation made
+    // timeouts read as a clean negative).
+    if (!serpResult) {
+      output.push({ keyword: kwObj.keyword, checked: false, hasAiOverview: null, brandMentioned: null, ourPosition: kwObj.ourPosition, impressions: kwObj.impressions, source: kwObj.source || 'gsc', market: kwObj.market, checkedAt: new Date().toISOString() });
+      continue;
+    }
     const items        = serpResult?.items || [];
     const serpFeatures = serpResult?.serp_info?.serp_features || [];
 
@@ -224,9 +243,10 @@ async function processBrand(brand, store, authHeader) {
     const hasAiOverview = !!aiItem || serpFeatures.includes('ai_overview');
 
     // Check brand mention — text content AND cited source domains
-    let brandMentioned = false;
+    let brandMentioned = false, citedDomains = [];
     if (hasAiOverview && aiItem) {
       const { text, domains } = extractAiOverviewContent(aiItem);
+      citedDomains = domains.slice(0, 10); // who Google's AI Overview cites instead of / as well as us
       const textLower = text.toLowerCase();
       const brandLower = config.brandName.toLowerCase();
       // Match in text
@@ -243,6 +263,9 @@ async function processBrand(brand, store, authHeader) {
 
     output.push({
       keyword:       kwObj.keyword,
+      checked:       true,
+      market:        kwObj.market,
+      citedDomains,
       hasAiOverview,
       brandMentioned,
       ourPosition:   serpPosition || kwObj.ourPosition,
@@ -262,21 +285,23 @@ async function processBrand(brand, store, authHeader) {
   await store.set(`aiOverviewData:${brand}`, JSON.stringify(output));
 
   // Update rolling 12-week history
-  const aiCount  = output.filter(r => r.hasAiOverview).length;
-  const mentioned = output.filter(r => r.brandMentioned).length;
+  const checkedRows = output.filter(r => r.checked !== false);
+  const aiCount  = checkedRows.filter(r => r.hasAiOverview).length;
+  const mentioned = checkedRows.filter(r => r.brandMentioned).length;
 
   let history = await store.get(`aiOverviewHistory:${brand}`, { type: 'json' }).catch(() => []) || [];
   if (!Array.isArray(history)) history = [];
   history.push({
     date:                new Date().toISOString().slice(0, 10),
-    keywordsChecked:     output.length,
+    keywordsChecked:     checkedRows.length,
+    keywordsUnchecked:   output.length - checkedRows.length,
     aiOverviewCount:     aiCount,
     brandMentionedCount: mentioned,
   });
   if (history.length > 12) history = history.slice(-12);
   await store.set(`aiOverviewHistory:${brand}`, JSON.stringify(history));
 
-  console.log(`[ai-overview-bg] ${brand} done: ${aiCount}/${output.length} AI Overviews, ${mentioned} brand mentions`);
+  console.log(`[ai-overview-bg] ${brand} done: ${aiCount}/${checkedRows.length} AI Overviews (${output.length - checkedRows.length} unchecked), ${mentioned} brand mentions`);
   return output;
 }
 

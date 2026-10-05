@@ -8,7 +8,8 @@
 
 const { getStore } = require('@netlify/blobs');
 
-const { authorize, denied } = require('./_lib/auth');
+const { authorize, denied, internalHeaders } = require('./_lib/auth');
+const { getBrandSlugs } = require('./_lib/brands-config');
 exports.handler = async (event) => {
   if (event.httpMethod !== 'OPTIONS') { const _a = await authorize(event); if (!_a.ok) return denied(); }
   const headers = {
@@ -52,7 +53,7 @@ exports.handler = async (event) => {
       if (action !== 'refresh') {
         return { statusCode: 400, headers, body: JSON.stringify({ error: 'Unknown action' }) };
       }
-      if (!brand || !['pickl', 'bonbird'].includes(brand)) {
+      if (!brand || !(await getBrandSlugs()).includes(brand)) { // config-driven (rule #2) — was a hardcoded pickl/bonbird list
         return { statusCode: 400, headers, body: JSON.stringify({ error: 'Invalid brand' }) };
       }
 
@@ -61,7 +62,7 @@ exports.handler = async (event) => {
       // background invocation never fires. Awaiting resolves on the fast 202.
       const base  = process.env.URL || 'http://localhost:8888';
       const bgUrl = `${base}/.netlify/functions/ai-overview-background?brand=${brand}`;
-      await fetch(bgUrl).catch(e => console.error('[ai-overview] bg trigger failed:', e.message));
+      await fetch(bgUrl, { method: 'POST', headers: internalHeaders() }).catch(e => console.error('[ai-overview] bg trigger failed:', e.message)); // internalHeaders: job is authorizeJob-gated
 
       return {
         statusCode: 202,

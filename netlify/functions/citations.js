@@ -133,7 +133,7 @@ async function checkBrand(brand, store, authHeader) {
 }
 
 // ── Handler ───────────────────────────────────────────────────────────────────
-const { authorize, denied } = require('./_lib/auth');
+const { authorize, denied, internalHeaders } = require('./_lib/auth');
 exports.handler = async (event) => {
   if (event.httpMethod !== 'OPTIONS') { const _a = await authorize(event); if (!_a.ok) return denied(); }
   const headers = {
@@ -220,7 +220,7 @@ exports.handler = async (event) => {
         // MUST await — an un-awaited fetch is frozen when the function returns, so
         // the background invocation never actually fires. Awaiting resolves on the
         // fast 202 (the 15-min job runs separately), so this stays well within limits.
-        await fetch(bgUrl).catch(e => console.error('[citations] bg trigger failed:', e.message));
+        await fetch(bgUrl, { method: 'POST', headers: internalHeaders() }).catch(e => console.error('[citations] bg trigger failed:', e.message)); // internalHeaders: job is authorizeJob-gated
         return {
           statusCode: 202,
           headers,

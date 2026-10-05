@@ -280,17 +280,22 @@
 [functions."technical-seo-background"]
   # schedule = "0 4 * * 1"
 
+# llm-mentions / backlinks / citations / ai-overview — schedules REMOVED (v7.9.121).
+# A scheduled fn 403s EVERY HTTP call, so their on-demand "Refresh" buttons could never
+# run (and backlinks' own DataForSEO endpoint was dead besides). Now fired weekly by
+# cron-weekly-background with internalHeaders(), same pattern as technical-seo and
+# keyword-discovery. Do NOT re-add a schedule here.
 [functions."llm-mentions-background"]
-  schedule = "0 4 * * 1"
+  # schedule = "0 4 * * 1"
 
 [functions."backlinks-background"]
-  schedule = "0 4 * * 1"
+  # schedule = "0 4 * * 1"
 
 [functions."citations-background"]
-  schedule = "0 4 * * 1"
+  # schedule = "0 4 * * 1"
 
 [functions."ai-overview-background"]
-  schedule = "0 4 * * 1"
+  # schedule = "0 4 * * 1"
 
 # keyword-discovery-background — schedule DISABLED 2026-09-14 so it's HTTP-invocable on
 # demand (Netlify 403s any HTTP call to a scheduled function; that silently broke the

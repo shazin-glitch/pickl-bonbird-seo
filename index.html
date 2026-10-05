@@ -14217,8 +14217,8 @@ function renderAiOverview(el, data, history, brandName, brand) {
           ? `<span style="background:${r.ourPosition<=10?'#dcfce7':r.ourPosition<=20?'#fef3c7':'var(--bg-base)'};color:${r.ourPosition<=10?'#166534':r.ourPosition<=20?'#92400e':'var(--text-muted)'};font-weight:700;padding:2px 8px;border-radius:4px;font-size:12px">#${r.ourPosition}</span>`
           : '<span style="font-size:12px;color:#94a3b8">—</span>'}
       </td>
-      <td style="padding:8px 12px;text-align:center;font-size:15px">${r.hasAiOverview ? '✅' : '⬜'}</td>
-      <td style="padding:8px 12px;text-align:center;font-size:14px">${r.hasAiOverview ? (r.brandMentioned ? '🟢' : '—') : '—'}</td>
+      <td style="padding:8px 12px;text-align:center;font-size:15px">${r.checked === false ? '<span title="Not checked this run (DataForSEO did not return in time)" style="font-size:12px;color:var(--text-muted)">n/a</span>' : r.hasAiOverview ? '✅' : '⬜'}</td>
+      <td style="padding:8px 12px;text-align:center;font-size:14px">${r.checked !== false && r.hasAiOverview ? (r.brandMentioned ? '🟢' : '—') : '—'}</td>
       <td style="padding:8px 12px;font-size:11px;color:var(--text-muted)">${r.checkedAt ? new Date(r.checkedAt).toLocaleDateString('en-GB',{day:'numeric',month:'short'}) : '—'}</td>
     </tr>`).join('');
 
