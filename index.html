@@ -3952,7 +3952,10 @@ async function loadOutcomes() {
     for (const e of (ev.events || [])) { const c = evByUrl.get(e.url); if (!c || new Date(e.at) < new Date(c.at)) evByUrl.set(e.url, e); }
     outState.all = [...evByUrl.values()].map(e => {
       const p = byUrl.get(e.url) || {};
-      return { url: e.url, market: e.market || p.market || '', type: e.pageType || p.pageType || 'page', at: e.at, pos: p.position != null ? p.position : null, clicks: p.clicks || 0, status: p.status || 'new', delta: outState.delta.has(e.url) ? outState.delta.get(e.url) : null };
+      // `live` = the URL is still a page in the current registry (404'd/redirected legacy
+      // URLs drop out of the registry but linger in the work log + in GSC snapshots for
+      // weeks, so without this they show phantom "ranking drops").
+      return { url: e.url, market: e.market || p.market || '', type: e.pageType || p.pageType || 'page', at: e.at, pos: p.position != null ? p.position : null, clicks: p.clicks || 0, status: p.status || 'new', live: byUrl.has(e.url), delta: outState.delta.has(e.url) ? outState.delta.get(e.url) : null };
     });
   } catch (e) { if (el) el.innerHTML = '<div style="padding:24px;color:var(--text-muted)">Could not load: ' + esc(e.message) + '</div>'; return; }
   outState.page = 0; outState.openSeg = null;
@@ -4019,11 +4022,15 @@ function ocSeg() {
       + '<div class="oc-chev">›</div></div>' + drill;
   }).join('');
 }
+// Utility/functional pages that aren't SEO content — a ranking wobble on them is noise.
+function ocIsContent(u) { return !/\/(privacy-policy|terms|terms-of-use|cookie|contact|contact-us|careers|faqs?|sitemap|games|order|login|account|cart|thank-you)\/?$/i.test(u || '') && !/\/wp-content\//i.test(u || ''); }
 function ocAtt() {
   const d = ocWinData();
-  const nox = d.filter(x => x.status === 'noindex');
-  const drop = d.filter(x => x.delta != null && x.delta <= -1.5).sort((a, b) => a.delta - b.delta);
-  const stall = d.filter(x => x.status === 'indexed' && x.clicks === 0).sort((a, b) => b.pos - a.pos);
+  const nox = d.filter(x => x.status === 'noindex' && ocIsContent(x.url));
+  // Only flag drops on pages that are still LIVE and are real content (excludes 404'd
+  // legacy URLs that GSC still reports, and utility pages like privacy-policy).
+  const drop = d.filter(x => x.live && x.delta != null && x.delta <= -1.5 && ocIsContent(x.url)).sort((a, b) => a.delta - b.delta);
+  const stall = d.filter(x => x.live && x.status === 'indexed' && x.clicks === 0 && ocIsContent(x.url)).sort((a, b) => b.pos - a.pos);
   const links = (arr, extra) => arr.slice(0, 5).map(x => '<a href="' + esc(x.url) + '" target="_blank" onclick="event.stopPropagation()" style="display:block;color:var(--accent);text-decoration:none;font-size:12px;padding:1px 0">' + esc(x.url.replace(/^https?:\/\/[^/]+/, '')) + (extra ? extra(x) : '') + '</a>').join('')
     + (arr.length > 5 ? '<div style="font-size:11px;color:var(--text-muted);margin-top:3px">+' + (arr.length - 5) + ' more</div>' : '');
   const card = (cls, title, sub, body, filter) => '<div class="oc-attcard ' + cls + '"' + (filter ? ' style="cursor:pointer" title="Click to filter the table" onclick="ocSetStatus(\'' + filter + '\')"' : '') + '>'

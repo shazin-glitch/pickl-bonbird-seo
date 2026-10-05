@@ -87,7 +87,7 @@ function findingsForBrand(reg) {
 }
 
 // Ranking drops (self-activates once ≥2 weekly snapshots exist; produces nothing before).
-async function dropFindings(brand) {
+async function dropFindings(brand, reg) {
   const out = [];
   try {
     const { blobs } = await store().list({ prefix: `pageSnapshot:${brand}:` });
@@ -96,10 +96,15 @@ async function dropFindings(brand) {
     const curr = await store().get(keys[keys.length - 1], { type: 'json' }).catch(() => null);
     const prev = await store().get(keys[keys.length - 2], { type: 'json' }).catch(() => null);
     if (!curr || !prev) return out;
+    // Only count drops on pages that are STILL LIVE content. A 404'd/redirected legacy URL
+    // lingers in GSC (and the snapshot) for weeks, producing phantom "ranking drops" — so
+    // require the URL to exist in the current live registry and be a content page.
+    const liveUrls = new Set((reg?.pages || []).map(p => p.url));
     const prevMap = new Map((prev.pages || []).map(p => [p.u, p]));
     const drops = (curr.pages || []).map(p => {
       const pr = prevMap.get(p.u);
       if (!pr || p.p == null || pr.p == null) return null;
+      if (!liveUrls.has(p.u) || !isContentPage(p.u)) return null;   // skip dead/legacy/utility URLs
       const delta = p.p - pr.p;                       // positive = worse (dropped)
       return (delta >= DROP_MIN && (p.i || 0) >= 20) ? { p, pr, delta } : null;
     }).filter(Boolean).sort((a, b) => b.delta - a.delta).slice(0, 5);
@@ -130,7 +135,7 @@ exports.handler = async (event) => {
   for (const brand of brands) {
     const reg = await getSetting(`pageRegistry:${brand}`);
     if (reg) candidates = candidates.concat(findingsForBrand(reg).map(f => ({ ...f, brand })));
-    candidates = candidates.concat((await dropFindings(brand)).map(f => ({ ...f, brand })));
+    candidates = candidates.concat((await dropFindings(brand, reg)).map(f => ({ ...f, brand })));
   }
 
   // Dedup vs existing tasks (any status), cap, high-priority first.
