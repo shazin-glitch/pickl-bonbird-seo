@@ -50,7 +50,15 @@ Traffic impact is small: about 3,000 impressions and 39 clicks over 90 days acro
 ## 3. Leave as 404 (correct behaviour)
 These are typos or junk URLs with about 1 impression each. A 404 is the right answer: `/pk/lawhore/`, `/ae/dubai/%7Cae/journal/…`, `/ae/journal/bonbird-to-debut-in-kuwait/()/`, `/ae/dubai/dubai/`, `/ae/dubai/dubaicitycentre/`, `/ae/dubai/mirdif-city-centre/`, `/ae/journal/best-fried-chicken-dubai-above-dubai-sharjah/`, `/ae/journal/the-best-fried-chicken-motor-city-dubai/`, `/uae/`, `/journal/2/`, `/tst/`, `/landing/`.
 
-## 4. Separate, urgent: `www.` is broken
+## 4. Urgent: two pages point their canonical at a URL that redirects back to them
+| Page | Canonical now | Should be |
+|---|---|---|
+| /ae/ | https://bonbirdchicken.com/ (which 301s to /ae/) | https://bonbirdchicken.com/ae/ |
+| /ae/chicken/ | https://bonbirdchicken.com/chicken/ (which 301s to /ae/chicken/) | https://bonbirdchicken.com/ae/chicken/ |
+
+Since late September Google has been showing the old root URL instead of /ae/ (in two weeks, /ae/ fell from 144 to 41 clicks while `/` rose from 71 to 144). Fix it in Yoast → Advanced → Canonical URL. If /ae/ is set as the WordPress front page and Yoast ignores the field, add a `wpseo_canonical` filter for the front page. Then request indexing for both pages in Search Console. Every other page checked (city hubs, menu, /pk/, /om/, /qa/) self-canonicalises correctly.
+
+## 5. Separate, urgent: `www.` is broken
 Every `https://www.bonbirdchicken.com/...` URL returns a **Cloudflare 526** error page (`http://www` and Pickl's `www` work fine). Google still shows some `www` URLs in results. Fix in Cloudflare: a redirect rule sending `www.bonbirdchicken.com/*` → `https://bonbirdchicken.com/$1` (301), or put a valid origin certificate on `www`.
 
 ---
