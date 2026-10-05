@@ -12,6 +12,7 @@
 // Both pulls run in parallel over the same date window.
 //
 //   GET ?brand=pickl&startDate=2026-06-01&endDate=2026-06-30
+//   GET …&pages=1   → adds pages:[{page,market,impressions,clicks,position,nonBranded:{impressions,clicks}}]
 //     → { brand, range:{startDate,endDate}, markets:[{ key,label,flag,
 //           total:{clicks,impressions,avgPosition,pages},
 //           branded:{...}, nonBranded:{...} }], totals:{total,branded,nonBranded}, updatedAt }
@@ -78,18 +79,27 @@ exports.handler = async (event) => {
       if (r.page) bucket.pages.add(r.page);
     };
 
+    // ?pages=1 → also return a per-page breakdown (same two pulls, no extra GSC calls) so a
+    // "what drove the growth?" question can be answered at page level, not just per market.
+    const wantPages = qs.pages === '1';
+    const perPage = new Map(); // page → { market, i, c, pw, nbI, nbC }
+    const pg = (page, market) => { let e = perPage.get(page); if (!e) { e = { market, i: 0, c: 0, pw: 0, nbI: 0, nbC: 0 }; perPage.set(page, e); } return e; };
+
     // TOTAL — from the accurate page-only pull.
     for (const r of (pageOnly.rows || [])) {
       const key = await marketForUrlAsync(r.page, brand);
       seed(key);
       add(agg[key].total, r);
+      if (wantPages) { const e = pg(r.page, key); e.i += r.impressions || 0; e.c += r.clicks || 0; e.pw += (r.position || 0) * (r.impressions || 0); }
     }
 
     // BRANDED / NON-BRANDED — from the page+query pull, classified per query.
     for (const r of (pageQuery.rows || [])) {
       const key = await marketForUrlAsync(r.page, brand);
       seed(key);
-      add(isBrandedQuery(r.keyword, brandCtx) ? agg[key].branded : agg[key].nonBranded, r);
+      const branded = isBrandedQuery(r.keyword, brandCtx);
+      add(branded ? agg[key].branded : agg[key].nonBranded, r);
+      if (wantPages && !branded) { const e = pg(r.page, key); e.nbI += r.impressions || 0; e.nbC += r.clicks || 0; }
     }
 
     const finalize = (b) => ({
@@ -117,6 +127,9 @@ exports.handler = async (event) => {
       brand,
       range: { startDate: window.startDate || null, endDate: window.endDate || null, days: window.days || null },
       markets, totals, updatedAt: new Date().toISOString(),
+      ...(wantPages ? { pages: [...perPage].map(([page, e]) => ({ page, market: e.market, impressions: e.i, clicks: e.c,
+        position: e.i ? Math.round((e.pw / e.i) * 10) / 10 : null, nonBranded: { impressions: e.nbI, clicks: e.nbC } }))
+        .sort((a, b) => b.impressions - a.impressions) } : {}),
     });
   } catch (e) {
     return json(500, { error: e.message });
