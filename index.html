@@ -4051,7 +4051,7 @@ function ocSeg() {
   }).join('');
 }
 // Utility/functional pages that aren't SEO content — a ranking wobble on them is noise.
-function ocIsContent(u) { u = u || ''; return !/(privacy|terms|conditions|cookie|legal|giveaway|competition|sweepstake|contest|\/contact|\/careers|\/faqs?|\/sitemap|\/login|\/account|\/cart|\/checkout|thank-you|unsubscribe|\/games\/?$|\/order\/?$)/i.test(u) && !/\/wp-content\//i.test(u); }
+function ocIsContent(u) { u = u || ''; return !/(privacy|terms|conditions|cookie|legal|giveaway|competition|sweepstake|contest|\/contact|\/careers|\/faqs?|\/sitemap|\/login|\/account|\/cart|\/checkout|thank-you|unsubscribe|\/jobs?\/|-tc\/?$|\/games\/?$|\/order\/?$)/i.test(u) && !/\/wp-content\//i.test(u); }
 function ocAtt() {
   const d = ocWinData();
   const nox = d.filter(x => x.status === 'noindex' && ocIsContent(x.url));
