@@ -355,7 +355,16 @@ async function buildBrand(brand, store, token) {
   for (const rp of redirectPages) {
     if (!rp.impressions && !rp.clicks) continue;
     const target = rp.redirectTo ? byUrl.get(normUrl(rp.redirectTo)) : null;
-    if (target) { target.impressions += rp.impressions; target.clicks += rp.clicks; target.foldedFromRedirect = (target.foldedFromRedirect || 0) + rp.impressions; folded++; }
+    if (target) {
+      // Position must be merged impression-weighted too. Adding only impressions/clicks kept the
+      // TARGET's position — e.g. new /ae/dubai/city-walk/ had 1 impression at #1, so after folding
+      // the old URL's 2,400 impressions (really at #10) it read "#1 with 2,400 impressions", and the
+      // next honest week looked like a 9-position "drop". (18 such fake-#1 pages in W40.)
+      const ti = (target.impressions || 0) + (rp.impressions || 0);
+      if (ti && rp.position != null) target.position = target.position == null ? rp.position
+        : +(((target.position * (target.impressions || 0)) + (rp.position * (rp.impressions || 0))) / ti).toFixed(1);
+      target.impressions = ti; target.clicks += rp.clicks; target.foldedFromRedirect = (target.foldedFromRedirect || 0) + rp.impressions; folded++;
+    }
   }
   pages.sort((a, b) => (b.clicks - a.clicks) || (b.impressions - a.impressions)); // re-sort after folding
   if (redirectPages.length) console.log(`${tag} excluded ${redirectPages.length} redirect(s), folded ${folded} into their targets`);
@@ -460,7 +469,9 @@ async function buildBrand(brand, store, token) {
   // Compact rows (url/clicks/impr/pos/market); keyed by ISO week so reruns overwrite.
   const week = isoWeek(new Date());
   const snap = pages.map(p => ({ u: p.url, m: p.market, c: p.clicks, i: p.impressions, p: p.position }));
-  await store.set(`pageSnapshot:${brand}:${week}`, JSON.stringify({ brand, week, builtAt: now, pages: snap }));
+  // v:2 = built with correct merging (twin-host fold + impression-weighted redirect fold).
+  // Pre-v2 snapshots carry fake positions, so position Δ is only computed between v2 snapshots.
+  await store.set(`pageSnapshot:${brand}:${week}`, JSON.stringify({ brand, week, builtAt: now, v: 2, pages: snap }));
 
   // Phase 7a (additive): SEO EVENT LOG — the "work done" side of the outcome loop.
   // Detects work by diffing against the prior registry: a NEW content page = "published",

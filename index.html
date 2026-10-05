@@ -3960,7 +3960,9 @@ async function loadOutcomes() {
     // fake #1 baseline. Clicks ride along so a "drop" can require that traffic didn't grow.
     const snapMap = s => { const m = new Map(); for (const x of s.pages) { const k = canonU(x.u), e = m.get(k) || { pi: 0, i: 0, c: 0 }; if (x.p != null) e.pi += x.p * Math.max(1, x.i || 0); e.w = (e.w || 0) + (x.p != null ? Math.max(1, x.i || 0) : 0); e.i += x.i || 0; e.c += x.c || 0; m.set(k, e); } for (const e of m.values()) e.p = e.w ? e.pi / e.w : null; return m; };
     outState.delta = new Map(); outState.clkUp = new Set();
-    if (snapC && snapP && snapC.pages && snapP.pages) {
+    // Only compare snapshots built with correct merging (v2, from v7.9.115) — older ones hold fake
+    // positions (redirect fold kept a 1-impression #1), which showed City Walk "▼9.3 from #1".
+    if (snapC && snapP && snapC.pages && snapP.pages && snapC.v >= 2 && snapP.v >= 2) {
       const pm = snapMap(snapP), cm = snapMap(snapC);
       for (const [k, x] of cm) { const pp = pm.get(k); if (!pp || pp.p == null || x.p == null) continue; outState.delta.set(k, +(pp.p - x.p).toFixed(1)); if (x.c > pp.c) outState.clkUp.add(k); }
     }

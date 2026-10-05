@@ -99,6 +99,7 @@ async function dropFindings(brand, reg) {
     const curr = await store().get(keys[keys.length - 1], { type: 'json' }).catch(() => null);
     const prev = await store().get(keys[keys.length - 2], { type: 'json' }).catch(() => null);
     if (!curr || !prev) return out;
+    if (!(curr.v >= 2 && prev.v >= 2)) return out; // pre-v2 snapshots hold fake positions (see page-registry fold) — no drop alerts off them
     // Only count drops on pages that are STILL LIVE content. A 404'd/redirected legacy URL
     // lingers in GSC (and the snapshot) for weeks, producing phantom "ranking drops" — so
     // require the URL to exist in the current live registry and be a content page.
