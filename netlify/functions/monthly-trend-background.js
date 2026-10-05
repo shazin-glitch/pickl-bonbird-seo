@@ -49,6 +49,10 @@ async function buildMonth(site, token, markets, brandCtx, y, m) {
     fetchGscPageOnly(site, token, { startDate, endDate }),
     fetchGscPageQuery(site, token, { startDate, endDate }),
   ]);
+  // HARDENING: a GSC auth/API failure returns empty rows with an `error` set. Treat that
+  // as "could not fetch", NOT "zero traffic" — throw so buildBrand keeps the prior month
+  // instead of overwriting good history with zeros (the recurring token-expiry bug).
+  if (po.error || pq.error) throw new Error('GSC unavailable: ' + (po.error || pq.error));
   const total = blankAcc();
   const byMarket = {};
   for (const r of (po.rows || [])) {
@@ -85,9 +89,16 @@ async function buildBrand(brand, store, token, full) {
   for (let i = count - 1; i >= 0; i--) { const d = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth() - i, 1)); toBuild.push([d.getUTCFullYear(), d.getUTCMonth()]); }
 
   const map = new Map((prior?.months || []).map(x => [x.month, x]));
+  let built = 0;
   for (const [y, m] of toBuild) {
-    try { const r = await buildMonth(site, token, markets, brandCtx, y, m); map.set(r.month, r); }
+    try { const r = await buildMonth(site, token, markets, brandCtx, y, m); map.set(r.month, r); built++; }
     catch (e) { console.warn(`${tag} ${y}-${m + 1} failed:`, e.message); }
+  }
+  // HARDENING: if GSC was down for the whole run, don't rewrite (preserve prior data +
+  // its builtAt so staleness is visible) rather than stamp a fresh build over old numbers.
+  if (!built && (prior?.months || []).length) {
+    console.warn(`${tag} GSC unavailable — preserved prior ${prior.months.length} months, skipped write`);
+    return { brand, skipped: true, reason: 'GSC unavailable' };
   }
   const months = [...map.values()].sort((a, b) => (a.month < b.month ? -1 : 1)).slice(-KEEP_MONTHS);
   await store.set(`monthlyTrend:${brand}`, JSON.stringify({ brand, builtAt: new Date().toISOString(), months }));

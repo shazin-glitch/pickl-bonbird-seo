@@ -199,6 +199,19 @@ async function buildBrand(brand, store, token) {
     nestCreatedUrls(brand),
     store.get(`pageRegistry:${brand}`, { type: 'json' }).catch(() => null),
   ]);
+
+  // HARDENING: if GSC is unavailable (no token, auth error, or empty), rebuilding would
+  // zero every page's impressions/clicks/position — overwriting a good registry with a
+  // blank one (the recurring token-expiry bug). When we have a prior registry that still
+  // has traffic, preserve it and skip this cycle rather than wipe it. (First build / a
+  // genuinely-empty property still proceeds.)
+  const gscUnavailable = !token || gscRes.error || (gscRes.rows || []).length === 0;
+  const priorHadTraffic = (prior?.pages || []).some(p => (p.impressions || 0) > 0);
+  if (gscUnavailable && priorHadTraffic) {
+    console.warn(`${tag} GSC unavailable (${!token ? 'no token' : gscRes.error || 'empty rows'}) — preserved prior registry (${prior.pages.length} pages), skipped rebuild`);
+    return { brand, skipped: true, reason: 'GSC unavailable — preserved prior registry' };
+  }
+
   const sitemapUrls = new Set(sitemapMap.keys());
 
   const marketSlugs = new Set(Object.values(marketsMap).map(m => m.marketSlug).filter(Boolean));
