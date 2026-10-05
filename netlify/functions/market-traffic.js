@@ -12,6 +12,7 @@
 // Both pulls run in parallel over the same date window.
 //
 //   GET ?brand=pickl&startDate=2026-06-01&endDate=2026-06-30
+//   GET …&queries=uae → adds queries:[{query,page,impressions,clicks,position,branded}] (top 500, that market)
 //   GET …&pages=1   → adds pages:[{page,market,impressions,clicks,position,nonBranded:{impressions,clicks}}]
 //     → { brand, range:{startDate,endDate}, markets:[{ key,label,flag,
 //           total:{clicks,impressions,avgPosition,pages},
@@ -82,6 +83,10 @@ exports.handler = async (event) => {
     // ?pages=1 → also return a per-page breakdown (same two pulls, no extra GSC calls) so a
     // "what drove the growth?" question can be answered at page level, not just per market.
     const wantPages = qs.pages === '1';
+    // ?queries=<marketKey> → the page+query rows for ONE market (branded flag included), top 500 by
+    // impressions — "which searches does this market show for, at what position, on which page?"
+    const queryMarket = qs.queries || null;
+    const queryRows = [];
     const perPage = new Map(); // page → { market, i, c, pw, nbI, nbC }
     const pg = (page, market) => { let e = perPage.get(page); if (!e) { e = { market, i: 0, c: 0, pw: 0, nbI: 0, nbC: 0 }; perPage.set(page, e); } return e; };
 
@@ -98,6 +103,7 @@ exports.handler = async (event) => {
       const key = await marketForUrlAsync(r.page, brand);
       seed(key);
       const branded = isBrandedQuery(r.keyword, brandCtx);
+      if (queryMarket && key === queryMarket) queryRows.push({ query: r.keyword, page: r.page, impressions: r.impressions, clicks: r.clicks, position: r.position, branded });
       add(branded ? agg[key].branded : agg[key].nonBranded, r);
       if (wantPages && !branded) { const e = pg(r.page, key); e.nbI += r.impressions || 0; e.nbC += r.clicks || 0; }
     }
@@ -127,6 +133,7 @@ exports.handler = async (event) => {
       brand,
       range: { startDate: window.startDate || null, endDate: window.endDate || null, days: window.days || null },
       markets, totals, updatedAt: new Date().toISOString(),
+      ...(queryMarket ? { queries: queryRows.sort((a, b) => b.impressions - a.impressions).slice(0, 500) } : {}),
       ...(wantPages ? { pages: [...perPage].map(([page, e]) => ({ page, market: e.market, impressions: e.i, clicks: e.c,
         position: e.i ? Math.round((e.pw / e.i) * 10) / 10 : null, nonBranded: { impressions: e.nbI, clicks: e.nbC } }))
         .sort((a, b) => b.impressions - a.impressions) } : {}),
