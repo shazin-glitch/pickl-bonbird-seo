@@ -3941,7 +3941,8 @@ function ocEnsureStyles() {
   document.head.appendChild(s);
 }
 const OC_STYLE = { rank: 'background:rgba(22,163,74,.15);color:#16a34a', idx: 'background:rgba(37,99,168,.15);color:#3b82f6', new: 'background:rgba(232,86,13,.15);color:#ea580c', fix: 'background:rgba(220,38,38,.15);color:#dc2626' };
-const OC_WK_MIN = 10; // min impressions in EACH week before a weekly position Δ is shown
+const OC_WK_MIN = 50;        // min impressions in EACH week before a weekly position Δ is shown (fewer = noise)
+const OC_DROP_MIN_IMPR = 100; // …and before a drop is ALERTED — same rule as perch-sync dropFindings
 const OC_BAR = { rank: '#16a34a', idx: '#3b82f6', new: '#b45309', fix: '#dc2626' };
 
 async function loadOutcomes() {
@@ -4070,7 +4071,7 @@ function ocAtt() {
   // A real drop = position fell AND clicks didn't grow. Average position falls on its own when
   // a page starts showing for MORE (broader) queries — e.g. after a 301 consolidates the old
   // URL's queries onto it (/ae/dubai/: avg #1 → #7.1 while clicks went 172 → 310). Not a loss.
-  const drop = d.filter(x => x.live && x.delta != null && x.delta <= -1.5 && !outState.clkUp.has(x.url) && ocIsContent(x.url)).sort((a, b) => a.delta - b.delta);
+  const drop = d.filter(x => x.live && x.delta != null && x.delta <= -1.5 && x.wk && x.wk.i >= OC_DROP_MIN_IMPR && x.wk.pi >= OC_DROP_MIN_IMPR && !outState.clkUp.has(x.url) && ocIsContent(x.url)).sort((a, b) => a.delta - b.delta);
   const stall = d.filter(x => x.live && x.status === 'indexed' && x.clicks === 0 && ocIsContent(x.url)).sort((a, b) => b.pos - a.pos);
   const links = (arr, extra) => arr.slice(0, 5).map(x => '<a href="' + esc(x.url) + '" target="_blank" onclick="event.stopPropagation()" style="display:block;color:var(--accent);text-decoration:none;font-size:12px;padding:1px 0">' + esc(x.url.replace(/^https?:\/\/[^/]+/, '')) + (extra ? extra(x) : '') + '</a>').join('')
     + (arr.length > 5 ? '<div style="font-size:11px;color:var(--text-muted);margin-top:3px">+' + (arr.length - 5) + ' more</div>' : '');

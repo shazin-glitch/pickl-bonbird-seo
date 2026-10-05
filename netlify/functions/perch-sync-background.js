@@ -21,7 +21,8 @@ const SITE = process.env.URL || process.env.NETLIFY_URL || 'https://yolkseo.netl
 
 const MAX_NEW_PER_RUN = 30;   // never flood Perch in one run
 const MIN_IMPR_OPTIMIZE = 25; // "indexed but 0 clicks" only matters above some exposure
-const DROP_MIN = 3;           // positions dropped WoW to flag
+const DROP_MIN = 1.5;         // positions dropped WoW to flag (weekly GSC positions) — same rule as the Outcomes card
+const DROP_MIN_IMPR = 100;    // min impressions in EACH week — a weekly position from fewer is noise
 
 const pathOf = u => { try { return new URL(u).pathname; } catch { return u; } };
 // A real content page (not a PDF/image/asset or /wp-content/ upload) — assets aren't
@@ -103,7 +104,7 @@ async function dropFindings(brand, reg) {
   const drops = (reg.pages || []).map(p => {
     const w = p.wk;
     if (!w || w.p == null || w.pp == null || !isContentPage(p.url)) return null;
-    if (w.i < 20 || w.pi < 20) return null;               // too few impressions for a stable position
+    if (w.i < DROP_MIN_IMPR || w.pi < DROP_MIN_IMPR) return null; // too few impressions for a stable position
     if (w.c > w.pc) return null;                          // clicks grew → broader queries, not a loss
     const delta = w.p - w.pp;                             // positive = worse (dropped)
     return delta >= DROP_MIN ? { p, w, delta } : null;
