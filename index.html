@@ -3875,7 +3875,7 @@ function trMarketTable(latest, prev) {
 // Rolls hundreds of pages into segment summaries you drill into; the full list is
 // searchable / status-filterable / sortable / paginated. Styling injected once.
 const OC_PER = 12;
-const outState = { brand: null, all: [], retired: [], delta: new Map(), win: 90, grp: 'market', status: '', q: '', sort: 'clicks', dir: -1, page: 0, openSeg: null };
+const outState = { brand: null, all: [], retired: [], delta: new Map(), clkUp: new Set(), win: 90, grp: 'market', status: '', q: '', sort: 'clicks', dir: -1, page: 0, openSeg: null };
 // Registry status → what it actually means. 'ranking' is clicks>1 (NOT a top-10 position) —
 // labelling it "Ranking" made indexed, impression-earning pages read as failures.
 const SEO_ST_LABEL = { ranking: 'Earning clicks', indexed: 'Visible, no clicks', new: 'Not yet visible', noindex: 'Noindex' };
@@ -3952,11 +3952,17 @@ async function loadOutcomes() {
     const byUrl = new Map((reg.pages || []).map(p => [p.url, p]));
     const redir = reg.redirects || {}, gone = new Set(reg.gone || []);
     const resolve = u => { u = canonU(u); for (let i = 0; i < 5 && !byUrl.has(u) && redir[u]; i++) u = canonU(redir[u]); return u; };
-    // position Δ from the last two weekly snapshots (positive = improved)
-    outState.delta = new Map();
+    // position Δ from the last two weekly snapshots (positive = improved). Same URL only
+    // (host-canonicalised, NOT redirect-resolved): comparing an old URL's legacy position to
+    // its new URL's position manufactured 9 fake "drops" (/sharjah/aljada/ #1 → /ae/… #11.5).
+    // Rows that canonicalise to the same URL (old snapshots hold www.* junk rows, e.g. www /pk/
+    // at #1 with 1 impression) are MERGED impression-weighted — last-wins let the junk row set a
+    // fake #1 baseline. Clicks ride along so a "drop" can require that traffic didn't grow.
+    const snapMap = s => { const m = new Map(); for (const x of s.pages) { const k = canonU(x.u), e = m.get(k) || { pi: 0, i: 0, c: 0 }; if (x.p != null) e.pi += x.p * Math.max(1, x.i || 0); e.w = (e.w || 0) + (x.p != null ? Math.max(1, x.i || 0) : 0); e.i += x.i || 0; e.c += x.c || 0; m.set(k, e); } for (const e of m.values()) e.p = e.w ? e.pi / e.w : null; return m; };
+    outState.delta = new Map(); outState.clkUp = new Set();
     if (snapC && snapP && snapC.pages && snapP.pages) {
-      const pm = new Map(snapP.pages.map(x => [resolve(x.u), x.p]));
-      for (const x of snapC.pages) { const k = resolve(x.u), pp = pm.get(k); if (pp != null && x.p != null) outState.delta.set(k, +(pp - x.p).toFixed(1)); }
+      const pm = snapMap(snapP), cm = snapMap(snapC);
+      for (const [k, x] of cm) { const pp = pm.get(k); if (!pp || pp.p == null || x.p == null) continue; outState.delta.set(k, +(pp.p - x.p).toFixed(1)); if (x.c > pp.c) outState.clkUp.add(k); }
     }
     // one row per LIVE page: every logged URL that resolves to it merges in; the earliest
     // event = shipped date. Logged URLs that resolve to nothing live (404'd / removed) are
@@ -4051,7 +4057,10 @@ function ocAtt() {
   const nox = d.filter(x => x.status === 'noindex' && ocIsContent(x.url));
   // Only flag drops on pages that are still LIVE and are real content (excludes 404'd
   // legacy URLs that GSC still reports, and utility pages like privacy-policy).
-  const drop = d.filter(x => x.live && x.delta != null && x.delta <= -1.5 && ocIsContent(x.url)).sort((a, b) => a.delta - b.delta);
+  // A real drop = position fell AND clicks didn't grow. Average position falls on its own when
+  // a page starts showing for MORE (broader) queries — e.g. after a 301 consolidates the old
+  // URL's queries onto it (/ae/dubai/: avg #1 → #7.1 while clicks went 172 → 310). Not a loss.
+  const drop = d.filter(x => x.live && x.delta != null && x.delta <= -1.5 && !outState.clkUp.has(x.url) && ocIsContent(x.url)).sort((a, b) => a.delta - b.delta);
   const stall = d.filter(x => x.live && x.status === 'indexed' && x.clicks === 0 && ocIsContent(x.url)).sort((a, b) => b.pos - a.pos);
   const links = (arr, extra) => arr.slice(0, 5).map(x => '<a href="' + esc(x.url) + '" target="_blank" onclick="event.stopPropagation()" style="display:block;color:var(--accent);text-decoration:none;font-size:12px;padding:1px 0">' + esc(x.url.replace(/^https?:\/\/[^/]+/, '')) + (extra ? extra(x) : '') + '</a>').join('')
     + (arr.length > 5 ? '<div style="font-size:11px;color:var(--text-muted);margin-top:3px">+' + (arr.length - 5) + ' more</div>' : '');

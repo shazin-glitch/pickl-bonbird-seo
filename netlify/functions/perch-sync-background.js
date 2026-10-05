@@ -109,6 +109,10 @@ async function dropFindings(brand, reg) {
       if (!pr || p.p == null || pr.p == null) return null;
       if (!liveUrls.has(p.u) || !isContentPage(p.u)) return null;   // skip dead/legacy/utility URLs
       const delta = p.p - pr.p;                       // positive = worse (dropped)
+      // Avg position also falls when a page starts showing for MORE/broader queries (e.g. a
+      // 301 consolidating the old URL's queries onto it: /ae/dubai/ #1→#7.1 while clicks rose
+      // 172→310). That's growth, not a drop — require that clicks did NOT grow.
+      if ((p.c || 0) > (pr.c || 0)) return null;
       return (delta >= DROP_MIN && (p.i || 0) >= 20) ? { p, pr, delta } : null;
     }).filter(Boolean).sort((a, b) => b.delta - a.delta).slice(0, 5);
     for (const d of drops) {
