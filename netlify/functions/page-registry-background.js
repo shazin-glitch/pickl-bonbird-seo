@@ -163,6 +163,10 @@ async function robotsIndexable(url) {
   if (r.redirected || (r.status >= 300 && r.status < 400)) {
     return { fetched: true, indexable: false, status: 'redirect', finalUrl: (r.url && r.url !== url) ? r.url : (r.headers.get('location') || null) };
   }
+  // A 404/410 is a DEAD page — not live, even while GSC still reports it for weeks after
+  // (that lag makes a dead URL look "indexed" via has-impressions). Mark it 'gone' so it's
+  // excluded from the live registry, same as a redirect. (5xx/other = transient → keep.)
+  if (r.status === 404 || r.status === 410) return { fetched: true, indexable: false, status: 'gone', httpStatus: r.status };
   if (!r.ok) return { fetched: false, indexable: null, status: 'unreachable' };
   const html = await r.text().catch(() => null);
   if (html == null) return { fetched: false, indexable: null, status: 'unreachable' };
@@ -249,8 +253,9 @@ async function buildBrand(brand, store, token) {
     const inSitemap = sitemapUrls.has(url);
     const rb = robotsMap.get(url);
     let indexable, indexNote, redirectTo = null;
-    if (inSitemap) { indexable = true; indexNote = 'in-sitemap'; }
-    else if (rb && rb.status === 'redirect') { indexable = false; indexNote = 'redirect'; redirectTo = rb.finalUrl || null; } // 301'd — checked FIRST, before impressions
+    if (rb && rb.status === 'gone') { indexable = false; indexNote = 'gone'; } // 404/410 — DEAD, checked first (beats sitemap/impressions lag)
+    else if (inSitemap) { indexable = true; indexNote = 'in-sitemap'; }
+    else if (rb && rb.status === 'redirect') { indexable = false; indexNote = 'redirect'; redirectTo = rb.finalUrl || null; } // 301'd — checked before impressions
     else if (rb && (rb.status === 'noindex' || rb.status === 'index')) { indexable = rb.indexable; indexNote = rb.status; }
     else if (g) { indexable = true; indexNote = 'has-impressions'; } // in GSC, not HTTP-checked (past cap) — assume live
     else if (rb) { indexable = rb.indexable; indexNote = rb.status; }
@@ -259,6 +264,7 @@ async function buildBrand(brand, store, token) {
     const clicks = g ? g.clicks : 0;
     let status;
     if (indexNote === 'redirect') status = 'redirect';
+    else if (indexNote === 'gone') status = 'gone';
     else if (indexable === false) status = 'noindex';
     else if (clicks > 1) status = 'ranking';
     else if (impressions > 0) status = 'indexed';
@@ -284,8 +290,12 @@ async function buildBrand(brand, store, token) {
   // old URL for months post-migration), so FOLD them into the redirect TARGET rather than
   // dropping them — otherwise the market total collapses during the transition. Result: no
   // duplicate rows AND accurate totals, attributed to the live page.
+  // 404/410 pages are DEAD — drop them too (GSC lag keeps reporting them for weeks, which
+  // otherwise shows a dead URL as a live "indexed" page + a phantom ranking drop).
   const redirectPages = allPages.filter(p => p.status === 'redirect');
-  const pages = allPages.filter(p => p.status !== 'redirect');
+  const gonePages = allPages.filter(p => p.status === 'gone');
+  const pages = allPages.filter(p => p.status !== 'redirect' && p.status !== 'gone');
+  if (gonePages.length) console.log(`${tag} excluded ${gonePages.length} dead (404/410) page(s) from the live registry`);
   const byUrl = new Map(pages.map(p => [p.url, p]));
   let folded = 0;
   for (const rp of redirectPages) {
