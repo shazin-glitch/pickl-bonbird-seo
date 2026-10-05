@@ -26,6 +26,7 @@ const HTTP_CONCURRENCY = 8;  // parallel out-of-sitemap fetches
 const INDEX_INSPECT_CAP = 400; // bound URL-Inspection calls/brand/run (GSC quota = 2000/day)
 const STUCK_INDEX_DAYS = 14;   // live + should-index + 0 impressions for this long = indexing concern (Google usually indexes within ~2 weeks)
 const INDEX_CONCURRENCY = 5;   // parallel URL-Inspection calls (quota = 600/min)
+const EVENT_RESOLVE_CAP = 150; // bound per-run HTTP checks of work-log URLs we can't place (each is checked once, then remembered)
 
 // Run async fn over items with at most `limit` in flight; preserves order; never rejects.
 async function mapLimit(items, limit, fn) {
@@ -196,13 +197,24 @@ async function buildBrand(brand, store, token) {
   if (!domain) { console.warn(`${tag} no domain`); return { error: 'no domain' }; }
   const site = (await gscPropertyFor(brand)) || `https://${domain}/`;
 
-  const [sitemapMap, gscRes, marketsMap, nestUrls, prior] = await Promise.all([
+  // The non-canonical host twin (www ↔ apex). A domain GSC property reports rows for BOTH
+  // hosts, so keying them separately listed the same page twice (double-counted in every
+  // total). canon() folds the twin onto the brand's canonical domain.
+  const aliasHost = domain.startsWith('www.') ? domain.slice(4) : `www.${domain}`;
+  const canon = u => {
+    const n = normUrl(u); if (!n) return null;
+    try { const x = new URL(n); if (x.host === aliasHost) x.host = domain; return x.toString(); } catch { return n; }
+  };
+
+  const [sitemapMap, gscRes, marketsMap, nestUrlsRaw, prior, eventLog] = await Promise.all([
     collectSitemap(domain),
     token ? fetchGscPageOnly(site, token, { days: 90 }) : Promise.resolve({ rows: [] }),
     getMarketsForBrandAsync(brand),
     nestCreatedUrls(brand),
     store.get(`pageRegistry:${brand}`, { type: 'json' }).catch(() => null),
+    store.get(`seoEvents:${brand}`, { type: 'json' }).catch(() => null),
   ]);
+  const nestUrls = new Set([...nestUrlsRaw].map(canon).filter(Boolean));
 
   // HARDENING: if GSC is unavailable (no token, auth error, or empty), rebuilding would
   // zero every page's impressions/clicks/position — overwriting a good registry with a
@@ -225,7 +237,32 @@ async function buildBrand(brand, store, token) {
     for (const c of (cities || [])) if (c && c.slug) citySlugs.add(String(c.slug).toLowerCase());
   }));
   const gscByUrl = new Map();
-  for (const r of (gscRes.rows || [])) { const n = normUrl(r.page); if (n) gscByUrl.set(n, r); }
+  const alias = { impressions: 0, clicks: 0, urls: 0 };
+  for (const r of (gscRes.rows || [])) {
+    const raw = normUrl(r.page), n = canon(r.page);
+    if (!n) continue;
+    if (raw !== n) { alias.impressions += r.impressions || 0; alias.clicks += r.clicks || 0; alias.urls++; }
+    const ex = gscByUrl.get(n);
+    if (!ex) { gscByUrl.set(n, { ...r }); continue; }
+    // same page reported under both hosts → merge (impression-weighted position)
+    const ti = (ex.impressions || 0) + (r.impressions || 0);
+    if (ti && ex.position != null && r.position != null) ex.position = +(((ex.position * (ex.impressions || 0)) + (r.position * (r.impressions || 0))) / ti).toFixed(1);
+    ex.impressions = ti; ex.clicks = (ex.clicks || 0) + (r.clicks || 0);
+  }
+  // Host health: if Google is sending traffic to the twin host, it MUST 301 to the canonical
+  // one. (Found live: https://www.bonbirdchicken.com/* returned Cloudflare 526 — every
+  // www result Google showed landed on an error page.) One cheap request per run.
+  let hostAlias = null;
+  if (alias.urls) {
+    let httpStatus = null, ok = false;
+    try {
+      const r = await fetch(`https://${aliasHost}/`, { redirect: 'follow' });
+      httpStatus = r.status;
+      ok = r.ok && new URL(r.url).host === domain; // must END on the canonical host
+    } catch { httpStatus = 'unreachable'; }
+    hostAlias = { host: aliasHost, httpStatus, ok, urls: alias.urls, impressions: alias.impressions, clicks: alias.clicks };
+    if (!ok) console.warn(`${tag} twin host ${aliasHost} is NOT redirecting to ${domain} (HTTP ${httpStatus}) — ${alias.impressions} impr/90d going to it`);
+  }
   const priorSeen = new Map((prior?.pages || []).map(p => [p.url, p.firstSeen]));
   const now = new Date().toISOString();
 
@@ -306,6 +343,28 @@ async function buildBrand(brand, store, token) {
   pages.sort((a, b) => (b.clicks - a.clicks) || (b.impressions - a.impressions)); // re-sort after folding
   if (redirectPages.length) console.log(`${tag} excluded ${redirectPages.length} redirect(s), folded ${folded} into their targets`);
 
+  // ── Redirect + dead-URL memory (keeps the work log joinable across migrations) ──
+  // seoEvents is keyed by the URL at the time of the work. After a URL migration (Bonbird's
+  // ISO move: /pakistan/ → /pk/, /oman/ → /om/) those URLs leave the live registry, so the
+  // Outcomes view could join only 40 of 151 logged Bonbird pages and showed the rest as
+  // 0 clicks ("Pakistan 0/10"). Persist every redirect (from → to) and every dead URL seen —
+  // ACCUMULATED across runs, because GSC eventually stops reporting old URLs — and HTTP-
+  // resolve any logged URL we still can't place (checked once, then remembered).
+  const redirects = { ...(prior?.redirects || {}) };
+  const gone = new Set(prior?.gone || []);
+  for (const rp of redirectPages) { const to = canon(rp.redirectTo); if (to && to !== rp.url) redirects[rp.url] = to; }
+  for (const gp of gonePages) gone.add(gp.url);
+  for (const p of pages) { delete redirects[p.url]; gone.delete(p.url); } // live again → forget the old fate
+  const unplaced = [...new Set(((eventLog && eventLog.events) || []).map(e => canon(e.url)).filter(Boolean))]
+    .filter(u => !byUrl.has(u) && !redirects[u] && !gone.has(u));
+  const toResolve = unplaced.slice(0, EVENT_RESOLVE_CAP);
+  await mapLimit(toResolve, HTTP_CONCURRENCY, async (u) => {
+    const r = await robotsIndexable(u);
+    if (r.status === 'redirect') { const to = canon(r.finalUrl); if (to && to !== u) redirects[u] = to; }
+    else if (r.status === 'gone') gone.add(u);
+  });
+  if (toResolve.length) console.log(`${tag} resolved ${toResolve.length} unplaced work-log URL(s)${unplaced.length > toResolve.length ? ` (capped from ${unplaced.length})` : ''}`);
+
   // ── Real Google index status ─────────────────────────────────────────────
   // "indexable" only says the page ALLOWS indexing; it does NOT mean Google indexed it.
   // KEY shortcut: a page with impressions is BY DEFINITION indexed (it appeared in search
@@ -366,6 +425,8 @@ async function buildBrand(brand, store, token) {
       lastCrawlVerdict: p.indexState ? (p.indexState.coverageState || p.indexState.verdict) : null, // supporting detail, may lag
     })),
     nestCreated: pages.filter(p => p.nestCreated).length,
+    redirectsKnown: Object.keys(redirects).length,
+    hostAlias, // null = no twin-host traffic; else { host, httpStatus, ok, … } — ok:false is a live site fault
     byMarket: {},
   };
   for (const p of pages) {
@@ -373,7 +434,7 @@ async function buildBrand(brand, store, token) {
     b.pages++; b.clicks += p.clicks; b.impressions += p.impressions;
   }
 
-  await store.set(`pageRegistry:${brand}`, JSON.stringify({ brand, domain, builtAt: now, summary, pages }));
+  await store.set(`pageRegistry:${brand}`, JSON.stringify({ brand, domain, builtAt: now, summary, pages, redirects, gone: [...gone] }));
 
   // Phase 2 (additive): per-page WEEKLY snapshot → the trend series the Monday view needs.
   // Compact rows (url/clicks/impr/pos/market); keyed by ISO week so reruns overwrite.
@@ -388,7 +449,7 @@ async function buildBrand(brand, store, token) {
   // already-shipped pages so the Outcomes view isn't empty. Append-only, capped.
   try {
     const isContent = u => !/\/wp-content\//i.test(u) && !/\.(pdf|jpe?g|png|gif|webp|svg|zip|docx?|xlsx?|csv)(\?|$)/i.test(u);
-    const log = (await store.get(`seoEvents:${brand}`, { type: 'json' }).catch(() => null)) || { brand, events: [] };
+    const log = eventLog || { brand, events: [] };
     const firstTime = !log.events.length;
     const priorByUrl = new Map((prior?.pages || []).map(p => [p.url, p]));
     const ev = [];

@@ -3875,8 +3875,11 @@ function trMarketTable(latest, prev) {
 // Rolls hundreds of pages into segment summaries you drill into; the full list is
 // searchable / status-filterable / sortable / paginated. Styling injected once.
 const OC_PER = 12;
-const outState = { brand: null, all: [], delta: new Map(), win: 90, grp: 'market', status: '', q: '', sort: 'clicks', dir: -1, page: 0, openSeg: null };
-const OC_STMAP = { ranking: ['rank', 'Ranking'], indexed: ['idx', 'Indexed'], new: ['new', 'New'], noindex: ['fix', 'Noindex'] };
+const outState = { brand: null, all: [], retired: [], delta: new Map(), win: 90, grp: 'market', status: '', q: '', sort: 'clicks', dir: -1, page: 0, openSeg: null };
+// Registry status → what it actually means. 'ranking' is clicks>1 (NOT a top-10 position) —
+// labelling it "Ranking" made indexed, impression-earning pages read as failures.
+const SEO_ST_LABEL = { ranking: 'Earning clicks', indexed: 'Visible, no clicks', new: 'Not yet visible', noindex: 'Noindex' };
+const OC_STMAP = { ranking: ['rank', SEO_ST_LABEL.ranking], indexed: ['idx', SEO_ST_LABEL.indexed], new: ['new', SEO_ST_LABEL.new], noindex: ['fix', SEO_ST_LABEL.noindex] };
 function ocMkt(k) { return k === 'uae' ? 'UAE' : (k || '').replace(/^[a-z]+_/, '').split(/[-_]/).map(w => w.charAt(0).toUpperCase() + w.slice(1)).join(' ') || '—'; }
 function ocTy(t) { return (t || 'page').split(/[-_]/).map(w => w.charAt(0).toUpperCase() + w.slice(1)).join(' '); }
 function ocIsoWeek(d) { const t = new Date(Date.UTC(d.getUTCFullYear(), d.getUTCMonth(), d.getUTCDate())); const day = (t.getUTCDay() + 6) % 7; t.setUTCDate(t.getUTCDate() - day + 3); const f = new Date(Date.UTC(t.getUTCFullYear(), 0, 4)); const w = 1 + Math.round(((t - f) / 864e5 - 3 + ((f.getUTCDay() + 6) % 7)) / 7); return t.getUTCFullYear() + '-W' + String(w).padStart(2, '0'); }
@@ -3894,7 +3897,7 @@ function ocEnsureStyles() {
     '#outcomes-content .oc-sec{display:flex;align-items:center;gap:12px;margin:26px 0 12px}',
     '#outcomes-content .oc-sec h3{font-size:12px;font-weight:800;text-transform:uppercase;letter-spacing:.08em;margin:0;color:var(--text-main)}',
     '#outcomes-content .oc-sec .line{flex:1;height:1px;background:var(--border)}',
-    '#outcomes-content .oc-segrow{display:grid;grid-template-columns:170px 1fr 92px 88px 30px;align-items:center;gap:14px;padding:12px 14px;border-bottom:1px solid var(--border);cursor:pointer}',
+    '#outcomes-content .oc-segrow{display:grid;grid-template-columns:170px 1fr 124px 88px 30px;align-items:center;gap:14px;padding:12px 14px;border-bottom:1px solid var(--border);cursor:pointer}',
     '#outcomes-content .oc-segrow:last-child{border-bottom:0}',
     '#outcomes-content .oc-segrow:hover,#outcomes-content .oc-segrow.open{background:rgba(128,128,128,.06)}',
     '#outcomes-content .oc-segname{font-weight:700;font-size:14px}',
@@ -3923,7 +3926,7 @@ function ocEnsureStyles() {
   document.head.appendChild(s);
 }
 const OC_STYLE = { rank: 'background:rgba(22,163,74,.15);color:#16a34a', idx: 'background:rgba(37,99,168,.15);color:#3b82f6', new: 'background:rgba(232,86,13,.15);color:#ea580c', fix: 'background:rgba(220,38,38,.15);color:#dc2626' };
-const OC_BAR = { rank: '#16a34a', idx: '#b45309', new: '#b45309', fix: '#dc2626' };
+const OC_BAR = { rank: '#16a34a', idx: '#3b82f6', new: '#b45309', fix: '#dc2626' };
 
 async function loadOutcomes() {
   ocEnsureStyles();
@@ -3940,23 +3943,37 @@ async function loadOutcomes() {
       fetch('/api/page-registry?brand=' + b + '&snapshot=' + wk, { credentials: 'include' }).then(r => r.json()).catch(() => null),
       fetch('/api/page-registry?brand=' + b + '&snapshot=' + pv, { credentials: 'include' }).then(r => r.json()).catch(() => null),
     ]);
+    // The work log is keyed by the URL at the time of the work; pages since migrated
+    // (/pakistan/ → /pk/) or served on the twin host (www.) must be resolved to the LIVE
+    // page before joining, or they read as 0-click failures. canonU mirrors the registry's
+    // normUrl + twin-host fold; reg.redirects is the registry's accumulated from→to memory.
+    const dom = String(reg.domain || '').toLowerCase(), twin = dom.startsWith('www.') ? dom.slice(4) : 'www.' + dom;
+    const canonU = u => { try { const x = new URL(u); let h = x.host.toLowerCase(); if (dom && h === twin) h = dom; let p = x.pathname; if (!p.endsWith('/') && !/\.[a-z0-9]{2,5}$/i.test(p)) p += '/'; return x.protocol + '//' + h + p; } catch { return u; } };
+    const byUrl = new Map((reg.pages || []).map(p => [p.url, p]));
+    const redir = reg.redirects || {}, gone = new Set(reg.gone || []);
+    const resolve = u => { u = canonU(u); for (let i = 0; i < 5 && !byUrl.has(u) && redir[u]; i++) u = canonU(redir[u]); return u; };
     // position Δ from the last two weekly snapshots (positive = improved)
     outState.delta = new Map();
     if (snapC && snapP && snapC.pages && snapP.pages) {
-      const pm = new Map(snapP.pages.map(x => [x.u, x.p]));
-      for (const x of snapC.pages) { const pp = pm.get(x.u); if (pp != null && x.p != null) outState.delta.set(x.u, +(pp - x.p).toFixed(1)); }
+      const pm = new Map(snapP.pages.map(x => [resolve(x.u), x.p]));
+      for (const x of snapC.pages) { const k = resolve(x.u), pp = pm.get(k); if (pp != null && x.p != null) outState.delta.set(k, +(pp - x.p).toFixed(1)); }
     }
-    // one row per shipped page: earliest event = shipped date, joined to current perf
-    const byUrl = new Map((reg.pages || []).map(p => [p.url, p]));
-    const evByUrl = new Map();
-    for (const e of (ev.events || [])) { const c = evByUrl.get(e.url); if (!c || new Date(e.at) < new Date(c.at)) evByUrl.set(e.url, e); }
-    outState.all = [...evByUrl.values()].map(e => {
-      const p = byUrl.get(e.url) || {};
-      // `live` = the URL is still a page in the current registry (404'd/redirected legacy
-      // URLs drop out of the registry but linger in the work log + in GSC snapshots for
-      // weeks, so without this they show phantom "ranking drops").
-      return { url: e.url, market: e.market || p.market || '', type: e.pageType || p.pageType || 'page', at: e.at, pos: p.position != null ? p.position : null, clicks: p.clicks || 0, status: p.status || 'new', live: byUrl.has(e.url), delta: outState.delta.has(e.url) ? outState.delta.get(e.url) : null };
-    });
+    // one row per LIVE page: every logged URL that resolves to it merges in; the earliest
+    // event = shipped date. Logged URLs that resolve to nothing live (404'd / removed) are
+    // RETIRED — counted separately, never as zeros in the KPIs.
+    const grp = new Map();
+    for (const e of (ev.events || [])) {
+      const u = resolve(e.url), g = grp.get(u);
+      if (!g) grp.set(u, { e, via: new Set([e.url]) });
+      else { g.via.add(e.url); if (new Date(e.at) < new Date(g.e.at)) g.e = e; }
+    }
+    outState.all = []; outState.retired = [];
+    for (const [u, { e, via }] of grp) {
+      const p = byUrl.get(u);
+      if (!p) { outState.retired.push({ url: u, at: e.at, gone: gone.has(u) }); continue; }
+      // the live page's market/type win — legacy URLs were often attributed to the wrong market
+      outState.all.push({ url: u, via: [...via].filter(v => canonU(v) !== u), market: p.market || e.market || '', type: p.pageType || e.pageType || 'page', at: e.at, pos: p.position != null ? p.position : null, clicks: p.clicks || 0, impr: p.impressions || 0, status: p.status || 'new', live: true, delta: outState.delta.has(u) ? outState.delta.get(u) : null });
+    }
   } catch (e) { if (el) el.innerHTML = '<div style="padding:24px;color:var(--text-muted)">Could not load: ' + esc(e.message) + '</div>'; return; }
   outState.page = 0; outState.openSeg = null;
   ocRenderShell();
@@ -3986,7 +4003,7 @@ function ocRenderShell() {
     + '<div class="oc-sec"><h3>Needs attention</h3><span class="line"></span></div><div class="oc-att" id="oc-att"></div>'
     + '<div class="oc-sec"><h3>All shipped pages</h3><span class="line"></span></div>'
     + '<div style="display:flex;gap:10px;align-items:center;flex-wrap:wrap;margin-bottom:12px"><input class="oc-search" id="oc-q" placeholder="Search pages…" oninput="ocSetSearch(this.value)"><div style="display:flex;gap:6px;flex-wrap:wrap">'
-    + chip('', 'All') + chip('ranking', 'Ranking') + chip('indexed', 'Indexed') + chip('new', 'New') + chip('noindex', 'Noindex') + '</div></div>'
+    + chip('', 'All') + ['ranking', 'indexed', 'new', 'noindex'].map(s => chip(s, SEO_ST_LABEL[s])).join('') + '</div></div>'
     + '<div class="card" style="padding:0;overflow-x:auto"><table class="oc-tbl"><thead><tr>'
     + '<th class="l" onclick="ocSort(\'url\')">Page</th><th class="l" onclick="ocSort(\'market\')">Market</th><th class="l" onclick="ocSort(\'type\')">Type</th>'
     + '<th onclick="ocSort(\'at\')">Shipped</th><th onclick="ocSort(\'pos\')">Pos</th><th onclick="ocSort(\'delta\')">Δ wk</th><th onclick="ocSort(\'clicks\')">Clicks</th><th class="l" onclick="ocSort(\'status\')">Status</th>'
@@ -3996,19 +4013,24 @@ function ocRenderShell() {
 }
 function ocKpis() {
   const d = ocWinData();
-  const ship = d.length, rank = d.filter(x => x.status === 'ranking').length, clicks = d.reduce((a, b) => a + b.clicks, 0);
-  const ranked = d.filter(x => x.status === 'ranking' && x.pos != null); const avg = ranked.length ? (ranked.reduce((a, b) => a + b.pos, 0) / ranked.length).toFixed(1) : '—';
-  const K = (n, l, dd) => '<div class="card oc-kpi" style="padding:15px 16px"><div class="n">' + n + '</div><div class="l">' + l + '</div>' + (dd ? '<div class="d" style="color:#16a34a">' + dd + '</div>' : '') + '</div>';
+  const ship = d.length, vis = d.filter(x => x.status === 'ranking' || x.status === 'indexed').length;
+  const earn = d.filter(x => x.status === 'ranking').length, clicks = d.reduce((a, b) => a + b.clicks, 0);
+  const wp = d.filter(x => x.pos != null && x.impr > 0), wi = wp.reduce((a, b) => a + b.impr, 0);
+  const avg = wi ? (wp.reduce((a, b) => a + b.pos * b.impr, 0) / wi).toFixed(1) : null; // impression-weighted, like State of SEO
+  const pct = n => ship ? Math.round(100 * n / ship) + '% of shipped' : '';
+  const ret = outState.retired.filter(r => outState.win === 'all' || new Date(r.at).getTime() >= Date.now() - outState.win * 864e5).length;
+  const K = (n, l, dd, muted) => '<div class="card oc-kpi" style="padding:15px 16px"><div class="n">' + n + '</div><div class="l">' + l + '</div>' + (dd ? '<div class="d" style="color:' + (muted ? 'var(--text-muted)' : '#16a34a') + '">' + dd + '</div>' : '') + '</div>';
   document.getElementById('oc-kpis').innerHTML =
-    K(ship, 'changes shipped', '') + K(rank, 'now ranking (top 10)', ship ? Math.round(100 * rank / ship) + '% of shipped' : '')
-    + K(clicks.toLocaleString(), 'clicks they drive', '') + K(avg, 'avg position of ranked', '');
+    K(ship, 'live pages we shipped or edited', ret ? '+' + ret + ' retired URL' + (ret > 1 ? 's' : '') + ' excluded' : '', true)
+    + K(vis, 'visible in Google', pct(vis)) + K(earn, 'earning clicks', pct(earn))
+    + K(clicks.toLocaleString(), 'clicks they drive · 90d', avg ? 'avg position #' + avg : '', true);
 }
 function ocSeg() {
   const d = ocWinData(), key = outState.grp, groups = {};
   d.forEach(x => { const g = x[key] || '—'; (groups[g] = groups[g] || []).push(x); });
   const order = Object.keys(groups).sort((a, b) => groups[b].length - groups[a].length);
   document.getElementById('oc-seg').innerHTML = order.map(g => {
-    const arr = groups[g], n = arr.length, rk = arr.filter(x => x.status === 'ranking').length, fx = arr.filter(x => x.status === 'noindex').length, bd = n - rk - fx;
+    const arr = groups[g], n = arr.length, rk = arr.filter(x => x.status === 'ranking').length, ix = arr.filter(x => x.status === 'indexed').length, fx = arr.filter(x => x.status === 'noindex').length, bd = n - rk - ix - fx;
     const clk = arr.reduce((a, b) => a + b.clicks, 0), open = outState.openSeg === key + ':' + g;
     const lab = key === 'market' ? ocMkt(g) : ocTy(g);
     const drill = open ? '<div class="oc-drill">' + arr.slice().sort((a, b) => b.clicks - a.clicks).slice(0, 6).map(x =>
@@ -4016,8 +4038,8 @@ function ocSeg() {
       + (arr.length > 6 ? '<div style="font-size:11px;color:var(--text-muted);padding-top:8px">+' + (arr.length - 6) + ' more — see the table below</div>' : '') + '</div>' : '';
     return '<div class="oc-segrow ' + (open ? 'open' : '') + '" onclick="ocToggleSeg(\'' + key + ':' + g + '\')">'
       + '<div class="oc-segname">' + esc(lab) + '<small>' + n + ' shipped</small></div>'
-      + '<div class="oc-stack"><i style="width:' + (100 * rk / n) + '%;background:' + OC_BAR.rank + '"></i><i style="width:' + (100 * bd / n) + '%;background:' + OC_BAR.new + '"></i><i style="width:' + (100 * fx / n) + '%;background:' + OC_BAR.fix + '"></i></div>'
-      + '<div style="text-align:right"><div style="font-weight:700;font-variant-numeric:tabular-nums">' + rk + '/' + n + '</div><div style="font-size:11px;color:var(--text-muted)">ranking</div></div>'
+      + '<div class="oc-stack" title="' + rk + ' earning clicks · ' + ix + ' visible, no clicks · ' + bd + ' not yet visible · ' + fx + ' noindex"><i style="width:' + (100 * rk / n) + '%;background:' + OC_BAR.rank + '"></i><i style="width:' + (100 * ix / n) + '%;background:' + OC_BAR.idx + '"></i><i style="width:' + (100 * bd / n) + '%;background:' + OC_BAR.new + '"></i><i style="width:' + (100 * fx / n) + '%;background:' + OC_BAR.fix + '"></i></div>'
+      + '<div style="text-align:right"><div style="font-weight:700;font-variant-numeric:tabular-nums">' + (rk + ix) + '/' + n + '</div><div style="font-size:11px;color:var(--text-muted)">visible · ' + rk + ' earning</div></div>'
       + '<div style="text-align:right"><div style="font-weight:700;font-variant-numeric:tabular-nums">' + clk.toLocaleString() + '</div><div style="font-size:11px;color:var(--text-muted)">clicks</div></div>'
       + '<div class="oc-chev">›</div></div>' + drill;
   }).join('');
@@ -4155,8 +4177,14 @@ function renderStateOfSeo() {
     + td((p.impressions || 0).toLocaleString(), 1)
     + td((p.clicks || 0).toLocaleString(), 1)
     + td(p.position != null ? p.position : '—', 1)
-    + td('<span style="font-size:11px;font-weight:600;color:' + stColor(p.status) + '">' + esc(p.status) + '</span>')
+    + td('<span style="font-size:11px;font-weight:600;color:' + stColor(p.status) + '">' + esc(SEO_ST_LABEL[p.status] || p.status) + '</span>')
     + '</tr>').join('');
+  // Twin-host fault (registry's one-request check): Google is sending traffic to www./apex
+  // and that host is NOT 301ing to the canonical domain — those searchers hit an error page.
+  const ha = sum.hostAlias;
+  const hostBlock = (ha && !ha.ok) ? '<div class="card" style="margin:14px 0 0;padding:12px 14px;border-left:3px solid #dc2626">'
+    + '<div style="font-size:13px;font-weight:700;color:#dc2626">⚠ ' + esc(ha.host) + ' is broken (HTTP ' + esc(String(ha.httpStatus)) + ')</div>'
+    + '<div style="font-size:12px;color:var(--text-muted);margin-top:3px">Google still shows ' + ha.urls + ' URL' + (ha.urls !== 1 ? 's' : '') + ' on this host (' + (ha.impressions || 0).toLocaleString() + ' impressions · 90d) and they don\'t redirect to ' + esc(d.domain || 'the main domain') + '. Fix at the CDN/host: 301 every ' + esc(ha.host) + ' URL to the same path on ' + esc(d.domain || 'the main domain') + '. Those numbers are folded into the main pages below.</div></div>' : '';
   // Indexing concerns drill-down: live + should-index + 0 impressions for 2+ weeks.
   const concernUrls = sum.indexingConcernUrls || [];
   const concernsBlock = concernUrls.length ? (
@@ -4226,6 +4254,7 @@ function renderStateOfSeo() {
   }
   el.innerHTML = '<div class="admin-tabs" style="margin-bottom:4px">' + brandTabs + '</div>'
     + '<div style="font-size:11px;color:var(--text-muted);margin:6px 0 0">Live-page registry · built ' + esc(new Date(d.builtAt).toLocaleString()) + ' · <button onclick="sosRebuild()" style="background:none;border:0;color:var(--accent);cursor:pointer;padding:0;font-size:11px">rebuild</button></div>'
+    + hostBlock
     + tiles
     + healthBlock
     + concernsBlock
