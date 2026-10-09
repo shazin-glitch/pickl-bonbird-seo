@@ -196,7 +196,7 @@ exports.handler = async (event) => {
 
       // Slack: notify if assigned to someone other than the creator
       if (task.assignee && task.assignee !== user.email) {
-        notifySlack('perch_assigned', { task, assignedBy: user.name || user.email }).catch(() => {});
+        await notifySlack('perch_assigned', { task, assignedBy: user.name || user.email }); // MUST await: an un-awaited fetch is frozen when the function returns, so the message never sent
       }
 
       return ok({ task });
@@ -248,11 +248,11 @@ exports.handler = async (event) => {
 
       // Slack: notify on assignee change (new assignee gets pinged)
       if (changes.assignee && changes.assignee !== task.assignee && changes.assignee !== user.email) {
-        notifySlack('perch_assigned', { task: updatedTask, assignedBy: user.name || user.email }).catch(() => {});
+        await notifySlack('perch_assigned', { task: updatedTask, assignedBy: user.name || user.email });
       }
       // Slack: notify on status change to 'done'
       if (changes.status === 'done' && task.status !== 'done') {
-        notifySlack('perch_done', { task: updatedTask, completedBy: user.name || user.email }).catch(() => {});
+        await notifySlack('perch_done', { task: updatedTask, completedBy: user.name || user.email }); // MUST await (see above) — 'done' messages were silently dropped
       }
 
       return ok({ task: updatedTask });
