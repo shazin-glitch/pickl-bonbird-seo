@@ -8,6 +8,7 @@
 //   perch_assigned    — Perch task assigned to someone
 //   perch_done        — Perch task marked complete
 //   perch_due_alert   — Daily overdue/due-soon digest
+//   announcement      — free-text update posted as written (Slack mrkdwn), e.g. a weekly work recap
 
 const { getStore } = require('@netlify/blobs');
 const { authorize, denied } = require('./_lib/auth');
@@ -52,6 +53,7 @@ exports.handler = async (event) => {
     else if (type === 'draft_queued')        payload = buildDraftQueued(body);
     else if (type === 'perch_autosync')      payload = buildPerchAutosync(body);
     else if (type === 'seo_work')            payload = buildSeoWork(body);
+    else if (type === 'announcement')        payload = buildAnnouncement(body);
     else                                     payload = buildGeneric(body);
 
     const slackRes = await fetch(webhookUrl, {
@@ -210,14 +212,18 @@ function buildPerchAssigned({ task, assignedBy }) {
 
 // ─── Perch: task completed ────────────────────────────────────────────────────
 function buildPerchDone({ task, completedBy }) {
-  const brand = task.brand ? (task.brand === 'pickl' ? '🟡 Pickl' : task.brand === 'bonbird' ? '🔴 Bonbird' : task.brand) : '';
+  // Brand label from the task itself (config-driven, rule #2 — was a pickl/bonbird ternary).
+  const brand = task.brand ? task.brand.charAt(0).toUpperCase() + task.brand.slice(1) : '';
+  // The latest comment says WHAT was done — the CEO-facing context a bare title lacks.
+  const last = (task.comments || []).slice(-1)[0];
+  const what = last && last.text ? `\n*What was done:* ${String(last.text).slice(0, 700)}` : '';
   return {
     blocks: [
       {
         type: 'section',
         text: {
           type: 'mrkdwn',
-          text: `✅ *Done!* — ${task.title}\n${brand}${completedBy ? ` · completed by ${completedBy}` : ''}`,
+          text: `✅ *Done!* — ${task.title}\n${brand}${completedBy ? ` · completed by ${completedBy}` : ''}${what}`,
         },
       },
     ],
@@ -484,6 +490,14 @@ function buildPerchAutosync({ created = 0, tasks = [] }) {
       { type: 'actions', elements: [{ type: 'button', text: { type: 'plain_text', text: 'Open The Perch →' }, style: 'primary', url: SITE_URL }] },
     ],
   };
+}
+
+// Free-text announcement (weekly recaps etc.). Posted as written; Slack's mrkdwn renders
+// *bold*, bullets and `code`. Capped well under Slack's message limit.
+function buildAnnouncement({ text }) {
+  const t = String(text || '').trim();
+  if (!t) return { text: '*🪺 The Nest*\n(empty announcement)' };
+  return { text: t.slice(0, 3900), unfurl_links: false };
 }
 
 function buildGeneric(body) {
