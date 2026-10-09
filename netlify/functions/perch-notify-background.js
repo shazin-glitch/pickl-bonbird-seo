@@ -61,7 +61,7 @@ exports.handler = async (event) => {
     for (const id of index) {
       try {
         const task = await getSetting('perchTask:' + id);
-        if (!task || task.status === 'done' || !task.dueDate) continue;
+        if (!task || task.status === 'done' || task.status === 'dismissed' || !task.dueDate) continue;
 
         const due = new Date(task.dueDate).getTime();
         const dueDay = startOfDay(due);

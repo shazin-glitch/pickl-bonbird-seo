@@ -30,7 +30,11 @@ const pathOf = u => { try { return new URL(u).pathname; } catch { return u; } };
 // Exclude assets AND legal/utility/functional pages — a ranking wobble on a
 // terms/privacy/giveaway/contact page isn't an actionable SEO signal.
 const UTIL_RE = /(privacy|terms|conditions|cookie|legal|giveaway|competition|sweepstake|contest|\/contact|\/careers|\/faqs?|\/sitemap|\/login|\/account|\/cart|\/checkout|thank-you|unsubscribe|\/jobs?\/|-tc\/?$|\/games\/?$|\/order\/?$)/i;
-const isContentPage = u => !/\/wp-content\//i.test(u) && !/\.(pdf|jpe?g|png|gif|webp|svg|zip|docx?|xlsx?|csv)(\?|$)/i.test(u) && !UTIL_RE.test(u);
+// Site leftovers that aren't worth a task: "-legacy" copies, numbered duplicates ("…-2/"),
+// a /home/ page duplicating the homepage, per-market events pages, pranks, journal pagination.
+// Pickl's relaunch left ~40 of these in its sitemap and each became its own "not indexed" task.
+const JUNK_RE = /(-legacy\/?$|\/home(-events)?\/?$|-\d+\/?$|events\/?$|recruitment|aprilfool|prank|\/journal\/\d+\/?$|\/page\/\d+\/?$|\/author\/)/i;
+const isContentPage = u => !/\/wp-content\//i.test(u) && !/\.(pdf|jpe?g|png|gif|webp|svg|zip|docx?|xlsx?|csv)(\?|$)/i.test(u) && !UTIL_RE.test(u) && !JUNK_RE.test(u);
 
 function findingsForBrand(reg) {
   const pages = (reg && reg.pages) || [];
@@ -81,11 +85,17 @@ function findingsForBrand(reg) {
   // 6) stuck — not indexed / not serving: live + set-to-index + in the sitemap but ZERO
   // impressions for 3+ weeks (the durable signal from the registry, not the lagging
   // URL-Inspection verdict). Either it isn't indexed or it's indexed but ranks for nothing.
-  for (const c of ((reg.summary && reg.summary.indexingConcernUrls) || [])) {
-    const detail = c.lastCrawlVerdict ? ` Google's last crawl reported: "${c.lastCrawlVerdict}" (may lag the live check).` : '';
-    out.push({ priority: 'high', sourceId: `notindexed:${reg.brand}:${pathOf(c.url)}`,
-      title: `Not indexed / not serving — ${pathOf(c.url)} (${c.ageDays}d)`,
-      description: `${c.url}\n\nLive and set to index for ${c.ageDays} days but still has zero search impressions — it's likely not indexed, or indexed but ranking for nothing.${detail}\n\nIn Search Console: URL Inspection → Test Live URL → Request Indexing. Then make sure it has internal links from a page that already ranks, and enough unique content to be worth indexing.` });
+  // ONE grouped task per brand per month (refreshed in place while open) instead of one task
+  // per URL — per-URL tasks put 93 near-identical cards on the board (Oct 2026).
+  const stuck = ((reg.summary && reg.summary.indexingConcernUrls) || []).filter(c => isContentPage(c.url)).sort((a, b) => b.ageDays - a.ageDays);
+  if (stuck.length) {
+    const month = new Date().toISOString().slice(0, 7);
+    out.push({ priority: 'high', sourceId: `notindexed:${reg.brand}:rollup:${month}`, rollup: true,
+      title: `Not indexed / not serving — ${stuck.length} page${stuck.length > 1 ? 's' : ''} (${reg.brand})`,
+      description: `These pages are live and set to index but have had zero search impressions for 2+ weeks — likely not indexed, or indexed but ranking for nothing.\n\nFor each: Search Console → URL Inspection → Test Live URL → Request Indexing; make sure a page that already ranks links to it; check it has enough unique content to be worth indexing. If a page shouldn't exist, noindex or redirect it instead.\n\n` +
+        stuck.slice(0, 40).map(c => `• ${pathOf(c.url)} — ${c.ageDays}d${c.lastCrawlVerdict ? ` (last crawl: ${c.lastCrawlVerdict})` : ''}`).join('\n') +
+        (stuck.length > 40 ? `\n…and ${stuck.length - 40} more (see State of SEO → indexing concerns).` : '') +
+        `\n\nThis list refreshes each run while the task is open.` });
   }
   return out;
 }
@@ -138,8 +148,22 @@ exports.handler = async (event) => {
     candidates = candidates.concat((await dropFindings(brand, reg)).map(f => ({ ...f, brand })));
   }
 
-  // Dedup vs existing tasks (any status), cap, high-priority first.
+  // Grouped (rollup) findings refresh their OPEN task in place; everything else dedups
+  // vs existing tasks of ANY status (incl. 'dismissed', so a dismissed finding never returns).
   const seen = await existingSourceIds();
+  let refreshed = 0;
+  for (const f of candidates.filter(c => c.rollup && seen.has(c.sourceId))) {
+    const idx = (await getSetting('perchIndex', [])) || [];
+    for (const id of idx) {
+      const t = await getSetting('perchTask:' + id).catch(() => null);
+      if (!t || t.sourceId !== f.sourceId) continue;
+      if (t.status === 'todo' && (t.title !== f.title || t.description !== f.description)) {
+        await setSetting('perchTask:' + id, { ...t, title: f.title, description: f.description, updatedAt: Date.now() });
+        refreshed++;
+      }
+      break;
+    }
+  }
   const fresh = candidates.filter(f => !seen.has(f.sourceId));
   fresh.sort((a, b) => (a.priority === 'high' ? 0 : 1) - (b.priority === 'high' ? 0 : 1));
   const toCreate = fresh.slice(0, MAX_NEW_PER_RUN);
@@ -178,6 +202,6 @@ exports.handler = async (event) => {
     } catch (e) { console.warn('[perch-sync] slack notify failed:', e.message); }
   }
 
-  console.log(`[perch-sync] candidates=${candidates.length} new=${created.length} (capped at ${MAX_NEW_PER_RUN})`);
+  console.log(`[perch-sync] candidates=${candidates.length} new=${created.length} refreshed=${refreshed} (capped at ${MAX_NEW_PER_RUN})`);
   return { statusCode: 200, headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ ok: true, candidates: candidates.length, created: created.length, tasks: created }) };
 };

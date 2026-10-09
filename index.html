@@ -7156,7 +7156,7 @@ function updatePerchHeroSnapshot() {
     t.createdBy === state.userEmail ||
     (t.collaborators || []).includes(state.userEmail)
   );
-  const active = myTasks.filter(t => t.status !== 'done');
+  const active = myTasks.filter(t => t.status !== 'done' && t.status !== 'dismissed');
   const overdue = active.filter(t => t.dueDate && new Date(t.dueDate) < today);
   const dueThisWeek = active.filter(t => t.dueDate && new Date(t.dueDate) >= today && new Date(t.dueDate) < weekEnd);
 
@@ -7185,7 +7185,7 @@ function renderPerchBoard() {
     (!assigneeF || t.assignee   === assigneeF || (t.collaborators||[]).includes(assigneeF)) &&
     (!labelF    || (t.labels||[]).includes(labelF)) &&
     (!searchF   || (t.title||'').toLowerCase().includes(searchF) || (t.description||'').toLowerCase().includes(searchF)) &&
-    (!perchOverdue || (t.dueDate && new Date(t.dueDate).getTime() < todayTs && t.status !== 'done')) &&
+    (!perchOverdue || (t.dueDate && new Date(t.dueDate).getTime() < todayTs && t.status !== 'done' && t.status !== 'dismissed')) &&
     (!perchMyTasks || t.assignee === state.userEmail || t.createdBy === state.userEmail || (t.collaborators||[]).includes(state.userEmail))
   );
 
@@ -7265,7 +7265,7 @@ function buildTaskCard(t) {
   const pc  = PRIORITY_CONFIG[t.priority] || PRIORITY_CONFIG.medium;
   const now = Date.now();
   const due = t.dueDate ? new Date(t.dueDate) : null;
-  const overdue      = due && due < now && t.status !== 'done';
+  const overdue      = due && due < now && t.status !== 'done' && t.status !== 'dismissed';
   const dueStr       = due ? due.toLocaleDateString('en-GB', { day:'numeric', month:'short' }) : '';
   const assigneeName = getUserName(t.assignee);
   const initial      = assigneeName.charAt(0).toUpperCase();
@@ -7546,6 +7546,7 @@ function buildPanelHTML(task) {
 
       <!-- Delete -->
       <div style="padding-top:16px;border-top:1px solid var(--border)">
+        <button onclick="panelDismissTask('${task.id}')" title="Not relevant: hides the task without a Slack message; it stays on record so the auto-sync never recreates it" style="font-size:12px;color:var(--text-muted);background:none;border:1px solid var(--border);padding:6px 14px;border-radius:8px;cursor:pointer;margin-right:6px">Dismiss</button>
         <button onclick="panelDeleteTask('${task.id}')" style="font-size:12px;color:#ef4444;background:none;border:1px solid rgba(239,68,68,0.3);padding:6px 14px;border-radius:8px;cursor:pointer">Delete task</button>
       </div>
 
@@ -7577,6 +7578,17 @@ async function panelPostComment(id) {
   } catch { showToast('Failed to post comment', 'error'); }
 }
 
+// Dismiss = "not relevant". Kept on record (status 'dismissed') so the auto-sync's sourceId
+// dedup never recreates it; hidden from the board (no column), no Slack message, reversible.
+async function panelDismissTask(id) {
+  const reason = prompt('Why is this not relevant? (optional)') || '';
+  try {
+    await fetch(`/api/perch?id=${id}`, { method:'PATCH', credentials:'include', headers:{'Content-Type':'application/json'},
+      body: JSON.stringify({ status: 'dismissed', comment: 'Dismissed' + (reason ? ': ' + reason : '') }) });
+    const t = perchTasks.find(x => x.id === id); if (t) t.status = 'dismissed';
+    closePerchPanel(); renderPerchBoard(); showToast('Task dismissed', '');
+  } catch { showToast('Failed to dismiss task', 'error'); }
+}
 async function panelDeleteTask(id) {
   if (!confirm('Delete this task? This cannot be undone.')) return;
   try {
