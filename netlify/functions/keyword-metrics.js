@@ -9,6 +9,11 @@
 //     → { ..., ideas: [{ keyword, volume, cpc, kd, intent }] }  — the related keyword UNIVERSE
 //       for the market (incl. terms we don't rank for), sorted by volume. Labs keyword_ideas
 //       (live, allowed under rule #5's Labs exception) — same call as weekly discovery.
+//   POST { brand, market, mode:'serp_submit', keywords:[≤20], device?:'mobile'|'desktop' }
+//     → { tasks:[{ id, keyword }] }   — Google SERP via STANDARD mode task_post (rule #5)
+//   POST { brand, market, mode:'serp_get', ids:[≤20] }
+//     → { results:[{ id, keyword, ready, features, items:[{ type, rank, domain, title, url }] }] }
+//       Caller polls serp_get until every task is ready (standard queue: ~1–5 min).
 //
 // Gated (rule #11): it spends DataForSEO credit (~$0.05–0.10 per call). Location comes
 // from the markets config (rule #2): UAE uses the country code, every other market its
@@ -34,7 +39,7 @@ exports.handler = async (event) => {
   const keywords = Array.isArray(body.keywords) ? body.keywords.map(k => String(k || '').trim()).filter(Boolean) : [];
   if (!brand || !(await getBrand(brand))) return json(400, { error: 'Unknown brand' });
   if (!market) return json(400, { error: 'market required' });
-  if (!keywords.length) return json(400, { error: 'keywords required' });
+  if (!keywords.length && body.mode !== 'serp_get') return json(400, { error: 'keywords required' });
   if (keywords.length > MAX_KEYWORDS) return json(400, { error: `max ${MAX_KEYWORDS} keywords per call` });
 
   // Market records are keyed by their record key (e.g. 'bonbird_oman'); getLocationCodes()
@@ -50,6 +55,38 @@ exports.handler = async (event) => {
 
   const authHeader = 'Basic ' + Buffer.from(`${process.env.DATAFORSEO_LOGIN}:${process.env.DATAFORSEO_PASSWORD}`).toString('base64');
   const langs = (m && Array.isArray(m.languages) && m.languages.length) ? m.languages : ['en'];
+
+  // ── SERP snapshot (standard mode: task_post now, task_get later) ───────────
+  if (body.mode === 'serp_submit') {
+    const kws = keywords.slice(0, 20);
+    const device = body.device === 'desktop' ? 'desktop' : 'mobile';
+    const tasks = kws.map(k => ({ keyword: k, location_code: locationCode, language_code: /[\u0600-\u06FF]/.test(k) ? 'ar' : (langs[0] || 'en'),
+      device, depth: 10, load_async_ai_overview: true }));
+    const r = await fetch('https://api.dataforseo.com/v3/serp/google/organic/task_post', {
+      method: 'POST', headers: { 'Content-Type': 'application/json', Authorization: authHeader }, body: JSON.stringify(tasks) });
+    const d = await r.json().catch(() => ({}));
+    if (d.status_code !== 20000) return json(502, { error: `DataForSEO: ${d.status_message || r.status}` });
+    return json(200, { brand, market, locationCode, mode: 'serp_submit', device,
+      tasks: (d.tasks || []).map((t, i) => ({ id: t.id, keyword: kws[i], ok: t.status_code === 20100 || t.status_code === 20000, msg: t.status_message })) });
+  }
+  if (body.mode === 'serp_get') {
+    const ids = (Array.isArray(body.ids) ? body.ids : []).filter(x => /^[0-9a-f-]{20,}$/i.test(String(x))).slice(0, 20);
+    if (!ids.length) return json(400, { error: 'ids required' });
+    const results = await Promise.all(ids.map(async id => {
+      const r = await fetch(`https://api.dataforseo.com/v3/serp/google/organic/task_get/advanced/${id}`, { headers: { Authorization: authHeader } });
+      const d = await r.json().catch(() => ({}));
+      const t = d.tasks?.[0];
+      if (!t || t.status_code !== 20000) return { id, ready: false, msg: t?.status_message || null };
+      const res = t.result?.[0] || {};
+      const items = (res.items || []).slice(0, 25).map(it => ({
+        type: it.type, rank: it.rank_group ?? null, domain: it.domain || null,
+        title: (it.title || '').slice(0, 90) || null, url: it.url || null,
+        sub: it.type === 'local_pack' ? (it.title || null) : undefined,
+      }));
+      return { id, ready: true, keyword: res.keyword, features: res.item_types || [], items };
+    }));
+    return json(200, { brand, market, mode: 'serp_get', results });
+  }
 
   if (body.mode === 'ideas') {
     const seeds = keywords.slice(0, 20);
