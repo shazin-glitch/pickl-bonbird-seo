@@ -121,7 +121,7 @@ const INTERNATIONAL_MARKETS = {
     wpBrand:         'pickl',
     wpMarketParent:  'qatar',
     languages:       ['en', 'ar'],
-    location_code:   179,
+    location_code:   2634, // Qatar (Google geo 2000+ISO 634). Was 179 — invalid: every DataForSEO call returned nothing (fixed v7.9.124)
     currency:        'QAR',
     countryCode:    'QA',      // ISO-3166 — hreflang locale + schema addressCountry
     locations:       ['West Walk, Doha', 'District One, Doha'],
@@ -244,7 +244,7 @@ const INTERNATIONAL_MARKETS = {
     wpBrand:         'pickl',
     wpMarketParent:  'oman',
     languages:       ['en'],             // Add Arabic in Phase 3
-    location_code:   2114,
+    location_code:   2512, // Oman (Google geo 2000+ISO 512). Was 2114 — invalid: every DataForSEO call returned nothing (fixed v7.9.124)
     currency:        'OMR',
     countryCode:    'OM',      // ISO-3166 — hreflang locale + schema addressCountry
     isNew:           true,               // Opened May 2026
@@ -282,7 +282,7 @@ const INTERNATIONAL_MARKETS = {
     wpBrand:         'bonbird',           // use WP_BONBIRD_* env vars
     wpMarketParent:  'om',
     languages:       ['en'],
-    location_code:   2114,
+    location_code:   2512, // Oman (Google geo 2000+ISO 512). Was 2114 — invalid: every DataForSEO call returned nothing (fixed v7.9.124)
     currency:        'OMR',
     countryCode:    'OM',      // ISO-3166 — hreflang locale + schema addressCountry
     locations:       ['Souq Al Madina, Muscat', 'Al Khoudh, Seeb'],
@@ -365,7 +365,7 @@ const INTERNATIONAL_MARKETS = {
     wpBrand:         'bonbird',
     wpMarketParent:  'qa',
     languages:       ['en', 'ar'],
-    location_code:   179,
+    location_code:   2634, // Qatar (Google geo 2000+ISO 634). Was 179 — invalid: every DataForSEO call returned nothing (fixed v7.9.124)
     currency:        'QAR',
     countryCode:    'QA',      // ISO-3166 — hreflang locale + schema addressCountry
     locations:       ['West Walk, Doha', 'District One, Doha'],
