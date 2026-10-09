@@ -3,7 +3,7 @@
 // for a short list of keywords in ONE market. Used to justify focus keywords (title
 // rewrites, Q4 targets, the scorecard) with real numbers instead of guesses.
 //
-//   POST /api/keyword-metrics { brand, market, keywords: [..] }   (max 50 keywords)
+//   POST /api/keyword-metrics { brand, market, keywords: [..], locationCode? }   (max 50 keywords)
 //     → { brand, market, locationCode, metrics: { [keywordLower]: { volume, cpc, kd } } }
 //
 // Gated (rule #11): it spends DataForSEO credit (~$0.05–0.10 per call). Location comes
@@ -33,11 +33,16 @@ exports.handler = async (event) => {
   if (!keywords.length) return json(400, { error: 'keywords required' });
   if (keywords.length > MAX_KEYWORDS) return json(400, { error: `max ${MAX_KEYWORDS} keywords per call` });
 
+  // Market records are keyed by their record key (e.g. 'bonbird_oman'); getLocationCodes()
+  // is keyed by the shared marketKey ('oman'), so resolve the record directly.
   const locs = await getLocationCodes();
-  const locationCode = market === 'uae' ? (locs.uae_country || locs.uae) : locs[market];
-  if (!locationCode) return json(400, { error: `No location configured for market ${market}` });
   const m = market === 'uae' ? null : await getMarket(market).catch(() => null);
+  if (market !== 'uae' && !m) return json(400, { error: `Unknown market ${market}` });
   if (m && m.brand && m.brand !== brand) return json(400, { error: `Market ${market} belongs to ${m.brand}` });
+  // Optional explicit override (integer) — used to verify a market's configured code.
+  const override = Number.isInteger(body.locationCode) ? body.locationCode : null;
+  const locationCode = override || (market === 'uae' ? (locs.uae_country || locs.uae) : m.location_code);
+  if (!locationCode) return json(400, { error: `No location configured for market ${market}` });
 
   const authHeader = 'Basic ' + Buffer.from(`${process.env.DATAFORSEO_LOGIN}:${process.env.DATAFORSEO_PASSWORD}`).toString('base64');
   const langs = (m && Array.isArray(m.languages) && m.languages.length) ? m.languages : ['en'];
