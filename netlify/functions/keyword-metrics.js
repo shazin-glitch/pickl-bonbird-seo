@@ -14,6 +14,10 @@
 //   POST { brand, market, mode:'serp_get', ids:[≤20] }
 //     → { results:[{ id, keyword, ready, features, items:[{ type, rank, domain, title, url }] }] }
 //       Caller polls serp_get until every task is ready (standard queue: ~1–5 min).
+//   POST { brand, market, mode:'ranked', target:'domain.com', limit?≤1000, minVolume? }
+//     → { ranked:[{ keyword, volume, kd, intent, position, url }] } — every keyword a domain
+//       ranks for in the market (Labs ranked_keywords/live; rule #5 Labs exception). Used for
+//       competitor keyword research.
 //
 // Gated (rule #11): it spends DataForSEO credit (~$0.05–0.10 per call). Location comes
 // from the markets config (rule #2): UAE uses the country code, every other market its
@@ -39,7 +43,7 @@ exports.handler = async (event) => {
   const keywords = Array.isArray(body.keywords) ? body.keywords.map(k => String(k || '').trim()).filter(Boolean) : [];
   if (!brand || !(await getBrand(brand))) return json(400, { error: 'Unknown brand' });
   if (!market) return json(400, { error: 'market required' });
-  if (!keywords.length && body.mode !== 'serp_get') return json(400, { error: 'keywords required' });
+  if (!keywords.length && body.mode !== 'serp_get' && body.mode !== 'ranked') return json(400, { error: 'keywords required' });
   if (keywords.length > MAX_KEYWORDS) return json(400, { error: `max ${MAX_KEYWORDS} keywords per call` });
 
   // Market records are keyed by their record key (e.g. 'bonbird_oman'); getLocationCodes()
@@ -86,6 +90,37 @@ exports.handler = async (event) => {
       return { id, ready: true, keyword: res.keyword, features: res.item_types || [], items };
     }));
     return json(200, { brand, market, mode: 'serp_get', results });
+  }
+
+  // ── Competitor (or own) ranked keywords ────────────────────────────────────
+  if (body.mode === 'ranked') {
+    const target = String(body.target || '').trim().toLowerCase().replace(/^https?:\/\//, '').replace(/^www\./, '').replace(/\/.*$/, '');
+    if (!/^[a-z0-9.-]+\.[a-z]{2,}$/.test(target)) return json(400, { error: 'target domain required' });
+    const limit = Math.min(Math.max(parseInt(body.limit, 10) || 500, 10), 1000);
+    const minVolume = Math.max(parseInt(body.minVolume, 10) || 10, 0);
+    const post = async (withLang) => {
+      const payload = { target, location_code: locationCode, limit, load_rank_absolute: true,
+        order_by: ['keyword_data.keyword_info.search_volume,desc'],
+        filters: [['keyword_data.keyword_info.search_volume', '>', minVolume]] };
+      if (withLang) payload.language_code = langs[0] || 'en';
+      const r = await fetch('https://api.dataforseo.com/v3/dataforseo_labs/google/ranked_keywords/live', {
+        method: 'POST', headers: { 'Content-Type': 'application/json', Authorization: authHeader }, body: JSON.stringify([payload]) });
+      return r.json().catch(() => ({}));
+    };
+    let data = await post(true), task = data.tasks?.[0];
+    if (data.status_code === 20000 && task && task.status_code !== 20000 && /language_code/i.test(task.status_message || '')) { data = await post(false); task = data.tasks?.[0]; }
+    if (data.status_code !== 20000 || !task || task.status_code !== 20000) return json(502, { error: `DataForSEO: ${task?.status_message || data.status_message || 'failed'}` });
+    const res = task.result?.[0] || {};
+    const ranked = (res.items || []).map(i => ({
+      keyword: i.keyword_data?.keyword,
+      volume: i.keyword_data?.keyword_info?.search_volume ?? null,
+      kd: i.keyword_data?.keyword_properties?.keyword_difficulty ?? null,
+      intent: i.keyword_data?.search_intent_info?.main_intent || null,
+      position: i.ranked_serp_element?.serp_item?.rank_group ?? null,
+      type: i.ranked_serp_element?.serp_item?.type || null,
+      url: i.ranked_serp_element?.serp_item?.url || null,
+    })).filter(x => x.keyword);
+    return json(200, { brand, market, locationCode, mode: 'ranked', target, totalCount: res.total_count ?? null, ranked });
   }
 
   if (body.mode === 'ideas') {
