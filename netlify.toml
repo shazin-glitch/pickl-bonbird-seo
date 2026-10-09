@@ -99,6 +99,11 @@
   status = 200
 
 [[redirects]]
+  from = "/api/keyword-metrics"
+  to = "/.netlify/functions/keyword-metrics"
+  status = 200
+
+[[redirects]]
   from = "/api/keyword-config"
   to = "/.netlify/functions/keyword-config"
   status = 200
