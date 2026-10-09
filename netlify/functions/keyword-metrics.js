@@ -5,6 +5,10 @@
 //
 //   POST /api/keyword-metrics { brand, market, keywords: [..], locationCode? }   (max 50 keywords)
 //     → { brand, market, locationCode, metrics: { [keywordLower]: { volume, cpc, kd } } }
+//   POST { brand, market, mode:'ideas', keywords:[seeds ≤20], limit?≤300, minVolume? }
+//     → { ..., ideas: [{ keyword, volume, cpc, kd, intent }] }  — the related keyword UNIVERSE
+//       for the market (incl. terms we don't rank for), sorted by volume. Labs keyword_ideas
+//       (live, allowed under rule #5's Labs exception) — same call as weekly discovery.
 //
 // Gated (rule #11): it spends DataForSEO credit (~$0.05–0.10 per call). Location comes
 // from the markets config (rule #2): UAE uses the country code, every other market its
@@ -46,6 +50,31 @@ exports.handler = async (event) => {
 
   const authHeader = 'Basic ' + Buffer.from(`${process.env.DATAFORSEO_LOGIN}:${process.env.DATAFORSEO_PASSWORD}`).toString('base64');
   const langs = (m && Array.isArray(m.languages) && m.languages.length) ? m.languages : ['en'];
+
+  if (body.mode === 'ideas') {
+    const seeds = keywords.slice(0, 20);
+    const limit = Math.min(Math.max(parseInt(body.limit, 10) || 200, 10), 300);
+    const minVolume = Math.max(parseInt(body.minVolume, 10) || 10, 0);
+    const post = async (withLang) => {
+      const payload = { keywords: seeds, location_code: locationCode, limit, include_serp_info: false,
+        order_by: ['keyword_info.search_volume,desc'], filters: [['keyword_info.search_volume', '>', minVolume]] };
+      if (withLang) payload.language_code = langs[0] || 'en';
+      const r = await fetch('https://api.dataforseo.com/v3/dataforseo_labs/google/keyword_ideas/live', {
+        method: 'POST', headers: { 'Content-Type': 'application/json', Authorization: authHeader }, body: JSON.stringify([payload]) });
+      return r.json().catch(() => ({}));
+    };
+    let data = await post(true), task = data.tasks?.[0];
+    if (data.status_code === 20000 && task && task.status_code !== 20000 && /language_code/i.test(task.status_message || '')) { data = await post(false); task = data.tasks?.[0]; }
+    if (data.status_code !== 20000 || !task || task.status_code !== 20000) return json(502, { error: `DataForSEO: ${task?.status_message || data.status_message || 'failed'}` });
+    const ideas = (task.result?.[0]?.items || []).map(i => ({
+      keyword: i.keyword,
+      volume: i.keyword_info?.search_volume ?? null,
+      cpc: i.keyword_info?.cpc ?? null,
+      kd: i.keyword_properties?.keyword_difficulty ?? null,
+      intent: i.search_intent_info?.main_intent || null,
+    }));
+    return json(200, { brand, market, locationCode, mode: 'ideas', seeds, ideas });
+  }
   const metrics = await enrichKeywordsMixed(keywords, locationCode, authHeader, langs);
   return json(200, { brand, market, locationCode, metrics });
 };
