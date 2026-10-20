@@ -1,16 +1,15 @@
 // netlify/functions/_lib/international-config.js
 // Market configuration for international SEO pipelines.
 //
-// PICKL:   Bahrain, KSA, Qatar, Egypt, Jordan (/pickl-jordan/), Oman
+// PICKL:   Bahrain, KSA, Qatar, Egypt, Jordan, Oman, Kuwait + Iraq (pre-launch)
 // BONBIRD: Oman, Pakistan, Qatar
 //
-// URL STRUCTURE (target — dev to implement in parallel):
-//   eatpickl.com/qatar/                     ← market landing page
-//   eatpickl.com/qatar/journal/             ← journal index (WP parent page)
-//   eatpickl.com/qatar/journal/<post-slug>/ ← individual blog post
-//   eatpickl.com/qatar/<page-slug>/         ← standalone location/SEO page
-//
-// Jordan exception: /pickl-jordan/ (already indexed — do not change)
+// URL STRUCTURE — both sites now use ISO market folders (Bonbird since 2026-08-18,
+// Pickl verified 2026-10-20): /ae/ /sa/ /qa/ /eg/ /jo/ /bh/ /om/ /kw/ /iq/ (Pickl),
+// /ae/ /om/ /qa/ /pk/ (Bonbird). Old word folders (/ksa/ /qatar/ /egypt/ /oman/
+// /pickl-jordan/) 301 to the ISO ones; they stay in MARKET_PAGE_TOKENS so historical
+// GSC rows still attribute. Pickl venue pages live at /location/<slug>/ (no market
+// in the URL) — their market comes from the site's country feed (venueMarketMap).
 //
 // WordPress: ONE WP instance per brand.
 //   Pickl:   WP_PICKL_BASE / WP_PICKL_USER / WP_PICKL_APP_PASS
@@ -73,12 +72,12 @@ const INTERNATIONAL_MARKETS = {
     marketKey:       'ksa',
     label:           'Saudi Arabia',
     flag:            '🇸🇦',
-    marketSlug:      'ksa',
-    journalSlug:     'ksa/journal',
-    arabicSlug:      'ksa-arabic',
-    arabicJournalSlug: 'ksa-arabic/journal',
+    marketSlug:      'sa',                // ISO — site migrated 2026-10 (was 'ksa', now 301s)
+    journalSlug:     'sa/journal',
+    arabicSlug:      null,                // /ksa-arabic/ 404s — new site is English-only
+    arabicJournalSlug: null,
     wpBrand:         'pickl',
-    wpMarketParent:  'ksa',
+    wpMarketParent:  null,                // /sa/ is theme-routed, not a WP page (see SETUP v7.9.131)
     languages:       ['en', 'ar'],
     location_code:   2682,
     currency:        'SAR',
@@ -114,12 +113,12 @@ const INTERNATIONAL_MARKETS = {
     marketKey:       'qatar',
     label:           'Qatar',
     flag:            '🇶🇦',
-    marketSlug:      'qatar',
-    journalSlug:     'qatar/journal',
-    arabicSlug:      'qatar-arabic',
-    arabicJournalSlug: 'qatar-arabic/journal',
+    marketSlug:      'qa',                // ISO — site migrated 2026-10 (was 'qatar', now 301s)
+    journalSlug:     'qa/journal',
+    arabicSlug:      null,                // /qatar-arabic/ 404s — new site is English-only
+    arabicJournalSlug: null,
     wpBrand:         'pickl',
-    wpMarketParent:  'qatar',
+    wpMarketParent:  null,                // /qa/ is theme-routed, not a WP page
     languages:       ['en', 'ar'],
     location_code:   2634, // Qatar (Google geo 2000+ISO 634). Was 179 — invalid: every DataForSEO call returned nothing (fixed v7.9.124)
     currency:        'QAR',
@@ -154,12 +153,12 @@ const INTERNATIONAL_MARKETS = {
     marketKey:       'egypt',
     label:           'Egypt',
     flag:            '🇪🇬',
-    marketSlug:      'egypt',
-    journalSlug:     'egypt/journal',
-    arabicSlug:      'egypt-arabic',
-    arabicJournalSlug: 'egypt-arabic/journal',
+    marketSlug:      'eg',                // ISO — site migrated 2026-10 (was 'egypt', now 301s)
+    journalSlug:     'eg/journal',
+    arabicSlug:      null,                // /egypt-arabic/ 404s — new site is English-only
+    arabicJournalSlug: null,
     wpBrand:         'pickl',
-    wpMarketParent:  'egypt',
+    wpMarketParent:  null,                // /eg/ is theme-routed, not a WP page
     languages:       ['en', 'ar'],
     location_code:   2818,
     currency:        'EGP',
@@ -194,13 +193,14 @@ const INTERNATIONAL_MARKETS = {
     marketKey:       'jordan',
     label:           'Jordan',
     flag:            '🇯🇴',
-    // Jordan slug is /pickl-jordan/ — already indexed, do NOT change
-    marketSlug:      'pickl-jordan',
-    journalSlug:     'pickl-jordan/journal',
-    arabicSlug:      'pickl-jordan-arabic',
-    arabicJournalSlug: 'pickl-jordan-arabic/journal',
+    // The site moved Jordan to /jo/ (2026-10); /pickl-jordan/ now 301s there and stays a
+    // legacy token in MARKET_PAGE_TOKENS so its indexed history still attributes.
+    marketSlug:      'jo',
+    journalSlug:     'jo/journal',
+    arabicSlug:      null,                // /pickl-jordan-arabic/ 404s — new site is English-only
+    arabicJournalSlug: null,
     wpBrand:         'pickl',
-    wpMarketParent:  'pickl-jordan',
+    wpMarketParent:  null,                // /jo/ is theme-routed, not a WP page
     languages:       ['en', 'ar'],
     // Jordan = 2400 (was 2144, which is SRI LANKA — a cache miss would have sent
     // Jordan SEO calls to Sri Lanka). Labs lang = ar only. Fallback must be real.
@@ -237,12 +237,12 @@ const INTERNATIONAL_MARKETS = {
     marketKey:       'oman',
     label:           'Oman',
     flag:            '🇴🇲',
-    marketSlug:      'oman',
-    journalSlug:     'oman/journal',
+    marketSlug:      'om',                // ISO — site migrated 2026-10 (was 'oman', now 301s)
+    journalSlug:     'om/journal',
     arabicSlug:      null,               // English first — new market
     arabicJournalSlug: null,
     wpBrand:         'pickl',
-    wpMarketParent:  'oman',
+    wpMarketParent:  null,                // /om/ is theme-routed, not a WP page
     languages:       ['en'],             // Add Arabic in Phase 3
     location_code:   2512, // Oman (Google geo 2000+ISO 512). Was 2114 — invalid: every DataForSEO call returned nothing (fixed v7.9.124)
     currency:        'OMR',
@@ -265,6 +265,63 @@ const INTERNATIONAL_MARKETS = {
       'Halal assumed — emphasise quality, freshness, UAE brand heritage',
       'English widely used in Oman food and lifestyle contexts',
       'New opening gives first-mover content advantage — create "now open" content',
+    ],
+  },
+
+  // Kuwait + Iraq: market folders /kw/ /iq/ are live but NOTHING is open (verified
+  // 2026-10-20, ~/Documents/pickl-seo/02h-venue-facts-kuwait-iraq.md). launchStatus
+  // 'pre_launch' keeps them in reporting/attribution but out of the paid DataForSEO
+  // fan-outs (keyword discovery, competitor matrix) until they open — flip it to
+  // 'live' in Settings → SEO Markets. No venues/locations: never invent them.
+  pickl_kuwait: {
+    brand:           'pickl',
+    marketKey:       'kuwait',
+    label:           'Kuwait',
+    flag:            '🇰🇼',
+    marketSlug:      'kw',
+    journalSlug:     'kw/journal',
+    arabicSlug:      null,
+    arabicJournalSlug: null,
+    wpBrand:         'pickl',
+    wpMarketParent:  null,
+    languages:       ['en'],
+    location_code:   2414, // Kuwait (country) — verified against DataForSEO's locations list 2026-10-20
+    currency:        'KWD',
+    countryCode:     'KW',
+    launchStatus:    'pre_launch',
+    locations:       [],
+    venues:          [],
+    seedKeywords:    { en: ['burger kuwait', 'best burger in kuwait', 'smash burger kuwait', 'chicken sandwich kuwait'] },
+    culturalNotes: [
+      'PRE-LAUNCH — nothing is open in Kuwait. Never claim an opening date, a venue, a mall, an area or a city.',
+      'PICK is an unrelated Kuwaiti health-food chain — never confuse or compare.',
+      'Gulf Arabic dialect for any Arabic content.',
+    ],
+  },
+
+  pickl_iraq: {
+    brand:           'pickl',
+    marketKey:       'iraq',
+    label:           'Iraq',
+    flag:            '🇮🇶',
+    marketSlug:      'iq',
+    journalSlug:     'iq/journal',
+    arabicSlug:      null,
+    arabicJournalSlug: null,
+    wpBrand:         'pickl',
+    wpMarketParent:  null,
+    languages:       ['en'],
+    location_code:   2368, // Iraq (country) — verified against DataForSEO's locations list 2026-10-20
+    currency:        'IQD',
+    countryCode:     'IQ',
+    launchStatus:    'pre_launch',
+    locations:       [],
+    venues:          [],
+    seedKeywords:    { en: ['burger baghdad', 'best burger in baghdad', 'smash burger iraq', 'burger iraq mall'] },
+    culturalNotes: [
+      'PRE-LAUNCH — nothing is open in Iraq. The first venue is planned for Iraq Mall, Al-Dora, Baghdad; never claim an opening date.',
+      'Iraq Gates is unconfirmed — do not describe it.',
+      'Iraqi Arabic dialect for any Arabic content.',
     ],
   },
 
@@ -502,12 +559,16 @@ ${brandCtx}`.trim();
 // The market's marketSlug + arabicSlug are merged in automatically by
 // getMarketPageTokens, so this table only needs the human-readable names.
 const MARKET_PAGE_TOKENS = {
+  // Pickl moved to ISO folders 2026-10 — the old words (+ their dead -arabic twins) are
+  // kept so historical GSC rows on the 301'd URLs still attribute (same as Bonbird).
   pickl_bahrain:    ['bh', 'bahrain'],
-  pickl_ksa:        ['ksa', 'saudi'],
-  pickl_qatar:      ['qatar'],
-  pickl_egypt:      ['egypt'],
-  pickl_jordan:     ['jordan'],          // also matches /pickl-jordan/ (segment "jordan")
-  pickl_oman:       ['oman'],
+  pickl_ksa:        ['sa', 'ksa', 'saudi', 'ksa-arabic'],
+  pickl_qatar:      ['qa', 'qatar', 'qatar-arabic'],
+  pickl_egypt:      ['eg', 'egypt', 'egypt-arabic'],
+  pickl_jordan:     ['jo', 'jordan', 'pickl-jordan', 'pickl-jordan-arabic'],
+  pickl_oman:       ['om', 'oman'],
+  pickl_kuwait:     ['kw', 'kuwait'],
+  pickl_iraq:       ['iq', 'iraq'],
   bonbird_oman:     ['om', 'oman'],          // 'oman' kept: pre-2026-08-18 URLs in historical GSC
   bonbird_pakistan: ['pk', 'pakistan'],
   bonbird_qatar:    ['qa', 'qatar'],
@@ -584,13 +645,117 @@ async function getMarketAsync(key) { return _mc().getMarket(key); }
 // Full SEO market map (Blobs-merged), drop-in for the INTERNATIONAL_MARKETS literal.
 async function getMarketsMapAsync() { return _mc().getMarketsMap(); }
 
-// Attribute a URL to its market key for a brand, INCLUDING config-onboarded markets.
-async function marketForUrlAsync(url, brand) {
-  const list = await _mc().getMarketsForBrand(brand);
-  for (const m of list) {
-    if (urlMatchesTokens(url, getMarketPageTokens(m))) return m.key;
+// ── Venue pages with no market in the URL (Pickl: /location/<slug>/) ──────────
+// Some sites file every venue under one flat folder, so the URL can't say which market
+// a venue is in (every Pickl venue used to land in 'uae'). The site's own WordPress
+// taxonomy knows, and exposes it on a public per-term RSS feed. Config-driven (rule 12):
+//   brandsConfig.venuePathBase   — the venue folder, e.g. 'location'
+//   brandsConfig.venueMarketFeed — feed path with {cc} = the market's ISO countryCode
+//                                  (lowercase), e.g. '/country/{cc}/feed/'
+// The home market uses brandsConfig.homeCountryCode and maps to 'uae'. A brand without
+// these fields gets an empty map (pure URL-token attribution, unchanged).
+// Keyed by the venue's post SLUG (last path segment), not the feed's full link: the
+// feed can report a stale permalink (Pickl UAE: /dubai/jbr/ 404s, live = /location/jbr/).
+const VENUE_MAP_TTL = 10 * 60 * 1000;
+const VENUE_FEED_MAX_PAGES = 10;
+const _venueMaps = new Map(); // brand → { at, promise }
+
+function _lastSeg(u) {
+  const segs = String(u || '').replace(/^https?:\/\/[^\/]+/, '').split(/[?#]/)[0].toLowerCase().split('/').filter(Boolean);
+  return segs.length ? segs[segs.length - 1] : null;
+}
+
+async function _fetchFeedSlugs(url) {
+  const slugs = [];
+  for (let page = 1; page <= VENUE_FEED_MAX_PAGES; page++) {
+    let xml = null;
+    try {
+      const r = await fetch(`${url}${url.includes('?') ? '&' : '?'}paged=${page}`, { signal: AbortSignal.timeout(10000) });
+      if (!r.ok) break;                       // WP 404s past the last page
+      xml = await r.text();
+    } catch { if (page === 1) throw new Error('feed unreachable'); break; }
+    const items = xml.split('<item>').slice(1);
+    if (!items.length) break;
+    for (const it of items) {
+      const m = it.match(/<link>([^<]+)<\/link>/);
+      const slug = m && _lastSeg(m[1].trim());
+      if (slug) slugs.push(slug);
+    }
+  }
+  return slugs;
+}
+
+async function _buildVenueMap(brand) {
+  const cfg = await require('./brands-config').getBrand(brand).catch(() => null);
+  const base = cfg && cfg.venuePathBase ? String(cfg.venuePathBase).replace(/^\/+|\/+$/g, '').toLowerCase() : null;
+  const feed = cfg && cfg.venueMarketFeed;
+  const domain = cfg && cfg.domain ? String(cfg.domain).replace(/\/+$/, '') : null;
+  const bySlug = new Map();
+  if (!base || !feed || !domain) return { base: null, bySlug };
+  const targets = [];
+  if (cfg.homeCountryCode) targets.push({ key: 'uae', cc: cfg.homeCountryCode });
+  for (const m of await _mc().getMarketsForBrand(brand)) if (m.countryCode) targets.push({ key: m.key, cc: m.countryCode });
+  const failed = [];
+  // ≤3 feeds in flight — bursts trip the sites' CDN rate limits (see page-registry).
+  const queue = [...targets];
+  await Promise.all(Array.from({ length: Math.min(3, queue.length) }, async () => {
+    for (let t = queue.shift(); t; t = queue.shift()) {
+      const url = `${domain}${feed.replace('{cc}', String(t.cc).toLowerCase())}`;
+      try { for (const slug of await _fetchFeedSlugs(url)) if (!bySlug.has(slug)) bySlug.set(slug, t.key); }
+      catch { failed.push(t.key); }
+    }
+  }));
+  if (failed.length) console.warn(`[venueMarketMap/${brand}] feed unreachable for ${failed.join(', ')} — those venues fall back to URL tokens`);
+  return { base, bySlug };
+}
+
+// { base, bySlug: Map(slug → marketKey) } for a brand. Cached per warm function
+// instance (10 min) so per-row callers (market-traffic, rank tracker) fetch it once.
+async function venueMarketMap(brand) {
+  const hit = _venueMaps.get(brand);
+  if (hit && (Date.now() - hit.at) < VENUE_MAP_TTL) return hit.promise;
+  const promise = _buildVenueMap(brand).catch(() => ({ base: null, bySlug: new Map() }));
+  _venueMaps.set(brand, { at: Date.now(), promise });
+  return promise;
+}
+
+// SYNC: market key for a venue URL (/<base>/<slug>/), or null if not a known venue.
+function venueMarketFor(url, vmap) {
+  if (!vmap || !vmap.base || !vmap.bySlug || !vmap.bySlug.size) return null;
+  const segs = String(url || '').replace(/^https?:\/\/[^\/]+/, '').split(/[?#]/)[0].toLowerCase().split('/').filter(Boolean);
+  if (segs.length !== 2 || segs[0] !== vmap.base) return null;
+  return vmap.bySlug.get(segs[1]) || null;
+}
+
+// SYNC: the one attribution rule for pre-fetched markets ({key: market} object or array)
+// + venue map: known venue → its market; else URL-token match; else home ('uae').
+function attributeUrlToMarket(url, markets, vmap) {
+  const v = venueMarketFor(url, vmap);
+  if (v) return v;
+  const list = Array.isArray(markets) ? markets.map(m => [m.key, m]) : Object.entries(markets || {});
+  for (const [key, m] of list) {
+    if (urlMatchesTokens(url, getMarketPageTokens(m))) return key;
   }
   return 'uae';
+}
+
+// Attribute a URL to its market key for a brand, INCLUDING config-onboarded markets
+// and venue pages whose market only the site's taxonomy knows.
+async function marketForUrlAsync(url, brand) {
+  const [list, vmap] = await Promise.all([_mc().getMarketsForBrand(brand), venueMarketMap(brand)]);
+  return attributeUrlToMarket(url, list, vmap);
+}
+
+// UAE (home market) DataForSEO locations — ONE definition for every caller.
+// SERP calls use Dubai city; Labs (country-level only) uses the UAE country code.
+// ⚠ This was 21191 until v7.9.131 — that code is ARAGUA, VENEZUELA (verified against
+// DataForSEO's free locations list 2026-10-20), so every UAE SERP call (competitor
+// matrix, AI Overview) had been querying Venezuela. 1000013 = "Dubai,Dubai,United Arab Emirates".
+const UAE_SERP_LOCATION_CODE    = 1000013;
+const UAE_COUNTRY_LOCATION_CODE = 2784;
+// Labs endpoints only accept country codes: map the UAE SERP (city) code to the country.
+function labsLocationCode(code) {
+  return (!code || code === UAE_SERP_LOCATION_CODE) ? UAE_COUNTRY_LOCATION_CODE : code;
 }
 
 // Flat map of marketKey → location_code for quick lookup by any function
@@ -598,8 +763,8 @@ const MARKET_LOCATION_CODES = Object.fromEntries(
   Object.entries(INTERNATIONAL_MARKETS).map(([key, m]) => [key, m.location_code])
 );
 // Also expose UAE as a base reference
-MARKET_LOCATION_CODES['uae'] = 21191;
-MARKET_LOCATION_CODES['uae_country'] = 2784;
+MARKET_LOCATION_CODES['uae'] = UAE_SERP_LOCATION_CODE;
+MARKET_LOCATION_CODES['uae_country'] = UAE_COUNTRY_LOCATION_CODE;
 
 // City-hub targets for a market: groups the structured `venues` records by city.
 // Returns [{ city, slug, marketKey, marketSlug, venues:[{name,city,type}] }]. This is
@@ -644,6 +809,9 @@ module.exports = {
   citiesForMarketAsync,
   citiesFromMarketRecord,
   MARKET_LOCATION_CODES,
+  UAE_SERP_LOCATION_CODE,
+  UAE_COUNTRY_LOCATION_CODE,
+  labsLocationCode,
   getMarketsForBrand,
   getAllMarketKeys,
   getMarket,
@@ -661,4 +829,7 @@ module.exports = {
   getMarketAsync,
   getMarketsMapAsync,
   marketForUrlAsync,
+  venueMarketMap,
+  venueMarketFor,
+  attributeUrlToMarket,
 };

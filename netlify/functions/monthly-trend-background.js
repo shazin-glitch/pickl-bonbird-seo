@@ -11,7 +11,7 @@
 
 const { getStore } = require('@netlify/blobs');
 const { getGscAccessToken, fetchGscPageOnly, fetchGscPageQuery } = require('./_lib/gsc');
-const { getMarketsForBrandAsync, getMarketPageTokens } = require('./_lib/international-config');
+const { getMarketsForBrandAsync, venueMarketMap, attributeUrlToMarket } = require('./_lib/international-config');
 const { getBrandSlugs, gscPropertyFor, getBrand } = require('./_lib/brands-config');
 const { getBrandContext, isBrandedQuery, isExcludedQuery } = require('./_lib/brand');
 const { authorizeJob } = require('./_lib/auth');
@@ -28,22 +28,12 @@ function monthRange(y, m) { // m is 0-based
   const fmt = d => d.toISOString().slice(0, 10);
   return { startDate: fmt(start), endDate: fmt(end > today ? today : end) };
 }
-// URL → market (whole-segment token match; same rule as the registry / onpage crawl).
-function urlMatchesTokens(url, tokens) {
-  if (!url || !tokens || !tokens.length) return false;
-  const p = String(url).replace(/^https?:\/\/[^\/]+/, '').toLowerCase();
-  return tokens.some(t => p === `/${t}` || p === `/${t}/` || p.startsWith(`/${t}/`) || p.startsWith(`/${t}-`));
-}
-function attributeMarket(url, markets) {
-  for (const [key, m] of Object.entries(markets)) { if (urlMatchesTokens(url, getMarketPageTokens(m))) return key; }
-  return 'uae';
-}
 
 function blankAcc() { return { impr: 0, clicks: 0, posw: 0, bImpr: 0, bClicks: 0, nbImpr: 0, nbClicks: 0, xImpr: 0, xClicks: 0 }; }
 // Total impressions/clicks/position from PAGE-ONLY (accurate — no anonymised-query drop).
 // Branded/non-branded split from PAGE+QUERY (needs the query text; slightly undercounts) —
 // same locked methodology as market-traffic. Non-branded is the real SEO KPI.
-async function buildMonth(site, token, markets, brandCtx, y, m) {
+async function buildMonth(site, token, markets, vmap, brandCtx, y, m) {
   const { startDate, endDate } = monthRange(y, m);
   const [po, pq] = await Promise.all([
     fetchGscPageOnly(site, token, { startDate, endDate }),
@@ -56,13 +46,13 @@ async function buildMonth(site, token, markets, brandCtx, y, m) {
   const total = blankAcc();
   const byMarket = {};
   for (const r of (po.rows || [])) {
-    const mk = attributeMarket(r.page, markets);
+    const mk = attributeUrlToMarket(r.page, markets, vmap);
     const b = byMarket[mk] || (byMarket[mk] = blankAcc());
     b.impr += r.impressions; b.clicks += r.clicks; b.posw += r.position * r.impressions;
     total.impr += r.impressions; total.clicks += r.clicks; total.posw += r.position * r.impressions;
   }
   for (const r of (pq.rows || [])) {
-    const mk = attributeMarket(r.page, markets);
+    const mk = attributeUrlToMarket(r.page, markets, vmap);
     const b = byMarket[mk] || (byMarket[mk] = blankAcc());
     // Junk searches (brandsConfig.excludedQueryTerms) never count as branded OR non-branded.
     if (isExcludedQuery(r.keyword, brandCtx.excludedQueryTerms)) { b.xImpr += r.impressions; b.xClicks += r.clicks; total.xImpr += r.impressions; total.xClicks += r.clicks; continue; }
@@ -84,6 +74,7 @@ async function buildBrand(brand, store, token, full) {
   const site = (await gscPropertyFor(brand)) || null;
   if (!site || !token) { console.warn(`${tag} no gsc`); return { error: 'no gsc' }; }
   const markets = await getMarketsForBrandAsync(brand);
+  const vmap = await venueMarketMap(brand); // flat /location/ venue pages → their market
   const brandCtx = await getBrandContext(brand).catch(() => ({ brand }));
   brandCtx.excludedQueryTerms = (await getBrand(brand).catch(() => null))?.excludedQueryTerms || [];
   const prior = await store.get(`monthlyTrend:${brand}`, { type: 'json' }).catch(() => null);
@@ -95,7 +86,7 @@ async function buildBrand(brand, store, token, full) {
   const map = new Map((prior?.months || []).map(x => [x.month, x]));
   let built = 0;
   for (const [y, m] of toBuild) {
-    try { const r = await buildMonth(site, token, markets, brandCtx, y, m); map.set(r.month, r); built++; }
+    try { const r = await buildMonth(site, token, markets, vmap, brandCtx, y, m); map.set(r.month, r); built++; }
     catch (e) { console.warn(`${tag} ${y}-${m + 1} failed:`, e.message); }
   }
   // HARDENING: if GSC was down for the whole run, don't rewrite (preserve prior data +

@@ -135,6 +135,11 @@ const BRAND_SEED = {
     flag:          '🟡',
     cuisine:       'smash burgers',
     homeCountryCode: 'AE',          // ISO — home-market hreflang locale + schema
+    // Venue pages live flat at /location/<slug>/ (no market in the URL). Their market is
+    // the WP `country` term (ISO slug), read from the public per-term feed — see
+    // international-config venueMarketMap. Verified 2026-10-20: /country/sa/feed/ etc.
+    venuePathBase:   'location',
+    venueMarketFeed: '/country/{cc}/feed/',
     tone:          'bold, casual-premium, Dubai-cool',
     brandedTerms:  ['pickle', 'pickles', 'بيكل', 'بكل', 'بيكلز', 'بيك'],
     // for LLM-mention / AI-overview / digest branded-query detection (broad on purpose)

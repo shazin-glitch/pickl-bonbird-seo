@@ -1972,6 +1972,7 @@ body { font-family: var(--font-sans); background: var(--bg-base); color: var(--t
               <div class="form-group"><label class="form-label">Languages (comma)</label><input id="mf-langs" class="form-input" placeholder="en, ar" style="font-family:var(--font-sans)"></div>
               <div class="form-group"><label class="form-label">Currency</label><input id="mf-currency" class="form-input" placeholder="SAR" style="font-family:var(--font-sans)"></div>
               <div class="form-group"><label class="form-label">Country code (ISO-3166, e.g. SA)</label><input id="mf-country" class="form-input" placeholder="SA" maxlength="2" style="font-family:var(--font-sans);text-transform:uppercase"></div>
+              <div class="form-group"><label class="form-label">Launch status</label><select id="mf-launch" class="form-input" style="font-family:var(--font-sans)"><option value="live">Live (venues open)</option><option value="pre_launch">Pre-launch (reported, no paid keyword/competitor runs)</option></select></div>
               <div class="form-group" style="grid-column:1 / -1"><label class="form-label">City/disambiguation terms (comma — for keyword filtering)</label><input id="mf-terms" class="form-input" placeholder="saudi, riyadh, jeddah, ksa" style="font-family:var(--font-sans)"></div>
               <div class="form-group" style="grid-column:1 / -1"><label class="form-label">Venues (one per line: <code>Name | City | type</code> — type = dine_in or dark_kitchen; drives city hubs &amp; schema)</label><textarea id="mf-venues" class="form-input" rows="4" placeholder="Al Nakheel Mall | Riyadh | dine_in&#10;Cloud Kitchen JLT | Dubai | dark_kitchen" style="font-family:var(--font-mono,monospace);font-size:12px"></textarea></div>
             </div>
@@ -2751,7 +2752,7 @@ async function bootstrapBrands() {
   if (window.NEST_MARKETS.length) {
     const built = {};
     for (const m of window.NEST_MARKETS) {
-      built[m.key] = { brand: m.brand, label: m.label, flag: m.flag, languages: m.languages || ['en'], marketSlug: m.marketSlug, isNew: m.isNew };
+      built[m.key] = { brand: m.brand, label: m.label, flag: m.flag, languages: m.languages || ['en'], marketSlug: m.marketSlug, isNew: m.isNew, launchStatus: m.launchStatus };
     }
     INTL_MARKETS = built;
   }
@@ -6270,6 +6271,7 @@ async function loadMarketsAdmin() {
         <span style="font-weight:600">${esc(m.label)}</span>
         <span style="font-size:11px;background:var(--bg-base);padding:2px 8px;border-radius:4px;color:var(--text-muted)">${esc(m.brand)}</span>
         <span style="font-size:12px;color:var(--text-muted)">/${esc(m.marketSlug || '')}/ · loc ${esc(String(m.location_code||'—'))} · ${(m.languages||[]).join('/')}</span>
+        ${m.launchStatus === 'pre_launch' ? '<span style="font-size:11px;background:#fef3c7;color:#92400e;padding:2px 8px;border-radius:4px">pre-launch</span>' : ''}
         <button class="btn btn-outline" style="font-size:11px;margin-left:auto" onclick='editMarket(${JSON.stringify(m).replace(/'/g, "&#39;")})'>Edit</button>
       </div>`).join('') || '<div style="color:var(--text-muted)">No SEO markets yet — brands run UAE-only.</div>';
   } catch (e) { listEl.innerHTML = '<div style="color:#ef4444">Failed to load markets: ' + esc(e.message) + '</div>'; }
@@ -6285,6 +6287,7 @@ function editMarket(m) {
   document.getElementById('mf-langs').value = (m.languages || []).join(', ');
   document.getElementById('mf-currency').value = m.currency || '';
   document.getElementById('mf-country').value = m.countryCode || '';
+  document.getElementById('mf-launch').value = m.launchStatus === 'pre_launch' ? 'pre_launch' : 'live';
   document.getElementById('mf-venues').value = (m.venues || []).map(v => `${v.name} | ${v.city} | ${v.type || 'dine_in'}`).join('\n');
   document.getElementById('mf-terms').value = (m.keywordTerms || []).join(', ');
   document.getElementById('mf-status').textContent = `Editing ${m.label}`;
@@ -6293,6 +6296,7 @@ function editMarket(m) {
 
 function clearMarketForm() {
   ['mf-marketkey','mf-label','mf-flag','mf-slug','mf-loccode','mf-langs','mf-currency','mf-terms'].forEach(id => { document.getElementById(id).value = ''; });
+  document.getElementById('mf-launch').value = 'live';
   document.getElementById('mf-status').textContent = '';
 }
 
@@ -6310,6 +6314,9 @@ async function saveMarketFromForm() {
     languages: document.getElementById('mf-langs').value.split(',').map(s => s.trim()).filter(Boolean),
     currency: document.getElementById('mf-currency').value.trim(),
     countryCode: (document.getElementById('mf-country').value.trim().toUpperCase() || null),
+    // pre_launch = still attributed + reported, but skipped by the paid weekly/monthly
+    // DataForSEO fan-outs (keyword discovery, competitor matrix) until it opens.
+    launchStatus: document.getElementById('mf-launch').value === 'pre_launch' ? 'pre_launch' : 'live',
     // Structured venue records — one per line "Name | City | type". Drives city hubs
     // (citiesForMarket) + schema. type: dine_in (default) | dark_kitchen (no dine-in).
     venues: document.getElementById('mf-venues').value.split('\n').map(line => {
@@ -7008,11 +7015,14 @@ document.addEventListener('keydown', e => {
 // a config-onboarded market appears in the International view with no code edit.
 let INTL_MARKETS = {
   pickl_bahrain:    { brand:'pickl',   label:'Bahrain',       flag:'🇧🇭', languages:['en','ar'], marketSlug:'bh' },
-  pickl_ksa:        { brand:'pickl',   label:'Saudi Arabia',  flag:'🇸🇦', languages:['en','ar'], marketSlug:'ksa' },
-  pickl_jordan:     { brand:'pickl',   label:'Jordan',        flag:'🇯🇴', languages:['en','ar'], marketSlug:'pickl-jordan' },
-  pickl_qatar:      { brand:'pickl',   label:'Qatar',         flag:'🇶🇦', languages:['en','ar'], marketSlug:'qatar' },
-  pickl_egypt:      { brand:'pickl',   label:'Egypt',         flag:'🇪🇬', languages:['en','ar'], marketSlug:'egypt' },
-  pickl_oman:       { brand:'pickl',   label:'Oman',          flag:'🇴🇲', languages:['en'],       marketSlug:'oman', isNew:true },
+  // Pickl ISO slugs — site migrated 2026-10 (was /ksa/ /pickl-jordan/ /qatar/ /egypt/ /oman/).
+  pickl_ksa:        { brand:'pickl',   label:'Saudi Arabia',  flag:'🇸🇦', languages:['en','ar'], marketSlug:'sa' },
+  pickl_jordan:     { brand:'pickl',   label:'Jordan',        flag:'🇯🇴', languages:['en','ar'], marketSlug:'jo' },
+  pickl_qatar:      { brand:'pickl',   label:'Qatar',         flag:'🇶🇦', languages:['en','ar'], marketSlug:'qa' },
+  pickl_egypt:      { brand:'pickl',   label:'Egypt',         flag:'🇪🇬', languages:['en','ar'], marketSlug:'eg' },
+  pickl_oman:       { brand:'pickl',   label:'Oman',          flag:'🇴🇲', languages:['en'],       marketSlug:'om', isNew:true },
+  pickl_kuwait:     { brand:'pickl',   label:'Kuwait',        flag:'🇰🇼', languages:['en'],       marketSlug:'kw', launchStatus:'pre_launch' },
+  pickl_iraq:       { brand:'pickl',   label:'Iraq',          flag:'🇮🇶', languages:['en'],       marketSlug:'iq', launchStatus:'pre_launch' },
   // Bonbird ISO slugs — site rebuilt 2026-08-18 (was /oman/ /pakistan/ /qatar/).
   bonbird_oman:     { brand:'bonbird', label:'Oman',          flag:'🇴🇲', languages:['en'],       marketSlug:'om' },
   bonbird_pakistan: { brand:'bonbird', label:'Pakistan',      flag:'🇵🇰', languages:['en'],       marketSlug:'pk' },

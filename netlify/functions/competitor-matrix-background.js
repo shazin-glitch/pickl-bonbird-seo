@@ -16,7 +16,7 @@
 // Schedule: Monday 4:00am UTC = Monday 8:00am Dubai time (UTC+4)
 
 const { getStore } = require("@netlify/blobs");
-const { INTERNATIONAL_MARKETS, MARKET_LOCATION_CODES, getMarketAsync, getMarketsMapAsync } = require('./_lib/international-config');
+const { INTERNATIONAL_MARKETS, MARKET_LOCATION_CODES, getMarketAsync, getMarketsMapAsync, UAE_SERP_LOCATION_CODE, labsLocationCode } = require('./_lib/international-config');
 const { resolveLocation } = require('./_lib/dfs-locations');
 const { isAggregatorDomain, domainMatches } = require('./_lib/aggregator-domains');
 const { enrichKeywordsMixed } = require('./_lib/keyword-metrics');
@@ -202,7 +202,7 @@ async function loadBrandConfig(store, brand, marketKey = null) {
   const firstNonEmpty = (...ls) => { for (const l of ls) if (Array.isArray(l) && l.length) return l; return []; };
   let competitors = firstNonEmpty(DEFAULT_COMPETITORS[brand], brandCfg?.competitors);
   let keywords    = firstNonEmpty(DEFAULT_KEYWORDS[brand], brandCfg?.keywordSeeds);
-  let location_code = 21191; // Default: Dubai UAE
+  let location_code = UAE_SERP_LOCATION_CODE; // Default: Dubai, UAE (was 21191 = Aragua, Venezuela until v7.9.131)
   let labsSupported = true;  // is this market in DataForSEO Labs? (ranked_keywords)
   let locationLanguages = ['en', 'ar']; // valid Labs languages (UAE accepts both)
 
@@ -536,11 +536,11 @@ async function fetchCompetitorRankedKeywords(competitors, locationCode, authHead
   const resultsMap = {};
   let labsError    = null; // store first error for UI display
 
-  // Labs requires country-level codes; Dubai city (21191) returns 0 results.
+  // Labs requires country-level codes; the Dubai city code returns 0 results.
   // Remap UAE-city/default → UAE country (2784); international markets already
   // pass a country code, so they flow through. Previously this was hardcoded to
   // 2784, so a per-market matrix run still pulled UAE competitor keywords.
-  const labsLoc = (!locationCode || locationCode === 21191) ? 2784 : locationCode;
+  const labsLoc = labsLocationCode(locationCode);
 
   // language_code is validated against the location's database. Some markets
   // (e.g. Saudi Arabia 2682) reject 'en' with a 40501 "Invalid Field:
@@ -594,7 +594,7 @@ async function fetchCompetitorRankedKeywords(competitors, locationCode, authHead
     try {
       const rkPayload = {
         target:        domain,
-        location_code: labsLoc, // remapped above: UAE city 21191 → 2784; intl markets pass through
+        location_code: labsLoc, // remapped above: UAE city → 2784; intl markets pass through
         filters: [["keyword_data.keyword_info.search_volume", ">", 0]],
         order_by: ["keyword_data.keyword_info.search_volume,desc"],
         limit: 200,
@@ -887,6 +887,9 @@ exports.handler = async (event) => {
     if (isFirstMonday || force) {
       console.log(`[competitor-matrix] ${force ? 'forced' : 'first Monday'} — running all intl markets`);
       for (const [marketKey, market] of Object.entries(await getMarketsMapAsync())) {
+        // Pre-launch markets stay out of the paid fan-out until they open (a forced
+        // single-market run via ?market= still works).
+        if (market.launchStatus === 'pre_launch') { console.log(`[competitor-matrix] skip ${marketKey} (pre-launch)`); continue; }
         try {
           await processBrand(market.brand, marketKey);
         } catch (e) {

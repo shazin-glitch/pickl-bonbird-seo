@@ -8,11 +8,11 @@
 // Uses DataForSEO (NOT Claude — runs fine regardless of Anthropic credits).
 // Cost-bounded by max_crawl_pages. Manual trigger or monthly cron — NEVER weekly.
 // One crawl per brand domain covers ALL markets (flat URL structure); each page is
-// attributed to its market by URL, reusing getMarketPageTokens — so this is fully
+// attributed to its market by attributeUrlToMarket (URL tokens + venue feed) — so this is fully
 // config-driven and needs zero changes when new markets/brands are added.
 
 const { getStore } = require('@netlify/blobs');
-const { getMarketsForBrandAsync, getMarketPageTokens } = require('./_lib/international-config');
+const { getMarketsForBrandAsync, venueMarketMap, attributeUrlToMarket } = require('./_lib/international-config');
 const { authorizeJob } = require('./_lib/auth');
 
 const BASE = 'https://api.dataforseo.com/v3';
@@ -23,20 +23,6 @@ function getAuth() {
 }
 const sleep = (ms) => new Promise(r => setTimeout(r, ms));
 
-// URL → market (whole-segment token match; handles flat slugs like /bahrain-locations/).
-function urlMatchesTokens(url, tokens) {
-  if (!url || !tokens || !tokens.length) return false;
-  const path = String(url).replace(/^https?:\/\/[^\/]+/, '').toLowerCase();
-  return tokens.some(t => path === `/${t}` || path === `/${t}/` || path.startsWith(`/${t}/`) || path.startsWith(`/${t}-`));
-}
-// `markets` is a pre-fetched {key:market} object (from getMarketsForBrandAsync) so
-// this stays sync and can be called inside a synchronous .map().
-function attributeMarket(url, markets) {
-  for (const [key, m] of Object.entries(markets)) {
-    if (urlMatchesTokens(url, getMarketPageTokens(m))) return key;
-  }
-  return 'uae'; // not an intl market page → home/UAE
-}
 
 async function dfsPost(path, payload, auth) {
   const res = await fetch(`${BASE}${path}`, {
@@ -119,6 +105,7 @@ async function auditBrand(brand, store, auth, maxPages) {
   console.log(`${tag} pages fetched: ${items.length}`);
 
   const marketsMap = await getMarketsForBrandAsync(brand); // config-driven — no hardcoded list
+  const vmap = await venueMarketMap(brand);                // flat /location/ venue pages → their market
   const pages = items.map(it => {
     const url  = it.url || it.resource_url || '';
     const meta = it.meta || {};
@@ -128,7 +115,7 @@ async function auditBrand(brand, store, auth, maxPages) {
     const c = it.checks || {};
     return {
       url,
-      market:          attributeMarket(url, marketsMap),
+      market:          attributeUrlToMarket(url, marketsMap, vmap),
       title:           meta.title || null,
       metaDescription: meta.description || null,
       h1,

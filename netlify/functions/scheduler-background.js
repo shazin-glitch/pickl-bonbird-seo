@@ -48,32 +48,17 @@ function getKeywordTier(position) {
 }
 
 // ── Market detection — infers location tag from page URL ──────────────────────
-// Checks URL path patterns for each brand's international markets.
-// Falls back to UAE (home market) if no pattern matches.
+// Derived from market config for EVERY brand, NOT hardcoded slugs (CLAUDE.md #12).
+// Both sites moved to ISO market folders (Bonbird 2026-08-18: /om/ /pk/ /qa/; Pickl
+// 2026-10: /sa/ /qa/ /eg/ /jo/ /om/ /kw/ /iq/). MARKET_PAGE_TOKENS holds the ISO slug
+// AND the legacy word slug (/ksa/, /pickl-jordan/, /oman/ …), so historical GSC rows
+// still attribute. Falls back to UAE (home market). (Pickl had its own hardcoded branch
+// here that only knew the old folders — every /sa/ /qa/ … URL was tagged UAE.)
 function getLocationTag(url, brand) {
   if (!url) return '🇦🇪 UAE';
-  const lower = url.toLowerCase();
-
-  if (brand === 'pickl' || lower.includes('eatpickl')) {
-    if (lower.includes('/bh/')  || lower.includes('/bh?')  || lower.endsWith('/bh')  || lower.includes('bh.eatpickl'))  return '🇧🇭 Bahrain';
-    if (lower.includes('/ksa/') || lower.includes('/ksa?') || lower.endsWith('/ksa') || lower.includes('ksa.eatpickl')) return '🇸🇦 Saudi Arabia';
-    if (lower.includes('/qatar/') || lower.endsWith('/qatar') || lower.includes('qatar.eatpickl'))                      return '🇶🇦 Qatar';
-    if (lower.includes('/egypt/') || lower.endsWith('/egypt') || lower.includes('egypt.eatpickl'))                      return '🇪🇬 Egypt';
-    if (lower.includes('/pickl-jordan') || lower.includes('jordan.eatpickl'))                                           return '🇯🇴 Jordan';
-    if (lower.includes('/oman/') || lower.endsWith('/oman') || lower.includes('oman.eatpickl'))                         return '🇴🇲 Oman';
-  }
-
-  if (brand === 'bonbird' || lower.includes('bonbird')) {
-    // Derived from market config, NOT hardcoded slugs (CLAUDE.md #12). The site was
-    // rebuilt 2026-08-18 onto ISO market slugs (/om/ /pk/ /qa/); MARKET_PAGE_TOKENS
-    // holds BOTH the new ISO slug and the legacy word slug, so historical GSC rows
-    // (/oman/ …) still attribute correctly. A new market needs no code edit here.
-    const mKey = marketForUrl(url, 'bonbird');
-    const m    = INTERNATIONAL_MARKETS[mKey];
-    if (m) return `${m.flag} ${m.label}`;
-  }
-
-  return '🇦🇪 UAE';
+  const mKey = marketForUrl(url, brand);
+  const m    = INTERNATIONAL_MARKETS[mKey];
+  return m ? `${m.flag} ${m.label}` : '🇦🇪 UAE';
 }
 
 // Keywords already queued or published — don't re-queue the same ones

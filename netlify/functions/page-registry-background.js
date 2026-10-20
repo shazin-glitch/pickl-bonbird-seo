@@ -10,11 +10,12 @@
 // pageInventory:<brand> (the OnPage crawl) or any approval record.
 //
 // Config-driven (rule #2): brands from getBrandSlugs, markets from getMarketsForBrandAsync,
-// market attribution from getMarketPageTokens — a new brand/market needs no code edit.
+// market attribution from attributeUrlToMarket (URL tokens + the site's venue→country
+// feed for flat /location/ pages) — a new brand/market needs no code edit.
 
 const { getStore } = require('@netlify/blobs');
 const { getGscAccessToken, fetchGscPageOnly } = require('./_lib/gsc');
-const { getMarketsForBrandAsync, getMarketPageTokens, citiesForMarketAsync } = require('./_lib/international-config');
+const { getMarketsForBrandAsync, citiesForMarketAsync, venueMarketMap, venueMarketFor, attributeUrlToMarket } = require('./_lib/international-config');
 const { getBrandSlugs, ownDomainFor, gscPropertyFor } = require('./_lib/brands-config');
 const { listApprovals } = require('./_lib/store');
 const { authorizeJob, internalHeaders } = require('./_lib/auth');
@@ -88,18 +89,6 @@ function isoWeek(d) {
   return `${dt.getUTCFullYear()}-W${String(week).padStart(2, '0')}`;
 }
 
-// --- market attribution (same whole-segment token match as onpage-audit) ---
-function urlMatchesTokens(url, tokens) {
-  if (!url || !tokens || !tokens.length) return false;
-  const path = pathOf(url);
-  return tokens.some(t => path === `/${t}` || path === `/${t}/` || path.startsWith(`/${t}/`) || path.startsWith(`/${t}-`));
-}
-function attributeMarket(url, markets) {
-  for (const [key, m] of Object.entries(markets)) {
-    if (urlMatchesTokens(url, getMarketPageTokens(m))) return key;
-  }
-  return 'uae';
-}
 
 // --- page type (best-effort classifier; display aid, not load-bearing) -----
 const KNOWN = { order:'order', menu:'menu', locations:'locations', journal:'journal',
@@ -206,13 +195,14 @@ async function buildBrand(brand, store, token) {
     try { const x = new URL(n); if (x.host === aliasHost) x.host = domain; return x.toString(); } catch { return n; }
   };
 
-  const [sitemapMap, gscRes, marketsMap, nestUrlsRaw, prior, eventLog] = await Promise.all([
+  const [sitemapMap, gscRes, marketsMap, nestUrlsRaw, prior, eventLog, venueMap] = await Promise.all([
     collectSitemap(domain),
     token ? fetchGscPageOnly(site, token, { days: 90 }) : Promise.resolve({ rows: [] }),
     getMarketsForBrandAsync(brand),
     nestCreatedUrls(brand),
     store.get(`pageRegistry:${brand}`, { type: 'json' }).catch(() => null),
     store.get(`seoEvents:${brand}`, { type: 'json' }).catch(() => null),
+    venueMarketMap(brand), // venue slug → market from the site's own taxonomy (flat /location/ pages)
   ]);
   const nestUrls = new Set([...nestUrlsRaw].map(canon).filter(Boolean));
 
@@ -325,8 +315,8 @@ async function buildBrand(brand, store, token) {
     else status = 'new';
     return {
       url,
-      market: attributeMarket(url, marketsMap),
-      pageType: classify(url, marketSlugs, citySlugs),
+      market: attributeUrlToMarket(url, marketsMap, venueMap),
+      pageType: venueMarketFor(url, venueMap) ? 'venue' : classify(url, marketSlugs, citySlugs),
       inSitemap,
       indexable, indexNote, redirectTo,
       impressions, clicks,

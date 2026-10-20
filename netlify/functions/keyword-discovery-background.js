@@ -18,7 +18,7 @@
 const { getStore }        = require('@netlify/blobs');
 const { getBrandContext, isBrandedQuery } = require('./_lib/brand');
 const { callClaude, extractJson } = require('./_lib/store');
-const { INTERNATIONAL_MARKETS, getMarketPageTokens, getMarketAsync, getMarketsMapAsync } = require('./_lib/international-config');
+const { INTERNATIONAL_MARKETS, getMarketPageTokens, getMarketAsync, getMarketsMapAsync, venueMarketMap, venueMarketFor, UAE_SERP_LOCATION_CODE, labsLocationCode } = require('./_lib/international-config');
 const { resolveLocation } = require('./_lib/dfs-locations');
 const { enrichKeywordsMixed } = require('./_lib/keyword-metrics');
 const { getGscAccessToken, fetchGscPageQuery } = require('./_lib/gsc');
@@ -54,17 +54,9 @@ const BRAND_SEEDS = {
   ],
 };
 
-// Market location codes (DataForSEO)
-const MARKET_LOCATIONS = {
-  UAE:      21191,
-  KSA:      2682,
-  Bahrain:  17000,
-  Qatar:    179,
-  Egypt:    2818,
-  Jordan:   2144,
-  Oman:     2114,
-  Pakistan: 2586,
-};
+// DataForSEO locations: UAE = UAE_SERP_LOCATION_CODE (international-config); intl markets
+// come from the market record / resolveLocation. (The old local table here held 5 wrong
+// codes, incl. UAE 21191 = Aragua, Venezuela — removed v7.9.131.)
 
 // Off-menu dishes — keywords containing any of these terms are rejected before scoring
 const OFF_MENU_DISHES = [
@@ -141,9 +133,9 @@ function passesStaticRelevance(kw, rel) {
 // Returns { ideas: [...], diag: "<human-readable reason>" } so the UI can show
 // the REAL DataForSEO outcome instead of guessing "balance/location code".
 async function getKeywordIdeas(seeds, locationCode, authHeader, minVolume = 10, languageCode = 'en') {
-  // Labs requires country-level codes. UAE is passed as city (21191) so map it to country (2784).
+  // Labs requires country-level codes. UAE is passed as Dubai city so map it to the country.
   // International markets already use country-level codes so pass through unchanged.
-  const kwLocationCode = locationCode === 21191 ? 2784 : locationCode;
+  const kwLocationCode = labsLocationCode(locationCode);
 
   // keyword_ideas validates the location+language pair against its database.
   // Some markets (e.g. Saudi Arabia 2682) reject language_code 'en' with task
@@ -409,7 +401,7 @@ function urlMatchesTokens(url, tokens) {
 // from DataForSEO Labs. Same endpoint/shape the competitor matrix uses. Tries the
 // market's languages, drops language_code on a 40501 rejection. SAFE: [] on failure.
 async function fetchOwnRankedKeywords(domain, locationCode, langs, authHeader) {
-  const labsLoc = (!locationCode || locationCode === 21191) ? 2784 : locationCode; // Labs needs country code
+  const labsLoc = labsLocationCode(locationCode); // Labs needs country code
   const tgt = String(domain || '').replace(/^www\./, '');
   const seen = new Set(), out = [];
   const post = async (lang) => {
@@ -681,8 +673,8 @@ async function discoverKeywords(brand, store, authHeader, force = false, marketK
   // Resolve location + supported languages from DataForSEO's authoritative list.
   const loc = isIntl
     ? await resolveLocation(market.label)
-    : { code: MARKET_LOCATIONS.UAE, languages: ['en'], supported: true, inCache: true };
-  const locationCode = loc.code || (isIntl ? market.location_code : MARKET_LOCATIONS.UAE);
+    : { code: UAE_SERP_LOCATION_CODE, languages: ['en'], supported: true, inCache: true };
+  const locationCode = loc.code || (isIntl ? market.location_code : UAE_SERP_LOCATION_CODE);
   // Generic market seeds come from the VERTICAL (config-driven), not a pickl/bonbird
   // ternary — so Southpour gets coffee seeds and Yolk gets corporate seeds.
   const brandGenericSeeds = rel.seeds(marketLabel);
@@ -700,9 +692,16 @@ async function discoverKeywords(brand, store, authHeader, force = false, marketK
   const intlTokensForBrand = Object.values(await getMarketsMapAsync())
     .filter(m => m.brand === brand)
     .flatMap(m => getMarketPageTokens(m));
-  const belongsToMarket = (pageUrl) => isIntl
-    ? urlMatchesTokens(pageUrl, marketTokens)
-    : !urlMatchesTokens(pageUrl, intlTokensForBrand); // UAE = any page that isn't an intl market page
+  // Venue pages with no market in the URL (Pickl /location/<slug>/) take their market
+  // from the site's own taxonomy feed (brandsConfig.venueMarketFeed) before URL tokens.
+  const vmap = await venueMarketMap(brand);
+  const belongsToMarket = (pageUrl) => {
+    const v = venueMarketFor(pageUrl, vmap);
+    if (v) return isIntl ? v === marketKey : v === 'uae';
+    return isIntl
+      ? urlMatchesTokens(pageUrl, marketTokens)
+      : !urlMatchesTokens(pageUrl, intlTokensForBrand); // UAE = any page that isn't an intl market page
+  };
   const gscMap = {};        // keyword(lower) → our BEST position in this market
   const gscPageMap = {};    // keyword(lower) → the page URL we rank on (Stage 2 target page)
   const ownRankedKws = [];  // organic candidates we rank for in THIS market
@@ -890,9 +889,9 @@ async function discoverKeywords(brand, store, authHeader, force = false, marketK
   // before volume backfill could reach them.
   try {
     const enrichLangs = (isIntl && loc.languages && loc.languages.length) ? loc.languages : ['en', 'ar'];
-    // Labs (KD) needs a COUNTRY-level code. UAE is passed as city 21191 → map to 2784.
-    const labsLocationCode = locationCode === 21191 ? 2784 : locationCode;
-    const m = await enrichKeywordsMixed(candList.map(c => c.keyword), labsLocationCode, authHeader, enrichLangs);
+    // Labs (KD) needs a COUNTRY-level code. UAE is passed as Dubai city → map to the country.
+    const labsLocCode = labsLocationCode(locationCode);
+    const m = await enrichKeywordsMixed(candList.map(c => c.keyword), labsLocCode, authHeader, enrichLangs);
     for (const c of candList) {
       const e = m[c.keyword.toLowerCase()];
       if (!e) continue;
@@ -1035,8 +1034,10 @@ exports.handler = async (event) => {
 
     // Run international markets for this brand (skip if specific market requested)
     if (!marketParam) {
+      // Pre-launch markets (launchStatus 'pre_launch') are skipped in the weekly fan-out —
+      // no paid DataForSEO calls until they open. ?market=<key> still runs one on demand.
       const intlMarkets = Object.entries(await getMarketsMapAsync())
-        .filter(([, m]) => m.brand === brand)
+        .filter(([, m]) => m.brand === brand && m.launchStatus !== 'pre_launch')
         .map(([key]) => key);
 
       for (const mk of intlMarkets) {

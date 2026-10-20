@@ -22,7 +22,7 @@
 // ─────────────────────────────────────────────────────────────────────────────
 
 const { getStore } = require('@netlify/blobs');
-const { INTERNATIONAL_MARKETS } = require('./international-config');
+const { INTERNATIONAL_MARKETS, UAE_SERP_LOCATION_CODE, UAE_COUNTRY_LOCATION_CODE } = require('./international-config');
 
 // City-disambiguation terms per marketKey (was MARKET_KEYWORD_TERMS in
 // international-seo-background) — an SEO keyword-filtering concern, so it lives here.
@@ -34,6 +34,8 @@ const KEYWORD_TERMS = {
   jordan:   ['jordan', 'amman'],
   oman:     ['oman', 'muscat'],
   pakistan: ['pakistan', 'karachi', 'lahore', 'islamabad'],
+  kuwait:   ['kuwait'],
+  iraq:     ['iraq', 'baghdad'],
 };
 
 // ── Build the seed record set from INTERNATIONAL_MARKETS (SEO markets only) ────
@@ -151,9 +153,12 @@ async function deleteMarket(key) {
 }
 
 // Flat marketKey → location_code (+ UAE home base), like the old MARKET_LOCATION_CODES.
+// Keyed by BOTH the shared marketKey ('oman') and the record key ('pickl_oman'): URL
+// attribution (marketForUrlAsync) returns record keys, so ai-overview's lookup by
+// record key used to miss and fall back to the UAE code for every intl keyword.
 async function getLocationCodes() {
-  const out = { uae: 21191, uae_country: 2784 };
-  for (const m of await getMarkets()) if (m.location_code) out[m.marketKey] = m.location_code;
+  const out = { uae: UAE_SERP_LOCATION_CODE, uae_country: UAE_COUNTRY_LOCATION_CODE };
+  for (const m of await getMarkets()) if (m.location_code) { out[m.marketKey] = m.location_code; out[m.key] = m.location_code; }
   return out;
 }
 
