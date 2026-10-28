@@ -29,6 +29,22 @@ exports.handler = async (event) => {
     if (dbData) webhookUrl = dbData;
   } catch { /* use env var fallback */ }
 
+  // Perch Slack messages are MUTED unless the Blobs setting `perchSlackEnabled` is true
+  // (Shazin, 27 Oct 2026: "stop perch slack notifications for now"). One switch here covers
+  // every Perch sender: perch.js (assigned/done), perch-sync (auto-task summary) and
+  // perch-notify (daily due digest). Re-enable: set perchSlackEnabled = true in Blobs.
+  {
+    const t = (() => { try { return JSON.parse(event.body || '{}').type || ''; } catch { return ''; } })();
+    if (String(t).startsWith('perch_')) {
+      let enabled = false;
+      try {
+        const st = getStore({ name: 'seo-tool', siteID: process.env.NETLIFY_SITE_ID, token: process.env.NETLIFY_AUTH_TOKEN });
+        enabled = (await st.get('perchSlackEnabled', { type: 'json' })) === true;
+      } catch { /* default muted */ }
+      if (!enabled) return { statusCode: 200, headers, body: JSON.stringify({ skipped: true, reason: 'Perch Slack notifications are muted (perchSlackEnabled)' }) };
+    }
+  }
+
   if (!webhookUrl) {
     return { statusCode: 200, headers, body: JSON.stringify({ skipped: true, reason: 'No Slack webhook URL configured' }) };
   }

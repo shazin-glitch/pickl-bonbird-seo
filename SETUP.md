@@ -4556,6 +4556,9 @@ Audit now hits 12 pages, **every one verified `200` live**: `/ae/`, `/ae/menu/`,
 
 **Confidence + honest caveat:** the query-string change matches code that is known to work for the identical scheduled-function setup, so I'm confident in the mechanism. The one thing only a live run confirms is that an HTTP GET to this function surfaces `queryStringParameters.brand` (the dashboard "Run" simulates a *cron* event, which is why that path shows `via=scheduled`; a real HTTP GET from the wrapper should be `via=internal` with the brand present). The v7.8.8 logs will show it plainly.
 
+### v7.9.132 — Perch Slack notifications muted (switch)
+Shazin (27 Oct): "stop perch slack notifications for now". `slack-notify` now skips every `perch_*` type (assigned, done, daily due digest, auto-task summary) unless the Blobs setting `perchSlackEnabled` is `true` (default: muted). One switch covers all Perch senders (perch.js, perch-sync-background, perch-notify-background); other Slack types (announcement, queue summaries, seo_work) unaffected. Re-enable = set `perchSlackEnabled` to true. `npm run check` green.
+
 ### v7.9.0 — REVERT the tech-audit trigger churn (v7.8.7/v7.8.8/v7.8.9 broke a working button)
 
 **What happened:** Shazin confirmed the audit **button worked before this session** — it invoked the background function fine; the only real defect was stale pre-rebuild URLs (correctly fixed in v7.8.4). I then "fixed" the trigger three more times on wrong theories:
