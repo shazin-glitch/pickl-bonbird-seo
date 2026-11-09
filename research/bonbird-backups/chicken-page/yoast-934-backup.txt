@@ -1,0 +1,8 @@
+BACKUP 934 title=[Bonbird Fried Chicken – Crispy & Broasted Chicken] desc=[Bonbird fried chicken delivers bold flavour with crispy chicken and juicy broasted chicken, fresh for the perfect fried chicken experience.] focuskw=[fried chicken]
+934 updated
+BACKUP _yoast_wpseo_opengraph-description=[Bonbird fried chicken delivers bold flavor with crispy chicken and juicy broasted chicken, crafted fresh for the perfect fried chicken experience.]
+  cleared _yoast_wpseo_opengraph-description
+BACKUP _yoast_wpseo_twitter-description=[]
+BACKUP _yoast_wpseo_opengraph-title=[Bonbird Fried Chicken – Crispy & Broasted Chicken]
+  cleared _yoast_wpseo_opengraph-title
+BACKUP _yoast_wpseo_twitter-title=[]

@@ -1,0 +1,177 @@
+<script type="application/ld+json">
+{
+  "@context": "https://schema.org",
+  "@type": "Organization",
+  "@id": "https://eatpickl.com/",
+  "name": "Pickl",
+  "url": "https://eatpickl.com/",
+  "logo": "https://eatpickl.com/wp-content/uploads/2021/06/cropped-favicon-1.png",
+  "telephone": "+971 4 584 6859",
+  "description": "Pickl is a fast-casual restaurant brand serving fresh, high-quality burgers and chicken sandos across the UAE.",
+  "sameAs": [
+    "https://www.instagram.com/pickl.mena/",
+    "https://www.facebook.com/pickl.mena/",
+    "https://www.linkedin.com/company/picklmena/",
+    "https://www.youtube.com/channel/UCQLZMoc5aw5dLhmZ9rLnp6A"
+  ],
+  "hasMenu": "https://eatpickl.com/menu/",
+  "hasPOS": [
+    {
+      "@type": "Place",
+      "name": "Pickl Gardens Plaza",
+      "@id": "https://eatpickl.com/",
+      "telephone": "+971 2 491 2022",
+      "hasMenu": "https://eatpickl.com/menu/",
+      "address": {
+        "@type": "PostalAddress",
+        "addressLocality": "Dubai",
+        "addressCountry": "AE"
+      }
+    },
+    {
+      "@type": "Place",
+      "name": "Pickl City Walk",
+      "@id": "https://eatpickl.com/#city-walk",
+      "telephone": "+971 4 395 3350",
+      "hasMenu": "https://eatpickl.com/menu/",
+      "address": {
+        "@type": "PostalAddress",
+        "addressLocality": "Dubai",
+        "addressCountry": "AE"
+      }
+    },
+    {
+      "@type": "Place",
+      "name": "Pickl JLT",
+      "@id": "https://eatpickl.com/",
+      "telephone": "+971 4 584 6859",
+      "hasMenu": "https://eatpickl.com/menu/",
+      "address": {
+        "@type": "PostalAddress",
+        "addressLocality": "Dubai",
+        "addressCountry": "AE"
+      }
+    },
+    {
+      "@type": "Place",
+      "name": "Pickl Motor City",
+      "@id": "https://eatpickl.com/",
+      "telephone": "+971 4 568 6882",
+      "hasMenu": "https://eatpickl.com/menu/",
+      "address": {
+        "@type": "PostalAddress",
+        "addressLocality": "Dubai",
+        "addressCountry": "AE"
+      }
+    },
+    {
+      "@type": "Place",
+      "name": "Pickl JBR",
+      "@id": "https://eatpickl.com/",
+      "telephone": "+971 4 447 2481",
+      "hasMenu": "https://eatpickl.com/menu/",
+      "address": {
+        "@type": "PostalAddress",
+        "addressLocality": "Dubai",
+        "addressCountry": "AE"
+      }
+    },
+    {
+      "@type": "Place",
+      "name": "Pickl Mirdif City Centre",
+      "@id": "https://eatpickl.com/",
+      "telephone": "+971 4 399 6540",
+      "hasMenu": "https://eatpickl.com/menu/",
+      "address": {
+        "@type": "PostalAddress",
+        "addressLocality": "Dubai",
+        "addressCountry": "AE"
+      }
+    },
+    {
+      "@type": "Place",
+      "name": "Pickl Madinat Badr",
+      "@id": "https://eatpickl.com/",
+      "telephone": "+971 4 239 0054",
+      "hasMenu": "https://eatpickl.com/menu/",
+      "address": {
+        "@type": "PostalAddress",
+        "addressLocality": "Dubai",
+        "addressCountry": "AE"
+      }
+    },
+    {
+      "@type": "Place",
+      "name": "Pickl Al Safa",
+      "@id": "https://eatpickl.com/",
+      "telephone": "+971 4 326 0500",
+      "hasMenu": "https://eatpickl.com/menu/",
+      "address": {
+        "@type": "PostalAddress",
+        "addressLocality": "Dubai",
+        "addressCountry": "AE"
+      }
+    },
+    {
+      "@type": "Place",
+      "name": "Pickl Mamsha Al Saadiyat",
+      "@id": "https://eatpickl.com/",
+      "telephone": "+971 2 886 7844",
+      "hasMenu": "https://eatpickl.com/menu/",
+      "address": {
+        "@type": "PostalAddress",
+        "addressLocality": "Abu Dhabi",
+        "addressCountry": "AE"
+      }
+    },
+    {
+      "@type": "Place",
+      "name": "Pickl Corniche",
+      "@id": "https://eatpickl.com/",
+      "telephone": "+971 2 886 7314",
+      "hasMenu": "https://eatpickl.com/menu/",
+      "address": {
+        "@type": "PostalAddress",
+        "addressLocality": "Abu Dhabi",
+        "addressCountry": "AE"
+      }
+    },
+    {
+      "@type": "Place",
+      "name": "Pickl Al Ain",
+      "@id": "https://eatpickl.com/",
+      "telephone": "+971 3 734 4639",
+      "hasMenu": "https://eatpickl.com/menu/",
+      "address": {
+        "@type": "PostalAddress",
+        "addressLocality": "Al Ain",
+        "addressCountry": "AE"
+      }
+    },
+    {
+      "@type": "Place",
+      "name": "Pickl Al Hirah Beach",
+      "@id": "https://eatpickl.com/",
+      "telephone": "+971 6 557 2240",
+      "hasMenu": "https://eatpickl.com/menu/",
+      "address": {
+        "@type": "PostalAddress",
+        "addressLocality": "Sharjah",
+        "addressCountry": "AE"
+      }
+    },
+    {
+      "@type": "Place",
+      "name": "Pickl Lagoon Stop",
+      "@id": "https://eatpickl.com/",
+      "telephone": "+971 7 243 0733",
+      "hasMenu": "https://eatpickl.com/menu/",
+      "address": {
+        "@type": "PostalAddress",
+        "addressLocality": "Sharjah",
+        "addressCountry": "AE"
+      }
+    }
+  ]
+}
+</script>

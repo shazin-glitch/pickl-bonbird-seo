@@ -4556,6 +4556,16 @@ Audit now hits 12 pages, **every one verified `200` live**: `/ae/`, `/ae/menu/`,
 
 **Confidence + honest caveat:** the query-string change matches code that is known to work for the identical scheduled-function setup, so I'm confident in the mechanism. The one thing only a live run confirms is that an HTTP GET to this function surfaces `queryStringParameters.brand` (the dashboard "Run" simulates a *cron* event, which is why that path shows `via=scheduled`; a real HTTP GET from the wrapper should be `via=internal` with the brand present). The v7.8.8 logs will show it plainly.
 
+### v7.9.133 — SEO project plan execution records (research only, no code)
+Working through the SEO Project Plan sheet (Google Sheet `1ex8RUjlh5HtGK4Hhb6iOAogDM7BIR5PC1NmgDS78yQ4`; local snapshot `research/seo-project-plan-2026-10.tsv`, statuses as of 26 Oct). Live WP/theme changes are made by hand in chat (approved one by one by Shazin), not by the Nest. This commit saves the records:
+- `research/seo-change-log-bonbird.tsv`: every Bonbird page change with before/after, target keyword, baseline rank and +2/+4/+8 wk columns (29 Oct link + title/meta batch, 5 Nov /ae/chicken/ Nashville rebuild, 9 Nov Dolmen Mall title/meta/focus kw + FAQ copy fix).
+- `research/seo-change-log-pickl.tsv` (new): branded terms, Rank Math socials, Elementor snippet 4490 drafted, homepage decisions, open opening-hours item.
+- `research/bonbird-backups/` + `research/pickl-backups/`: pre-change backups (Yoast values, post_content, twig, snippet).
+- `research/gbp-actions-baseline-*.csv`: GBP calls/directions/website baseline (also in the sheet's GBP Baseline tabs). GBP target revised +25% to +10%.
+- `research/semrush-2026-10-28/`: full Semrush export (trial ended 28 Oct), source of record for keyword work.
+- `NEST-TRACKING-AUDIT-2026-10-20.md`: read-only DataForSEO/tracking audit from 20 Oct.
+Theme changes live in the `bonbird-website-rebuild` repo (commits 2861017, d8a2b2b, 4ef5ef1, e2b9b99, c00277c).
+
 ### v7.9.132 — Perch Slack notifications muted (switch)
 Shazin (27 Oct): "stop perch slack notifications for now". `slack-notify` now skips every `perch_*` type (assigned, done, daily due digest, auto-task summary) unless the Blobs setting `perchSlackEnabled` is `true` (default: muted). One switch covers all Perch senders (perch.js, perch-sync-background, perch-notify-background); other Slack types (announcement, queue summaries, seo_work) unaffected. Re-enable = set `perchSlackEnabled` to true. `npm run check` green.
 

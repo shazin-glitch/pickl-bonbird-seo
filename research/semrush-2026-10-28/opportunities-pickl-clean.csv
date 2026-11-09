@@ -1,0 +1,444 @@
+﻿Market,Keyword,Volume,KD %,Intent,Our status,Our position,Our URL,Type,Found via seed
+AE,restaurants near me,1500000,43,C,not ranking,,,area/restaurants,ae-restaurants
+AE,food near me,60500,26,C,not ranking,,,area/restaurants,ae-near-me
+AE,restaurant near me,40500,33,T,not ranking,,,area/restaurants,ae-restaurants
+AE,dubai mall restaurants,33100,39,T,not ranking,,,area/restaurants,ae-area-dubai
+AE,restaurants in dubai,33100,38,C,not ranking,,,area/restaurants,ae-area-dubai
+AE,burgers near me,27100,23,n/a,not ranking,,,product,ae-burger
+AE,burger,22200,29,I,ranks top 3,3,eatpickl.com/ae/,product,ae-burger
+AE,hot burger,18100,24,C,not ranking,,,product,ae-burger
+AE,nearby restaurant,18100,33,C,not ranking,,,area/restaurants,ae-restaurants
+AE,best restaurants near me,14800,37,C,not ranking,,,area/restaurants,ae-restaurants
+AE,restaurants in abu dhabi,12100,34,n/a,not ranking,,,area/restaurants,ae-area-abu-dhabi
+AE,restaurants near me open now,12100,29,T,not ranking,,,area/restaurants,ae-restaurants
+AE,fast food near me,12100,26,C,not ranking,,,area/restaurants,ae-near-me
+AE,near me restaurant,9900,28,T,not ranking,,,area/restaurants,ae-restaurants
+AE,nearby restaurants near me,9900,26,C,not ranking,,,area/restaurants,ae-restaurants
+AE,best restaurants in abu dhabi,8100,36,C,not ranking,,,area/restaurants,ae-area-abu-dhabi
+AE,برجر,8100,28,T,not ranking,,,product,ae-arabic-burger
+AE,jbr restaurants,8100,36,C,not ranking,,,area/restaurants,ae-area-jbr
+AE,restaurants in sharjah,8100,26,C,not ranking,,,area/restaurants,ae-restaurants
+AE,restaurants sharjah,8100,32,C,not ranking,,,area/restaurants,ae-restaurants
+AE,best restaurants dubai,6600,40,C,not ranking,,,area/restaurants,ae-area-dubai
+AE,restaurant dubai,6600,39,C,not ranking,,,area/restaurants,ae-area-dubai
+AE,good burger,6600,36,C,not ranking,,,product,ae-burger
+AE,jlt restaurants,6600,30,T,not ranking,,,area/restaurants,ae-restaurants
+AE,korean restaurant near me,6600,30,C,not ranking,,,area/restaurants,ae-restaurants
+AE,motor city restaurants,5400,14,C,not ranking,,,area/restaurants,ae-area-motor-city
+AE,restaurants in ras al khaimah,5400,25,C,not ranking,,,area/restaurants,ae-area-rak
+AE,restaurants in al ain,5400,23,C,not ranking,,,area/restaurants,ae-area-al-ain
+AE,fast food restaurants near me,5400,26,C,not ranking,,,area/restaurants,ae-restaurants
+AE,best burger in dubai,4400,29,C,not ranking,,,product,ae-burger
+AE,best restaurants in dubai,3600,36,C,not ranking,,,area/restaurants,ae-area-dubai
+AE,places to eat near me,3600,23,C,not ranking,,,area/restaurants,ae-near-me
+AE,best restaurants in dubai mall,2900,31,C,not ranking,,,area/restaurants,ae-area-dubai
+AE,new restaurants in dubai,2900,36,C,not ranking,,,area/restaurants,ae-area-dubai
+AE,city burger,2900,26,T,not ranking,,,product,ae-burger
+AE,hot burger near me,2900,26,C,not ranking,,,product,ae-burger
+AE,good restaurants near me,2900,24,C,not ranking,,,area/restaurants,ae-restaurants
+AE,mirdif city center restaurants,2900,17,T,not ranking,,,area/restaurants,ae-restaurants
+AE,abu dhabi mall restaurants,2400,20,T,not ranking,,,area/restaurants,ae-area-abu-dhabi
+AE,مطعم برجر,2400,31,C,not ranking,,,product,ae-arabic-burger
+AE,city walk dubai restaurants,2400,26,C,not ranking,,,area/restaurants,ae-area-dubai
+AE,korean restaurant dubai,2400,29,C,not ranking,,,area/restaurants,ae-area-dubai
+AE,city burger restaurant,2400,31,T,not ranking,,,product,ae-burger
+AE,good burgers near me,2400,19,I,not ranking,,,product,ae-burger
+AE,best restaurants in sharjah,2400,16,C,not ranking,,,area/restaurants,ae-restaurants
+AE,restaurants open near me,2400,23,C,not ranking,,,area/restaurants,ae-restaurants
+AE,hot burger sharjah,1900,26,C,not ranking,,,product,ae-burger
+AE,restaurants in mirdif,1900,17,C,not ranking,,,area/restaurants,ae-area-mirdif
+AE,korean restaurant abu dhabi,1600,26,C,not ranking,,,area/restaurants,ae-area-abu-dhabi
+AE,restaurant offers abu dhabi,1600,12,I C,not ranking,,,area/restaurants,ae-area-abu-dhabi
+AE,burger restaurants near me,1600,28,C,not ranking,,,product,ae-burger
+AE,chicken burger,1600,36,I,not ranking,,,product,ae-burger
+AE,best restaurants abu dhabi,1300,35,C,not ranking,,,area/restaurants,ae-area-abu-dhabi
+AE,good restaurants in dubai,1300,33,C,not ranking,,,area/restaurants,ae-area-dubai
+AE,new restaurants dubai,1300,36,I,not ranking,,,area/restaurants,ae-area-dubai
+AE,restaurants in khalifa city,1300,16,C,not ranking,,,area/restaurants,ae-area-khalifa-city
+AE,best burger in abu dhabi,1300,29,C,not ranking,,,product,ae-burger
+AE,best burger near me,1300,25,C,not ranking,,,product,ae-burger
+AE,burger dubai,1300,29,C,not ranking,,,product,ae-burger
+AE,fast burger,1300,33,T N,not ranking,,,product,ae-burger
+AE,good burger abu dhabi,1300,28,C,not ranking,,,product,ae-burger
+AE,best restaurant al ain,1000,20,C,not ranking,,,area/restaurants,ae-area-al-ain
+AE,best restaurants in al ain,1000,20,C,not ranking,,,area/restaurants,ae-area-al-ain
+AE,jbr dubai restaurants,1000,29,C,not ranking,,,area/restaurants,ae-area-dubai
+AE,jbr walk restaurants,1000,26,C,not ranking,,,area/restaurants,ae-area-jbr
+AE,burger shop near me,1000,23,C,not ranking,,,product,ae-burger
+AE,hot burger restaurant,1000,25,C,not ranking,,,product,ae-burger
+AE,spicy burger,1000,29,C,not ranking,,,product,ae-burger
+AE,corniche abu dhabi restaurants,880,15,C,not ranking,,,area/restaurants,ae-area-abu-dhabi
+AE,restaurant corniche abu dhabi,880,15,C,not ranking,,,area/restaurants,ae-area-abu-dhabi
+AE,top restaurants in abu dhabi,880,31,C,not ranking,,,area/restaurants,ae-area-abu-dhabi
+AE,best cheap restaurants in dubai,880,33,C,not ranking,,,area/restaurants,ae-area-dubai
+AE,cheap restaurants in dubai,880,33,C,not ranking,,,area/restaurants,ae-area-dubai
+AE,hot burger menu,880,25,T,not ranking,,,product,ae-burger
+AE,best restaurants in jlt,880,24,C,not ranking,,,area/restaurants,ae-area-jlt
+AE,new restaurants in abu dhabi,720,20,C,not ranking,,,area/restaurants,ae-area-abu-dhabi
+AE,al ain mall restaurants,720,26,C,not ranking,,,area/restaurants,ae-area-al-ain
+AE,burger places near me,720,27,C,not ranking,,,product,ae-burger
+AE,برجر دجاج,590,26,I,not ranking,,,product,ae-arabic-burger
+AE,سماش برجر,590,26,T,not ranking,,,product,ae-arabic-burger
+AE,best new restaurants in dubai,590,36,C,not ranking,,,area/restaurants,ae-area-dubai
+AE,best restaurants in jbr dubai,590,22,C,not ranking,,,area/restaurants,ae-area-dubai
+AE,best restaurants in jbr,590,18,C,not ranking,,,area/restaurants,ae-area-jbr
+AE,burger abu dhabi,590,21,C,not ranking,,,product,ae-burger
+AE,burger restaurant,590,28,C,not ranking,,,product,ae-burger
+AE,hot burger sharjah menu,590,27,T,not ranking,,,product,ae-burger
+AE,good restaurants in abu dhabi,480,35,C,not ranking,,,area/restaurants,ae-area-abu-dhabi
+AE,motor city dubai restaurants,480,17,C,not ranking,,,area/restaurants,ae-area-motor-city
+AE,best restaurants in ras al khaimah,480,22,C,not ranking,,,area/restaurants,ae-area-rak
+AE,restaurants near dubai mall,480,39,C,not ranking,,,area/restaurants,ae-area-dubai
+AE,top restaurants in dubai,480,29,C,not ranking,,,area/restaurants,ae-area-dubai
+AE,burger dubai mall,480,33,C,not ranking,,,product,ae-burger
+AE,al safa restaurant,480,29,C,not ranking,,,area/restaurants,ae-area-al-safa
+AE,best korean restaurant in dubai,390,24,C,not ranking,,,area/restaurants,ae-area-dubai
+AE,burger restaurants in dubai,390,29,C,not ranking,,,product,ae-area-dubai
+AE,mirdif mall restaurants,390,18,C,not ranking,,,area/restaurants,ae-mall-restaurants
+AE,saadiyat restaurants,390,29,C,not ranking,,,area/restaurants,ae-area-saadiyat
+AE,jlt dubai restaurants,320,26,C,not ranking,,,area/restaurants,ae-area-dubai
+AE,jbr food,320,22,T,not ranking,,,area/restaurants,ae-area-jbr
+AE,restaurant khalifa city,320,14,C,not ranking,,,area/restaurants,ae-area-khalifa-city
+AE,best burger in dubai mall,320,32,C,not ranking,,,product,ae-burger
+AE,best burger in sharjah,320,27,I,not ranking,,,product,ae-burger
+AE,burger places in dubai,320,27,C,not ranking,,,product,ae-burger
+AE,city burger abu dhabi,320,22,N,not ranking,,,product,ae-burger
+AE,korean restaurant sharjah,320,28,C,not ranking,,,area/restaurants,ae-area-sharjah
+AE,burger sharjah,260,27,C,not ranking,,,product,ae-burger
+AE,chicken burger near me,260,17,C,not ranking,,,product,ae-burger
+AE,city burger near me,260,26,T,not ranking,,,product,ae-burger
+AE,good restaurants in sharjah,260,29,C,not ranking,,,area/restaurants,ae-area-sharjah
+AE,restaurant mirdif,260,16,C,not ranking,,,area/restaurants,ae-area-mirdif
+AE,best chicken restaurant abu dhabi,210,26,C,not ranking,,,area/restaurants,ae-area-abu-dhabi
+AE,al ain restaurant rak,210,26,I T,not ranking,,,area/restaurants,ae-area-al-ain
+AE,best burger places in dubai,210,21,C,not ranking,,,product,ae-burger
+AE,city burger abu dhabi menu,210,27,I T,not ranking,,,product,ae-burger
+AE,sharjah city center restaurants,210,18,C,not ranking,,,area/restaurants,ae-area-sharjah
+AE,sharjah corniche restaurants,210,20,C,not ranking,,,area/restaurants,ae-area-sharjah
+AE,مطاعم jbr,170,24,C,not ranking,,,area/restaurants,ae-arabic-restaurants
+AE,burger restaurants in abu dhabi,170,27,C,not ranking,,,product,ae-area-abu-dhabi
+AE,restaurants in abu dhabi city,170,33,C,not ranking,,,area/restaurants,ae-area-abu-dhabi
+AE,restaurants in khalifa city abu dhabi,170,16,C,not ranking,,,area/restaurants,ae-area-abu-dhabi
+AE,good restaurants in dubai mall,170,45,C,not ranking,,,area/restaurants,ae-mall-restaurants
+AE,new restaurants in dubai mall,170,36,C,not ranking,,,area/restaurants,ae-mall-restaurants
+AE,jlt food,170,29,C,not ranking,,,area/restaurants,ae-area-jlt
+AE,restaurants near jlt,170,21,C,not ranking,,,area/restaurants,ae-area-jlt
+AE,abu dhabi korean restaurant,140,24,C,not ranking,,,area/restaurants,ae-area-abu-dhabi
+AE,restaurants near abu dhabi mall,140,22,C,not ranking,,,area/restaurants,ae-area-abu-dhabi
+AE,restaurants near corniche abu dhabi,140,16,C,not ranking,,,area/restaurants,ae-area-abu-dhabi
+AE,good restaurants in ras al khaimah,140,21,C,not ranking,,,area/restaurants,ae-area-rak
+AE,fast burger abu dhabi,140,22,T N,not ranking,,,product,ae-burger
+AE,al safa restaurant sharjah,140,28,T,not ranking,,,area/restaurants,ae-area-al-safa
+AE,al ain restaurant abu dhabi,110,26,I T,not ranking,,,area/restaurants,ae-area-abu-dhabi
+AE,cheap restaurants in abu dhabi,110,25,C,not ranking,,,area/restaurants,ae-area-abu-dhabi
+AE,korean restaurant al ain,110,23,I T,not ranking,,,area/restaurants,ae-area-al-ain
+AE,places to eat jbr,110,22,C,not ranking,,,area/restaurants,ae-area-jbr
+AE,dubai mall new restaurants,110,34,T,not ranking,,,area/restaurants,ae-mall-restaurants
+AE,good restaurants dubai mall,110,31,C,not ranking,,,area/restaurants,ae-mall-restaurants
+AE,best chicken burger dubai,110,13,C,not ranking,,,product,ae-burger
+AE,burgers near me open now,110,26,C,not ranking,,,product,ae-burger
+AE,burgers nearby,110,23,C,not ranking,,,product,ae-burger
+AE,good burger restaurants near me,110,17,C,not ranking,,,product,ae-burger
+AE,al madina restaurant sharjah,110,26,C,not ranking,,,area/restaurants,ae-area-sharjah
+AE,abu dhabi restaurants near me,90,23,C,not ranking,,,area/restaurants,ae-area-abu-dhabi
+AE,restaurants in jbr walk dubai,90,16,C,not ranking,,,area/restaurants,ae-area-jbr
+AE,best restaurants near dubai mall,90,36,C,not ranking,,,area/restaurants,ae-mall-restaurants
+AE,cheap restaurants in dubai mall,90,26,C,not ranking,,,area/restaurants,ae-mall-restaurants
+AE,dubai mall cheap restaurants,90,35,C,not ranking,,,area/restaurants,ae-mall-restaurants
+AE,restaurants around dubai mall,90,36,C,not ranking,,,area/restaurants,ae-mall-restaurants
+AE,best burger restaurants in dubai,90,26,I,not ranking,,,product,ae-burger
+AE,top restaurants in ras al khaimah,70,20,C,not ranking,,,area/restaurants,ae-area-rak
+AE,best restaurants in jbr the walk,70,19,C,not ranking,,,area/restaurants,ae-area-jbr
+AE,restaurants jbr the walk,70,19,C,not ranking,,,area/restaurants,ae-area-jbr
+AE,good burger restaurant abu dhabi,70,22,C,not ranking,,,product,ae-burger
+AE,jbr دبي مطاعم,50,22,C,not ranking,,,area/restaurants,ae-arabic-restaurants
+AE,restaurants near motor city,50,13,C,not ranking,,,area/restaurants,ae-area-motor-city
+AE,rak mall restaurants,50,13,C,not ranking,,,area/restaurants,ae-mall-restaurants
+AE,top restaurants in dubai mall,50,33,C,not ranking,,,area/restaurants,ae-mall-restaurants
+AE,the best burger in dubai,50,23,C,not ranking,,,product,ae-burger
+AE,city center sharjah restaurants,50,17,C,not ranking,,,area/restaurants,ae-area-sharjah
+BH,restaurants near me,90500,27,I,not ranking,,,area/restaurants,bh-restaurants
+BH,مطاعم البحرين,2900,28,T,not ranking,,,area/restaurants,bh-arabic-restaurants
+BH,burger,2400,32,T,ranks 4-10,7,eatpickl.com/ae/,product,bh-burger
+BH,burgers near me,2400,29,C,ranks top 3,3,eatpickl.com/,product,bh-burger
+BH,مطاعم قريبة مني,1300,26,C,not ranking,,,area/restaurants,bh-arabic-restaurants
+BH,best restaurants near me open,1300,31,C,not ranking,,,area/restaurants,bh-restaurants
+BH,restaurants in riffa,1000,28,C,not ranking,,,area/restaurants,bh-restaurants
+BH,افضل مطاعم البحرين,720,29,C,not ranking,,,area/restaurants,bh-arabic-restaurants
+BH,bahrain bay restaurants,720,27,C,not ranking,,,area/restaurants,bh-restaurants
+BH,best restaurants in bahrain,720,27,C,not ranking,,,area/restaurants,bh-restaurants
+BH,مطاعم في البحرين,590,20,C,not ranking,,,area/restaurants,bh-arabic-restaurants
+BH,best burger in bahrain,480,26,C,not ranking,,,product,bh-burger
+BH,افضل المطاعم في البحرين,480,28,C,not ranking,,,area/restaurants,bh-arabic-restaurants
+BH,مطاعم سيتي سنتر البحرين,480,26,C,not ranking,,,area/restaurants,bh-arabic-restaurants
+BH,best restaurants near me,480,26,C,not ranking,,,area/restaurants,bh-restaurants
+BH,city center bahrain restaurants,480,28,T,not ranking,,,area/restaurants,bh-restaurants
+BH,korean restaurant bahrain,390,29,C,not ranking,,,area/restaurants,bh-restaurants
+BH,new restaurants in bahrain,390,25,C,not ranking,,,area/restaurants,bh-restaurants
+BH,restaurants near me open now,390,26,C,not ranking,,,area/restaurants,bh-restaurants
+BH,fast food restaurants near me,320,19,C,not ranking,,,area/restaurants,bh-restaurants
+BH,restaurants in bahrain,320,22,C,not ranking,,,area/restaurants,bh-restaurants
+BH,top restaurants in bahrain,320,26,C,not ranking,,,area/restaurants,bh-restaurants
+BH,burger bahrain,260,26,C,ranks 4-10,9,eatpickl.com/bh/,product,bh-burger
+BH,burger restaurants in bahrain,210,28,C,not ranking,,,product,bh-burger
+BH,burger restaurants near me,170,24,C,not ranking,,,product,bh-burger
+BH,good restaurants in bahrain,170,23,C,not ranking,,,area/restaurants,bh-restaurants
+BH,مطاعم برجر في البحرين,140,28,T,not ranking,,,product,bh-arabic-restaurants
+BH,افضل مطاعم سيتي سنتر البحرين,110,27,I,not ranking,,,area/restaurants,bh-arabic-restaurants
+BH,مطاعم برجر البحرين,110,28,T,not ranking,,,product,bh-arabic-restaurants
+EG,restaurants near me,673000,43,C,not ranking,,,area/restaurants,eg-restaurants
+EG,مطاعم قريبة مني,27100,22,I,not ranking,,,area/restaurants,eg-arabic-restaurants
+EG,برجر,18100,38,T,not ranking,,,product,eg-arabic-burger
+EG,المطاعم القريبة منك,14800,27,I,not ranking,,,area/restaurants,eg-arabic-restaurants
+EG,best restaurants near me,12100,39,C,not ranking,,,area/restaurants,eg-restaurants
+EG,burger,12100,39,I,ranks 11-100,16,eatpickl.com/ae/,product,eg-burger
+EG,burgers near me,12100,32,C,not ranking,,,product,eg-burger
+EG,مطاعم قريبة من موقعي,6600,23,C,not ranking,,,area/restaurants,eg-arabic-restaurants
+EG,مطاعم قريبه مني,5400,20,I,not ranking,,,area/restaurants,eg-arabic-restaurants
+EG,cairo restaurant,3600,33,C,not ranking,,,area/restaurants,eg-restaurants
+EG,سماش برجر,3600,31,T,not ranking,,,product,eg-arabic-burger
+EG,مطعم برجر,2900,31,C,not ranking,,,product,eg-arabic-burger
+EG,مطاعم قريبة,2400,21,C,not ranking,,,area/restaurants,eg-arabic-restaurants
+EG,restaurants in new cairo,2400,33,C,not ranking,,,area/restaurants,eg-restaurants
+EG,مطاعم القاهرة,1900,22,C,not ranking,,,area/restaurants,eg-arabic-restaurants
+EG,مطاعم قريبه,1900,22,I,not ranking,,,area/restaurants,eg-arabic-restaurants
+EG,fast food restaurants near me,1600,31,C,not ranking,,,area/restaurants,eg-restaurants
+EG,mall of egypt restaurants,1300,18,T,not ranking,,,area/restaurants,eg-area-mall-of-egypt
+EG,korean restaurant near me,1000,29,C,not ranking,,,area/restaurants,eg-restaurants
+EG,restaurants near me open now,1000,31,C,not ranking,,,area/restaurants,eg-restaurants
+EG,madinaty restaurants,880,20,C,not ranking,,,area/restaurants,eg-area-madinaty
+EG,مطاعم في القاهرة,880,21,C,not ranking,,,area/restaurants,eg-arabic-restaurants
+EG,best restaurants in new cairo,880,31,C,not ranking,,,area/restaurants,eg-restaurants
+EG,افضل مطاعم القاهرة,720,20,C,not ranking,,,area/restaurants,eg-arabic-restaurants
+EG,best restaurants in cairo,720,33,C,not ranking,,,area/restaurants,eg-restaurants
+EG,restaurants open near me,720,26,C,not ranking,,,area/restaurants,eg-restaurants
+EG,restaurants in mall of egypt,590,34,T,not ranking,,,area/restaurants,eg-area-mall-of-egypt
+EG,burger restaurants near me,590,29,C,not ranking,,,product,eg-restaurants
+EG,restaurant burger,590,29,C,not ranking,,,product,eg-restaurants
+EG,restaurants burgers,590,23,C,not ranking,,,product,eg-restaurants
+EG,walk of cairo restaurants,480,32,C,not ranking,,,area/restaurants,eg-restaurants
+EG,افضل المطاعم في القاهرة,390,19,C,not ranking,,,area/restaurants,eg-arabic-restaurants
+EG,good restaurants near me,390,34,C,not ranking,,,area/restaurants,eg-restaurants
+EG,best burger in cairo,390,28,C,not ranking,,,product,eg-burger
+EG,restaurants madinaty,320,23,C,not ranking,,,area/restaurants,eg-area-madinaty
+EG,top restaurants in cairo,320,28,C,not ranking,,,area/restaurants,eg-restaurants
+EG,restaurants mall of egypt,210,27,T,not ranking,,,area/restaurants,eg-area-mall-of-egypt
+EG,halal restaurants near me,210,23,C,not ranking,,,area/restaurants,eg-restaurants
+EG,burger cairo,210,19,C,not ranking,,,product,eg-burger
+EG,burger places near me,210,21,C,ranks 4-10,4,eatpickl.com/egypt/,product,eg-burger
+EG,افضل مطعم برجر في القاهرة,210,31,T,not ranking,,,product,eg-arabic-burger
+EG,best burger near me,140,31,C,not ranking,,,product,eg-burger
+EG,مطاعم برجر في القاهرة,140,31,C,not ranking,,,product,eg-arabic-burger
+EG,mall of egypt food,110,33,T,not ranking,,,area/restaurants,eg-area-mall-of-egypt
+EG,best burger in new cairo,110,23,C,not ranking,,,product,eg-burger
+EG,burger in new cairo,110,18,C,not ranking,,,product,eg-burger
+EG,restaurant madinaty,90,21,C,not ranking,,,area/restaurants,eg-area-madinaty
+EG,burger shop near me,90,29,C,ranks top 3,3,eatpickl.com/,product,eg-burger
+IQ,burger restaurant,4400,75,C,not ranking,,,product,iq-arabic-burger
+IQ,burger open now near me,720,53,T,not ranking,,,product,iq-arabic-burger
+IQ,burgerss near me,480,36,T,not ranking,,,product,iq-arabic-burger
+IQ,food near me burger,480,17,T,not ranking,,,product,iq-arabic-burger
+IQ,near me chicken burger,480,28,T,not ranking,,,product,iq-arabic-burger
+IQ,burger food delivery near me,320,22,T,not ranking,,,product,iq-arabic-burger
+IQ,good burger near me now,140,27,T,not ranking,,,product,iq-arabic-burger
+IQ,burgers places near me open now,90,59,T,not ranking,,,product,iq-arabic-burger
+IQ,new burger restaurant near me,90,60,T,not ranking,,,product,iq-arabic-burger
+IQ,burgers restaurants near me open now,70,64,T,not ranking,,,product,iq-arabic-burger
+IQ,food delivery near me burgers,70,25,T,not ranking,,,product,iq-arabic-burger
+IQ,open burger places near me,70,35,T,not ranking,,,product,iq-arabic-burger
+IQ,best burgers open now near me,50,26,T,not ranking,,,product,iq-arabic-burger
+IQ,burger restaurants open now near me,50,62,T,not ranking,,,product,iq-arabic-burger
+IQ,good burgers places near me,50,15,T,not ranking,,,product,iq-arabic-burger
+IQ,near me burger,50,n/a,n/a,not ranking,,,product,iq-arabic-burger
+IQ,the burger near me,50,21,T,not ranking,,,product,iq-arabic-burger
+JO,مطاعم عمان,5400,31,C,not ranking,,,area/restaurants,jo-arabic-restaurants
+JO,burger,4400,36,I T,not ranking,,,product,jo-burger
+JO,burgers near me,4400,30,C,ranks 4-10,5,eatpickl.com/,product,jo-burger
+JO,مطاعم قريبه مني,3600,34,C,not ranking,,,area/restaurants,jo-arabic-restaurants
+JO,مطاعم في عمان,2900,34,C,not ranking,,,area/restaurants,jo-arabic-restaurants
+JO,مطاعم قريبة مني,2900,34,C,not ranking,,,area/restaurants,jo-arabic-restaurants
+JO,برجر,2900,36,T,not ranking,,,product,jo-arabic-burger
+JO,مطاعم قريبة من موقعي,1900,33,C,not ranking,,,area/restaurants,jo-arabic-restaurants
+JO,افضل مطاعم عمان,1600,33,C,not ranking,,,area/restaurants,jo-arabic-restaurants
+JO,مطعم برجر,1300,34,C,not ranking,,,product,jo-arabic-burger
+JO,best burger in amman,880,33,C,not ranking,,,product,jo-burger
+JO,burgers in amman,880,30,C,not ranking,,,product,jo-burger
+JO,مطاعم برجر في عمان,720,33,C,not ranking,,,product,jo-arabic-restaurants
+JO,افضل المطاعم في عمان,590,33,C,not ranking,,,area/restaurants,jo-arabic-restaurants
+JO,مطاعم قريبة,480,30,I,not ranking,,,area/restaurants,jo-arabic-restaurants
+JO,افضل مطعم برجر في عمان,320,28,C,not ranking,,,product,jo-arabic-burger
+JO,burger restaurants near me,260,28,C,not ranking,,,product,jo-burger
+JO,burger restaurants in amman,210,31,C,not ranking,,,product,jo-burger
+JO,burger places in amman,170,28,C,not ranking,,,product,jo-burger
+JO,burger places near me,140,31,C,not ranking,,,product,jo-burger
+JO,مطاعم سيتي مول عمان,110,n/a,n/a,not ranking,,,area/restaurants,jo-arabic-restaurants
+JO,مطاعم قريبه,110,n/a,n/a,not ranking,,,area/restaurants,jo-arabic-restaurants
+JO,افضل برجر في عمان,90,n/a,n/a,not ranking,,,product,jo-arabic-burger
+JO,مطاعم برجر عمان,70,n/a,n/a,not ranking,,,product,jo-arabic-restaurants
+JO,مطاعم وجبات سريعة في عمان,50,n/a,n/a,not ranking,,,area/restaurants,jo-arabic-restaurants
+KW,مطاعم الكويت,18100,25,T,not ranking,,,area/restaurants,kw-arabic-restaurants
+KW,برجر,3600,30,T,not ranking,,,product,kw-arabic-burger
+KW,burger,3600,25,T,not ranking,,,product,kw-burger
+KW,burgers near me,2400,48,C,not ranking,,,product,kw-burger
+KW,مطعم برجر,1900,32,T,not ranking,,,product,kw-arabic-burger
+KW,best burger in town,1000,27,C,not ranking,,,product,kw-burger
+KW,برجر دجاج,720,28,I,not ranking,,,product,kw-arabic-burger
+KW,best burger in kuwait,590,27,C,not ranking,,,product,kw-burger
+KW,المطاعم في الكويت,480,19,C,not ranking,,,area/restaurants,kw-arabic-restaurants
+KW,مطاعم في الكويت,480,21,C,not ranking,,,area/restaurants,kw-arabic-restaurants
+KW,افضل مطاعم الكويت,390,27,C,not ranking,,,area/restaurants,kw-arabic-restaurants
+KW,افضل المطاعم في الكويت,210,18,T,not ranking,,,area/restaurants,kw-arabic-restaurants
+KW,افضل مطاعم في الكويت,210,18,C,not ranking,,,area/restaurants,kw-arabic-restaurants
+KW,burger kuwait,210,27,C,not ranking,,,product,kw-burger
+KW,مطاعم برجر الكويت,140,30,T,not ranking,,,product,kw-arabic-restaurants
+KW,مطاعم برجر في الكويت,110,25,C,not ranking,,,product,kw-arabic-restaurants
+KW,افضل مطعم برجر في الكويت,110,28,C,not ranking,,,product,kw-arabic-burger
+KW,افضل برجر في الكويت,90,25,I,not ranking,,,product,kw-arabic-burger
+KW,سماش برجر الكويت,90,28,I T,not ranking,,,product,kw-arabic-burger
+OM,restaurants near me,165000,32,C,not ranking,,,area/restaurants,om-restaurants
+OM,برجر,6600,33,T,not ranking,,,product,om-arabic-burger
+OM,restaurants in muscat,4400,22,C,not ranking,,,area/restaurants,om-restaurants
+OM,burger,3600,33,C,ranks 4-10,7,eatpickl.com/ae/,product,om-burger
+OM,burgers near me,3600,34,C,ranks 4-10,5,eatpickl.com/,product,om-burger
+OM,best restaurants in muscat,2900,30,C,not ranking,,,area/restaurants,om-restaurants
+OM,best restaurants near me,1900,26,C,not ranking,,,area/restaurants,om-restaurants
+OM,مطاعم مسقط,1600,21,T,not ranking,,,area/restaurants,om-arabic-restaurants
+OM,مطعم برجر,880,30,T,not ranking,,,product,om-arabic-burger
+OM,restaurants near me open now,880,27,C,not ranking,,,area/restaurants,om-restaurants
+OM,مطاعم في مسقط,880,21,T,not ranking,,,area/restaurants,om-arabic-restaurants
+OM,good restaurants near me,480,29,C,not ranking,,,area/restaurants,om-restaurants
+OM,افضل المطاعم في مسقط,480,24,T,not ranking,,,area/restaurants,om-arabic-restaurants
+OM,افضل مطاعم مسقط,480,24,T,not ranking,,,area/restaurants,om-arabic-restaurants
+OM,مطاعم قريبه,390,27,T,not ranking,,,area/restaurants,om-arabic-restaurants
+OM,best burger in muscat,320,29,C,not ranking,,,product,om-burger
+OM,fast food restaurants near me,320,24,C,not ranking,,,area/restaurants,om-restaurants
+OM,al madina restaurant,260,21,C,not ranking,,,area/restaurants,om-restaurants
+OM,مطاعم مسقط مول,260,24,T,not ranking,,,area/restaurants,om-arabic-restaurants
+OM,korean restaurant muscat,210,29,C,not ranking,,,area/restaurants,om-restaurants
+OM,new restaurants in muscat,210,33,C,not ranking,,,area/restaurants,om-restaurants
+OM,new restaurants muscat,210,26,C,not ranking,,,area/restaurants,om-restaurants
+OM,restaurants open near me,210,27,C,not ranking,,,area/restaurants,om-restaurants
+OM,burger restaurants near me,170,24,C,not ranking,,,product,om-burger
+OM,top restaurants in muscat,170,26,C,not ranking,,,area/restaurants,om-restaurants
+OM,best burger near me,140,27,C,not ranking,,,product,om-burger
+OM,city center muscat restaurants,140,21,C,not ranking,,,area/restaurants,om-restaurants
+OM,good restaurants in muscat,140,29,C,not ranking,,,area/restaurants,om-restaurants
+OM,restaurant muscat oman,140,25,C,not ranking,,,area/restaurants,om-restaurants
+OM,restaurants in muscat city center,140,19,C,not ranking,,,area/restaurants,om-restaurants
+OM,burger places near me,110,24,C,not ranking,,,product,om-burger
+OM,halal restaurants near me,110,27,C,not ranking,,,area/restaurants,om-restaurants
+OM,مطاعم سيتي سنتر مسقط,90,26,T,not ranking,,,area/restaurants,om-arabic-restaurants
+QA,restaurants near me,201000,35,C,not ranking,,,area/restaurants,qa-restaurants
+QA,restaurants in doha,8100,34,C,not ranking,,,area/restaurants,qa-restaurants
+QA,best restaurants in doha,6600,36,C,not ranking,,,area/restaurants,qa-restaurants
+QA,burger,4400,23,T,not ranking,,,product,qa-burger
+QA,restaurant near me,3600,24,I,not ranking,,,area/restaurants,qa-restaurants
+QA,برجر,2900,24,T,not ranking,,,product,qa-arabic-burger
+QA,burgers near me,2900,26,C,not ranking,,,product,qa-burger
+QA,restaurants near me open now,1900,22,C,not ranking,,,area/restaurants,qa-restaurants
+QA,lusail restaurant,1300,25,C,not ranking,,,area/restaurants,qa-area-lusail
+QA,best restaurants near me,1300,28,C,not ranking,,,area/restaurants,qa-restaurants
+QA,lahore restaurant doha,1300,29,C,not ranking,,,area/restaurants,qa-restaurants
+QA,nearby restaurants near me,1300,25,C,not ranking,,,area/restaurants,qa-restaurants
+QA,restaurants doha,1300,41,C,not ranking,,,area/restaurants,qa-restaurants
+QA,مطعم برجر,1300,30,C,not ranking,,,product,qa-arabic-burger
+QA,restaurant in lusail,1000,24,C,not ranking,,,area/restaurants,qa-area-lusail
+QA,restaurants in lusail,1000,22,C,not ranking,,,area/restaurants,qa-area-lusail
+QA,best restaurants doha,1000,33,C,not ranking,,,area/restaurants,qa-restaurants
+QA,near me restaurant,1000,17,N,not ranking,,,area/restaurants,qa-restaurants
+QA,city center doha restaurants,880,25,T,not ranking,,,area/restaurants,qa-restaurants
+QA,korean restaurant doha,880,22,C,not ranking,,,area/restaurants,qa-restaurants
+QA,korean restaurant near me,880,25,C,not ranking,,,area/restaurants,qa-restaurants
+QA,west walk restaurants,880,24,C,not ranking,,,area/restaurants,qa-restaurants
+QA,best burger in qatar,880,22,C,ranks 11-100,19,eatpickl.com/qatar/,product,qa-burger
+QA,مطاعم الدوحة,720,29,C,not ranking,,,area/restaurants,qa-arabic-restaurants
+QA,restaurant lusail,590,22,C,not ranking,,,area/restaurants,qa-area-lusail
+QA,restaurants lusail,590,19,C,not ranking,,,area/restaurants,qa-area-lusail
+QA,fast food restaurants near me,590,14,C,ranks 11-100,18,eatpickl.com/qatar/,area/restaurants,qa-restaurants
+QA,near restaurants near me,590,29,C,not ranking,,,area/restaurants,qa-restaurants
+QA,best burger in doha,590,15,C,ranks 11-100,18,eatpickl.com/qatar/,product,qa-burger
+QA,halal restaurants near me,480,15,C,not ranking,,,area/restaurants,qa-restaurants
+QA,restaurant doha,480,33,C,not ranking,,,area/restaurants,qa-restaurants
+QA,top restaurants in doha,480,34,C,not ranking,,,area/restaurants,qa-restaurants
+QA,good restaurants near me,390,37,C,not ranking,,,area/restaurants,qa-restaurants
+QA,new restaurants in doha,390,29,C,not ranking,,,area/restaurants,qa-restaurants
+QA,good restaurants in doha,320,35,C,not ranking,,,area/restaurants,qa-restaurants
+QA,restaurants open near me,320,19,C,not ranking,,,area/restaurants,qa-restaurants
+QA,burger restaurants near me,260,24,C,ranks 11-100,18,eatpickl.com/qatar/,product,qa-restaurants
+QA,corniche restaurant doha,260,19,I,not ranking,,,area/restaurants,qa-restaurants
+QA,افضل مطاعم الدوحة,170,29,C,not ranking,,,area/restaurants,qa-arabic-restaurants
+QA,مطاعم في الدوحة,170,28,C,not ranking,,,area/restaurants,qa-arabic-restaurants
+QA,مطاعم لوسيل قطر,140,28,C,not ranking,,,area/restaurants,qa-arabic-restaurants
+QA,burger doha,140,22,C,not ranking,,,product,qa-burger
+QA,burgers doha,140,27,C,not ranking,,,product,qa-burger
+QA,افضل المطاعم في الدوحة,110,27,I,not ranking,,,area/restaurants,qa-arabic-restaurants
+QA,burger places near me,110,29,C,not ranking,,,product,qa-burger
+SA,برجر,301000,34,T N,not ranking,,,product,sa-arabic-burger
+SA,برجر مشوي,110000,27,I,not ranking,,,product,sa-arabic-burger
+SA,مطعم برجر,60500,30,C,not ranking,,,product,sa-arabic-burger
+SA,burgers near me,60500,43,C,not ranking,,,product,sa-burger
+SA,burger,49500,27,I,not ranking,,,product,sa-burger
+SA,مطاعم الرياض,22200,20,C,not ranking,,,area/restaurants,sa-arabic-riyadh-restaurants
+SA,سماش برجر,14800,29,T,not ranking,,,product,sa-arabic-burger
+SA,restaurants in riyadh,9900,40,C,not ranking,,,area/restaurants,sa-riyadh-restaurants
+SA,برجر دجاج,8100,24,I,not ranking,,,product,sa-arabic-burger
+SA,halal burger,5400,22,C,not ranking,,,product,sa-burger
+SA,دجاج برجر,4400,14,I,not ranking,,,product,sa-arabic-burger
+SA,مطاعم في الرياض,4400,22,C,not ranking,,,area/restaurants,sa-arabic-riyadh-restaurants
+SA,افضل مطاعم الرياض,3600,31,C,not ranking,,,area/restaurants,sa-arabic-riyadh-restaurants
+SA,the burger,2900,30,C,not ranking,,,product,sa-burger
+SA,مطاعم النخيل مول,2400,16,C,not ranking,,,area/restaurants,sa-area-nakheel-mall-ar
+SA,مشوي برجر,2400,22,T,not ranking,,,product,sa-arabic-burger
+SA,مطعم برجر مشوي,2400,23,C,not ranking,,,product,sa-arabic-burger
+SA,كرسبي برجر,1900,31,I,not ranking,,,product,sa-arabic-burger
+SA,burger restaurants near me,1900,23,C,ranks 11-100,26,eatpickl.com/ksa/,product,sa-burger
+SA,eat me burger,1900,30,I T,not ranking,,,product,sa-burger
+SA,افضل برجر,1600,31,C,not ranking,,,product,sa-arabic-burger
+SA,chicken burger,1600,39,I,not ranking,,,product,sa-burger
+SA,برجر سماش,1300,21,T,not ranking,,,product,sa-arabic-burger
+SA,برجر كرسبي,1300,17,I,not ranking,,,product,sa-arabic-burger
+SA,سماش برجر الرياض,1300,30,T,not ranking,,,product,sa-arabic-burger
+SA,مطاعم برجر الرياض,1300,30,C,not ranking,,,product,sa-arabic-burger
+SA,best burger in riyadh,1300,30,C,not ranking,,,product,sa-burger
+SA,saudi burger,1300,27,T,not ranking,,,product,sa-burger
+SA,افضل المطاعم في الرياض,1300,24,C,not ranking,,,area/restaurants,sa-arabic-riyadh-restaurants
+SA,best restaurants in riyadh,1000,26,C,not ranking,,,area/restaurants,sa-riyadh-restaurants
+SA,افضل مطعم برجر,1000,22,T,not ranking,,,product,sa-arabic-burger
+SA,برجر الرياض,1000,30,C,ranks 11-100,31,eatpickl.com/ksa/,product,sa-arabic-burger
+SA,مطاعم الملقا,1000,20,C,not ranking,,,area/restaurants,sa-area-malqa-ar
+SA,best burgers near me,1000,26,C,not ranking,,,product,sa-burger
+SA,برجر دجاج مشوي,880,16,I,not ranking,,,product,sa-arabic-burger
+SA,سيتي برجر,880,30,C,not ranking,,,product,sa-arabic-burger
+SA,best burger,880,24,C,not ranking,,,product,sa-burger
+SA,burger restaurant,880,35,C,ranks 11-100,13,eatpickl.com/ksa/,product,sa-burger
+SA,hot burger,880,30,C,not ranking,,,product,sa-burger
+SA,west burger,880,30,C,not ranking,,,product,sa-burger
+SA,district burger,720,18,C,not ranking,,,product,sa-burger
+SA,korean restaurant in riyadh,590,28,C,not ranking,,,area/restaurants,sa-riyadh-restaurants
+SA,best burger near me,590,26,C,not ranking,,,product,sa-burger
+SA,top restaurants in riyadh,390,34,C,not ranking,,,area/restaurants,sa-riyadh-restaurants
+SA,مطاعم النخيل مول الرياض,390,28,C,not ranking,,,area/restaurants,sa-area-nakheel-mall-ar
+SA,افضل برجر في الرياض,390,29,C,not ranking,,,product,sa-arabic-burger
+SA,افضل مطعم برجر في الرياض,390,29,C,not ranking,,,product,sa-arabic-burger
+SA,برجر مشوي الرياض,390,20,T,not ranking,,,product,sa-arabic-burger
+SA,burger places near me,390,19,C,not ranking,,,product,sa-burger
+SA,الرياض مطاعم,390,22,C,not ranking,,,area/restaurants,sa-arabic-riyadh-restaurants
+SA,النخيل مول مطاعم,320,23,C,not ranking,,,area/restaurants,sa-area-nakheel-mall-ar
+SA,مطاعم برجر في الرياض,320,29,C,not ranking,,,product,sa-arabic-burger
+SA,burger riyadh,320,22,C,not ranking,,,product,sa-burger
+SA,burger restaurants in riyadh,260,29,C,ranks 11-100,17,eatpickl.com/ksa/,product,sa-riyadh-restaurants
+SA,new restaurants riyadh,260,22,C,not ranking,,,area/restaurants,sa-riyadh-restaurants
+SA,good restaurants in riyadh,210,30,C,not ranking,,,area/restaurants,sa-riyadh-restaurants
+SA,new restaurant riyadh,210,27,C,not ranking,,,area/restaurants,sa-riyadh-restaurants
+SA,riyadh restaurants near me,210,35,C,not ranking,,,area/restaurants,sa-riyadh-restaurants
+SA,المطاعم في الرياض,170,15,C,not ranking,,,area/restaurants,sa-arabic-riyadh-restaurants
+SA,al saudi restaurant riyadh,140,24,C,not ranking,,,area/restaurants,sa-riyadh-restaurants
+SA,المطاعم في النخيل مول,140,25,C,not ranking,,,area/restaurants,sa-area-nakheel-mall-ar
+SA,مطاعم في النخيل مول,140,22,C,not ranking,,,area/restaurants,sa-area-nakheel-mall-ar
+SA,saudi restaurant riyadh,110,33,C,not ranking,,,area/restaurants,sa-riyadh-restaurants
+SA,top riyadh restaurants,110,33,C,not ranking,,,area/restaurants,sa-riyadh-restaurants
+SA,افضل مطاعم برجر الرياض,110,28,C,not ranking,,,product,sa-arabic-riyadh-restaurants
+SA,مطاعم الرياض برجر,110,28,C,not ranking,,,product,sa-arabic-riyadh-restaurants
+SA,top restaurants riyadh,90,35,C,not ranking,,,area/restaurants,sa-riyadh-restaurants
+SA,new restaurants in riyadh,50,n/a,n/a,not ranking,,,area/restaurants,sa-riyadh-restaurants
+SA,مطاعم الملقا الرياض,50,n/a,n/a,not ranking,,,area/restaurants,sa-area-malqa-ar

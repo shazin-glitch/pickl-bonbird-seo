@@ -1,0 +1,574 @@
+Brand	Phase	Market	Page / item	Task	Target keyword / objective	Owner	Deadline	Status	W44	W45	W46	W47	W48	W49	W50	W51	W52	W1	W2	W3	W4	W5	W6	W7	W8	W9	W10	W11	W12	W13
+Bonbird	1 Foundations	All	Site	Google Search Console verified (domain property, all markets)		Shazin		Done																						
+Bonbird	1 Foundations	All	Site	Keyword research + page map (all markets)		Shazin		Done																						
+Bonbird	1 Foundations	All	Site	Semrush rank tracking (English + Arabic)		Shazin		Done																						
+Bonbird	1 Foundations	All	Site	Semrush site audit (weekly)		Shazin		Done																						
+Bonbird	1 Foundations	All	Site	GA4 recording checked		Shazin	6 Nov 2026	To do		●																				
+Bonbird	1 Foundations	All	Site	Bing Webmaster Tools set up		Shazin	13 Nov 2026	To do			●																			
+Bonbird	1 Foundations	All	Site	Brand misspellings counted as branded in reporting		Shazin	6 Nov 2026	To do		●																				
+Bonbird	1 Foundations	All	Site	Nest config matches the live site (country folders)		Shazin		Done																						
+Bonbird	2 Technical	All	Site	Market taxonomy: one folder per country		Shazin		Done																						
+Bonbird	2 Technical	All	Site	City > venue URL structure		Shazin		Done																						
+Bonbird	2 Technical	All	Site	301 redirects from old URLs (migration)		Shazin		Done																						
+Bonbird	2 Technical	All	Site	Canonical tags correct		Shazin		Done																						
+Bonbird	2 Technical	All	Site	www + https redirect		Shazin		Done																						
+Bonbird	2 Technical	All	Site	robots.txt clean		Shazin		Done																						
+Bonbird	2 Technical	All	Site	XML sitemap clean (no junk pages)		Shazin		Done																						
+Bonbird	2 Technical	All	Site	Speed optimisation desktop		Developer		Done																						
+Bonbird	2 Technical	All	Site	Speed optimisation mobile		Developer		Done																						
+Bonbird	2 Technical	All	Site	Fix slow pages flagged in audit		Developer	13 Nov 2026	To do			●																			
+Bonbird	2 Technical	All	Site	Internal links: every venue linked from its city page + locations page		Shazin		Done																						
+Bonbird	2 Technical	All	Site	Fix internal links pointing at redirects		Shazin	6 Nov 2026	To do		●																				
+Bonbird	2 Technical	All	Site	Fix duplicate title / H1 pages (Semrush audit)		Shazin	6 Nov 2026	To do		●																				
+Bonbird	2 Technical	All	Site	Expand thin pages (low word count, Semrush audit)		Shazin	27 Nov 2026	To do					●																	
+Bonbird	2 Technical	All	Site	Fix remaining Semrush audit errors		Shazin		Done																						
+Bonbird	2 Technical	All	Site	Image alt text + compression		Shazin	20 Nov 2026	To do				●																		
+Bonbird	2 Technical	All	Site	Breadcrumbs on city, venue, product pages		Developer	20 Nov 2026	To check				●																		
+Bonbird	2 Technical	All	Site	Hreflang between English market sites + x-default		Developer	13 Nov 2026	To check			●																			
+Bonbird	2 Technical	All	Site	llms.txt for AI search		Shazin	6 Nov 2026	To do		●																				
+Bonbird	3 Schema	All	Site	Organization schema on homepage (every market, socials)		Developer	20 Nov 2026	To do				●																		
+Bonbird	3 Schema	All	Site	Restaurant schema on every venue page		Shazin		Done																						
+Bonbird	3 Schema	All	Site	FAQPage schema on city + venue pages		Shazin		Done																						
+Bonbird	3 Schema	All	Site	Breadcrumb schema		Developer	20 Nov 2026	To check				●																		
+Bonbird	3 Schema	All	Site	Article schema on journal posts		Shazin	13 Nov 2026	To check			●																			
+Bonbird	3 Schema	All	Site	Menu schema on menu pages		Developer	4 Dec 2026	To do						●																
+Bonbird	4 Meta + on-page	UAE	/ae/ homepage	Title, meta description, H1	fried chicken uae	Shazin	6 Nov 2026	To do		●																				
+Bonbird	4 Meta + on-page	Oman	/om/ homepage	Title, meta description, H1	best fried chicken in oman	Shazin	6 Nov 2026	To do		●																				
+Bonbird	4 Meta + on-page	Qatar	/qa/ homepage	Title, meta description, H1	fried chicken qatar	Shazin	6 Nov 2026	To do		●																				
+Bonbird	4 Meta + on-page	Pakistan	/pk/ homepage	Title, meta description, H1	fried chicken lahore	Shazin	6 Nov 2026	To do		●																				
+Bonbird	5 City pages	UAE	Dubai	Write content	best fried chicken in dubai	Shazin		Done																						
+Bonbird	5 City pages	UAE	Dubai	Title, meta, H1	best fried chicken in dubai	Shazin	6 Nov 2026	To do		●																				
+Bonbird	5 City pages	UAE	Dubai	Publish + internal links	best fried chicken in dubai	Shazin		Done																						
+Bonbird	5 City pages	UAE	Abu Dhabi	Write content	crispy chicken abu dhabi	Shazin		Done																						
+Bonbird	5 City pages	UAE	Abu Dhabi	Title, meta, H1	crispy chicken abu dhabi	Shazin	6 Nov 2026	To do		●																				
+Bonbird	5 City pages	UAE	Abu Dhabi	Publish + internal links	crispy chicken abu dhabi	Shazin		Done																						
+Bonbird	5 City pages	UAE	Sharjah	Write content	fried chicken sharjah	Shazin		Done																						
+Bonbird	5 City pages	UAE	Sharjah	Title, meta, H1	fried chicken sharjah	Shazin	6 Nov 2026	To do		●																				
+Bonbird	5 City pages	UAE	Sharjah	Publish + internal links	fried chicken sharjah	Shazin		Done																						
+Bonbird	5 City pages	Pakistan	Lahore	Write content	fried chicken lahore	Shazin		Done																						
+Bonbird	5 City pages	Pakistan	Lahore	Title, meta, H1	fried chicken lahore	Shazin	6 Nov 2026	To do		●																				
+Bonbird	5 City pages	Pakistan	Lahore	Publish + internal links	fried chicken lahore	Shazin		Done																						
+Bonbird	5 City pages	Oman	Muscat	Write content	best fried chicken in muscat	Shazin		Done																						
+Bonbird	5 City pages	Oman	Muscat	Title, meta, H1	best fried chicken in muscat	Shazin	6 Nov 2026	To do		●																				
+Bonbird	5 City pages	Oman	Muscat	Publish + internal links	best fried chicken in muscat	Shazin		Done																						
+Bonbird	5 City pages	Oman	Seeb	Write content	restaurants in seeb	Shazin		Done																						
+Bonbird	5 City pages	Oman	Seeb	Title, meta, H1	restaurants in seeb	Shazin	6 Nov 2026	To do		●																				
+Bonbird	5 City pages	Oman	Seeb	Publish + internal links	restaurants in seeb	Shazin		Done																						
+Bonbird	5 City pages	Qatar	Doha	Write content	best fried chicken in doha	Shazin		Done																						
+Bonbird	5 City pages	Qatar	Doha	Title, meta, H1	best fried chicken in doha	Shazin	6 Nov 2026	To do		●																				
+Bonbird	5 City pages	Qatar	Doha	Publish + internal links	best fried chicken in doha	Shazin		Done																						
+Bonbird	6 Venue pages	UAE	Mirdif City Centre	Write content	mirdif city center restaurants	Shazin		Done																						
+Bonbird	6 Venue pages	UAE	Mirdif City Centre	Title, meta, H1 (lead with mall / area name)	mirdif city center restaurants	Developer	13 Nov 2026	To do			●																			
+Bonbird	6 Venue pages	UAE	Mirdif City Centre	Publish + internal links	mirdif city center restaurants	Shazin		Done																						
+Bonbird	6 Venue pages	UAE	City Walk	Write content	city walk restaurants	Shazin		Done																						
+Bonbird	6 Venue pages	UAE	City Walk	Title, meta, H1 (lead with mall / area name)	city walk restaurants	Developer	13 Nov 2026	To do			●																			
+Bonbird	6 Venue pages	UAE	City Walk	Publish + internal links	city walk restaurants	Shazin		Done																						
+Bonbird	6 Venue pages	UAE	Motor City	Write content	motor city restaurants	Shazin		Done																						
+Bonbird	6 Venue pages	UAE	Motor City	Title, meta, H1 (lead with mall / area name)	motor city restaurants	Developer	13 Nov 2026	To do			●																			
+Bonbird	6 Venue pages	UAE	Motor City	Publish + internal links	motor city restaurants	Shazin		Done																						
+Bonbird	6 Venue pages	UAE	Khalifa City	Write content	best fried chicken abu dhabi	Shazin		Done																						
+Bonbird	6 Venue pages	UAE	Khalifa City	Title, meta, H1 (lead with mall / area name)	best fried chicken abu dhabi	Developer	13 Nov 2026	To do			●																			
+Bonbird	6 Venue pages	UAE	Khalifa City	Publish + internal links	best fried chicken abu dhabi	Shazin		Done																						
+Bonbird	6 Venue pages	UAE	Aljada	Write content	aljada restaurants	Shazin		Done																						
+Bonbird	6 Venue pages	UAE	Aljada	Title, meta, H1 (lead with mall / area name)	aljada restaurants	Developer	13 Nov 2026	To do			●																			
+Bonbird	6 Venue pages	UAE	Aljada	Publish + internal links	aljada restaurants	Shazin		Done																						
+Bonbird	6 Venue pages	Pakistan	Cue Cinemas	Write content	restaurants in gulberg lahore	Shazin		Done																						
+Bonbird	6 Venue pages	Pakistan	Cue Cinemas	Title, meta, H1 (lead with mall / area name)	restaurants in gulberg lahore	Shazin	13 Nov 2026	To do			●																			
+Bonbird	6 Venue pages	Pakistan	Cue Cinemas	Publish + internal links	restaurants in gulberg lahore	Shazin		Done																						
+Bonbird	6 Venue pages	Pakistan	Johar Town	Write content	johar town restaurants	Shazin		Done																						
+Bonbird	6 Venue pages	Pakistan	Johar Town	Title, meta, H1 (lead with mall / area name)	johar town restaurants	Shazin	13 Nov 2026	To do			●																			
+Bonbird	6 Venue pages	Pakistan	Johar Town	Publish + internal links	johar town restaurants	Shazin		Done																						
+Bonbird	6 Venue pages	Pakistan	Dolmen Mall	Write content	dolmen mall restaurants	Shazin		Done																						
+Bonbird	6 Venue pages	Pakistan	Dolmen Mall	Title, meta, H1 (lead with mall / area name)	dolmen mall restaurants	Shazin	13 Nov 2026	To do			●																			
+Bonbird	6 Venue pages	Pakistan	Dolmen Mall	Publish + internal links	dolmen mall restaurants	Shazin		Done																						
+Bonbird	6 Venue pages	Oman	Souq Al Madina	Write content	fried chicken muscat	Shazin		Done																						
+Bonbird	6 Venue pages	Oman	Souq Al Madina	Title, meta, H1 (lead with mall / area name)	fried chicken muscat	Shazin	13 Nov 2026	To do			●																			
+Bonbird	6 Venue pages	Oman	Souq Al Madina	Publish + internal links	fried chicken muscat	Shazin		Done																						
+Bonbird	6 Venue pages	Oman	Al Khoudh	Write content	al khoudh restaurants	Shazin		Done																						
+Bonbird	6 Venue pages	Oman	Al Khoudh	Title, meta, H1 (lead with mall / area name)	al khoudh restaurants	Shazin	13 Nov 2026	To do			●																			
+Bonbird	6 Venue pages	Oman	Al Khoudh	Publish + internal links	al khoudh restaurants	Shazin		Done																						
+Bonbird	6 Venue pages	Qatar	West Walk	Write content	west walk restaurants	Shazin		Done																						
+Bonbird	6 Venue pages	Qatar	West Walk	Title, meta, H1 (lead with mall / area name)	west walk restaurants	Shazin	13 Nov 2026	To do			●																			
+Bonbird	6 Venue pages	Qatar	West Walk	Publish + internal links	west walk restaurants	Shazin		Done																						
+Bonbird	6 Venue pages	Qatar	District One	Write content	district one doha	Shazin		Done																						
+Bonbird	6 Venue pages	Qatar	District One	Title, meta, H1 (lead with mall / area name)	district one doha	Shazin	13 Nov 2026	To do			●																			
+Bonbird	6 Venue pages	Qatar	District One	Publish + internal links	district one doha	Shazin		Done																						
+Bonbird	7 Product pages	UAE	Chicken	Optimise content	nashville hot chicken	Shazin	27 Nov 2026	To do					●																	
+Bonbird	7 Product pages	UAE	Chicken	Title, meta, H1	nashville hot chicken	Shazin	27 Nov 2026	To do					●																	
+Bonbird	7 Product pages	UAE	Chicken burger	Optimise content	chicken burger	Shazin	27 Nov 2026	To do					●																	
+Bonbird	7 Product pages	UAE	Chicken burger	Title, meta, H1	chicken burger	Shazin	27 Nov 2026	To do					●																	
+Bonbird	7 Product pages	UAE	Chicken tenders	Optimise content	chicken tenders	Shazin	27 Nov 2026	To do					●																	
+Bonbird	7 Product pages	UAE	Chicken tenders	Title, meta, H1	chicken tenders	Shazin	27 Nov 2026	To do					●																	
+Bonbird	7 Product pages	UAE	Wraps	Optimise content	chicken wrap	Shazin	27 Nov 2026	To do					●																	
+Bonbird	7 Product pages	UAE	Wraps	Title, meta, H1	chicken wrap	Shazin	27 Nov 2026	To do					●																	
+Bonbird	7 Product pages	Oman	Chicken	Write content	nashville hot chicken muscat	Shazin	11 Dec 2026	To do							●															
+Bonbird	7 Product pages	Oman	Chicken	Title, meta, H1	nashville hot chicken muscat	Shazin	11 Dec 2026	To do							●															
+Bonbird	7 Product pages	Oman	Chicken burger	Write content	chicken burger muscat	Shazin	11 Dec 2026	To do							●															
+Bonbird	7 Product pages	Oman	Chicken burger	Title, meta, H1	chicken burger muscat	Shazin	11 Dec 2026	To do							●															
+Bonbird	7 Product pages	Oman	Chicken tenders	Write content	chicken tenders muscat	Shazin	11 Dec 2026	To do							●															
+Bonbird	7 Product pages	Oman	Chicken tenders	Title, meta, H1	chicken tenders muscat	Shazin	11 Dec 2026	To do							●															
+Bonbird	7 Product pages	Oman	Wraps	Write content	chicken wrap muscat	Shazin	11 Dec 2026	To do							●															
+Bonbird	7 Product pages	Oman	Wraps	Title, meta, H1	chicken wrap muscat	Shazin	11 Dec 2026	To do							●															
+Bonbird	7 Product pages	Qatar	Chicken	Write content	nashville hot chicken doha	Shazin	11 Dec 2026	To do							●															
+Bonbird	7 Product pages	Qatar	Chicken	Title, meta, H1	nashville hot chicken doha	Shazin	11 Dec 2026	To do							●															
+Bonbird	7 Product pages	Qatar	Chicken burger	Write content	chicken burger doha	Shazin	11 Dec 2026	To do							●															
+Bonbird	7 Product pages	Qatar	Chicken burger	Title, meta, H1	chicken burger doha	Shazin	11 Dec 2026	To do							●															
+Bonbird	7 Product pages	Qatar	Chicken tenders	Write content	chicken tenders doha	Shazin	11 Dec 2026	To do							●															
+Bonbird	7 Product pages	Qatar	Chicken tenders	Title, meta, H1	chicken tenders doha	Shazin	11 Dec 2026	To do							●															
+Bonbird	7 Product pages	Qatar	Wraps	Write content	chicken wrap doha	Shazin	11 Dec 2026	To do							●															
+Bonbird	7 Product pages	Qatar	Wraps	Title, meta, H1	chicken wrap doha	Shazin	11 Dec 2026	To do							●															
+Bonbird	7 Product pages	Pakistan	Chicken	Write content	nashville hot chicken lahore	Shazin	11 Dec 2026	To do							●															
+Bonbird	7 Product pages	Pakistan	Chicken	Title, meta, H1	nashville hot chicken lahore	Shazin	11 Dec 2026	To do							●															
+Bonbird	7 Product pages	Pakistan	Chicken burger	Write content	chicken burger lahore	Shazin	11 Dec 2026	To do							●															
+Bonbird	7 Product pages	Pakistan	Chicken burger	Title, meta, H1	chicken burger lahore	Shazin	11 Dec 2026	To do							●															
+Bonbird	7 Product pages	Pakistan	Chicken tenders	Write content	chicken tenders lahore	Shazin	11 Dec 2026	To do							●															
+Bonbird	7 Product pages	Pakistan	Chicken tenders	Title, meta, H1	chicken tenders lahore	Shazin	11 Dec 2026	To do							●															
+Bonbird	7 Product pages	Pakistan	Wraps	Write content	chicken wrap lahore	Shazin	11 Dec 2026	To do							●															
+Bonbird	7 Product pages	Pakistan	Wraps	Title, meta, H1	chicken wrap lahore	Shazin	11 Dec 2026	To do							●															
+Bonbird	7 Product pages	UAE	Chicken	Fix title ('Broasted' is wrong)	fried chicken	Shazin	30 Oct 2026	To do	●																					
+Bonbird	7 Product pages	UAE	Chicken	Add Korean chicken range	korean fried chicken dubai	Shazin	4 Dec 2026	To do						●																
+Bonbird	8 Core pages	UAE	Menu	Title, meta, H1	bonbird menu	Shazin	13 Nov 2026	To do			●																			
+Bonbird	8 Core pages	UAE	Locations	Title, meta, H1	bonbird locations	Shazin	13 Nov 2026	To do			●																			
+Bonbird	8 Core pages	UAE	Franchise	Title, meta, H1	fried chicken franchise	Shazin	13 Nov 2026	To do			●																			
+Bonbird	8 Core pages	Oman	Menu	Title, meta, H1	bonbird menu	Shazin	13 Nov 2026	To do			●																			
+Bonbird	8 Core pages	Oman	Locations	Title, meta, H1	bonbird locations	Shazin	13 Nov 2026	To do			●																			
+Bonbird	8 Core pages	Oman	Franchise	Title, meta, H1	fried chicken franchise	Shazin	13 Nov 2026	To do			●																			
+Bonbird	8 Core pages	Qatar	Menu	Title, meta, H1	bonbird menu	Shazin	13 Nov 2026	To do			●																			
+Bonbird	8 Core pages	Qatar	Locations	Title, meta, H1	bonbird locations	Shazin	13 Nov 2026	To do			●																			
+Bonbird	8 Core pages	Qatar	Franchise	Title, meta, H1	fried chicken franchise	Shazin	13 Nov 2026	To do			●																			
+Bonbird	8 Core pages	Pakistan	Menu	Title, meta, H1	bonbird menu	Shazin	13 Nov 2026	To do			●																			
+Bonbird	8 Core pages	Pakistan	Locations	Title, meta, H1	bonbird locations	Shazin	13 Nov 2026	To do			●																			
+Bonbird	8 Core pages	Pakistan	Franchise	Title, meta, H1	fried chicken franchise	Shazin	13 Nov 2026	To do			●																			
+Bonbird	9 Journals	UAE	Nashville hot chicken, explained	Write + publish (Rank chicken page for Nashville)	nashville hot chicken dubai	Nest	6 Nov 2026	To do		●																				
+Bonbird	9 Journals	Qatar	Best fried chicken in Doha	Write + publish (Support Doha page)	best fried chicken in doha	Nest	13 Nov 2026	To do			●																			
+Bonbird	9 Journals	UAE	Korean fried chicken in Dubai	Write + publish (New product search, 1,300/mo)	korean fried chicken dubai	Nest	20 Nov 2026	To do				●																		
+Bonbird	9 Journals	Pakistan	Fast food in Gulberg	Write + publish (Support Cue Cinemas)	fast food in gulberg	Nest	27 Nov 2026	To do					●																	
+Bonbird	9 Journals	Oman	Restaurants in Al Khoudh (Arabic)	Write + publish (Arabic area demand, 1,590/mo)	مطاعم الخوض	Nest	4 Dec 2026	To do						●																
+Bonbird	9 Journals	UAE	Best chicken restaurant in Abu Dhabi	Write + publish (Support Abu Dhabi page)	best chicken restaurant abu dhabi	Nest	11 Dec 2026	To do							●															
+Bonbird	9 Journals	Qatar	Where to eat at West Walk	Write + publish (Support West Walk, 2,400/mo)	west walk restaurants	Nest	18 Dec 2026	To do								●														
+Bonbird	9 Journals	Pakistan	Best chicken burger in Lahore	Write + publish (Support Lahore page)	best chicken burger in lahore	Nest	24 Dec 2026	To do																						
+Bonbird	9 Journals	UAE	Mirdif City Centre food guide	Write + publish (Support Mirdif, 5,400/mo)	mirdif city center restaurants	Nest	8 Jan 2027	To do										●												
+Bonbird	9 Journals	UAE	The XXX Hot challenge	Write + publish (Backlinks + social)	spicy chicken dubai	Nest	15 Jan 2027	To do											●											
+Bonbird	9 Journals	All	Journal	1 journal a week after W2, rotating markets + keyword		Nest	Weekly / ongoing	To do	●	●	●	●	●	●	●	●	●	●	●	●	●	●	●	●	●	●	●	●	●	●
+Bonbird	10 Arabic pages	All	Site	Hreflang ar-* on all Arabic pages		Developer	4 Dec 2026	To do						●																
+Bonbird	10 Arabic pages	UAE	Homepage	Arabic version (content + meta)	مطاعم دجاج	Shazin	22 Jan 2027	To do												●										
+Bonbird	10 Arabic pages	Oman	Homepage	Arabic version (content + meta)	دجاج مقلي مسقط	Shazin	4 Dec 2026	To do						●																
+Bonbird	10 Arabic pages	Qatar	Homepage	Arabic version (content + meta)	دجاج مقلي قطر	Shazin	18 Dec 2026	To do								●														
+Bonbird	10 Arabic pages	UAE	Dubai	Arabic version (content + meta)	مطاعم دبي	Shazin	22 Jan 2027	To do												●										
+Bonbird	10 Arabic pages	UAE	Abu Dhabi	Arabic version (content + meta)	مطاعم ابوظبي	Shazin	22 Jan 2027	To do												●										
+Bonbird	10 Arabic pages	UAE	Sharjah	Arabic version (content + meta)	مطاعم الشارقة	Shazin	22 Jan 2027	To do												●										
+Bonbird	10 Arabic pages	Oman	Muscat	Arabic version (content + meta)	مطاعم مسقط	Shazin	4 Dec 2026	To do						●																
+Bonbird	10 Arabic pages	Oman	Seeb	Arabic version (content + meta)	مطاعم السيب	Shazin	4 Dec 2026	To do						●																
+Bonbird	10 Arabic pages	Qatar	Doha	Arabic version (content + meta)	مطاعم الدوحة	Shazin	18 Dec 2026	To do								●														
+Bonbird	10 Arabic pages	UAE	Mirdif City Centre	Arabic version (content + meta)	مطاعم مردف سيتي سنتر	Shazin	22 Jan 2027	To do												●										
+Bonbird	10 Arabic pages	UAE	City Walk	Arabic version (content + meta)	مطاعم سيتي ووك	Shazin	22 Jan 2027	To do												●										
+Bonbird	10 Arabic pages	UAE	Motor City	Arabic version (content + meta)	مطاعم موتور سيتي (to verify)	Shazin	22 Jan 2027	To do												●										
+Bonbird	10 Arabic pages	UAE	Khalifa City	Arabic version (content + meta)	مطاعم خليفة أ	Shazin	22 Jan 2027	To do												●										
+Bonbird	10 Arabic pages	UAE	Aljada	Arabic version (content + meta)	مطاعم الجادة (to verify)	Shazin	22 Jan 2027	To do												●										
+Bonbird	10 Arabic pages	Oman	Souq Al Madina	Arabic version (content + meta)	to verify	Shazin	4 Dec 2026	To do						●																
+Bonbird	10 Arabic pages	Oman	Al Khoudh	Arabic version (content + meta)	مطاعم الخوض	Shazin	4 Dec 2026	To do						●																
+Bonbird	10 Arabic pages	Qatar	West Walk	Arabic version (content + meta)	مطاعم ويست ووك (to verify)	Shazin	18 Dec 2026	To do								●														
+Bonbird	10 Arabic pages	Qatar	District One	Arabic version (content + meta)	to verify	Shazin	18 Dec 2026	To do								●														
+Bonbird	11 Google profiles	All	Site	Manager access to every branch profile (incl. partner-owned)		Shazin	6 Nov 2026	To do		●																				
+Bonbird	11 Google profiles	All	Site	Weekly post per branch		Shazin	Weekly / ongoing	To do	●	●	●	●	●	●	●	●	●	●	●	●	●	●	●	●	●	●	●	●	●	●
+Bonbird	11 Google profiles	All	Site	Reviews: in-store QR prompt + reply within 48h		Shazin	20 Nov 2026	To do				●																		
+Bonbird	11 Google profiles	All	Site	Delivery app listings optimised (all apps)		Shazin		Done																						
+Bonbird	11 Google profiles	All	Site	NAP consistent on Zomato, delivery apps, mall sites		Shazin	27 Nov 2026	To do					●																	
+Bonbird	11 Google profiles	UAE	Mirdif City Centre	Complete Google profile (categories, menu, photos, hours, Arabic name, order link to venue page)	mirdif city center restaurants	Shazin	13 Nov 2026	To do			●																			
+Bonbird	11 Google profiles	UAE	City Walk	Complete Google profile (categories, menu, photos, hours, Arabic name, order link to venue page)	city walk restaurants	Shazin	13 Nov 2026	To do			●																			
+Bonbird	11 Google profiles	UAE	Motor City	Complete Google profile (categories, menu, photos, hours, Arabic name, order link to venue page)	motor city restaurants	Shazin	13 Nov 2026	To do			●																			
+Bonbird	11 Google profiles	UAE	Khalifa City	Complete Google profile (categories, menu, photos, hours, Arabic name, order link to venue page)	best fried chicken abu dhabi	Shazin	13 Nov 2026	To do			●																			
+Bonbird	11 Google profiles	UAE	Aljada	Complete Google profile (categories, menu, photos, hours, Arabic name, order link to venue page)	aljada restaurants	Shazin	13 Nov 2026	To do			●																			
+Bonbird	11 Google profiles	Pakistan	Cue Cinemas	Complete Google profile (categories, menu, photos, hours, Arabic name, order link to venue page)	restaurants in gulberg lahore	Shazin	4 Dec 2026	To do						●																
+Bonbird	11 Google profiles	Pakistan	Johar Town	Complete Google profile (categories, menu, photos, hours, Arabic name, order link to venue page)	johar town restaurants	Shazin	4 Dec 2026	To do						●																
+Bonbird	11 Google profiles	Pakistan	Dolmen Mall	Complete Google profile (categories, menu, photos, hours, Arabic name, order link to venue page)	dolmen mall restaurants	Shazin	4 Dec 2026	To do						●																
+Bonbird	11 Google profiles	Oman	Souq Al Madina	Complete Google profile (categories, menu, photos, hours, Arabic name, order link to venue page)	fried chicken muscat	Shazin	4 Dec 2026	To do						●																
+Bonbird	11 Google profiles	Oman	Al Khoudh	Complete Google profile (categories, menu, photos, hours, Arabic name, order link to venue page)	al khoudh restaurants	Shazin	4 Dec 2026	To do						●																
+Bonbird	11 Google profiles	Qatar	West Walk	Complete Google profile (categories, menu, photos, hours, Arabic name, order link to venue page)	west walk restaurants	Shazin	4 Dec 2026	To do						●																
+Bonbird	11 Google profiles	Qatar	District One	Complete Google profile (categories, menu, photos, hours, Arabic name, order link to venue page)	district one doha	Shazin	4 Dec 2026	To do						●																
+Bonbird	12 Off-page	All	Site	Outreach list: food lists, press, creators per market		Shazin	13 Nov 2026	To do			●																			
+Bonbird	12 Off-page	All	Site	Placements on 'best of' lists that rank (per market)		Shazin	11 Dec 2026	To do							●															
+Bonbird	12 Off-page	All	Site	Mall + partner sites link to venue pages		Shazin	20 Nov 2026	To do				●																		
+Bonbird	12 Off-page	All	Site	Press: openings, new markets, awards, franchise		Shazin	Weekly / ongoing	To do	●	●	●	●	●	●	●	●	●	●	●	●	●	●	●	●	●	●	●	●	●	●
+Bonbird	12 Off-page	All	Site	Review referring domains, clean up spam links		Shazin	18 Dec 2026	To do								●														
+Bonbird	13 AI search	All	Site	About page listing every market + venue (consistent facts)		Shazin	20 Nov 2026	To do				●																		
+Bonbird	13 AI search	All	Site	FAQ answering AI questions (English + Arabic)		Shazin	4 Dec 2026	To do						●																
+Bonbird	13 AI search	All	Site	Reddit + food creator presence		Shazin	15 Jan 2027	To do											●											
+Bonbird	13 AI search	All	Site	AI visibility check (Semrush)		Shazin	Monthly	To do		●				●				●				●				●				●
+Bonbird	14 Measurement	All	Site	Track Order-button clicks (by venue + app) in GA4		Developer	13 Nov 2026	To do			●																			
+Bonbird	14 Measurement	All	Site	Google profile actions baseline (calls, directions, website)		Shazin	6 Nov 2026	To do		●																				
+Bonbird	14 Measurement	All	Site	SEO scorecard to Steve		Shazin	Monthly	To do		●				●				●				●				●				●
+Bonbird	14 Measurement	All	Site	Decision from Steve: Semrush subscription		Shazin	6 Nov 2026	To do		●																				
+Bonbird	14 Measurement	All	Site	Decision from Steve: developer hours + PR budget		Shazin	13 Nov 2026	To do			●																			
+Pickl	1 Foundations	All	Site	Google Search Console verified (domain property, all markets)		Shazin		Done																						
+Pickl	1 Foundations	All	Site	Keyword research + page map (all markets)		Shazin		Done																						
+Pickl	1 Foundations	All	Site	Semrush rank tracking (English + Arabic)		Shazin		Done																						
+Pickl	1 Foundations	All	Site	Semrush site audit (weekly)		Shazin		Done																						
+Pickl	1 Foundations	All	Site	GA4 recording checked		Shazin	6 Nov 2026	To check		●																				
+Pickl	1 Foundations	All	Site	Bing Webmaster Tools set up		Shazin	13 Nov 2026	To do			●																			
+Pickl	1 Foundations	All	Site	Brand misspellings counted as branded in reporting		Shazin	6 Nov 2026	To do		●																				
+Pickl	1 Foundations	All	Site	Nest config matches the live site (country folders)		Shazin	8 Jan 2027	To do										●												
+Pickl	2 Technical	All	Site	Market taxonomy: one folder per country		Shazin		Done																						
+Pickl	2 Technical	All	Site	City > venue URL structure		Shazin	13 Nov 2026	To do			●																			
+Pickl	2 Technical	All	Site	301 redirects from old URLs (migration)		Shazin	6 Nov 2026	To check		●																				
+Pickl	2 Technical	All	Site	Canonical tags correct		Shazin	6 Nov 2026	In progress		●																				
+Pickl	2 Technical	All	Site	www + https redirect		Shazin	6 Nov 2026	In progress		●																				
+Pickl	2 Technical	All	Site	robots.txt clean		Shazin		Done																						
+Pickl	2 Technical	All	Site	XML sitemap clean (no junk pages)		Shazin	6 Nov 2026	In progress		●																				
+Pickl	2 Technical	All	Site	Speed optimisation desktop		Developer	20 Nov 2026	To check				●																		
+Pickl	2 Technical	All	Site	Speed optimisation mobile		Developer	20 Nov 2026	To check				●																		
+Pickl	2 Technical	All	Site	Fix slow pages flagged in audit		Developer	13 Nov 2026	To do			●																			
+Pickl	2 Technical	All	Site	Internal links: every venue linked from its city page + locations page		Shazin	20 Nov 2026	To do				●																		
+Pickl	2 Technical	All	Site	Fix internal links pointing at redirects		Shazin	6 Nov 2026	To do		●																				
+Pickl	2 Technical	All	Site	Fix duplicate title / H1 pages (Semrush audit)		Shazin	6 Nov 2026	To do		●																				
+Pickl	2 Technical	All	Site	Expand thin pages (low word count, Semrush audit)		Shazin	27 Nov 2026	To do					●																	
+Pickl	2 Technical	All	Site	Fix remaining Semrush audit errors		Shazin	13 Nov 2026	To check			●																			
+Pickl	2 Technical	All	Site	Image alt text + compression		Shazin	20 Nov 2026	To do				●																		
+Pickl	2 Technical	All	Site	Breadcrumbs on city, venue, product pages		Developer	20 Nov 2026	To do				●																		
+Pickl	2 Technical	All	Site	Hreflang between English market sites + x-default		Developer		Done																						
+Pickl	2 Technical	All	Site	llms.txt for AI search		Shazin	6 Nov 2026	To do		●																				
+Pickl	2 Technical	Egypt	Urban Lanes	Fix 404 on live venue page		Shazin	30 Oct 2026	To do	●																					
+Pickl	2 Technical	Kuwait	Kuwait City	Fix live title ('Pickl - Pickl')		Shazin	30 Oct 2026	To do	●																					
+Pickl	2 Technical	Egypt	Hacienda Red	Move off 'see-you-in-sahel' URL + 301		Shazin	13 Nov 2026	To do			●																			
+Pickl	2 Technical	All	Site	Root redirect to /ae/: 302 to 301; http://www in one hop		Developer	6 Nov 2026	To do		●																				
+Pickl	2 Technical	All	Site	Remove old pages from sitemap (/home/, -legacy, old /ksa/ /egypt/ /qatar/, events/games)		Shazin	6 Nov 2026	To do		●																				
+Pickl	3 Schema	All	Site	Organization schema on homepage (every market, socials)		Developer	6 Nov 2026	To do		●																				
+Pickl	3 Schema	All	Site	Restaurant schema on every venue page		Shazin	13 Nov 2026	To do			●																			
+Pickl	3 Schema	All	Site	FAQPage schema on city + venue pages		Shazin	20 Nov 2026	To do				●																		
+Pickl	3 Schema	All	Site	Breadcrumb schema		Developer	20 Nov 2026	To do				●																		
+Pickl	3 Schema	All	Site	Article schema on journal posts		Shazin	13 Nov 2026	To check			●																			
+Pickl	3 Schema	All	Site	Menu schema on menu pages		Developer	4 Dec 2026	To do						●																
+Pickl	4 Meta + on-page	UAE	/ae/ homepage	Title, meta description, H1 (keep 'burger' here)	burger uae	Shazin	6 Nov 2026	To do		●																				
+Pickl	4 Meta + on-page	KSA	/sa/ homepage	Title, meta description, H1 (keep 'burger' here)	burger ksa	Shazin	6 Nov 2026	To do		●																				
+Pickl	4 Meta + on-page	Qatar	/qa/ homepage	Title, meta description, H1 (keep 'burger' here)	burger qatar	Shazin	6 Nov 2026	To do		●																				
+Pickl	4 Meta + on-page	Bahrain	/bh/ homepage	Title, meta description, H1 (keep 'burger' here)	burger bahrain	Shazin	6 Nov 2026	To do		●																				
+Pickl	4 Meta + on-page	Jordan	/jo/ homepage	Title, meta description, H1 (keep 'burger' here)	burger jordan	Shazin	6 Nov 2026	To do		●																				
+Pickl	4 Meta + on-page	Egypt	/eg/ homepage	Title, meta description, H1 (keep 'burger' here)	burger egypt	Shazin	6 Nov 2026	To do		●																				
+Pickl	4 Meta + on-page	Oman	/om/ homepage	Title, meta description, H1 (keep 'burger' here)	burger oman	Shazin	6 Nov 2026	To do		●																				
+Pickl	4 Meta + on-page	Kuwait	/kw/ homepage	Title, meta description, H1 (keep 'burger' here)	burger kuwait	Shazin	6 Nov 2026	To do		●																				
+Pickl	4 Meta + on-page	Iraq	/iq/ homepage	Title, meta description, H1 (keep 'burger' here)	burger iraq	Shazin	6 Nov 2026	To do		●																				
+Pickl	5 City pages	UAE	Abu Dhabi	Write content	best burger in abu dhabi	Shazin		Done (written)																						
+Pickl	5 City pages	UAE	Abu Dhabi	Title, meta, H1	best burger in abu dhabi	Shazin		Done (written)																						
+Pickl	5 City pages	UAE	Abu Dhabi	Publish + internal links	best burger in abu dhabi	Shazin	13 Nov 2026	To do			●																			
+Pickl	5 City pages	UAE	Dubai	Write content	best burger in dubai	Shazin		Done (written)																						
+Pickl	5 City pages	UAE	Dubai	Title, meta, H1	best burger in dubai	Shazin		Done (written)																						
+Pickl	5 City pages	UAE	Dubai	Publish + internal links	best burger in dubai	Shazin	13 Nov 2026	To do			●																			
+Pickl	5 City pages	UAE	Sharjah	Write content	best burger in sharjah	Shazin		Done (written)																						
+Pickl	5 City pages	UAE	Sharjah	Title, meta, H1	best burger in sharjah	Shazin		Done (written)																						
+Pickl	5 City pages	UAE	Sharjah	Publish + internal links	best burger in sharjah	Shazin	13 Nov 2026	To do			●																			
+Pickl	5 City pages	KSA	Riyadh	Write content	best burger in riyadh	Shazin		Done (written)																						
+Pickl	5 City pages	KSA	Riyadh	Title, meta, H1	best burger in riyadh	Shazin		Done (written)																						
+Pickl	5 City pages	KSA	Riyadh	Publish + internal links	best burger in riyadh	Shazin	20 Nov 2026	To do				●																		
+Pickl	5 City pages	Qatar	Qatar Locations	Write content	best burger in qatar	Shazin		Done (written)																						
+Pickl	5 City pages	Qatar	Qatar Locations	Title, meta, H1	best burger in qatar	Shazin		Done (written)																						
+Pickl	5 City pages	Qatar	Qatar Locations	Publish + internal links	best burger in qatar	Shazin	4 Dec 2026	To do						●																
+Pickl	5 City pages	Bahrain	Bahrain Locations	Write content	best burger in bahrain	Shazin		Done (written)																						
+Pickl	5 City pages	Bahrain	Bahrain Locations	Title, meta, H1	best burger in bahrain	Shazin		Done (written)																						
+Pickl	5 City pages	Bahrain	Bahrain Locations	Publish + internal links	best burger in bahrain	Shazin	4 Dec 2026	To do						●																
+Pickl	5 City pages	Jordan	Jordan Locations	Write content	best burger in amman	Shazin		Done (written)																						
+Pickl	5 City pages	Jordan	Jordan Locations	Title, meta, H1	best burger in amman	Shazin		Done (written)																						
+Pickl	5 City pages	Jordan	Jordan Locations	Publish + internal links	best burger in amman	Shazin	11 Dec 2026	To do							●															
+Pickl	5 City pages	Egypt	Cairo	Write content	best burger in cairo	Shazin		Done (written)																						
+Pickl	5 City pages	Egypt	Cairo	Title, meta, H1	best burger in cairo	Shazin		Done (written)																						
+Pickl	5 City pages	Egypt	Cairo	Publish + internal links	best burger in cairo	Shazin	27 Nov 2026	To do					●																	
+Pickl	5 City pages	Oman	Oman Locations	Write content	best burger in muscat	Shazin		Done (written)																						
+Pickl	5 City pages	Oman	Oman Locations	Title, meta, H1	best burger in muscat	Shazin		Done (written)																						
+Pickl	5 City pages	Oman	Oman Locations	Publish + internal links	best burger in muscat	Shazin	11 Dec 2026	To do							●															
+Pickl	5 City pages	Kuwait	Kuwait Locations	Write content	best burger in kuwait	Shazin		Done (written)																						
+Pickl	5 City pages	Kuwait	Kuwait Locations	Title, meta, H1	best burger in kuwait	Shazin		Done (written)																						
+Pickl	5 City pages	Kuwait	Kuwait Locations	Publish + internal links	best burger in kuwait	Shazin	18 Dec 2026	To do								●														
+Pickl	5 City pages	Iraq	Iraq Locations	Write content	best burger in baghdad	Shazin		Done (written)																						
+Pickl	5 City pages	Iraq	Iraq Locations	Title, meta, H1	best burger in baghdad	Shazin		Done (written)																						
+Pickl	5 City pages	Iraq	Iraq Locations	Publish + internal links	best burger in baghdad	Shazin	18 Dec 2026	To do								●														
+Pickl	5 City pages	All	City pages	Build city page template (city links currently bounce to market homepage)		Developer	6 Nov 2026	To do		●																				
+Pickl	6 Venue pages	UAE	Al Ain	Write content	restaurants in al ain	Shazin		Done (written)																						
+Pickl	6 Venue pages	UAE	Al Ain	Title, meta, H1	restaurants in al ain	Shazin		Done (written)																						
+Pickl	6 Venue pages	UAE	Al Ain	Publish + internal links	restaurants in al ain	Shazin	13 Nov 2026	To do			●																			
+Pickl	6 Venue pages	UAE	Al Hirah Beach	Write content	al heera beach	Shazin		Done (written)																						
+Pickl	6 Venue pages	UAE	Al Hirah Beach	Title, meta, H1	al heera beach	Shazin		Done (written)																						
+Pickl	6 Venue pages	UAE	Al Hirah Beach	Publish + internal links	al heera beach	Shazin	13 Nov 2026	To do			●																			
+Pickl	6 Venue pages	UAE	Al Safa	Write content	pickl al safa	Shazin		Done (written)																						
+Pickl	6 Venue pages	UAE	Al Safa	Title, meta, H1	pickl al safa	Shazin		Done (written)																						
+Pickl	6 Venue pages	UAE	Al Safa	Publish + internal links	pickl al safa	Shazin	13 Nov 2026	To do			●																			
+Pickl	6 Venue pages	UAE	Aljada	Write content	muwaileh restaurants	Shazin		Done (written)																						
+Pickl	6 Venue pages	UAE	Aljada	Title, meta, H1	muwaileh restaurants	Shazin		Done (written)																						
+Pickl	6 Venue pages	UAE	Aljada	Publish + internal links	muwaileh restaurants	Shazin	13 Nov 2026	To do			●																			
+Pickl	6 Venue pages	UAE	City Walk	Write content	city walk dubai restaurants	Shazin		Done (written)																						
+Pickl	6 Venue pages	UAE	City Walk	Title, meta, H1	city walk dubai restaurants	Shazin		Done (written)																						
+Pickl	6 Venue pages	UAE	City Walk	Publish + internal links	city walk dubai restaurants	Shazin	13 Nov 2026	To do			●																			
+Pickl	6 Venue pages	UAE	Corniche Wtc	Write content	wtc restaurants	Shazin		Done (written)																						
+Pickl	6 Venue pages	UAE	Corniche Wtc	Title, meta, H1	wtc restaurants	Shazin		Done (written)																						
+Pickl	6 Venue pages	UAE	Corniche Wtc	Publish + internal links	wtc restaurants	Shazin	13 Nov 2026	To do			●																			
+Pickl	6 Venue pages	UAE	Jbr	Write content	jbr restaurants	Shazin		Done (written)																						
+Pickl	6 Venue pages	UAE	Jbr	Title, meta, H1	jbr restaurants	Shazin		Done (written)																						
+Pickl	6 Venue pages	UAE	Jbr	Publish + internal links	jbr restaurants	Shazin	13 Nov 2026	To do			●																			
+Pickl	6 Venue pages	UAE	Khalifa City	Write content	restaurants in khalifa city	Shazin		Done (written)																						
+Pickl	6 Venue pages	UAE	Khalifa City	Title, meta, H1	restaurants in khalifa city	Shazin		Done (written)																						
+Pickl	6 Venue pages	UAE	Khalifa City	Publish + internal links	restaurants in khalifa city	Shazin	13 Nov 2026	To do			●																			
+Pickl	6 Venue pages	UAE	Lagoon Stop Rak	Write content	mina al arab restaurants	Shazin		Done (written)																						
+Pickl	6 Venue pages	UAE	Lagoon Stop Rak	Title, meta, H1	mina al arab restaurants	Shazin		Done (written)																						
+Pickl	6 Venue pages	UAE	Lagoon Stop Rak	Publish + internal links	mina al arab restaurants	Shazin	13 Nov 2026	To do			●																			
+Pickl	6 Venue pages	UAE	Madinat Badr	Write content	muhaisnah restaurants	Shazin		Done (written)																						
+Pickl	6 Venue pages	UAE	Madinat Badr	Title, meta, H1	muhaisnah restaurants	Shazin		Done (written)																						
+Pickl	6 Venue pages	UAE	Madinat Badr	Publish + internal links	muhaisnah restaurants	Shazin	13 Nov 2026	To do			●																			
+Pickl	6 Venue pages	UAE	Mamsha Al Saadiyat	Write content	mamsha al saadiyat	Shazin		Done (written)																						
+Pickl	6 Venue pages	UAE	Mamsha Al Saadiyat	Title, meta, H1	mamsha al saadiyat	Shazin		Done (written)																						
+Pickl	6 Venue pages	UAE	Mamsha Al Saadiyat	Publish + internal links	mamsha al saadiyat	Shazin	13 Nov 2026	To do			●																			
+Pickl	6 Venue pages	UAE	Mirdif City Centre	Write content	mirdif city center restaurants	Shazin		Done (written)																						
+Pickl	6 Venue pages	UAE	Mirdif City Centre	Title, meta, H1	mirdif city center restaurants	Shazin		Done (written)																						
+Pickl	6 Venue pages	UAE	Mirdif City Centre	Publish + internal links	mirdif city center restaurants	Shazin	13 Nov 2026	To do			●																			
+Pickl	6 Venue pages	UAE	Motor City	Write content	motor city restaurants	Shazin		Done (written)																						
+Pickl	6 Venue pages	UAE	Motor City	Title, meta, H1	motor city restaurants	Shazin		Done (written)																						
+Pickl	6 Venue pages	UAE	Motor City	Publish + internal links	motor city restaurants	Shazin	13 Nov 2026	To do			●																			
+Pickl	6 Venue pages	UAE	One Jlt	Write content	jlt restaurants	Shazin		Done (written)																						
+Pickl	6 Venue pages	UAE	One Jlt	Title, meta, H1	jlt restaurants	Shazin		Done (written)																						
+Pickl	6 Venue pages	UAE	One Jlt	Publish + internal links	jlt restaurants	Shazin	13 Nov 2026	To do			●																			
+Pickl	6 Venue pages	KSA	Al Hamra	Write content	al hamra restaurants	Shazin		Done (written)																						
+Pickl	6 Venue pages	KSA	Al Hamra	Title, meta, H1	al hamra restaurants	Shazin		Done (written)																						
+Pickl	6 Venue pages	KSA	Al Hamra	Publish + internal links	al hamra restaurants	Shazin	20 Nov 2026	To do				●																		
+Pickl	6 Venue pages	KSA	Al Malqa	Write content	restaurants in al malqa	Shazin		Done (written)																						
+Pickl	6 Venue pages	KSA	Al Malqa	Title, meta, H1	restaurants in al malqa	Shazin		Done (written)																						
+Pickl	6 Venue pages	KSA	Al Malqa	Publish + internal links	restaurants in al malqa	Shazin	20 Nov 2026	To do				●																		
+Pickl	6 Venue pages	KSA	Al Nakheel Mall	Write content	nakheel mall restaurants	Shazin		Done (written)																						
+Pickl	6 Venue pages	KSA	Al Nakheel Mall	Title, meta, H1	nakheel mall restaurants	Shazin		Done (written)																						
+Pickl	6 Venue pages	KSA	Al Nakheel Mall	Publish + internal links	nakheel mall restaurants	Shazin	20 Nov 2026	To do				●																		
+Pickl	6 Venue pages	KSA	U Walk	Write content	restaurants in u walk	Shazin		Done (written)																						
+Pickl	6 Venue pages	KSA	U Walk	Title, meta, H1	restaurants in u walk	Shazin		Done (written)																						
+Pickl	6 Venue pages	KSA	U Walk	Publish + internal links	restaurants in u walk	Shazin	20 Nov 2026	To do				●																		
+Pickl	6 Venue pages	Qatar	District One	Write content	district one restaurants	Shazin		Done (written)																						
+Pickl	6 Venue pages	Qatar	District One	Title, meta, H1	district one restaurants	Shazin		Done (written)																						
+Pickl	6 Venue pages	Qatar	District One	Publish + internal links	district one restaurants	Shazin	4 Dec 2026	To do						●																
+Pickl	6 Venue pages	Qatar	Lusail Boulevard	Write content	lusail restaurants	Shazin		Done (written)																						
+Pickl	6 Venue pages	Qatar	Lusail Boulevard	Title, meta, H1	lusail restaurants	Shazin		Done (written)																						
+Pickl	6 Venue pages	Qatar	Lusail Boulevard	Publish + internal links	lusail restaurants	Shazin	4 Dec 2026	To do						●																
+Pickl	6 Venue pages	Qatar	West Walk	Write content	west walk restaurants	Shazin		Done (written)																						
+Pickl	6 Venue pages	Qatar	West Walk	Title, meta, H1	west walk restaurants	Shazin		Done (written)																						
+Pickl	6 Venue pages	Qatar	West Walk	Publish + internal links	west walk restaurants	Shazin	4 Dec 2026	To do						●																
+Pickl	6 Venue pages	Bahrain	Al Aali Mall	Write content	seef restaurants	Shazin		Done (written)																						
+Pickl	6 Venue pages	Bahrain	Al Aali Mall	Title, meta, H1	seef restaurants	Shazin		Done (written)																						
+Pickl	6 Venue pages	Bahrain	Al Aali Mall	Publish + internal links	seef restaurants	Shazin	4 Dec 2026	To do						●																
+Pickl	6 Venue pages	Bahrain	Al Riffa	Write content	restaurants in riffa	Shazin		Done (written)																						
+Pickl	6 Venue pages	Bahrain	Al Riffa	Title, meta, H1	restaurants in riffa	Shazin		Done (written)																						
+Pickl	6 Venue pages	Bahrain	Al Riffa	Publish + internal links	restaurants in riffa	Shazin	4 Dec 2026	To do						●																
+Pickl	6 Venue pages	Bahrain	Sama Bay	Write content	sama bay restaurants	Shazin		Done (written)																						
+Pickl	6 Venue pages	Bahrain	Sama Bay	Title, meta, H1	sama bay restaurants	Shazin		Done (written)																						
+Pickl	6 Venue pages	Bahrain	Sama Bay	Publish + internal links	sama bay restaurants	Shazin	4 Dec 2026	To do						●																
+Pickl	6 Venue pages	Jordan	Via Amman	Write content	via amman restaurants	Shazin		Done (written)																						
+Pickl	6 Venue pages	Jordan	Via Amman	Title, meta, H1	via amman restaurants	Shazin		Done (written)																						
+Pickl	6 Venue pages	Jordan	Via Amman	Publish + internal links	via amman restaurants	Shazin	11 Dec 2026	To do							●															
+Pickl	6 Venue pages	Jordan	Vista 4	Write content	restaurants in abdoun	Shazin		Done (written)																						
+Pickl	6 Venue pages	Jordan	Vista 4	Title, meta, H1	restaurants in abdoun	Shazin		Done (written)																						
+Pickl	6 Venue pages	Jordan	Vista 4	Publish + internal links	restaurants in abdoun	Shazin	11 Dec 2026	To do							●															
+Pickl	6 Venue pages	Egypt	Al Alamein	Write content	new alamein restaurants	Shazin		Done (written)																						
+Pickl	6 Venue pages	Egypt	Al Alamein	Title, meta, H1	new alamein restaurants	Shazin		Done (written)																						
+Pickl	6 Venue pages	Egypt	Al Alamein	Publish + internal links	new alamein restaurants	Shazin	27 Nov 2026	To do					●																	
+Pickl	6 Venue pages	Egypt	Hacienda Red	Write content	hacienda red restaurants	Shazin		Done (written)																						
+Pickl	6 Venue pages	Egypt	Hacienda Red	Title, meta, H1	hacienda red restaurants	Shazin		Done (written)																						
+Pickl	6 Venue pages	Egypt	Hacienda Red	Publish + internal links	hacienda red restaurants	Shazin	27 Nov 2026	To do					●																	
+Pickl	6 Venue pages	Egypt	Hyde Park	Write content	hyde park new cairo restaurants	Shazin		Done (written)																						
+Pickl	6 Venue pages	Egypt	Hyde Park	Title, meta, H1	hyde park new cairo restaurants	Shazin		Done (written)																						
+Pickl	6 Venue pages	Egypt	Hyde Park	Publish + internal links	hyde park new cairo restaurants	Shazin	27 Nov 2026	To do					●																	
+Pickl	6 Venue pages	Egypt	Madinaty	Write content	madinaty restaurants	Shazin		Done (written)																						
+Pickl	6 Venue pages	Egypt	Madinaty	Title, meta, H1	madinaty restaurants	Shazin		Done (written)																						
+Pickl	6 Venue pages	Egypt	Madinaty	Publish + internal links	madinaty restaurants	Shazin	27 Nov 2026	To do					●																	
+Pickl	6 Venue pages	Egypt	Mall Of Egypt	Write content	mall of egypt restaurants	Shazin		Done (written)																						
+Pickl	6 Venue pages	Egypt	Mall Of Egypt	Title, meta, H1	mall of egypt restaurants	Shazin		Done (written)																						
+Pickl	6 Venue pages	Egypt	Mall Of Egypt	Publish + internal links	mall of egypt restaurants	Shazin	27 Nov 2026	To do					●																	
+Pickl	6 Venue pages	Egypt	North Lanes	Write content	north lanes restaurants	Shazin		Done (written)																						
+Pickl	6 Venue pages	Egypt	North Lanes	Title, meta, H1	north lanes restaurants	Shazin		Done (written)																						
+Pickl	6 Venue pages	Egypt	North Lanes	Publish + internal links	north lanes restaurants	Shazin	27 Nov 2026	To do					●																	
+Pickl	6 Venue pages	Egypt	Park St East	Write content	new cairo restaurants	Shazin		Done (written)																						
+Pickl	6 Venue pages	Egypt	Park St East	Title, meta, H1	new cairo restaurants	Shazin		Done (written)																						
+Pickl	6 Venue pages	Egypt	Park St East	Publish + internal links	new cairo restaurants	Shazin	27 Nov 2026	To do					●																	
+Pickl	6 Venue pages	Egypt	Park Street West	Write content	sheikh zayed restaurants	Shazin		Done (written)																						
+Pickl	6 Venue pages	Egypt	Park Street West	Title, meta, H1	sheikh zayed restaurants	Shazin		Done (written)																						
+Pickl	6 Venue pages	Egypt	Park Street West	Publish + internal links	sheikh zayed restaurants	Shazin	27 Nov 2026	To do					●																	
+Pickl	6 Venue pages	Egypt	Playa Seashell	Write content	seashell north coast restaurants	Shazin		Done (written)																						
+Pickl	6 Venue pages	Egypt	Playa Seashell	Title, meta, H1	seashell north coast restaurants	Shazin		Done (written)																						
+Pickl	6 Venue pages	Egypt	Playa Seashell	Publish + internal links	seashell north coast restaurants	Shazin	27 Nov 2026	To do					●																	
+Pickl	6 Venue pages	Egypt	Urban Lanes	Write content	eastlane restaurants	Shazin		Done (written)																						
+Pickl	6 Venue pages	Egypt	Urban Lanes	Title, meta, H1	eastlane restaurants	Shazin		Done (written)																						
+Pickl	6 Venue pages	Egypt	Urban Lanes	Publish + internal links	eastlane restaurants	Shazin	27 Nov 2026	To do					●																	
+Pickl	6 Venue pages	Oman	Souq Al Madina	Write content	souq al madina restaurants	Shazin		Done (written)																						
+Pickl	6 Venue pages	Oman	Souq Al Madina	Title, meta, H1	souq al madina restaurants	Shazin		Done (written)																						
+Pickl	6 Venue pages	Oman	Souq Al Madina	Publish + internal links	souq al madina restaurants	Shazin	11 Dec 2026	To do							●															
+Pickl	6 Venue pages	Kuwait	Kuwait City	Write content	pickl kuwait opening	Shazin		Done (written)																						
+Pickl	6 Venue pages	Kuwait	Kuwait City	Title, meta, H1	pickl kuwait opening	Shazin		Done (written)																						
+Pickl	6 Venue pages	Kuwait	Kuwait City	Publish + internal links	pickl kuwait opening	Shazin	18 Dec 2026	To do								●														
+Pickl	6 Venue pages	Iraq	Iraq Gates	Write content	iraq gates restaurants	Shazin		Done (written)																						
+Pickl	6 Venue pages	Iraq	Iraq Gates	Title, meta, H1	iraq gates restaurants	Shazin		Done (written)																						
+Pickl	6 Venue pages	Iraq	Iraq Gates	Publish + internal links	iraq gates restaurants	Shazin	18 Dec 2026	To do								●														
+Pickl	6 Venue pages	Iraq	Iraq Mall	Write content	iraq mall restaurants	Shazin		Done (written)																						
+Pickl	6 Venue pages	Iraq	Iraq Mall	Title, meta, H1	iraq mall restaurants	Shazin		Done (written)																						
+Pickl	6 Venue pages	Iraq	Iraq Mall	Publish + internal links	iraq mall restaurants	Shazin	18 Dec 2026	To do								●														
+Pickl	7 Product pages	UAE	Smash burger	Write content	smash burger	Shazin	8 Jan 2027	To do										●												
+Pickl	7 Product pages	UAE	Smash burger	Title, meta, H1	smash burger	Shazin	8 Jan 2027	To do										●												
+Pickl	7 Product pages	UAE	Plant-based	Write content	plant based burger	Shazin	8 Jan 2027	To do										●												
+Pickl	7 Product pages	UAE	Plant-based	Title, meta, H1	plant based burger	Shazin	8 Jan 2027	To do										●												
+Pickl	7 Product pages	KSA	Smash burger	Write content	smash burger ksa	Shazin	8 Jan 2027	To do										●												
+Pickl	7 Product pages	KSA	Smash burger	Title, meta, H1	smash burger ksa	Shazin	8 Jan 2027	To do										●												
+Pickl	7 Product pages	KSA	Plant-based	Write content	plant based burger ksa	Shazin	8 Jan 2027	To do										●												
+Pickl	7 Product pages	KSA	Plant-based	Title, meta, H1	plant based burger ksa	Shazin	8 Jan 2027	To do										●												
+Pickl	7 Product pages	Egypt	Smash burger	Write content	smash burger egypt	Shazin	8 Jan 2027	To do										●												
+Pickl	7 Product pages	Egypt	Smash burger	Title, meta, H1	smash burger egypt	Shazin	8 Jan 2027	To do										●												
+Pickl	7 Product pages	Egypt	Plant-based	Write content	plant based burger egypt	Shazin	8 Jan 2027	To do										●												
+Pickl	7 Product pages	Egypt	Plant-based	Title, meta, H1	plant based burger egypt	Shazin	8 Jan 2027	To do										●												
+Pickl	8 Core pages	UAE	Menu	Title, meta, H1	pickl menu	Shazin	13 Nov 2026	To do			●																			
+Pickl	8 Core pages	UAE	Locations	Title, meta, H1	pickl locations	Shazin	13 Nov 2026	To do			●																			
+Pickl	8 Core pages	UAE	Franchise	Title, meta, H1	burger franchise	Shazin	13 Nov 2026	To do			●																			
+Pickl	8 Core pages	KSA	Menu	Title, meta, H1	pickl menu	Shazin	13 Nov 2026	To do			●																			
+Pickl	8 Core pages	KSA	Locations	Title, meta, H1	pickl locations	Shazin	13 Nov 2026	To do			●																			
+Pickl	8 Core pages	KSA	Franchise	Title, meta, H1	burger franchise	Shazin	13 Nov 2026	To do			●																			
+Pickl	8 Core pages	Qatar	Menu	Title, meta, H1	pickl menu	Shazin	13 Nov 2026	To do			●																			
+Pickl	8 Core pages	Qatar	Locations	Title, meta, H1	pickl locations	Shazin	13 Nov 2026	To do			●																			
+Pickl	8 Core pages	Qatar	Franchise	Title, meta, H1	burger franchise	Shazin	13 Nov 2026	To do			●																			
+Pickl	8 Core pages	Bahrain	Menu	Title, meta, H1	pickl menu	Shazin	13 Nov 2026	To do			●																			
+Pickl	8 Core pages	Bahrain	Locations	Title, meta, H1	pickl locations	Shazin	13 Nov 2026	To do			●																			
+Pickl	8 Core pages	Bahrain	Franchise	Title, meta, H1	burger franchise	Shazin	13 Nov 2026	To do			●																			
+Pickl	8 Core pages	Jordan	Menu	Title, meta, H1	pickl menu	Shazin	13 Nov 2026	To do			●																			
+Pickl	8 Core pages	Jordan	Locations	Title, meta, H1	pickl locations	Shazin	13 Nov 2026	To do			●																			
+Pickl	8 Core pages	Jordan	Franchise	Title, meta, H1	burger franchise	Shazin	13 Nov 2026	To do			●																			
+Pickl	8 Core pages	Egypt	Menu	Title, meta, H1	pickl menu	Shazin	13 Nov 2026	To do			●																			
+Pickl	8 Core pages	Egypt	Locations	Title, meta, H1	pickl locations	Shazin	13 Nov 2026	To do			●																			
+Pickl	8 Core pages	Egypt	Franchise	Title, meta, H1	burger franchise	Shazin	13 Nov 2026	To do			●																			
+Pickl	8 Core pages	Oman	Menu	Title, meta, H1	pickl menu	Shazin	13 Nov 2026	To do			●																			
+Pickl	8 Core pages	Oman	Locations	Title, meta, H1	pickl locations	Shazin	13 Nov 2026	To do			●																			
+Pickl	8 Core pages	Oman	Franchise	Title, meta, H1	burger franchise	Shazin	13 Nov 2026	To do			●																			
+Pickl	8 Core pages	Kuwait	Menu	Title, meta, H1	pickl menu	Shazin	13 Nov 2026	To do			●																			
+Pickl	8 Core pages	Kuwait	Locations	Title, meta, H1	pickl locations	Shazin	13 Nov 2026	To do			●																			
+Pickl	8 Core pages	Kuwait	Franchise	Title, meta, H1	burger franchise	Shazin	13 Nov 2026	To do			●																			
+Pickl	8 Core pages	Iraq	Menu	Title, meta, H1	pickl menu	Shazin	13 Nov 2026	To do			●																			
+Pickl	8 Core pages	Iraq	Locations	Title, meta, H1	pickl locations	Shazin	13 Nov 2026	To do			●																			
+Pickl	8 Core pages	Iraq	Franchise	Title, meta, H1	burger franchise	Shazin	13 Nov 2026	To do			●																			
+Pickl	9 Journals	All	Journal setup	Split journal by market like Bonbird (/xx/journal/ per market, posts tagged to a market)	Blocks market journals	Developer	6 Nov 2026	To do		●																				
+Pickl	9 Journals	All	Journal setup	Assign existing journal posts to their market + redirect old URLs		Shazin	6 Nov 2026	To do		●																				
+Pickl	9 Journals	UAE	Time Out Best Burger story	Write + publish (journal entry press: backlinks + brand searches)	best burger in dubai	Nest	13 Nov 2026	To do			●																			
+Pickl	9 Journals	KSA	Pickl in Riyadh	Write + publish (journal entry press: backlinks + brand searches)	افضل برجر بالرياض	Nest	20 Nov 2026	To do				●																		
+Pickl	9 Journals	Egypt	Pickl in New Cairo	Write + publish (journal entry press: backlinks + brand searches)	مطاعم التجمع الخامس	Nest	27 Nov 2026	To do					●																	
+Pickl	9 Journals	Qatar	Pickl at Lusail Boulevard	Write + publish (journal entry press: backlinks + brand searches)	best burger in doha	Nest	4 Dec 2026	To do						●																
+Pickl	9 Journals	Bahrain	Pickl in Riffa	Write + publish (journal entry press: backlinks + brand searches)	restaurants in riffa	Nest	11 Dec 2026	To do							●															
+Pickl	9 Journals	Oman	Pickl in Muscat	Write + publish (journal entry press: backlinks + brand searches)	best burger in muscat	Nest	18 Dec 2026	To do								●														
+Pickl	9 Journals	Jordan	Pickl in Amman	Write + publish (journal entry press: backlinks + brand searches)	best burger in amman	Nest	25 Dec 2026	To do									●													
+Pickl	9 Journals	Kuwait	Pickl opens in Kuwait	Write + publish (journal entry press: backlinks + brand searches)	pickl kuwait	Nest	24 Dec 2026	To do																						
+Pickl	9 Journals	Iraq	Pickl opens in Baghdad	Write + publish (journal entry press: backlinks + brand searches)	pickl iraq	Nest	15 Jan 2027	To do											●											
+Pickl	9 Journals	All	Journal	1 journal a week after W2, rotating markets + keyword		Nest	Weekly / ongoing	To do	●	●	●	●	●	●	●	●	●	●	●	●	●	●	●	●	●	●	●	●	●	●
+Pickl	10 Arabic pages	All	Site	Hreflang ar-* on all Arabic pages		Developer	15 Jan 2027	To do											●											
+Pickl	10 Arabic pages	UAE	Homepage	Arabic version (content + meta)	برجر	Shazin	5 Mar 2027	To do																		●				
+Pickl	10 Arabic pages	KSA	Homepage	Arabic version (content + meta)	برجر	Shazin	15 Jan 2027	To do											●											
+Pickl	10 Arabic pages	Qatar	Homepage	Arabic version (content + meta)	برجر	Shazin	29 Jan 2027	To do													●									
+Pickl	10 Arabic pages	Bahrain	Homepage	Arabic version (content + meta)	برجر	Shazin	5 Feb 2027	In progress														●								
+Pickl	10 Arabic pages	Jordan	Homepage	Arabic version (content + meta)	برجر	Shazin	19 Feb 2027	To do																●						
+Pickl	10 Arabic pages	Egypt	Homepage	Arabic version (content + meta)	برجر	Shazin	22 Jan 2027	To do												●										
+Pickl	10 Arabic pages	Oman	Homepage	Arabic version (content + meta)	برجر	Shazin	12 Feb 2027	To do															●							
+Pickl	10 Arabic pages	Kuwait	Homepage	Arabic version (content + meta)	برجر	Shazin	26 Feb 2027	To do																	●					
+Pickl	10 Arabic pages	Iraq	Homepage	Arabic version (content + meta)	برجر	Shazin	26 Feb 2027	To do																	●					
+Pickl	10 Arabic pages	UAE	Abu Dhabi	Arabic version (content + meta)	Arabic of: best burger in abu dhabi	Shazin	5 Mar 2027	To do																		●				
+Pickl	10 Arabic pages	UAE	Dubai	Arabic version (content + meta)	Arabic of: best burger in dubai	Shazin	5 Mar 2027	To do																		●				
+Pickl	10 Arabic pages	UAE	Sharjah	Arabic version (content + meta)	Arabic of: best burger in sharjah	Shazin	5 Mar 2027	To do																		●				
+Pickl	10 Arabic pages	UAE	Al Ain	Arabic version (content + meta)	Arabic of: restaurants in al ain	Shazin	5 Mar 2027	To do																		●				
+Pickl	10 Arabic pages	UAE	Al Hirah Beach	Arabic version (content + meta)	Arabic of: al heera beach	Shazin	5 Mar 2027	To do																		●				
+Pickl	10 Arabic pages	UAE	Al Safa	Arabic version (content + meta)	Arabic of: pickl al safa	Shazin	5 Mar 2027	To do																		●				
+Pickl	10 Arabic pages	UAE	Aljada	Arabic version (content + meta)	Arabic of: muwaileh restaurants	Shazin	5 Mar 2027	To do																		●				
+Pickl	10 Arabic pages	UAE	City Walk	Arabic version (content + meta)	Arabic of: city walk dubai restaurants	Shazin	5 Mar 2027	To do																		●				
+Pickl	10 Arabic pages	UAE	Corniche Wtc	Arabic version (content + meta)	Arabic of: wtc restaurants	Shazin	5 Mar 2027	To do																		●				
+Pickl	10 Arabic pages	UAE	Jbr	Arabic version (content + meta)	Arabic of: jbr restaurants	Shazin	5 Mar 2027	To do																		●				
+Pickl	10 Arabic pages	UAE	Khalifa City	Arabic version (content + meta)	Arabic of: restaurants in khalifa city	Shazin	5 Mar 2027	To do																		●				
+Pickl	10 Arabic pages	UAE	Lagoon Stop Rak	Arabic version (content + meta)	Arabic of: mina al arab restaurants	Shazin	5 Mar 2027	To do																		●				
+Pickl	10 Arabic pages	UAE	Madinat Badr	Arabic version (content + meta)	Arabic of: muhaisnah restaurants	Shazin	5 Mar 2027	To do																		●				
+Pickl	10 Arabic pages	UAE	Mamsha Al Saadiyat	Arabic version (content + meta)	Arabic of: mamsha al saadiyat	Shazin	5 Mar 2027	To do																		●				
+Pickl	10 Arabic pages	UAE	Mirdif City Centre	Arabic version (content + meta)	Arabic of: mirdif city center restaurants	Shazin	5 Mar 2027	To do																		●				
+Pickl	10 Arabic pages	UAE	Motor City	Arabic version (content + meta)	Arabic of: motor city restaurants	Shazin	5 Mar 2027	To do																		●				
+Pickl	10 Arabic pages	UAE	One Jlt	Arabic version (content + meta)	Arabic of: jlt restaurants	Shazin	5 Mar 2027	To do																		●				
+Pickl	10 Arabic pages	KSA	Riyadh	Arabic version (content + meta)	Arabic of: best burger in riyadh	Shazin	15 Jan 2027	To do											●											
+Pickl	10 Arabic pages	KSA	Al Hamra	Arabic version (content + meta)	Arabic of: al hamra restaurants	Shazin	15 Jan 2027	To do											●											
+Pickl	10 Arabic pages	KSA	Al Malqa	Arabic version (content + meta)	Arabic of: restaurants in al malqa	Shazin	15 Jan 2027	To do											●											
+Pickl	10 Arabic pages	KSA	Al Nakheel Mall	Arabic version (content + meta)	Arabic of: nakheel mall restaurants	Shazin	15 Jan 2027	To do											●											
+Pickl	10 Arabic pages	KSA	U Walk	Arabic version (content + meta)	Arabic of: restaurants in u walk	Shazin	15 Jan 2027	To do											●											
+Pickl	10 Arabic pages	Qatar	Qatar Locations	Arabic version (content + meta)	Arabic of: best burger in qatar	Shazin	29 Jan 2027	To do													●									
+Pickl	10 Arabic pages	Qatar	District One	Arabic version (content + meta)	Arabic of: district one restaurants	Shazin	29 Jan 2027	To do													●									
+Pickl	10 Arabic pages	Qatar	Lusail Boulevard	Arabic version (content + meta)	Arabic of: lusail restaurants	Shazin	29 Jan 2027	To do													●									
+Pickl	10 Arabic pages	Qatar	West Walk	Arabic version (content + meta)	Arabic of: west walk restaurants	Shazin	29 Jan 2027	To do													●									
+Pickl	10 Arabic pages	Bahrain	Bahrain Locations	Arabic version (content + meta)	Arabic of: best burger in bahrain	Shazin	5 Feb 2027	To do														●								
+Pickl	10 Arabic pages	Bahrain	Al Aali Mall	Arabic version (content + meta)	Arabic of: seef restaurants	Shazin	5 Feb 2027	To do														●								
+Pickl	10 Arabic pages	Bahrain	Al Riffa	Arabic version (content + meta)	Arabic of: restaurants in riffa	Shazin	5 Feb 2027	To do														●								
+Pickl	10 Arabic pages	Bahrain	Sama Bay	Arabic version (content + meta)	Arabic of: sama bay restaurants	Shazin	5 Feb 2027	To do														●								
+Pickl	10 Arabic pages	Jordan	Jordan Locations	Arabic version (content + meta)	Arabic of: best burger in amman	Shazin	19 Feb 2027	To do																●						
+Pickl	10 Arabic pages	Jordan	Via Amman	Arabic version (content + meta)	Arabic of: via amman restaurants	Shazin	19 Feb 2027	To do																●						
+Pickl	10 Arabic pages	Jordan	Vista 4	Arabic version (content + meta)	Arabic of: restaurants in abdoun	Shazin	19 Feb 2027	To do																●						
+Pickl	10 Arabic pages	Egypt	Cairo	Arabic version (content + meta)	Arabic of: best burger in cairo	Shazin	22 Jan 2027	To do												●										
+Pickl	10 Arabic pages	Egypt	Al Alamein	Arabic version (content + meta)	Arabic of: new alamein restaurants	Shazin	22 Jan 2027	To do												●										
+Pickl	10 Arabic pages	Egypt	Hacienda Red	Arabic version (content + meta)	Arabic of: hacienda red restaurants	Shazin	22 Jan 2027	To do												●										
+Pickl	10 Arabic pages	Egypt	Hyde Park	Arabic version (content + meta)	Arabic of: hyde park new cairo restaurants	Shazin	22 Jan 2027	To do												●										
+Pickl	10 Arabic pages	Egypt	Madinaty	Arabic version (content + meta)	Arabic of: madinaty restaurants	Shazin	22 Jan 2027	To do												●										
+Pickl	10 Arabic pages	Egypt	Mall Of Egypt	Arabic version (content + meta)	Arabic of: mall of egypt restaurants	Shazin	22 Jan 2027	To do												●										
+Pickl	10 Arabic pages	Egypt	North Lanes	Arabic version (content + meta)	Arabic of: north lanes restaurants	Shazin	22 Jan 2027	To do												●										
+Pickl	10 Arabic pages	Egypt	Park St East	Arabic version (content + meta)	Arabic of: new cairo restaurants	Shazin	22 Jan 2027	To do												●										
+Pickl	10 Arabic pages	Egypt	Park Street West	Arabic version (content + meta)	Arabic of: sheikh zayed restaurants	Shazin	22 Jan 2027	To do												●										
+Pickl	10 Arabic pages	Egypt	Playa Seashell	Arabic version (content + meta)	Arabic of: seashell north coast restaurants	Shazin	22 Jan 2027	To do												●										
+Pickl	10 Arabic pages	Egypt	Urban Lanes	Arabic version (content + meta)	Arabic of: eastlane restaurants	Shazin	22 Jan 2027	To do												●										
+Pickl	10 Arabic pages	Oman	Oman Locations	Arabic version (content + meta)	Arabic of: best burger in muscat	Shazin	12 Feb 2027	To do															●							
+Pickl	10 Arabic pages	Oman	Souq Al Madina	Arabic version (content + meta)	Arabic of: souq al madina restaurants	Shazin	12 Feb 2027	To do															●							
+Pickl	10 Arabic pages	Kuwait	Kuwait Locations	Arabic version (content + meta)	Arabic of: best burger in kuwait	Shazin	26 Feb 2027	To do																	●					
+Pickl	10 Arabic pages	Kuwait	Kuwait City	Arabic version (content + meta)	Arabic of: pickl kuwait opening	Shazin	26 Feb 2027	To do																	●					
+Pickl	10 Arabic pages	Iraq	Iraq Locations	Arabic version (content + meta)	Arabic of: best burger in baghdad	Shazin	26 Feb 2027	To do																	●					
+Pickl	10 Arabic pages	Iraq	Iraq Gates	Arabic version (content + meta)	Arabic of: iraq gates restaurants	Shazin	26 Feb 2027	To do																	●					
+Pickl	10 Arabic pages	Iraq	Iraq Mall	Arabic version (content + meta)	Arabic of: iraq mall restaurants	Shazin	26 Feb 2027	To do																	●					
+Pickl	11 Google profiles	All	Site	Manager access to every branch profile (incl. partner-owned)		Shazin	6 Nov 2026	To check		●																				
+Pickl	11 Google profiles	All	Site	Weekly post per branch		Shazin	Weekly / ongoing	To do	●	●	●	●	●	●	●	●	●	●	●	●	●	●	●	●	●	●	●	●	●	●
+Pickl	11 Google profiles	All	Site	Reviews: in-store QR prompt + reply within 48h		Shazin	20 Nov 2026	To do				●																		
+Pickl	11 Google profiles	All	Site	Delivery app listings optimised (all apps)		Shazin	13 Nov 2026	To check			●																			
+Pickl	11 Google profiles	All	Site	NAP consistent on Zomato, delivery apps, mall sites		Shazin	27 Nov 2026	To do					●																	
+Pickl	11 Google profiles	UAE	Al Ain	Complete Google profile (categories, menu, photos, hours, Arabic name, order link to venue page)	restaurants in al ain	Shazin	20 Nov 2026	To do				●																		
+Pickl	11 Google profiles	UAE	Al Hirah Beach	Complete Google profile (categories, menu, photos, hours, Arabic name, order link to venue page)	al heera beach	Shazin	20 Nov 2026	To do				●																		
+Pickl	11 Google profiles	UAE	Al Safa	Complete Google profile (categories, menu, photos, hours, Arabic name, order link to venue page)	pickl al safa	Shazin	20 Nov 2026	To do				●																		
+Pickl	11 Google profiles	UAE	Aljada	Complete Google profile (categories, menu, photos, hours, Arabic name, order link to venue page)	muwaileh restaurants	Shazin	20 Nov 2026	To do				●																		
+Pickl	11 Google profiles	UAE	City Walk	Complete Google profile (categories, menu, photos, hours, Arabic name, order link to venue page)	city walk dubai restaurants	Shazin	20 Nov 2026	To do				●																		
+Pickl	11 Google profiles	UAE	Corniche Wtc	Complete Google profile (categories, menu, photos, hours, Arabic name, order link to venue page)	wtc restaurants	Shazin	20 Nov 2026	To do				●																		
+Pickl	11 Google profiles	UAE	Jbr	Complete Google profile (categories, menu, photos, hours, Arabic name, order link to venue page)	jbr restaurants	Shazin	20 Nov 2026	To do				●																		
+Pickl	11 Google profiles	UAE	Khalifa City	Complete Google profile (categories, menu, photos, hours, Arabic name, order link to venue page)	restaurants in khalifa city	Shazin	20 Nov 2026	To do				●																		
+Pickl	11 Google profiles	UAE	Lagoon Stop Rak	Complete Google profile (categories, menu, photos, hours, Arabic name, order link to venue page)	mina al arab restaurants	Shazin	20 Nov 2026	To do				●																		
+Pickl	11 Google profiles	UAE	Madinat Badr	Complete Google profile (categories, menu, photos, hours, Arabic name, order link to venue page)	muhaisnah restaurants	Shazin	20 Nov 2026	To do				●																		
+Pickl	11 Google profiles	UAE	Mamsha Al Saadiyat	Complete Google profile (categories, menu, photos, hours, Arabic name, order link to venue page)	mamsha al saadiyat	Shazin	20 Nov 2026	To do				●																		
+Pickl	11 Google profiles	UAE	Mirdif City Centre	Complete Google profile (categories, menu, photos, hours, Arabic name, order link to venue page)	mirdif city center restaurants	Shazin	20 Nov 2026	To do				●																		
+Pickl	11 Google profiles	UAE	Motor City	Complete Google profile (categories, menu, photos, hours, Arabic name, order link to venue page)	motor city restaurants	Shazin	20 Nov 2026	To do				●																		
+Pickl	11 Google profiles	UAE	One Jlt	Complete Google profile (categories, menu, photos, hours, Arabic name, order link to venue page)	jlt restaurants	Shazin	20 Nov 2026	To do				●																		
+Pickl	11 Google profiles	KSA	Al Hamra	Complete Google profile (categories, menu, photos, hours, Arabic name, order link to venue page)	al hamra restaurants	Shazin	15 Jan 2027	To do											●											
+Pickl	11 Google profiles	KSA	Al Malqa	Complete Google profile (categories, menu, photos, hours, Arabic name, order link to venue page)	restaurants in al malqa	Shazin	15 Jan 2027	To do											●											
+Pickl	11 Google profiles	KSA	Al Nakheel Mall	Complete Google profile (categories, menu, photos, hours, Arabic name, order link to venue page)	nakheel mall restaurants	Shazin	15 Jan 2027	To do											●											
+Pickl	11 Google profiles	KSA	U Walk	Complete Google profile (categories, menu, photos, hours, Arabic name, order link to venue page)	restaurants in u walk	Shazin	15 Jan 2027	To do											●											
+Pickl	11 Google profiles	Qatar	District One	Complete Google profile (categories, menu, photos, hours, Arabic name, order link to venue page)	district one restaurants	Shazin	15 Jan 2027	To do											●											
+Pickl	11 Google profiles	Qatar	Lusail Boulevard	Complete Google profile (categories, menu, photos, hours, Arabic name, order link to venue page)	lusail restaurants	Shazin	15 Jan 2027	To do											●											
+Pickl	11 Google profiles	Qatar	West Walk	Complete Google profile (categories, menu, photos, hours, Arabic name, order link to venue page)	west walk restaurants	Shazin	15 Jan 2027	To do											●											
+Pickl	11 Google profiles	Bahrain	Al Aali Mall	Complete Google profile (categories, menu, photos, hours, Arabic name, order link to venue page)	seef restaurants	Shazin	15 Jan 2027	To do											●											
+Pickl	11 Google profiles	Bahrain	Al Riffa	Complete Google profile (categories, menu, photos, hours, Arabic name, order link to venue page)	restaurants in riffa	Shazin	15 Jan 2027	To do											●											
+Pickl	11 Google profiles	Bahrain	Sama Bay	Complete Google profile (categories, menu, photos, hours, Arabic name, order link to venue page)	sama bay restaurants	Shazin	15 Jan 2027	To do											●											
+Pickl	11 Google profiles	Jordan	Via Amman	Complete Google profile (categories, menu, photos, hours, Arabic name, order link to venue page)	via amman restaurants	Shazin	15 Jan 2027	To do											●											
+Pickl	11 Google profiles	Jordan	Vista 4	Complete Google profile (categories, menu, photos, hours, Arabic name, order link to venue page)	restaurants in abdoun	Shazin	15 Jan 2027	To do											●											
+Pickl	11 Google profiles	Egypt	Al Alamein	Complete Google profile (categories, menu, photos, hours, Arabic name, order link to venue page)	new alamein restaurants	Shazin	15 Jan 2027	To do											●											
+Pickl	11 Google profiles	Egypt	Hacienda Red	Complete Google profile (categories, menu, photos, hours, Arabic name, order link to venue page)	hacienda red restaurants	Shazin	15 Jan 2027	To do											●											
+Pickl	11 Google profiles	Egypt	Hyde Park	Complete Google profile (categories, menu, photos, hours, Arabic name, order link to venue page)	hyde park new cairo restaurants	Shazin	15 Jan 2027	To do											●											
+Pickl	11 Google profiles	Egypt	Madinaty	Complete Google profile (categories, menu, photos, hours, Arabic name, order link to venue page)	madinaty restaurants	Shazin	15 Jan 2027	To do											●											
+Pickl	11 Google profiles	Egypt	Mall Of Egypt	Complete Google profile (categories, menu, photos, hours, Arabic name, order link to venue page)	mall of egypt restaurants	Shazin	15 Jan 2027	To do											●											
+Pickl	11 Google profiles	Egypt	North Lanes	Complete Google profile (categories, menu, photos, hours, Arabic name, order link to venue page)	north lanes restaurants	Shazin	15 Jan 2027	To do											●											
+Pickl	11 Google profiles	Egypt	Park St East	Complete Google profile (categories, menu, photos, hours, Arabic name, order link to venue page)	new cairo restaurants	Shazin	15 Jan 2027	To do											●											
+Pickl	11 Google profiles	Egypt	Park Street West	Complete Google profile (categories, menu, photos, hours, Arabic name, order link to venue page)	sheikh zayed restaurants	Shazin	15 Jan 2027	To do											●											
+Pickl	11 Google profiles	Egypt	Playa Seashell	Complete Google profile (categories, menu, photos, hours, Arabic name, order link to venue page)	seashell north coast restaurants	Shazin	15 Jan 2027	To do											●											
+Pickl	11 Google profiles	Egypt	Urban Lanes	Complete Google profile (categories, menu, photos, hours, Arabic name, order link to venue page)	eastlane restaurants	Shazin	15 Jan 2027	To do											●											
+Pickl	11 Google profiles	Oman	Souq Al Madina	Complete Google profile (categories, menu, photos, hours, Arabic name, order link to venue page)	souq al madina restaurants	Shazin	15 Jan 2027	To do											●											
+Pickl	11 Google profiles	Kuwait	Kuwait City	Complete Google profile (categories, menu, photos, hours, Arabic name, order link to venue page)	pickl kuwait opening	Shazin	15 Jan 2027	To do											●											
+Pickl	11 Google profiles	Iraq	Iraq Gates	Complete Google profile (categories, menu, photos, hours, Arabic name, order link to venue page)	iraq gates restaurants	Shazin	15 Jan 2027	To do											●											
+Pickl	11 Google profiles	Iraq	Iraq Mall	Complete Google profile (categories, menu, photos, hours, Arabic name, order link to venue page)	iraq mall restaurants	Shazin	15 Jan 2027	To do											●											
+Pickl	12 Off-page	All	Site	Outreach list: food lists, press, creators per market		Shazin	13 Nov 2026	To do			●																			
+Pickl	12 Off-page	All	Site	Placements on 'best of' lists that rank (per market)		Shazin	11 Dec 2026	To do							●															
+Pickl	12 Off-page	All	Site	Mall + partner sites link to venue pages		Shazin	20 Nov 2026	To do				●																		
+Pickl	12 Off-page	All	Site	Press: openings, new markets, awards, franchise		Shazin	Weekly / ongoing	To do	●	●	●	●	●	●	●	●	●	●	●	●	●	●	●	●	●	●	●	●	●	●
+Pickl	12 Off-page	All	Site	Review referring domains, clean up spam links		Shazin	18 Dec 2026	To do								●														
+Pickl	13 AI search	All	Site	About page listing every market + venue (consistent facts)		Shazin	20 Nov 2026	To do				●																		
+Pickl	13 AI search	All	Site	FAQ answering AI questions (English + Arabic)		Shazin	4 Dec 2026	To do						●																
+Pickl	13 AI search	All	Site	Reddit + food creator presence		Shazin	29 Jan 2027	To do													●									
+Pickl	13 AI search	All	Site	AI visibility check (Semrush)		Shazin	Monthly	To do		●				●				●				●				●				●
+Pickl	14 Measurement	All	Site	Track Order-button clicks (by venue + app) in GA4		Developer	13 Nov 2026	To do			●																			
+Pickl	14 Measurement	All	Site	Google profile actions baseline (calls, directions, website)		Shazin	6 Nov 2026	To do		●																				
+Pickl	14 Measurement	All	Site	SEO scorecard to Steve		Shazin	Monthly	To do		●				●				●				●				●				●
+Pickl	14 Measurement	All	Site	Decision from Steve: Semrush subscription		Shazin	6 Nov 2026	To do		●																				
+Pickl	14 Measurement	All	Site	Decision from Steve: developer hours + PR budget		Shazin	13 Nov 2026	To do			●																			

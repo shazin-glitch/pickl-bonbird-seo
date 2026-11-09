@@ -1,0 +1,340 @@
+﻿Market,Keyword,Volume,KD %,Intent,Our status,Our position,Our URL,Type,Found via seed
+AE,restaurants near me,1500000,43,C,not ranking,,,area/restaurants,ae-restaurants
+AE,food near me,60500,26,C,not ranking,,,area/restaurants,ae-near-me
+AE,مطاعم قريبه مني,49500,28,C,not ranking,,,area/restaurants,ae-arabic-restaurants
+AE,restaurant near me,40500,33,T,not ranking,,,area/restaurants,ae-restaurants
+AE,dubai mall restaurants,33100,39,T,not ranking,,,area/restaurants,ae-area-dubai
+AE,restaurants in dubai,33100,38,C,not ranking,,,area/restaurants,ae-area-dubai
+AE,مطاعم قريبة مني,18100,32,C,not ranking,,,area/restaurants,ae-arabic-restaurants
+AE,nearby restaurant,18100,33,C,not ranking,,,area/restaurants,ae-restaurants
+AE,best restaurants near me,14800,37,C,not ranking,,,area/restaurants,ae-restaurants
+AE,restaurants in abu dhabi,12100,34,n/a,not ranking,,,area/restaurants,ae-area-abu-dhabi
+AE,restaurants near me open now,12100,29,T,not ranking,,,area/restaurants,ae-restaurants
+AE,fast food near me,12100,26,C,not ranking,,,area/restaurants,ae-near-me
+AE,near me restaurant,9900,28,T,not ranking,,,area/restaurants,ae-restaurants
+AE,nearby restaurants near me,9900,26,C,not ranking,,,area/restaurants,ae-restaurants
+AE,best restaurants in abu dhabi,8100,36,C,not ranking,,,area/restaurants,ae-area-abu-dhabi
+AE,restaurants in sharjah,8100,26,C,not ranking,,,area/restaurants,ae-restaurants
+AE,restaurants sharjah,8100,32,C,not ranking,,,area/restaurants,ae-restaurants
+AE,best restaurants dubai,6600,40,C,not ranking,,,area/restaurants,ae-area-dubai
+AE,restaurant dubai,6600,39,C,not ranking,,,area/restaurants,ae-area-dubai
+AE,korean restaurant near me,6600,30,C,not ranking,,,area/restaurants,ae-restaurants
+AE,motor city restaurants,5400,14,C,not ranking,,,area/restaurants,ae-area-motor-city
+AE,fried chicken,5400,58,I,not ranking,,,product,ae-fried-chicken
+AE,fast food restaurants near me,5400,26,C,not ranking,,,area/restaurants,ae-restaurants
+AE,chicken near me,4400,24,C,ranks top 3,3,bonbirdchicken.com/ae/dubai/,product,ae-near-me
+AE,crispy chicken near me,4400,26,C,ranks 4-10,5,bonbirdchicken.com/ae/dubai/,product,ae-near-me
+AE,مطاعم دبي مول,3600,26,C,not ranking,,,area/restaurants,ae-arabic-restaurants
+AE,best restaurants in dubai,3600,36,C,not ranking,,,area/restaurants,ae-area-dubai
+AE,دجاج,3600,32,I T,not ranking,,,product,ae-arabic-chicken
+AE,fried chicken near me,3600,26,C,ranks top 3,3,bonbirdchicken.com/ae/dubai/,product,ae-fried-chicken
+AE,places to eat near me,3600,23,C,not ranking,,,area/restaurants,ae-near-me
+AE,مطاعم دبي,2900,28,C,not ranking,,,area/restaurants,ae-arabic-restaurants
+AE,best restaurants in dubai mall,2900,31,C,not ranking,,,area/restaurants,ae-area-dubai
+AE,new restaurants in dubai,2900,36,C,not ranking,,,area/restaurants,ae-area-dubai
+AE,good restaurants near me,2900,24,C,not ranking,,,area/restaurants,ae-restaurants
+AE,mirdif city center restaurants,2900,17,T,not ranking,,,area/restaurants,ae-restaurants
+AE,مطاعم ابوظبي,2400,22,C,not ranking,,,area/restaurants,ae-arabic-restaurants
+AE,abu dhabi mall restaurants,2400,20,T,not ranking,,,area/restaurants,ae-area-abu-dhabi
+AE,city walk dubai restaurants,2400,26,C,not ranking,,,area/restaurants,ae-area-dubai
+AE,korean restaurant dubai,2400,29,C,not ranking,,,area/restaurants,ae-area-dubai
+AE,best restaurants in sharjah,2400,16,C,not ranking,,,area/restaurants,ae-restaurants
+AE,restaurants open near me,2400,23,C,not ranking,,,area/restaurants,ae-restaurants
+AE,مطاعم الشارقة,1900,24,C,not ranking,,,area/restaurants,ae-arabic-restaurants
+AE,مطاعم في دبي,1900,26,C,not ranking,,,area/restaurants,ae-arabic-restaurants
+AE,restaurants in mirdif,1900,17,C,not ranking,,,area/restaurants,ae-area-mirdif
+AE,korean restaurant abu dhabi,1600,26,C,not ranking,,,area/restaurants,ae-area-abu-dhabi
+AE,restaurant offers abu dhabi,1600,12,I C,not ranking,,,area/restaurants,ae-area-abu-dhabi
+AE,burger restaurants near me,1600,28,C,not ranking,,,area/restaurants,ae-burger
+AE,chicken burger,1600,36,I,not ranking,,,product,ae-burger
+AE,chicken tenders,1600,36,I,not ranking,,,product,ae-chicken-tenders
+AE,best restaurants abu dhabi,1300,35,C,not ranking,,,area/restaurants,ae-area-abu-dhabi
+AE,good restaurants in dubai,1300,33,C,not ranking,,,area/restaurants,ae-area-dubai
+AE,new restaurants dubai,1300,36,I,not ranking,,,area/restaurants,ae-area-dubai
+AE,restaurants in khalifa city,1300,16,C,not ranking,,,area/restaurants,ae-area-khalifa-city
+AE,دجاج مشوي,1300,29,I T,not ranking,,,product,ae-arabic-chicken
+AE,مطاعم في الشارقة,1000,29,C,not ranking,,,area/restaurants,ae-arabic-restaurants
+AE,مطاعم قريبه,1000,29,C,not ranking,,,area/restaurants,ae-arabic-restaurants
+AE,مطاعم مردف سيتي سنتر,1000,29,C,not ranking,,,area/restaurants,ae-arabic-restaurants
+AE,jbr dubai restaurants,1000,29,C,not ranking,,,area/restaurants,ae-area-dubai
+AE,مطاعم قريبة,880,27,I,not ranking,,,area/restaurants,ae-arabic-restaurants
+AE,corniche abu dhabi restaurants,880,15,C,not ranking,,,area/restaurants,ae-area-abu-dhabi
+AE,restaurant corniche abu dhabi,880,15,C,not ranking,,,area/restaurants,ae-area-abu-dhabi
+AE,top restaurants in abu dhabi,880,31,C,not ranking,,,area/restaurants,ae-area-abu-dhabi
+AE,best cheap restaurants in dubai,880,33,C,not ranking,,,area/restaurants,ae-area-dubai
+AE,cheap restaurants in dubai,880,33,C,not ranking,,,area/restaurants,ae-area-dubai
+AE,hot fried chicken,880,25,T,ranks 11-100,12,bonbirdchicken.com/ae/journal/the-best-fried-chicken-in-motor-city-dubai/,product,ae-fried-chicken
+AE,korean fried chicken,880,49,C,not ranking,,,product,ae-fried-chicken
+AE,new restaurants in abu dhabi,720,20,C,not ranking,,,area/restaurants,ae-area-abu-dhabi
+AE,best fried chicken in dubai,720,24,I,ranks top 3,2,bonbirdchicken.com/ae/dubai/,product,ae-fried-chicken
+AE,افضل مطاعم دبي,590,26,C,not ranking,,,area/restaurants,ae-arabic-restaurants
+AE,مطاعم في ابوظبي,590,20,T,not ranking,,,area/restaurants,ae-arabic-restaurants
+AE,برجر دجاج,590,26,I,not ranking,,,product,ae-arabic-burger
+AE,best new restaurants in dubai,590,36,C,not ranking,,,area/restaurants,ae-area-dubai
+AE,best restaurants in jbr dubai,590,22,C,not ranking,,,area/restaurants,ae-area-dubai
+AE,افضل المطاعم في دبي,480,26,C,not ranking,,,area/restaurants,ae-arabic-restaurants
+AE,المطاعم في دبي مول,480,26,C,not ranking,,,area/restaurants,ae-arabic-restaurants
+AE,مطاعم في دبي مول,480,26,C,not ranking,,,area/restaurants,ae-arabic-restaurants
+AE,مطاعم مردف,480,22,C,not ranking,,,area/restaurants,ae-arabic-restaurants
+AE,good restaurants in abu dhabi,480,35,C,not ranking,,,area/restaurants,ae-area-abu-dhabi
+AE,motor city dubai restaurants,480,17,C,not ranking,,,area/restaurants,ae-area-motor-city
+AE,restaurants near dubai mall,480,39,C,not ranking,,,area/restaurants,ae-area-dubai
+AE,top restaurants in dubai,480,29,C,not ranking,,,area/restaurants,ae-area-dubai
+AE,افضل مطاعم ابوظبي,390,19,C,not ranking,,,area/restaurants,ae-arabic-restaurants
+AE,best korean restaurant in dubai,390,24,C,not ranking,,,area/restaurants,ae-area-dubai
+AE,burger restaurants in dubai,390,29,C,not ranking,,,area/restaurants,ae-area-dubai
+AE,mirdif mall restaurants,390,18,C,not ranking,,,area/restaurants,ae-mall-restaurants
+AE,fried chicken dubai,390,24,T,ranks top 3,2,bonbirdchicken.com/ae/dubai/,product,ae-fried-chicken
+AE,مطاعم ابوظبي مول,320,22,C,not ranking,,,area/restaurants,ae-arabic-restaurants
+AE,مطاعم سيتي ووك,320,21,C,not ranking,,,area/restaurants,ae-arabic-restaurants
+AE,مطاعم قريبة من موقعي,320,28,C,not ranking,,,area/restaurants,ae-arabic-restaurants
+AE,jlt dubai restaurants,320,26,C,not ranking,,,area/restaurants,ae-area-dubai
+AE,restaurant khalifa city,320,14,C,not ranking,,,area/restaurants,ae-area-khalifa-city
+AE,korean restaurant sharjah,320,28,C,not ranking,,,area/restaurants,ae-area-sharjah
+AE,مطاعم سيتي ووك دبي,260,18,C,not ranking,,,area/restaurants,ae-arabic-restaurants
+AE,chicken burger near me,260,17,C,ranks top 3,2,bonbirdchicken.com/ae/dubai/,product,ae-burger
+AE,good restaurants in sharjah,260,29,C,not ranking,,,area/restaurants,ae-area-sharjah
+AE,restaurant mirdif,260,16,C,not ranking,,,area/restaurants,ae-area-mirdif
+AE,افضل مطاعم الشارقة,210,24,C,not ranking,,,area/restaurants,ae-arabic-restaurants
+AE,افضل مطاعم دبي مول,210,25,C,not ranking,,,area/restaurants,ae-arabic-restaurants
+AE,best chicken restaurant abu dhabi,210,26,C,ranks 11-100,12,bonbirdchicken.com/ae/abu-dhabi/,product,ae-area-abu-dhabi
+AE,korean fried chicken dubai,210,27,C,not ranking,,,product,ae-fried-chicken
+AE,korean fried chicken near me,210,23,C,not ranking,,,product,ae-fried-chicken
+AE,chicken tenders near me,210,33,C,ranks 11-100,45,bonbirdchicken.com/ae/menu/,product,ae-chicken-tenders
+AE,sharjah city center restaurants,210,18,C,not ranking,,,area/restaurants,ae-area-sharjah
+AE,sharjah corniche restaurants,210,20,C,not ranking,,,area/restaurants,ae-area-sharjah
+AE,مطاعم النخيل مول دبي,170,23,C,not ranking,,,area/restaurants,ae-arabic-restaurants
+AE,مطاعم سيتي سنتر مردف,170,18,I,not ranking,,,area/restaurants,ae-arabic-restaurants
+AE,مطاعم في مردف,170,25,C,not ranking,,,area/restaurants,ae-arabic-restaurants
+AE,burger restaurants in abu dhabi,170,27,C,not ranking,,,area/restaurants,ae-area-abu-dhabi
+AE,restaurants in abu dhabi city,170,33,C,not ranking,,,area/restaurants,ae-area-abu-dhabi
+AE,restaurants in khalifa city abu dhabi,170,16,C,not ranking,,,area/restaurants,ae-area-abu-dhabi
+AE,good restaurants in dubai mall,170,45,C,not ranking,,,area/restaurants,ae-mall-restaurants
+AE,new restaurants in dubai mall,170,36,C,not ranking,,,area/restaurants,ae-mall-restaurants
+AE,افضل المطاعم في دبي مول,140,19,C,not ranking,,,area/restaurants,ae-arabic-restaurants
+AE,المطاعم في دبي,140,26,C,not ranking,,,area/restaurants,ae-arabic-restaurants
+AE,دبي مول مطاعم,140,24,C,not ranking,,,area/restaurants,ae-arabic-restaurants
+AE,مطاعم برجر في دبي,140,27,C,not ranking,,,area/restaurants,ae-arabic-restaurants
+AE,مطاعم سيتي مردف,140,28,C,not ranking,,,area/restaurants,ae-arabic-restaurants
+AE,abu dhabi korean restaurant,140,24,C,not ranking,,,area/restaurants,ae-area-abu-dhabi
+AE,restaurants near abu dhabi mall,140,22,C,not ranking,,,area/restaurants,ae-area-abu-dhabi
+AE,restaurants near corniche abu dhabi,140,16,C,not ranking,,,area/restaurants,ae-area-abu-dhabi
+AE,fried chicken abu dhabi,140,22,C,ranks 4-10,5,bonbirdchicken.com/ae/abu-dhabi/,product,ae-fried-chicken
+AE,fried chicken sharjah,140,26,C,ranks 4-10,6,bonbirdchicken.com/ae/sharjah/,product,ae-fried-chicken
+AE,al safa restaurant sharjah,140,28,T,not ranking,,,area/restaurants,ae-area-al-safa
+AE,مطاعم مردف مول,110,27,T,not ranking,,,area/restaurants,ae-arabic-restaurants
+AE,al ain restaurant abu dhabi,110,26,I T,not ranking,,,area/restaurants,ae-area-abu-dhabi
+AE,cheap restaurants in abu dhabi,110,25,C,not ranking,,,area/restaurants,ae-area-abu-dhabi
+AE,dubai mall new restaurants,110,34,T,not ranking,,,area/restaurants,ae-mall-restaurants
+AE,good restaurants dubai mall,110,31,C,not ranking,,,area/restaurants,ae-mall-restaurants
+AE,best chicken burger dubai,110,13,C,ranks 4-10,5,bonbirdchicken.com/ae/dubai/,product,ae-burger
+AE,good burger restaurants near me,110,17,C,not ranking,,,area/restaurants,ae-burger
+AE,best fried chicken abu dhabi,110,19,C,ranks top 3,3,bonbirdchicken.com/ae/abu-dhabi/khalifa-city/,product,ae-fried-chicken
+AE,best fried chicken in abu dhabi,110,22,C,ranks top 3,3,bonbirdchicken.com/ae/abu-dhabi/,product,ae-fried-chicken
+AE,al madina restaurant sharjah,110,26,C,not ranking,,,area/restaurants,ae-area-sharjah
+AE,مطاعم أبوظبي,90,19,T,not ranking,,,area/restaurants,ae-arabic-restaurants
+AE,مطاعم برجر دبي,90,26,T,not ranking,,,area/restaurants,ae-arabic-restaurants
+AE,مطاعم برجر في ابوظبي,90,27,T,not ranking,,,area/restaurants,ae-arabic-restaurants
+AE,abu dhabi restaurants near me,90,23,C,not ranking,,,area/restaurants,ae-area-abu-dhabi
+AE,restaurants in jbr walk dubai,90,16,C,not ranking,,,area/restaurants,ae-area-jbr
+AE,best restaurants near dubai mall,90,36,C,not ranking,,,area/restaurants,ae-mall-restaurants
+AE,cheap restaurants in dubai mall,90,26,C,not ranking,,,area/restaurants,ae-mall-restaurants
+AE,dubai mall cheap restaurants,90,35,C,not ranking,,,area/restaurants,ae-mall-restaurants
+AE,restaurants around dubai mall,90,36,C,not ranking,,,area/restaurants,ae-mall-restaurants
+AE,best burger restaurants in dubai,90,26,I,not ranking,,,area/restaurants,ae-burger
+AE,افضل مطاعم سيتي ووك دبي,70,16,I,not ranking,,,area/restaurants,ae-arabic-restaurants
+AE,افضل مطعم برجر في دبي,70,26,T,not ranking,,,area/restaurants,ae-arabic-burger
+AE,good burger restaurant abu dhabi,70,22,C,not ranking,,,area/restaurants,ae-burger
+AE,jbr دبي مطاعم,50,22,C,not ranking,,,area/restaurants,ae-arabic-restaurants
+AE,افضل مطاعم مردف سيتي دبي,50,19,C,not ranking,,,area/restaurants,ae-arabic-restaurants
+AE,المطاعم في سيتي ووك,50,17,C,not ranking,,,area/restaurants,ae-arabic-restaurants
+AE,مطاعم في أبوظبي,50,19,C,not ranking,,,area/restaurants,ae-arabic-restaurants
+AE,مطاعم في سيتي ووك,50,13,C,not ranking,,,area/restaurants,ae-arabic-restaurants
+AE,restaurants near motor city,50,13,C,not ranking,,,area/restaurants,ae-area-motor-city
+AE,top restaurants in dubai mall,50,33,C,not ranking,,,area/restaurants,ae-mall-restaurants
+AE,fried chicken shop near me,50,26,C,ranks top 3,3,bonbirdchicken.com/ae/dubai/,product,ae-fried-chicken
+AE,city center sharjah restaurants,50,17,C,not ranking,,,area/restaurants,ae-area-sharjah
+OM,restaurants near me,165000,32,C,not ranking,,,area/restaurants,om-restaurants
+OM,restaurants in muscat,4400,22,C,not ranking,,,area/restaurants,om-restaurants
+OM,best restaurants in muscat,2900,30,C,not ranking,,,area/restaurants,om-restaurants
+OM,chicken,2400,64,I,not ranking,,,product,om-chicken
+OM,دجاج,1900,31,I,not ranking,,,product,om-arabic-chicken
+OM,best restaurants near me,1900,26,C,not ranking,,,area/restaurants,om-restaurants
+OM,oman restaurant,1900,25,C,not ranking,,,area/restaurants,om-restaurants
+OM,مطاعم مسقط,1600,21,T,not ranking,,,area/restaurants,om-arabic-restaurants
+OM,مطاعم عمان مول,1300,35,C,not ranking,,,area/restaurants,om-arabic-restaurants
+OM,مطاعم الخوض,1000,30,T,not ranking,,,area/restaurants,om-arabic-restaurants
+OM,fried chicken,880,42,I,not ranking,,,product,om-chicken
+OM,restaurants near me open now,880,27,C,not ranking,,,area/restaurants,om-restaurants
+OM,مطاعم في مسقط,880,21,T,not ranking,,,area/restaurants,om-arabic-restaurants
+OM,fried chicken near me,720,22,C,ranks 11-100,33,bonbirdchicken.com/om/muscat/souq-al-madina/,product,om-chicken
+OM,chicken near me,590,37,C,ranks 11-100,57,bonbirdchicken.com/oman/,product,om-chicken
+OM,مطاعم في الخوض,590,30,T,not ranking,,,area/restaurants,om-arabic-restaurants
+OM,good restaurants near me,480,29,C,not ranking,,,area/restaurants,om-restaurants
+OM,افضل المطاعم في مسقط,480,24,T,not ranking,,,area/restaurants,om-arabic-restaurants
+OM,افضل مطاعم مسقط,480,24,T,not ranking,,,area/restaurants,om-arabic-restaurants
+OM,مطاعم قريبه,390,27,T,not ranking,,,area/restaurants,om-arabic-restaurants
+OM,best restaurants in oman,320,23,I,not ranking,,,area/restaurants,om-restaurants
+OM,fast food restaurants near me,320,24,C,not ranking,,,area/restaurants,om-restaurants
+OM,restaurants in seeb,320,27,C,not ranking,,,area/restaurants,om-restaurants
+OM,مطاعم السيب,320,30,T,not ranking,,,area/restaurants,om-arabic-restaurants
+OM,al madina restaurant,260,21,C,not ranking,,,area/restaurants,om-restaurants
+OM,مطاعم مسقط مول,260,24,T,not ranking,,,area/restaurants,om-arabic-restaurants
+OM,korean restaurant muscat,210,29,C,not ranking,,,area/restaurants,om-restaurants
+OM,new restaurants in muscat,210,33,C,not ranking,,,area/restaurants,om-restaurants
+OM,new restaurants muscat,210,26,C,not ranking,,,area/restaurants,om-restaurants
+OM,restaurants open near me,210,27,C,not ranking,,,area/restaurants,om-restaurants
+OM,burger restaurants near me,170,24,C,not ranking,,,area/restaurants,om-burger
+OM,top restaurants in muscat,170,26,C,not ranking,,,area/restaurants,om-restaurants
+OM,مطاعم في السيب,170,29,C,not ranking,,,area/restaurants,om-arabic-restaurants
+OM,city center muscat restaurants,140,21,C,not ranking,,,area/restaurants,om-restaurants
+OM,good restaurants in muscat,140,29,C,not ranking,,,area/restaurants,om-restaurants
+OM,restaurant muscat oman,140,25,C,not ranking,,,area/restaurants,om-restaurants
+OM,restaurants in muscat city center,140,19,C,not ranking,,,area/restaurants,om-restaurants
+OM,مطاعم عمان,140,19,C,not ranking,,,area/restaurants,om-arabic-restaurants
+OM,halal restaurants near me,110,27,C,not ranking,,,area/restaurants,om-restaurants
+OM,مطاعم سيتي سنتر السيب,90,28,C,not ranking,,,area/restaurants,om-arabic-restaurants
+OM,مطاعم سيتي سنتر مسقط,90,26,T,not ranking,,,area/restaurants,om-arabic-restaurants
+PK,restaurants in lahore,27100,52,C,not ranking,,,area/restaurants,pk-restaurants-lahore
+PK,best restaurants in lahore,14800,37,C,not ranking,,,area/restaurants,pk-restaurants-lahore
+PK,restaurants in johar town lahore,14800,28,C,not ranking,,,area/restaurants,pk-restaurants-lahore
+PK,fried chicken,14800,49,I,not ranking,,,product,pk-fried-chicken
+PK,restaurants in johar town,14800,28,C,not ranking,,,area/restaurants,pk-area-johar-town
+PK,gulberg restaurant,12100,34,C,not ranking,,,area/restaurants,pk-area-gulberg
+PK,restaurants in lahore gulberg,5400,27,n/a,not ranking,,,area/restaurants,pk-area-gulberg
+PK,gulberg restaurants,3600,n/a,C,not ranking,,,area/restaurants,pk-area-gulberg
+PK,gulberg restaurant lahore,2400,26,C,not ranking,,,area/restaurants,pk-area-gulberg
+PK,restaurants in gulberg,1900,32,C,not ranking,,,area/restaurants,pk-area-gulberg
+PK,best restaurants lahore,1900,35,C,not ranking,,,area/restaurants,pk-restaurants-lahore
+PK,restaurants in dha lahore,1900,26,C,not ranking,,,area/restaurants,pk-restaurants-lahore
+PK,top restaurants in lahore,1900,23,C,not ranking,,,area/restaurants,pk-restaurants-lahore
+PK,johar town restaurants,1900,32,C,not ranking,,,area/restaurants,pk-area-johar-town
+PK,restaurants johar town,1900,32,C,not ranking,,,area/restaurants,pk-area-johar-town
+PK,fried chicken near me,1600,30,T,not ranking,,,product,pk-fried-chicken
+PK,best restaurants in lahore gulberg,1300,25,C,not ranking,,,area/restaurants,pk-area-gulberg
+PK,restaurants lahore,1300,46,C,not ranking,,,area/restaurants,pk-restaurants-lahore
+PK,chicken burger,1300,47,I,not ranking,,,product,pk-chicken-burger
+PK,restaurants in lahore dha,1000,31,C,not ranking,,,area/restaurants,pk-restaurants-lahore
+PK,restaurants lahore dha,1000,26,C,not ranking,,,area/restaurants,pk-restaurants-lahore
+PK,dolmen mall restaurants,1000,37,C,not ranking,,,area/restaurants,pk-area-dolmen-mall
+PK,fast food restaurants in lahore,880,17,C,not ranking,,,area/restaurants,pk-restaurants-lahore
+PK,new restaurants in lahore,880,30,C,not ranking,,,area/restaurants,pk-restaurants-lahore
+PK,best restaurants in johar town,880,31,C,not ranking,,,area/restaurants,pk-area-johar-town
+PK,best restaurants in gulberg lahore,720,25,C,not ranking,,,area/restaurants,pk-area-gulberg
+PK,johar town restaurants lahore,720,31,T,not ranking,,,area/restaurants,pk-restaurants-lahore
+PK,new restaurant lahore,720,50,C,not ranking,,,area/restaurants,pk-restaurants-lahore
+PK,new restaurants lahore,720,37,C,not ranking,,,area/restaurants,pk-restaurants-lahore
+PK,best restaurants in dha lahore,590,30,C,not ranking,,,area/restaurants,pk-restaurants-lahore
+PK,restaurants near johar town lahore,590,30,C,not ranking,,,area/restaurants,pk-restaurants-lahore
+PK,top restaurants lahore,590,31,C,not ranking,,,area/restaurants,pk-restaurants-lahore
+PK,restaurant gulberg lahore,480,35,C,not ranking,,,area/restaurants,pk-area-gulberg
+PK,restaurants gulberg lahore,480,25,C,not ranking,,,area/restaurants,pk-area-gulberg
+PK,good restaurants lahore,480,44,C,not ranking,,,area/restaurants,pk-restaurants-lahore
+PK,lahore restaurant near me,480,35,T,not ranking,,,area/restaurants,pk-restaurants-lahore
+PK,top restaurants in johar town lahore,480,30,C,not ranking,,,area/restaurants,pk-restaurants-lahore
+PK,restaurants near johar town,480,30,C,not ranking,,,area/restaurants,pk-area-johar-town
+PK,restaurants near gulberg,390,25,C,not ranking,,,area/restaurants,pk-area-gulberg
+PK,best restaurants in lahore near me,390,46,T,not ranking,,,area/restaurants,pk-restaurants-lahore
+PK,korean restaurant in lahore,390,31,I,not ranking,,,area/restaurants,pk-restaurants-lahore
+PK,korean restaurant lahore,390,30,I,not ranking,,,area/restaurants,pk-restaurants-lahore
+PK,best restaurants in johar town lahore,320,29,C,not ranking,,,area/restaurants,pk-restaurants-lahore
+PK,restaurants in lahore pakistan,320,38,C,not ranking,,,area/restaurants,pk-restaurants-lahore
+PK,food places in johar town,320,30,C,not ranking,,,area/restaurants,pk-area-johar-town
+PK,johar town food places,320,24,C,not ranking,,,area/restaurants,pk-area-johar-town
+PK,restaurants in dolmen mall,320,35,C,not ranking,,,area/restaurants,pk-area-dolmen-mall
+PK,new restaurants in gulberg,260,20,C,not ranking,,,area/restaurants,pk-area-gulberg
+PK,places to eat in gulberg,260,25,C,not ranking,,,area/restaurants,pk-area-gulberg
+PK,best fast food restaurants in lahore,260,26,C,not ranking,,,area/restaurants,pk-restaurants-lahore
+PK,good restaurants in lahore,260,48,C,not ranking,,,area/restaurants,pk-restaurants-lahore
+PK,cheap restaurants in gulberg lahore,210,29,C,not ranking,,,area/restaurants,pk-area-gulberg
+PK,fast food restaurants in gulberg lahore,210,25,C,not ranking,,,area/restaurants,pk-area-gulberg
+PK,lahore gulberg restaurants,210,30,C,not ranking,,,area/restaurants,pk-area-gulberg
+PK,al madina restaurant lahore,210,28,I,not ranking,,,area/restaurants,pk-restaurants-lahore
+PK,fried chicken lahore,210,30,C,ranks 4-10,4,bonbirdchicken.com/pk/,product,pk-fried-chicken
+PK,chicken burger near me,210,29,T,not ranking,,,product,pk-chicken-burger
+PK,gulberg restaurants lahore,170,25,C,not ranking,,,area/restaurants,pk-area-gulberg
+PK,best restaurants dha lahore,170,29,C,not ranking,,,area/restaurants,pk-restaurants-lahore
+PK,best restaurants in lahore dha,170,29,C,not ranking,,,area/restaurants,pk-restaurants-lahore
+PK,pakistan restaurant lahore,170,29,C,not ranking,,,area/restaurants,pk-restaurants-lahore
+PK,restaurants johar town lahore,170,29,C,not ranking,,,area/restaurants,pk-restaurants-lahore
+PK,best food restaurants in lahore,140,31,C,not ranking,,,area/restaurants,pk-restaurants-lahore
+PK,cheap restaurants in lahore,140,35,C,not ranking,,,area/restaurants,pk-restaurants-lahore
+PK,mall one lahore restaurants,140,33,I,not ranking,,,area/restaurants,pk-restaurants-lahore
+PK,fast food restaurants in johar town lahore,110,29,C,not ranking,,,area/restaurants,pk-restaurants-lahore
+PK,open restaurants in lahore,110,26,C,not ranking,,,area/restaurants,pk-restaurants-lahore
+PK,restaurants near gulberg lahore,110,24,T,not ranking,,,area/restaurants,pk-restaurants-lahore
+PK,best chicken burger in lahore,110,29,C,ranks 11-100,14,bonbirdchicken.com/pk/,product,pk-chicken-burger
+PK,burger restaurant lahore,90,29,C,not ranking,,,area/restaurants,pk-restaurants-lahore
+PK,burger restaurants in lahore,90,24,C,not ranking,,,area/restaurants,pk-restaurants-lahore
+PK,best fried chicken near me,90,32,T,not ranking,,,product,pk-fried-chicken
+PK,best new restaurants in lahore,70,23,C,not ranking,,,area/restaurants,pk-restaurants-lahore
+PK,madina restaurant lahore,70,25,C,not ranking,,,area/restaurants,pk-restaurants-lahore
+PK,restaurants near me lahore,70,42,T,not ranking,,,area/restaurants,pk-restaurants-lahore
+PK,top restaurant lahore,70,21,C,not ranking,,,area/restaurants,pk-restaurants-lahore
+PK,al madina restaurant lahore menu,50,22,I,not ranking,,,area/restaurants,pk-restaurants-lahore
+PK,lahore dha restaurants,50,29,C,not ranking,,,area/restaurants,pk-restaurants-lahore
+PK,best fried chicken in lahore,50,29,C,ranks 4-10,8,bonbirdchicken.com/pk/journal/best-fried-chicken-in-lahore-pakistan-launch/,product,pk-fried-chicken
+PK,food places in dha lahore,50,17,C,not ranking,,,area/restaurants,pk-area-dha-lahore
+QA,restaurants near me,201000,35,C,not ranking,,,area/restaurants,qa-restaurants
+QA,restaurants in doha,8100,34,C,not ranking,,,area/restaurants,qa-restaurants
+QA,best restaurants in doha,6600,36,C,not ranking,,,area/restaurants,qa-restaurants
+QA,best restaurants in qatar,6600,26,C,not ranking,,,area/restaurants,qa-restaurants
+QA,restaurants in qatar,4400,32,C,not ranking,,,area/restaurants,qa-restaurants
+QA,restaurant near me,3600,24,I,not ranking,,,area/restaurants,qa-restaurants
+QA,chicken,2900,60,I,not ranking,,,product,qa-chicken
+QA,hot chicken,2400,32,N,not ranking,,,product,qa-chicken
+QA,مطاعم قطر,2400,43,C,not ranking,,,area/restaurants,qa-arabic-restaurants
+QA,crispy chicken,1900,19,T,not ranking,,,product,qa-chicken
+QA,restaurants in mall of qatar,1900,19,T,not ranking,,,area/restaurants,qa-restaurants
+QA,restaurants near me open now,1900,22,C,not ranking,,,area/restaurants,qa-restaurants
+QA,best restaurants near me,1300,28,C,not ranking,,,area/restaurants,qa-restaurants
+QA,lahore restaurant doha,1300,29,C,not ranking,,,area/restaurants,qa-restaurants
+QA,mall of qatar restaurants,1300,19,T,not ranking,,,area/restaurants,qa-restaurants
+QA,nearby restaurants near me,1300,25,C,not ranking,,,area/restaurants,qa-restaurants
+QA,restaurants doha,1300,41,C,not ranking,,,area/restaurants,qa-restaurants
+QA,best restaurants doha,1000,33,C,not ranking,,,area/restaurants,qa-restaurants
+QA,near me restaurant,1000,17,N,not ranking,,,area/restaurants,qa-restaurants
+QA,مطاعم قطر مول,1000,33,T,not ranking,,,area/restaurants,qa-arabic-restaurants
+QA,fried chicken,880,50,C,not ranking,,,product,qa-chicken
+QA,city center doha restaurants,880,25,T,not ranking,,,area/restaurants,qa-restaurants
+QA,korean restaurant doha,880,22,C,not ranking,,,area/restaurants,qa-restaurants
+QA,korean restaurant near me,880,25,C,not ranking,,,area/restaurants,qa-restaurants
+QA,west walk restaurants,880,24,C,not ranking,,,area/restaurants,qa-restaurants
+QA,دجاج,880,30,I T,not ranking,,,product,qa-arabic-chicken
+QA,افضل مطاعم قطر,720,23,C,not ranking,,,area/restaurants,qa-arabic-restaurants
+QA,المطاعم في قطر,720,40,C,not ranking,,,area/restaurants,qa-arabic-restaurants
+QA,مطاعم الدوحة,720,29,C,not ranking,,,area/restaurants,qa-arabic-restaurants
+QA,مطاعم في قطر,720,23,C,not ranking,,,area/restaurants,qa-arabic-restaurants
+QA,hot chicken near me,590,19,C,not ranking,,,product,qa-chicken
+QA,fast food restaurants near me,590,14,C,not ranking,,,area/restaurants,qa-restaurants
+QA,korean restaurant in qatar,590,22,C,not ranking,,,area/restaurants,qa-restaurants
+QA,near restaurants near me,590,29,C,not ranking,,,area/restaurants,qa-restaurants
+QA,افضل المطاعم في قطر,590,22,I,not ranking,,,area/restaurants,qa-arabic-restaurants
+QA,chicken near me,480,25,C,not ranking,,,product,qa-chicken
+QA,halal restaurants near me,480,15,C,not ranking,,,area/restaurants,qa-restaurants
+QA,restaurant doha,480,33,C,not ranking,,,area/restaurants,qa-restaurants
+QA,top restaurants in doha,480,34,C,not ranking,,,area/restaurants,qa-restaurants
+QA,good restaurants near me,390,37,C,not ranking,,,area/restaurants,qa-restaurants
+QA,new restaurants in doha,390,29,C,not ranking,,,area/restaurants,qa-restaurants
+QA,qatar mall restaurants,390,19,T,not ranking,,,area/restaurants,qa-restaurants
+QA,good restaurants in doha,320,35,C,not ranking,,,area/restaurants,qa-restaurants
+QA,new restaurants in qatar,320,31,C,not ranking,,,area/restaurants,qa-restaurants
+QA,restaurants open near me,320,19,C,not ranking,,,area/restaurants,qa-restaurants
+QA,fried chicken qatar,260,28,C,ranks 11-100,33,bonbirdchicken.com/qa/doha/,product,qa-chicken
+QA,hot chicken doha,260,26,N,not ranking,,,product,qa-chicken
+QA,burger restaurants near me,260,24,C,not ranking,,,area/restaurants,qa-restaurants
+QA,corniche restaurant doha,260,19,I,not ranking,,,area/restaurants,qa-restaurants
+QA,corniche restaurant qatar,260,19,C,not ranking,,,area/restaurants,qa-restaurants
+QA,best fried chicken in qatar,210,24,C,ranks 4-10,5,bonbirdchicken.com/qa/doha/,product,qa-chicken
+QA,crispy chicken qatar,210,23,I T,not ranking,,,product,qa-chicken
+QA,مطاعم سيتي سنتر قطر,210,25,C,not ranking,,,area/restaurants,qa-arabic-restaurants
+QA,hot chicken qatar,170,25,N,not ranking,,,product,qa-chicken
+QA,افضل مطاعم الدوحة,170,29,C,not ranking,,,area/restaurants,qa-arabic-restaurants
+QA,مطاعم في الدوحة,170,28,C,not ranking,,,area/restaurants,qa-arabic-restaurants
+QA,fried chicken doha,140,24,C,not ranking,,,product,qa-chicken
+QA,افضل مطاعم قطر مول,140,33,T,not ranking,,,area/restaurants,qa-arabic-restaurants
+QA,مطاعم لوسيل قطر,140,28,C,not ranking,,,area/restaurants,qa-arabic-restaurants
+QA,افضل مطعم برجر في قطر,140,27,T,not ranking,,,area/restaurants,qa-arabic-burger
+QA,افضل المطاعم في الدوحة,110,27,I,not ranking,,,area/restaurants,qa-arabic-restaurants
+QA,مطاعم مول قطر,90,28,C,not ranking,,,area/restaurants,qa-arabic-restaurants
+QA,قطر مول مطاعم,70,19,C,not ranking,,,area/restaurants,qa-arabic-restaurants
