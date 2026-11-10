@@ -1,0 +1,8 @@
+post_name	khalifa-city
+_yoast_wpseo_title	Bonbird Khalifa City – Top Chicken Restaurant Abu Dhabi
+_yoast_wpseo_metadesc	Bonbird Khalifa City brings delicious chicken and burgers to Abu Dhabi. Explore the Bonbird Khalifa City menu and order now.
+_yoast_wpseo_focuskw	Bonbird Khalifa City
+_yoast_wpseo_opengraph-title	
+_yoast_wpseo_opengraph-description	
+_yoast_wpseo_twitter-title	
+_yoast_wpseo_twitter-description	

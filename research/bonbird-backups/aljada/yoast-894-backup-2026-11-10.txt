@@ -1,0 +1,8 @@
+post_name	aljada
+_yoast_wpseo_title	Bonbird Aljada | Fresh Fried Chicken in Sharjah
+_yoast_wpseo_metadesc	Hormone-free, antibiotic-free chicken. Made fresh to order, never frozen. Find Bonbird at Aljada Sharjah. All bird. No bull.
+_yoast_wpseo_focuskw	Bonbird Aljada
+_yoast_wpseo_opengraph-title	
+_yoast_wpseo_opengraph-description	
+_yoast_wpseo_twitter-title	
+_yoast_wpseo_twitter-description	

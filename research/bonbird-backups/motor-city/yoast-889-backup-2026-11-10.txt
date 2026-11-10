@@ -1,0 +1,8 @@
+post_name	motor-city
+_yoast_wpseo_title	BonBird Motor City – Dubai’s Crispiest Chicken Spot
+_yoast_wpseo_metadesc	Bonbird Motor City brings crispy fried chicken and juicy burgers to Dubai Motor City. Browse the Bonbird Motor City menu and order today.
+_yoast_wpseo_focuskw	BonBird Motor City
+_yoast_wpseo_opengraph-title	
+_yoast_wpseo_opengraph-description	
+_yoast_wpseo_twitter-title	
+_yoast_wpseo_twitter-description	

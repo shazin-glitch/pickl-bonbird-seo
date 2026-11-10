@@ -1,0 +1,8 @@
+post_name	mirdif
+_yoast_wpseo_title	BonBird Mirdif – Burgers & Crispy Chicken Dubai
+_yoast_wpseo_metadesc	Bonbird Mirdif serves juicy burgers and crispy fried chicken in Dubai. Explore the Bonbird Mirdif menu and order your favourites today.
+_yoast_wpseo_focuskw	BonBird Mirdif
+_yoast_wpseo_opengraph-title	
+_yoast_wpseo_opengraph-description	
+_yoast_wpseo_twitter-title	
+_yoast_wpseo_twitter-description	
