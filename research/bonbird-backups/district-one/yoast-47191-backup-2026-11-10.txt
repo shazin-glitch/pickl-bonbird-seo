@@ -1,0 +1,8 @@
+== 47191	post_name	district-one
+_yoast_wpseo_title	Fried Chicken in District One Doha | Bonbird
+_yoast_wpseo_metadesc	Fresh fried chicken for pickup or delivery in District One, Doha. Hormone-free, antibiotic-free, made to order. Order Bonbird now.
+_yoast_wpseo_focuskw	halal fried chicken Doha
+_yoast_wpseo_opengraph-title	
+_yoast_wpseo_opengraph-description	
+_yoast_wpseo_twitter-title	
+_yoast_wpseo_twitter-description	

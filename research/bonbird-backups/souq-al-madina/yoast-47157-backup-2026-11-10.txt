@@ -1,0 +1,8 @@
+post_name	souq-al-madina
+_yoast_wpseo_title	Fried Chicken Muscat | Bonbird Souq Al Madina
+_yoast_wpseo_metadesc	Fresh fried chicken in Muscat at Bonbird Souq Al Madina. Hormone-free, made to order, never frozen. Bone-in, tenders, sandwiches, rice bowls and shakes.
+_yoast_wpseo_focuskw	fried chicken muscat
+_yoast_wpseo_opengraph-title	
+_yoast_wpseo_opengraph-description	
+_yoast_wpseo_twitter-title	
+_yoast_wpseo_twitter-description	

@@ -4556,6 +4556,14 @@ Audit now hits 12 pages, **every one verified `200` live**: `/ae/`, `/ae/menu/`,
 
 **Confidence + honest caveat:** the query-string change matches code that is known to work for the identical scheduled-function setup, so I'm confident in the mechanism. The one thing only a live run confirms is that an HTTP GET to this function surfaces `queryStringParameters.brand` (the dashboard "Run" simulates a *cron* event, which is why that path shows `via=scheduled`; a real HTTP GET from the wrapper should be `via=internal` with the brand present). The v7.8.8 logs will show it plainly.
 
+### v7.9.135 — Bonbird Oman + Qatar venue titles/meta done (research records only, no code)
+10 Nov, approved by Shazin, backed up, verified live, logged in `research/seo-change-log-bonbird.tsv`:
+- Souq Al Madina (47157): brand-first title + meta; fkw `souq al madina restaurants` (TARGET CHANGED from fried chicken muscat ~20/mo, GSC #12.7 not Semrush #8; Muscat city page owns that intent). Sheet row 85 updated + short comment. Page's real job = branded traffic + GBP landing page; Oman has almost no measurable non-branded demand.
+- Al Khoudh (47165): title no longer leads with Seeb (was competing with the Seeb city page); fkw `al khoudh restaurants`.
+- West Walk (47196): fkw `west walk restaurants` (880/mo); old fkw `fried chicken doha` competed with the Doha page.
+- District One (47191): focus kw only (`district one doha`); title kept (steady ~#10 in GSC).
+- Hreflang (40 pages) + Article schema (19/19 journal posts) verified OK via read-only sitemap crawl. Open: Organization schema (Yoast has none; separate custom block with no @id): OPEN row in the change log, due 20 Nov.
+
 ### v7.9.134 — Bonbird UAE venue titles/meta done (research records only, no code)
 10 Nov: all 5 UAE venue pages got new Yoast title + meta + focus keyword, approved one by one by Shazin, backed up first (`research/bonbird-backups/<venue>/`), verified live, logged in `research/seo-change-log-bonbird.tsv`. Pattern: brand-first "Bonbird <Venue> | Fried Chicken Restaurant, <City>"; H1s unchanged.
 - Mirdif (882) fkw `mirdif city center restaurants` · City Walk (853) `city walk restaurants` · Motor City (889) `motor city restaurants` (meta keeps Nashville hot chicken + Ribbon Mall) · Khalifa City (898) `khalifa city restaurants` (TARGET CHANGED from best fried chicken abu dhabi: GSC #26 not Semrush #3, and the Abu Dhabi city page owns that intent; sheet rows 70 + 180 updated with comments) · Aljada (894) `aljada restaurants` (drive-thru in meta, not title, to avoid duplicating the Sharjah city page title; Muweilah rejected by Shazin as a different audience).

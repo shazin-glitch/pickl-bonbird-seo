@@ -1,0 +1,8 @@
+== 47196	post_name	west-walk
+_yoast_wpseo_title	Bonbird West Walk Doha | Fresh Fried Chicken, Made to Order
+_yoast_wpseo_metadesc	Bonbird at West Walk, Doha. Fresh fried chicken, never frozen. Bone-in, tenders, burgers, wraps, rice bowls. Dine in, pick up or get it delivered.
+_yoast_wpseo_focuskw	fried chicken doha
+_yoast_wpseo_opengraph-title	
+_yoast_wpseo_opengraph-description	
+_yoast_wpseo_twitter-title	
+_yoast_wpseo_twitter-description	
