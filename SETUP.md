@@ -4556,6 +4556,10 @@ Audit now hits 12 pages, **every one verified `200` live**: `/ae/`, `/ae/menu/`,
 
 **Confidence + honest caveat:** the query-string change matches code that is known to work for the identical scheduled-function setup, so I'm confident in the mechanism. The one thing only a live run confirms is that an HTTP GET to this function surfaces `queryStringParameters.brand` (the dashboard "Run" simulates a *cron* event, which is why that path shows `via=scheduled`; a real HTTP GET from the wrapper should be `via=internal` with the brand present). The v7.8.8 logs will show it plainly.
 
+### v7.9.140 — Bonbird order-click tracking live (GTM v11), records only
+- GTM-58QXM44V v11: GA4 events `order_button_click` (click_page, market) + `order_platform_click` (platform, market, link_url, from_page). Merge-imported (existing tags untouched), preview-tested, published 16 Nov. Rollback = publish v10. Import JSON: research/bonbird-backups/gtm/. GA4 (G-R07822MVLL) custom dimensions + key event still owed.
+- Gotcha: in GTM preview, clicks before the container finishes loading are not captured; test after gtm.load.
+
 ### v7.9.139 — Backlog: Bing follow-ups (IndexNow + Bing index check), records only
 - Bing Webmaster Tools set up 16 Nov (by Shazin). Parked as OPEN rows in research/seo-change-log-bonbird.tsv: IndexNow plugin (free Yoast lacks it; live install needs approval) + one-off Bing index check. Suggested week of 23 Nov.
 

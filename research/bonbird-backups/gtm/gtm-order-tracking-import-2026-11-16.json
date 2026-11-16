@@ -1,0 +1,601 @@
+{
+ "exportFormatVersion": 2,
+ "exportTime": "2026-11-16 12:00:00",
+ "containerVersion": {
+  "path": "accounts/6202423563/containers/169339851/versions/0",
+  "accountId": "6202423563",
+  "containerId": "169339851",
+  "containerVersionId": "0",
+  "container": {
+   "path": "accounts/6202423563/containers/169339851",
+   "accountId": "6202423563",
+   "containerId": "169339851",
+   "name": "Bonbird Website",
+   "publicId": "GTM-58QXM44V",
+   "usageContext": [
+    "WEB"
+   ]
+  },
+  "tag": [
+   {
+    "accountId": "6202423563",
+    "containerId": "169339851",
+    "tagId": "9201",
+    "name": "GA4 - order_button_click",
+    "type": "gaawe",
+    "parameter": [
+     {
+      "type": "BOOLEAN",
+      "key": "sendEcommerceData",
+      "value": "false"
+     },
+     {
+      "type": "TEMPLATE",
+      "key": "eventName",
+      "value": "order_button_click"
+     },
+     {
+      "type": "TEMPLATE",
+      "key": "measurementIdOverride",
+      "value": "G-R07822MVLL"
+     },
+     {
+      "type": "LIST",
+      "key": "eventSettingsTable",
+      "list": [
+       {
+        "type": "MAP",
+        "map": [
+         {
+          "type": "TEMPLATE",
+          "key": "parameter",
+          "value": "click_page"
+         },
+         {
+          "type": "TEMPLATE",
+          "key": "parameterValue",
+          "value": "{{Page Path}}"
+         }
+        ]
+       },
+       {
+        "type": "MAP",
+        "map": [
+         {
+          "type": "TEMPLATE",
+          "key": "parameter",
+          "value": "market"
+         },
+         {
+          "type": "TEMPLATE",
+          "key": "parameterValue",
+          "value": "{{Order - Market}}"
+         }
+        ]
+       }
+      ]
+     }
+    ],
+    "firingTriggerId": [
+     "9101"
+    ],
+    "tagFiringOption": "ONCE_PER_EVENT"
+   },
+   {
+    "accountId": "6202423563",
+    "containerId": "169339851",
+    "tagId": "9202",
+    "name": "GA4 - order_platform_click",
+    "type": "gaawe",
+    "parameter": [
+     {
+      "type": "BOOLEAN",
+      "key": "sendEcommerceData",
+      "value": "false"
+     },
+     {
+      "type": "TEMPLATE",
+      "key": "eventName",
+      "value": "order_platform_click"
+     },
+     {
+      "type": "TEMPLATE",
+      "key": "measurementIdOverride",
+      "value": "G-R07822MVLL"
+     },
+     {
+      "type": "LIST",
+      "key": "eventSettingsTable",
+      "list": [
+       {
+        "type": "MAP",
+        "map": [
+         {
+          "type": "TEMPLATE",
+          "key": "parameter",
+          "value": "platform"
+         },
+         {
+          "type": "TEMPLATE",
+          "key": "parameterValue",
+          "value": "{{Order - Platform}}"
+         }
+        ]
+       },
+       {
+        "type": "MAP",
+        "map": [
+         {
+          "type": "TEMPLATE",
+          "key": "parameter",
+          "value": "market"
+         },
+         {
+          "type": "TEMPLATE",
+          "key": "parameterValue",
+          "value": "{{Order - Market}}"
+         }
+        ]
+       },
+       {
+        "type": "MAP",
+        "map": [
+         {
+          "type": "TEMPLATE",
+          "key": "parameter",
+          "value": "link_url"
+         },
+         {
+          "type": "TEMPLATE",
+          "key": "parameterValue",
+          "value": "{{Click URL}}"
+         }
+        ]
+       },
+       {
+        "type": "MAP",
+        "map": [
+         {
+          "type": "TEMPLATE",
+          "key": "parameter",
+          "value": "from_page"
+         },
+         {
+          "type": "TEMPLATE",
+          "key": "parameterValue",
+          "value": "{{Referrer}}"
+         }
+        ]
+       }
+      ]
+     }
+    ],
+    "firingTriggerId": [
+     "9102"
+    ],
+    "tagFiringOption": "ONCE_PER_EVENT"
+   }
+  ],
+  "trigger": [
+   {
+    "accountId": "6202423563",
+    "containerId": "169339851",
+    "triggerId": "9101",
+    "name": "Click - Order button",
+    "type": "LINK_CLICK",
+    "filter": [
+     {
+      "type": "MATCH_REGEX",
+      "parameter": [
+       {
+        "type": "TEMPLATE",
+        "key": "arg0",
+        "value": "{{Click URL}}"
+       },
+       {
+        "type": "TEMPLATE",
+        "key": "arg1",
+        "value": "bonbirdchicken\\.com/[a-z]{2}/order/?$"
+       }
+      ]
+     }
+    ],
+    "waitForTags": {
+     "type": "BOOLEAN",
+     "value": "false"
+    },
+    "checkValidation": {
+     "type": "BOOLEAN",
+     "value": "false"
+    },
+    "waitForTagsTimeout": {
+     "type": "TEMPLATE",
+     "value": "2000"
+    }
+   },
+   {
+    "accountId": "6202423563",
+    "containerId": "169339851",
+    "triggerId": "9102",
+    "name": "Click - Order platform (outbound on order page)",
+    "type": "LINK_CLICK",
+    "filter": [
+     {
+      "type": "MATCH_REGEX",
+      "parameter": [
+       {
+        "type": "TEMPLATE",
+        "key": "arg0",
+        "value": "{{Page Path}}"
+       },
+       {
+        "type": "TEMPLATE",
+        "key": "arg1",
+        "value": "^/[a-z]{2}/order/?$"
+       }
+      ]
+     },
+     {
+      "type": "MATCH_REGEX",
+      "parameter": [
+       {
+        "type": "TEMPLATE",
+        "key": "arg0",
+        "value": "{{Click URL}}"
+       },
+       {
+        "type": "TEMPLATE",
+        "key": "arg1",
+        "value": "^https?://"
+       }
+      ]
+     },
+     {
+      "type": "CONTAINS",
+      "parameter": [
+       {
+        "type": "TEMPLATE",
+        "key": "arg0",
+        "value": "{{Click URL}}"
+       },
+       {
+        "type": "TEMPLATE",
+        "key": "arg1",
+        "value": "bonbirdchicken.com"
+       },
+       {
+        "type": "BOOLEAN",
+        "key": "negate",
+        "value": "true"
+       }
+      ]
+     },
+     {
+      "type": "MATCH_REGEX",
+      "parameter": [
+       {
+        "type": "TEMPLATE",
+        "key": "arg0",
+        "value": "{{Click URL}}"
+       },
+       {
+        "type": "TEMPLATE",
+        "key": "arg1",
+        "value": "instagram|facebook|tiktok|linkedin|twitter|x\\.com|yolkbrands|youtube"
+       },
+       {
+        "type": "BOOLEAN",
+        "key": "negate",
+        "value": "true"
+       }
+      ]
+     }
+    ],
+    "waitForTags": {
+     "type": "BOOLEAN",
+     "value": "false"
+    },
+    "checkValidation": {
+     "type": "BOOLEAN",
+     "value": "false"
+    },
+    "waitForTagsTimeout": {
+     "type": "TEMPLATE",
+     "value": "2000"
+    }
+   }
+  ],
+  "variable": [
+   {
+    "accountId": "6202423563",
+    "containerId": "169339851",
+    "variableId": "9001",
+    "name": "Order - Platform",
+    "type": "remm",
+    "parameter": [
+     {
+      "type": "TEMPLATE",
+      "key": "input",
+      "value": "{{Click URL}}"
+     },
+     {
+      "type": "BOOLEAN",
+      "key": "fullMatch",
+      "value": "false"
+     },
+     {
+      "type": "BOOLEAN",
+      "key": "replaceAfterMatch",
+      "value": "false"
+     },
+     {
+      "type": "BOOLEAN",
+      "key": "ignoreCase",
+      "value": "true"
+     },
+     {
+      "type": "BOOLEAN",
+      "key": "setDefaultValue",
+      "value": "true"
+     },
+     {
+      "type": "TEMPLATE",
+      "key": "defaultValue",
+      "value": "Other"
+     },
+     {
+      "type": "LIST",
+      "key": "map",
+      "list": [
+       {
+        "type": "MAP",
+        "map": [
+         {
+          "type": "TEMPLATE",
+          "key": "key",
+          "value": "talabat"
+         },
+         {
+          "type": "TEMPLATE",
+          "key": "value",
+          "value": "Talabat"
+         }
+        ]
+       },
+       {
+        "type": "MAP",
+        "map": [
+         {
+          "type": "TEMPLATE",
+          "key": "key",
+          "value": "deliveroo"
+         },
+         {
+          "type": "TEMPLATE",
+          "key": "value",
+          "value": "Deliveroo"
+         }
+        ]
+       },
+       {
+        "type": "MAP",
+        "map": [
+         {
+          "type": "TEMPLATE",
+          "key": "key",
+          "value": "noon\\.com"
+         },
+         {
+          "type": "TEMPLATE",
+          "key": "value",
+          "value": "Noon"
+         }
+        ]
+       },
+       {
+        "type": "MAP",
+        "map": [
+         {
+          "type": "TEMPLATE",
+          "key": "key",
+          "value": "keeta"
+         },
+         {
+          "type": "TEMPLATE",
+          "key": "value",
+          "value": "Keeta"
+         }
+        ]
+       },
+       {
+        "type": "MAP",
+        "map": [
+         {
+          "type": "TEMPLATE",
+          "key": "key",
+          "value": "snoonu"
+         },
+         {
+          "type": "TEMPLATE",
+          "key": "value",
+          "value": "Snoonu"
+         }
+        ]
+       },
+       {
+        "type": "MAP",
+        "map": [
+         {
+          "type": "TEMPLATE",
+          "key": "key",
+          "value": "foodpanda"
+         },
+         {
+          "type": "TEMPLATE",
+          "key": "value",
+          "value": "Foodpanda"
+         }
+        ]
+       },
+       {
+        "type": "MAP",
+        "map": [
+         {
+          "type": "TEMPLATE",
+          "key": "key",
+          "value": "blinkco"
+         },
+         {
+          "type": "TEMPLATE",
+          "key": "value",
+          "value": "Bonbird app (Blink)"
+         }
+        ]
+       },
+       {
+        "type": "MAP",
+        "map": [
+         {
+          "type": "TEMPLATE",
+          "key": "key",
+          "value": "careem"
+         },
+         {
+          "type": "TEMPLATE",
+          "key": "value",
+          "value": "Careem"
+         }
+        ]
+       }
+      ]
+     }
+    ]
+   },
+   {
+    "accountId": "6202423563",
+    "containerId": "169339851",
+    "variableId": "9002",
+    "name": "Order - Market",
+    "type": "remm",
+    "parameter": [
+     {
+      "type": "TEMPLATE",
+      "key": "input",
+      "value": "{{Page Path}}"
+     },
+     {
+      "type": "BOOLEAN",
+      "key": "fullMatch",
+      "value": "false"
+     },
+     {
+      "type": "BOOLEAN",
+      "key": "replaceAfterMatch",
+      "value": "false"
+     },
+     {
+      "type": "BOOLEAN",
+      "key": "ignoreCase",
+      "value": "true"
+     },
+     {
+      "type": "BOOLEAN",
+      "key": "setDefaultValue",
+      "value": "true"
+     },
+     {
+      "type": "TEMPLATE",
+      "key": "defaultValue",
+      "value": "Other"
+     },
+     {
+      "type": "LIST",
+      "key": "map",
+      "list": [
+       {
+        "type": "MAP",
+        "map": [
+         {
+          "type": "TEMPLATE",
+          "key": "key",
+          "value": "^/ae/"
+         },
+         {
+          "type": "TEMPLATE",
+          "key": "value",
+          "value": "UAE"
+         }
+        ]
+       },
+       {
+        "type": "MAP",
+        "map": [
+         {
+          "type": "TEMPLATE",
+          "key": "key",
+          "value": "^/om/"
+         },
+         {
+          "type": "TEMPLATE",
+          "key": "value",
+          "value": "Oman"
+         }
+        ]
+       },
+       {
+        "type": "MAP",
+        "map": [
+         {
+          "type": "TEMPLATE",
+          "key": "key",
+          "value": "^/qa/"
+         },
+         {
+          "type": "TEMPLATE",
+          "key": "value",
+          "value": "Qatar"
+         }
+        ]
+       },
+       {
+        "type": "MAP",
+        "map": [
+         {
+          "type": "TEMPLATE",
+          "key": "key",
+          "value": "^/pk/"
+         },
+         {
+          "type": "TEMPLATE",
+          "key": "value",
+          "value": "Pakistan"
+         }
+        ]
+       }
+      ]
+     }
+    ]
+   }
+  ],
+  "builtInVariable": [
+   {
+    "accountId": "6202423563",
+    "containerId": "169339851",
+    "type": "CLICK_URL",
+    "name": "Click URL"
+   },
+   {
+    "accountId": "6202423563",
+    "containerId": "169339851",
+    "type": "CLICK_TEXT",
+    "name": "Click Text"
+   },
+   {
+    "accountId": "6202423563",
+    "containerId": "169339851",
+    "type": "CLICK_CLASSES",
+    "name": "Click Classes"
+   }
+  ]
+ }
+}
