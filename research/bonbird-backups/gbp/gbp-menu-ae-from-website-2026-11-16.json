@@ -1,0 +1,1011 @@
+[
+ {
+  "labels": [
+   {
+    "displayName": "Menu",
+    "languageCode": "en"
+   }
+  ],
+  "sections": [
+   {
+    "labels": [
+     {
+      "displayName": "Bone-In",
+      "description": "On the bone and by the bucket.",
+      "languageCode": "en"
+     }
+    ],
+    "items": [
+     {
+      "labels": [
+       {
+        "displayName": "2pcs Bone-In Combo",
+        "description": "2 bone-in pieces of fresh fried chicken, side and a drink.",
+        "languageCode": "en"
+       }
+      ],
+      "attributes": {
+       "price": {
+        "currencyCode": "AED",
+        "units": "32"
+       }
+      },
+      "imageUrl": "https://bonbirdchicken.com/wp-content/uploads/2023/04/2-piece-bone-in-1024x684.jpg"
+     },
+     {
+      "labels": [
+       {
+        "displayName": "3pcs Bone-In Combo",
+        "description": "3 bone-in pieces of fresh fried chicken, side and a drink.",
+        "languageCode": "en"
+       }
+      ],
+      "attributes": {
+       "price": {
+        "currencyCode": "AED",
+        "units": "42"
+       }
+      },
+      "imageUrl": "https://bonbirdchicken.com/wp-content/uploads/2023/04/3-piece-bone-in-1024x684.jpg"
+     },
+     {
+      "labels": [
+       {
+        "displayName": "5pcs Bone-In Combo",
+        "description": "5 bone-in pieces of fresh fried chicken, side and a drink.",
+        "languageCode": "en"
+       }
+      ],
+      "attributes": {
+       "price": {
+        "currencyCode": "AED",
+        "units": "62"
+       }
+      },
+      "imageUrl": "https://bonbirdchicken.com/wp-content/uploads/2023/04/5-piece-bone-in-768x512.jpg"
+     },
+     {
+      "labels": [
+       {
+        "displayName": "8pcs Bone-In Combo",
+        "description": "8 bone-in pieces of fresh fried chicken, 2 sides and 2 drinks.",
+        "languageCode": "en"
+       }
+      ],
+      "attributes": {
+       "price": {
+        "currencyCode": "AED",
+        "units": "102"
+       }
+      },
+      "imageUrl": "https://bonbirdchicken.com/wp-content/uploads/2023/04/8-piece-bone-in-768x513.jpg"
+     }
+    ]
+   },
+   {
+    "labels": [
+     {
+      "displayName": "Tenders",
+      "description": "Fresh fried chicken tenders, your way.",
+      "languageCode": "en"
+     }
+    ],
+    "items": [
+     {
+      "labels": [
+       {
+        "displayName": "2pcs Chicken Tender Combo",
+        "description": "2 fresh fried chicken tenders, side and a drink.",
+        "languageCode": "en"
+       }
+      ],
+      "attributes": {
+       "price": {
+        "currencyCode": "AED",
+        "units": "32"
+       }
+      },
+      "imageUrl": "https://bonbirdchicken.com/wp-content/uploads/2023/04/2-pc-tenders-meal-1024x684.jpeg"
+     },
+     {
+      "labels": [
+       {
+        "displayName": "3pcs Chicken Tender Combo",
+        "description": "3 fresh fried chicken tenders, side and a drink.",
+        "languageCode": "en"
+       }
+      ],
+      "attributes": {
+       "price": {
+        "currencyCode": "AED",
+        "units": "42"
+       }
+      },
+      "imageUrl": "https://bonbirdchicken.com/wp-content/uploads/2023/04/3-piece-tenders-768x513.jpg"
+     },
+     {
+      "labels": [
+       {
+        "displayName": "5pcs Chicken Tender Combo",
+        "description": "5 fresh fried chicken tenders, side and a drink.",
+        "languageCode": "en"
+       }
+      ],
+      "attributes": {
+       "price": {
+        "currencyCode": "AED",
+        "units": "62"
+       }
+      },
+      "imageUrl": "https://bonbirdchicken.com/wp-content/uploads/2023/04/5-piece-tenders-768x513.jpg"
+     },
+     {
+      "labels": [
+       {
+        "displayName": "8pcs Chicken Tender Combo",
+        "description": "8 fresh fried chicken tenders, 2 sides and 2 drinks.",
+        "languageCode": "en"
+       }
+      ],
+      "attributes": {
+       "price": {
+        "currencyCode": "AED",
+        "units": "102"
+       }
+      },
+      "imageUrl": "https://bonbirdchicken.com/wp-content/uploads/2023/04/8-piece-tenders-768x513.jpg"
+     }
+    ]
+   },
+   {
+    "labels": [
+     {
+      "displayName": "Just Chicken",
+      "description": "Fresh fried, hormone-free, antibiotic-free chicken. Nothing else. Choose your flavour: Plain Jane, Lemon Pepper, Chicken Salt, Jalapeno, Medium Spice or XXX Hot.",
+      "languageCode": "en"
+     }
+    ],
+    "items": [
+     {
+      "labels": [
+       {
+        "displayName": "2 Chicken Tenders",
+        "description": "2 fresh fried chicken tenders, nothing else.",
+        "languageCode": "en"
+       }
+      ],
+      "attributes": {
+       "price": {
+        "currencyCode": "AED",
+        "units": "20"
+       }
+      },
+      "imageUrl": "https://bonbirdchicken.com/wp-content/uploads/2026/07/Just-Tenders-2P-1024x683.jpg"
+     },
+     {
+      "labels": [
+       {
+        "displayName": "3 Chicken Tenders",
+        "description": "3 fresh fried chicken tenders, nothing else.",
+        "languageCode": "en"
+       }
+      ],
+      "attributes": {
+       "price": {
+        "currencyCode": "AED",
+        "units": "30"
+       }
+      },
+      "imageUrl": "https://bonbirdchicken.com/wp-content/uploads/2026/07/WhatsApp-Image-2026-07-30-at-11.34.22-PM-768x512.jpeg"
+     },
+     {
+      "labels": [
+       {
+        "displayName": "5 Chicken Tenders",
+        "description": "5 fresh fried chicken tenders, nothing else.",
+        "languageCode": "en"
+       }
+      ],
+      "attributes": {
+       "price": {
+        "currencyCode": "AED",
+        "units": "50"
+       }
+      },
+      "imageUrl": "https://bonbirdchicken.com/wp-content/uploads/2026/10/5-Piece-Tenders-1-1024x683.jpg"
+     },
+     {
+      "labels": [
+       {
+        "displayName": "2 Bone-In Chicken",
+        "description": "2 bone-in pieces of fresh fried chicken, nothing else.",
+        "languageCode": "en"
+       }
+      ],
+      "attributes": {
+       "price": {
+        "currencyCode": "AED",
+        "units": "20"
+       }
+      },
+      "imageUrl": "https://bonbirdchicken.com/wp-content/uploads/2026/07/2-pc-1024x683.jpg"
+     },
+     {
+      "labels": [
+       {
+        "displayName": "3 Bone-In Chicken",
+        "description": "3 bone-in pieces of fresh fried chicken, nothing else.",
+        "languageCode": "en"
+       }
+      ],
+      "attributes": {
+       "price": {
+        "currencyCode": "AED",
+        "units": "30"
+       }
+      },
+      "imageUrl": "https://bonbirdchicken.com/wp-content/uploads/2026/07/3-pieces-1024x683.jpg"
+     },
+     {
+      "labels": [
+       {
+        "displayName": "5 Bone-In Chicken",
+        "description": "5 bone-in pieces of fresh fried chicken, nothing else.",
+        "languageCode": "en"
+       }
+      ],
+      "attributes": {
+       "price": {
+        "currencyCode": "AED",
+        "units": "50"
+       }
+      },
+      "imageUrl": "https://bonbirdchicken.com/wp-content/uploads/2026/07/5-piece-1024x683.jpg"
+     }
+    ]
+   },
+   {
+    "labels": [
+     {
+      "displayName": "Burgers",
+      "description": "Fresh fried chicken burgers.",
+      "languageCode": "en"
+     }
+    ],
+    "items": [
+     {
+      "labels": [
+       {
+        "displayName": "Classic Chicken Burger",
+        "description": "Fresh fried chicken, lettuce, herb mayo, and potato bun.",
+        "languageCode": "en"
+       }
+      ],
+      "attributes": {
+       "price": {
+        "currencyCode": "AED",
+        "units": "32"
+       }
+      },
+      "imageUrl": "https://bonbirdchicken.com/wp-content/uploads/2026/07/Copy-of-Classic-Burger-2-768x512.jpg"
+     },
+     {
+      "labels": [
+       {
+        "displayName": "Korean Chicken Burger",
+        "description": "Fresh fried chicken, cabbage, gochujang sauce, ranch, and potato bun.",
+        "languageCode": "en"
+       }
+      ],
+      "attributes": {
+       "price": {
+        "currencyCode": "AED",
+        "units": "33"
+       }
+      },
+      "imageUrl": "https://bonbirdchicken.com/wp-content/uploads/2026/07/Copy-of-Korean-Burger-768x512.jpg"
+     },
+     {
+      "labels": [
+       {
+        "displayName": "The Good Good Chicken Burger",
+        "description": "Fresh fried chicken, cabbage, Good Good sauce, and potato bun.",
+        "languageCode": "en"
+       }
+      ],
+      "attributes": {
+       "price": {
+        "currencyCode": "AED",
+        "units": "32"
+       }
+      },
+      "imageUrl": "https://bonbirdchicken.com/wp-content/uploads/2026/07/Copy-of-chicken-sandwich-burger-03.psd-2-768x512.jpg"
+     }
+    ]
+   },
+   {
+    "labels": [
+     {
+      "displayName": "The Melts",
+      "description": "Fresh fried chicken melts.",
+      "languageCode": "en"
+     }
+    ],
+    "items": [
+     {
+      "labels": [
+       {
+        "displayName": "The Chicken Melt",
+        "description": "Fresh fried chicken, triple cheese, cabbage, and Good Good sauce.",
+        "languageCode": "en"
+       }
+      ],
+      "attributes": {
+       "price": {
+        "currencyCode": "AED",
+        "units": "30"
+       }
+      },
+      "imageUrl": "https://bonbirdchicken.com/wp-content/uploads/2026/07/Copy-of-CHICKEN-SANDWICH-MELT_1-768x512.jpg"
+     },
+     {
+      "labels": [
+       {
+        "displayName": "The Korean Chicken Melt",
+        "description": "Fresh fried chicken, triple cheese, cabbage, gochujang sauce, and ranch.",
+        "languageCode": "en"
+       }
+      ],
+      "attributes": {
+       "price": {
+        "currencyCode": "AED",
+        "units": "34"
+       }
+      },
+      "imageUrl": "https://bonbirdchicken.com/wp-content/uploads/2026/07/Korean-Chicken-Melt-768x513.jpg"
+     }
+    ]
+   },
+   {
+    "labels": [
+     {
+      "displayName": "Wraps",
+      "description": "Fresh fried chicken in toasty wraps.",
+      "languageCode": "en"
+     }
+    ],
+    "items": [
+     {
+      "labels": [
+       {
+        "displayName": "Chicken Mac Mega Wrap",
+        "description": "Chicken salt fries, fresh fried chicken tenders, Mac & Three Cheese.",
+        "languageCode": "en"
+       }
+      ],
+      "attributes": {
+       "price": {
+        "currencyCode": "AED",
+        "units": "49"
+       }
+      },
+      "imageUrl": "https://bonbirdchicken.com/wp-content/uploads/2026/07/mac-wrap.jpeg"
+     },
+     {
+      "labels": [
+       {
+        "displayName": "Chicken Slaw Mega Wrap",
+        "description": "Chicken salt fries, fresh fried chicken tenders, slaw, and ranch.",
+        "languageCode": "en"
+       }
+      ],
+      "attributes": {
+       "price": {
+        "currencyCode": "AED",
+        "units": "49"
+       }
+      },
+      "imageUrl": "https://bonbirdchicken.com/wp-content/uploads/2026/07/Slaw-Mega-Wrap-768x512.jpg"
+     },
+     {
+      "labels": [
+       {
+        "displayName": "Good Good Chicken Wrap",
+        "description": "Chicken tenders, cheese, cabbage, tomato, and Good Good sauce.",
+        "languageCode": "en"
+       }
+      ],
+      "attributes": {
+       "price": {
+        "currencyCode": "AED",
+        "units": "28"
+       }
+      },
+      "imageUrl": "https://bonbirdchicken.com/wp-content/uploads/bp-menu/good-good-wrap-768x512.jpg"
+     },
+     {
+      "labels": [
+       {
+        "displayName": "Classic Chicken Wrap",
+        "description": "Chicken tenders, cheese, lettuce, tomato, and herb mayo.",
+        "languageCode": "en"
+       }
+      ],
+      "attributes": {
+       "price": {
+        "currencyCode": "AED",
+        "units": "28"
+       }
+      },
+      "imageUrl": "https://bonbirdchicken.com/wp-content/uploads/bp-menu/classic-wrap-768x512.jpg"
+     },
+     {
+      "labels": [
+       {
+        "displayName": "Korean Chicken Wrap",
+        "description": "Chicken tenders, cabbage, gochujang sauce, and ranch.",
+        "languageCode": "en"
+       }
+      ],
+      "attributes": {
+       "price": {
+        "currencyCode": "AED",
+        "units": "30"
+       }
+      },
+      "imageUrl": "https://bonbirdchicken.com/wp-content/uploads/2026/07/Copy-of-Korean-Chicken-Wrap-768x512.jpg"
+     }
+    ]
+   },
+   {
+    "labels": [
+     {
+      "displayName": "Messy Bowls",
+      "description": "Our viral messy bowls.",
+      "languageCode": "en"
+     }
+    ],
+    "items": [
+     {
+      "labels": [
+       {
+        "displayName": "Chicken Slaw Messy Bowl",
+        "description": "Chicken salt fries, fresh fried chicken tenders, slaw, ranch and Good Good sauce.",
+        "languageCode": "en"
+       }
+      ],
+      "attributes": {
+       "price": {
+        "currencyCode": "AED",
+        "units": "49"
+       }
+      },
+      "imageUrl": "https://bonbirdchicken.com/wp-content/uploads/2026/07/Chicken-Slaw-Messy-Bow-768x513.jpg"
+     },
+     {
+      "labels": [
+       {
+        "displayName": "Chicken Mac Messy Bowl",
+        "description": "Chicken salt fries, fresh fried chicken tenders, Mac & Three Cheese, and Good Good sauce.",
+        "languageCode": "en"
+       }
+      ],
+      "attributes": {
+       "price": {
+        "currencyCode": "AED",
+        "units": "49"
+       }
+      },
+      "imageUrl": "https://bonbirdchicken.com/wp-content/uploads/2026/07/Chicken-Mac-Messy-Bowl-768x513.jpg"
+     }
+    ]
+   },
+   {
+    "labels": [
+     {
+      "displayName": "Sides",
+      "description": "Make it something special with a little bit on the side.",
+      "languageCode": "en"
+     }
+    ],
+    "items": [
+     {
+      "labels": [
+       {
+        "displayName": "Plain Fries",
+        "description": "Crispy fries, straight up.",
+        "languageCode": "en"
+       }
+      ],
+      "attributes": {
+       "price": {
+        "currencyCode": "AED",
+        "units": "15"
+       }
+      },
+      "imageUrl": "https://bonbirdchicken.com/wp-content/uploads/2026/07/Copy-of-Fries-768x512.jpg"
+     },
+     {
+      "labels": [
+       {
+        "displayName": "Chicken Salt Fries",
+        "description": "Once tried, impossible to resist.",
+        "languageCode": "en"
+       }
+      ],
+      "attributes": {
+       "price": {
+        "currencyCode": "AED",
+        "units": "17"
+       }
+      },
+      "imageUrl": "https://bonbirdchicken.com/wp-content/uploads/2023/04/Chicken-Salt-Fries-768x512.jpg"
+     },
+     {
+      "labels": [
+       {
+        "displayName": "Choose Your Flavour Fries",
+        "description": "Jalapeno, Lemon Pepper or Spicy fries",
+        "languageCode": "en"
+       }
+      ],
+      "attributes": {
+       "price": {
+        "currencyCode": "AED",
+        "units": "18"
+       }
+      },
+      "imageUrl": "https://bonbirdchicken.com/wp-content/uploads/2023/04/Spicy-Fries-768x512.jpg"
+     },
+     {
+      "labels": [
+       {
+        "displayName": "Mac & Three Cheese (Reg)",
+        "description": "Triple the cheese, triple good.",
+        "languageCode": "en"
+       }
+      ],
+      "attributes": {
+       "price": {
+        "currencyCode": "AED",
+        "units": "10"
+       }
+      },
+      "imageUrl": "https://bonbirdchicken.com/wp-content/uploads/2026/07/Mac-N-Cheese-768x512.jpg"
+     },
+     {
+      "labels": [
+       {
+        "displayName": "Mac & Three Cheese (Mega)",
+        "description": "Triple the cheese, triple good.",
+        "languageCode": "en"
+       }
+      ],
+      "attributes": {
+       "price": {
+        "currencyCode": "AED",
+        "units": "18"
+       }
+      },
+      "imageUrl": "https://bonbirdchicken.com/wp-content/uploads/2026/07/Mac-N-Cheese-768x512.jpg"
+     },
+     {
+      "labels": [
+       {
+        "displayName": "Mash Potato (Reg)",
+        "description": "Fried chicken's soulmate.",
+        "languageCode": "en"
+       }
+      ],
+      "attributes": {
+       "price": {
+        "currencyCode": "AED",
+        "units": "10"
+       }
+      },
+      "imageUrl": "https://bonbirdchicken.com/wp-content/uploads/2023/04/Mash-Potato-768x512.jpg"
+     },
+     {
+      "labels": [
+       {
+        "displayName": "Mash Potato (Mega)",
+        "description": "Fried chicken's soulmate.",
+        "languageCode": "en"
+       }
+      ],
+      "attributes": {
+       "price": {
+        "currencyCode": "AED",
+        "units": "18"
+       }
+      },
+      "imageUrl": "https://bonbirdchicken.com/wp-content/uploads/2023/04/Mash-Potato-768x512.jpg"
+     },
+     {
+      "labels": [
+       {
+        "displayName": "Bon Gravy (Reg)",
+        "description": "Secret signature recipe.",
+        "languageCode": "en"
+       }
+      ],
+      "attributes": {
+       "price": {
+        "currencyCode": "AED",
+        "units": "10"
+       }
+      },
+      "imageUrl": "https://bonbirdchicken.com/wp-content/uploads/2026/07/bon-Gravy-768x512.jpg"
+     },
+     {
+      "labels": [
+       {
+        "displayName": "Bon Gravy (Mega)",
+        "description": "Secret signature recipe.",
+        "languageCode": "en"
+       }
+      ],
+      "attributes": {
+       "price": {
+        "currencyCode": "AED",
+        "units": "15"
+       }
+      },
+      "imageUrl": "https://bonbirdchicken.com/wp-content/uploads/2026/07/bon-Gravy-768x512.jpg"
+     },
+     {
+      "labels": [
+       {
+        "displayName": "Slaw (Reg)",
+        "description": "Homemade proper slaw.",
+        "languageCode": "en"
+       }
+      ],
+      "attributes": {
+       "price": {
+        "currencyCode": "AED",
+        "units": "10"
+       }
+      },
+      "imageUrl": "https://bonbirdchicken.com/wp-content/uploads/2026/07/slaw-side-768x512.jpg"
+     },
+     {
+      "labels": [
+       {
+        "displayName": "Slaw (Mega)",
+        "description": "Homemade proper slaw.",
+        "languageCode": "en"
+       }
+      ],
+      "attributes": {
+       "price": {
+        "currencyCode": "AED",
+        "units": "15"
+       }
+      },
+      "imageUrl": "https://bonbirdchicken.com/wp-content/uploads/2026/07/slaw-side-768x512.jpg"
+     },
+     {
+      "labels": [
+       {
+        "displayName": "Dill Pickles (Reg)",
+        "description": "Our signature pickles.",
+        "languageCode": "en"
+       }
+      ],
+      "attributes": {
+       "price": {
+        "currencyCode": "AED",
+        "units": "10"
+       }
+      },
+      "imageUrl": "https://bonbirdchicken.com/wp-content/uploads/2023/04/Dill-Pickles-768x512.jpg"
+     },
+     {
+      "labels": [
+       {
+        "displayName": "Dill Pickles (Mega)",
+        "description": "Our signature pickles.",
+        "languageCode": "en"
+       }
+      ],
+      "attributes": {
+       "price": {
+        "currencyCode": "AED",
+        "units": "15"
+       }
+      },
+      "imageUrl": "https://bonbirdchicken.com/wp-content/uploads/2023/04/Dill-Pickles-768x512.jpg"
+     },
+     {
+      "labels": [
+       {
+        "displayName": "Bag Of Chicken Salt",
+        "description": "A little bag of umami.",
+        "languageCode": "en"
+       }
+      ],
+      "attributes": {
+       "price": {
+        "currencyCode": "AED",
+        "units": "5"
+       }
+      },
+      "imageUrl": "https://bonbirdchicken.com/wp-content/uploads/2026/07/Copy-of-Chicken-Saltv3-768x512.jpg"
+     },
+     {
+      "labels": [
+       {
+        "displayName": "Caviar",
+        "languageCode": "en"
+       }
+      ],
+      "attributes": {
+       "price": {
+        "currencyCode": "AED",
+        "units": "200"
+       }
+      },
+      "imageUrl": "https://bonbirdchicken.com/wp-content/uploads/2026/07/Caviar-2-768x512.jpg"
+     }
+    ]
+   },
+   {
+    "labels": [
+     {
+      "displayName": "Drinks",
+      "description": "Wash it all down with something fresh.",
+      "languageCode": "en"
+     }
+    ],
+    "items": [
+     {
+      "labels": [
+       {
+        "displayName": "Vanilla Shake",
+        "description": "Thick ice cream shake.",
+        "languageCode": "en"
+       }
+      ],
+      "attributes": {
+       "price": {
+        "currencyCode": "AED",
+        "units": "25"
+       }
+      },
+      "imageUrl": "https://bonbirdchicken.com/wp-content/uploads/2026/07/Vanilla-Milkshake-768x512.jpeg"
+     },
+     {
+      "labels": [
+       {
+        "displayName": "Chocolate Shake",
+        "description": "Thick ice cream shake.",
+        "languageCode": "en"
+       }
+      ],
+      "attributes": {
+       "price": {
+        "currencyCode": "AED",
+        "units": "25"
+       }
+      },
+      "imageUrl": "https://bonbirdchicken.com/wp-content/uploads/2026/07/Chocolate-Milkshake-768x512.jpeg"
+     },
+     {
+      "labels": [
+       {
+        "displayName": "Strawberry Shake",
+        "description": "Thick ice cream shake.",
+        "languageCode": "en"
+       }
+      ],
+      "attributes": {
+       "price": {
+        "currencyCode": "AED",
+        "units": "25"
+       }
+      },
+      "imageUrl": "https://bonbirdchicken.com/wp-content/uploads/2026/07/strawberry-768x512.jpeg"
+     },
+     {
+      "labels": [
+       {
+        "displayName": "Coke",
+        "languageCode": "en"
+       }
+      ],
+      "attributes": {
+       "price": {
+        "currencyCode": "AED",
+        "units": "12"
+       }
+      },
+      "imageUrl": "https://bonbirdchicken.com/wp-content/uploads/2026/07/Copy-of-Coke-768x512.jpg"
+     },
+     {
+      "labels": [
+       {
+        "displayName": "Diet Coke",
+        "languageCode": "en"
+       }
+      ],
+      "attributes": {
+       "price": {
+        "currencyCode": "AED",
+        "units": "12"
+       }
+      },
+      "imageUrl": "https://bonbirdchicken.com/wp-content/uploads/2026/07/diet-coke-768x512.jpeg"
+     },
+     {
+      "labels": [
+       {
+        "displayName": "Coke Zero",
+        "languageCode": "en"
+       }
+      ],
+      "attributes": {
+       "price": {
+        "currencyCode": "AED",
+        "units": "12"
+       }
+      },
+      "imageUrl": "https://bonbirdchicken.com/wp-content/uploads/2026/07/Copy-of-Coke-Zero-768x512.jpg"
+     },
+     {
+      "labels": [
+       {
+        "displayName": "Fanta",
+        "languageCode": "en"
+       }
+      ],
+      "attributes": {
+       "price": {
+        "currencyCode": "AED",
+        "units": "12"
+       }
+      },
+      "imageUrl": "https://bonbirdchicken.com/wp-content/uploads/2026/07/Copy-of-Fanta-768x512.jpg"
+     },
+     {
+      "labels": [
+       {
+        "displayName": "Sprite",
+        "languageCode": "en"
+       }
+      ],
+      "attributes": {
+       "price": {
+        "currencyCode": "AED",
+        "units": "12"
+       }
+      },
+      "imageUrl": "https://bonbirdchicken.com/wp-content/uploads/2026/07/Copy-of-Sprite-768x512.jpg"
+     },
+     {
+      "labels": [
+       {
+        "displayName": "Water",
+        "languageCode": "en"
+       }
+      ],
+      "attributes": {
+       "price": {
+        "currencyCode": "AED",
+        "units": "6"
+       }
+      },
+      "imageUrl": "https://bonbirdchicken.com/wp-content/uploads/2026/07/water-768x512.jpg"
+     }
+    ]
+   },
+   {
+    "labels": [
+     {
+      "displayName": "Desserts",
+      "description": "Soft serve ice cream.",
+      "languageCode": "en"
+     }
+    ],
+    "items": [
+     {
+      "labels": [
+       {
+        "displayName": "Vanilla Ice Cream (Single)",
+        "description": "Soft serve vanilla ice cream.",
+        "languageCode": "en"
+       }
+      ],
+      "attributes": {
+       "price": {
+        "currencyCode": "AED",
+        "units": "15"
+       }
+      },
+      "imageUrl": "https://bonbirdchicken.com/wp-content/uploads/2026/07/Vanilla-icecream-small-768x513.png"
+     },
+     {
+      "labels": [
+       {
+        "displayName": "Vanilla Ice Cream (Double)",
+        "description": "Soft serve vanilla ice cream.",
+        "languageCode": "en"
+       }
+      ],
+      "attributes": {
+       "price": {
+        "currencyCode": "AED",
+        "units": "20"
+       }
+      },
+      "imageUrl": "https://bonbirdchicken.com/wp-content/uploads/2026/07/Vanilla-icecream-small-768x513.png"
+     },
+     {
+      "labels": [
+       {
+        "displayName": "Strawberry Ice Cream (Single)",
+        "description": "Soft serve strawberry ice cream.",
+        "languageCode": "en"
+       }
+      ],
+      "attributes": {
+       "price": {
+        "currencyCode": "AED",
+        "units": "15"
+       }
+      },
+      "imageUrl": "https://bonbirdchicken.com/wp-content/uploads/2026/07/Strawberry-icecream-small-768x513.png"
+     },
+     {
+      "labels": [
+       {
+        "displayName": "Strawberry Ice Cream (Double)",
+        "description": "Soft serve strawberry ice cream.",
+        "languageCode": "en"
+       }
+      ],
+      "attributes": {
+       "price": {
+        "currencyCode": "AED",
+        "units": "20"
+       }
+      },
+      "imageUrl": "https://bonbirdchicken.com/wp-content/uploads/2026/07/Strawberry-icecream-small-768x513.png"
+     },
+     {
+      "labels": [
+       {
+        "displayName": "Chocolate Ice Cream (Single)",
+        "description": "Soft serve chocolate ice cream.",
+        "languageCode": "en"
+       }
+      ],
+      "attributes": {
+       "price": {
+        "currencyCode": "AED",
+        "units": "15"
+       }
+      },
+      "imageUrl": "https://bonbirdchicken.com/wp-content/uploads/2026/07/Chocolate-icecream-small-768x513.png"
+     },
+     {
+      "labels": [
+       {
+        "displayName": "Chocolate Ice Cream (Double)",
+        "description": "Soft serve chocolate ice cream.",
+        "languageCode": "en"
+       }
+      ],
+      "attributes": {
+       "price": {
+        "currencyCode": "AED",
+        "units": "20"
+       }
+      },
+      "imageUrl": "https://bonbirdchicken.com/wp-content/uploads/2026/07/Chocolate-icecream-small-768x513.png"
+     }
+    ]
+   }
+  ]
+ }
+]
