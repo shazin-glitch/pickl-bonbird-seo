@@ -1,0 +1,8 @@
+post_name	johar-town
+_yoast_wpseo_title	Fried Chicken in Johar Town Lahore | Bonbird
+_yoast_wpseo_metadesc	Fresh fried chicken in Johar Town, Lahore. Bone-in, tenders, sandwiches and rice bowls. Made to order, never frozen. Eat Like A Champ at Bonbird.
+_yoast_wpseo_focuskw	fried chicken johar town lahore
+_yoast_wpseo_opengraph-title	
+_yoast_wpseo_opengraph-description	
+_yoast_wpseo_twitter-title	
+_yoast_wpseo_twitter-description	

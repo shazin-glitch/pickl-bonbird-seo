@@ -4556,6 +4556,9 @@ Audit now hits 12 pages, **every one verified `200` live**: `/ae/`, `/ae/menu/`,
 
 **Confidence + honest caveat:** the query-string change matches code that is known to work for the identical scheduled-function setup, so I'm confident in the mechanism. The one thing only a live run confirms is that an HTTP GET to this function surfaces `queryStringParameters.brand` (the dashboard "Run" simulates a *cron* event, which is why that path shows `via=scheduled`; a real HTTP GET from the wrapper should be `via=internal` with the brand present). The v7.8.8 logs will show it plainly.
 
+### v7.9.136 — Bonbird venue task complete (Pakistan review), research records only
+16 Nov: Johar Town (47068) is a dark kitchen (pickup + delivery only): title "Bonbird Johar Town | Fried Chicken Delivery & Pickup, Lahore", fkw `food places in johar town` (target changed from johar town restaurants; sheet row 79 + comment). Cue Cinemas deliberately unchanged (strong branded "bonbird gulberg" + Lahore fried chicken rankings). Backlog recorded in change log: Bonbird "Final Home New" breadcrumb on UAE results (/ae/ post_title), Organization schema (due 20 Nov).
+
 ### v7.9.135 — Bonbird Oman + Qatar venue titles/meta done (research records only, no code)
 10 Nov, approved by Shazin, backed up, verified live, logged in `research/seo-change-log-bonbird.tsv`:
 - Souq Al Madina (47157): brand-first title + meta; fkw `souq al madina restaurants` (TARGET CHANGED from fried chicken muscat ~20/mo, GSC #12.7 not Semrush #8; Muscat city page owns that intent). Sheet row 85 updated + short comment. Page's real job = branded traffic + GBP landing page; Oman has almost no measurable non-branded demand.
