@@ -4556,6 +4556,9 @@ Audit now hits 12 pages, **every one verified `200` live**: `/ae/`, `/ae/menu/`,
 
 **Confidence + honest caveat:** the query-string change matches code that is known to work for the identical scheduled-function setup, so I'm confident in the mechanism. The one thing only a live run confirms is that an HTTP GET to this function surfaces `queryStringParameters.brand` (the dashboard "Run" simulates a *cron* event, which is why that path shows `via=scheduled`; a real HTTP GET from the wrapper should be `via=internal` with the brand present). The v7.8.8 logs will show it plainly.
 
+### v7.9.138 — Bonbird "fix slow pages" closed; homepage mobile LCP parked in backlog (records only)
+- Semrush audit flagged no slow Bonbird pages. GSC CWV (8 Nov): desktop 66/66 good; mobile 60 good / 6 need improvement / 0 poor. The 6 = homepage group (LCP 2.7s; /pk/ 2.8s). Cause = app.js GSAP (runbook option a). Sheet row 19 Done + note; OPEN row in research/seo-change-log-bonbird.tsv.
+
 ### v7.9.137 — Bonbird core pages (menu/locations/franchise x 4 markets) title/meta, research records only
 - 12 pages updated via Yoast meta (IDs ae 43414/97/550, om 43418/43430/43419, qa 43422/43431/43423, pk 43426/43432/43427). Backup: `research/bonbird-backups/core-pages/yoast-core-pages-backup-2026-11-16.txt`. Logged in `research/seo-change-log-bonbird.tsv`. Verified live.
 - Menu: "Bonbird Menu <Market> | Fried Chicken, Burgers, Melts & Wraps". Locations: dash swapped for pipe; UAE meta names its 5 venues. Franchise: market-neutral title/meta on all 4 ("Bonbird Franchise | Own a Fried Chicken Franchise") because Bonbird already trades in those markets.
