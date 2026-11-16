@@ -4556,6 +4556,10 @@ Audit now hits 12 pages, **every one verified `200` live**: `/ae/`, `/ae/menu/`,
 
 **Confidence + honest caveat:** the query-string change matches code that is known to work for the identical scheduled-function setup, so I'm confident in the mechanism. The one thing only a live run confirms is that an HTTP GET to this function surfaces `queryStringParameters.brand` (the dashboard "Run" simulates a *cron* event, which is why that path shows `via=scheduled`; a real HTTP GET from the wrapper should be `via=internal` with the brand present). The v7.8.8 logs will show it plainly.
 
+### v7.9.144 — Pickl dev: Rank Math business schema -> Organization, wrong hours cleared (records only)
+- On pickl1dev (SSH `pickl1dev@pickl1dev.ssh.wpengine.net`): local_business_type FastFoodRestaurant -> Organization, opening_hours cleared. Dev /ae/ now emits one clean Organization. Backup in research/pickl-backups/. Ships with Kevin's dev->prod push.
+- Dev checks 16 Nov: markets sitemap (/pickl-markets-sitemap.xml, 138 country URLs) + location sitemap (39, all country folders) fine; Kevin clearing leftover junk pages in page-sitemap. Root 302 is a deliberate geo redirect (pickl-core/routing.php), not a bug.
+
 ### v7.9.143 — Bonbird UAE GBP food menus pushed (records only)
 - 56-item AED menu built from /ae/menu/ and pushed via Nest /api/gbp-menu to all 5 UAE profiles (Mirdif first + read-back, then the rest); all 5 verified 56 items AED. Saved as gbpMenu:bonbird:AED. Text only.
 - OPEN: menu photos need a gbp-menu.js fix first (dedupe mediaKey per image per venue + background job; sync push of 48+ media.create calls would hit the ~26s cap). Logged as OPEN row in the change log.
