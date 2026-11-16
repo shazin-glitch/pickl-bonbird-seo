@@ -1,0 +1,57 @@
+### 43414 https://bonbirdchicken.com/ae/menu/
+_yoast_wpseo_title	Bonbird Menu UAE – All Bird, No Bull
+_yoast_wpseo_metadesc	Browse the full Bonbird UAE menu — fried chicken, wraps, burgers and sides. All natural, no hormones, no antibiotics. Order online or find a store.
+_yoast_wpseo_focuskw	Bonbird menu
+### 97 https://bonbirdchicken.com/ae/locations/
+_yoast_wpseo_estimated-reading-time-minutes	0
+_yoast_wpseo_wordproof_timestamp	
+_yoast_wpseo_content_score	90
+_yoast_wpseo_focuskw	Bonbird Locations
+_yoast_wpseo_title	Bonbird Locations – Find a Store Near You
+_yoast_wpseo_metadesc	Find your nearest Bonbird. Browse our restaurant locations, opening hours and details.
+_yoast_wpseo_linkdex	44
+_yoast_wpseo_seo_title_score	100
+_yoast_wpseo_meta_description_score	50
+### 550 https://bonbirdchicken.com/ae/franchise/
+_yoast_wpseo_estimated-reading-time-minutes	3
+_yoast_wpseo_content_score	60
+_yoast_wpseo_focuskw	Bonbird Franchise
+_yoast_wpseo_title	Bonbird Franchise – Chicken Business Opportunity
+_yoast_wpseo_metadesc	Bonbird franchise lets you start your own chicken business with a proven model, full support, and delicious all-natural fried chicken offerings.
+_yoast_wpseo_linkdex	57
+### 43418 https://bonbirdchicken.com/om/menu/
+_yoast_wpseo_title	Bonbird Menu Oman – All Bird, No Bull
+_yoast_wpseo_metadesc	Browse the full Bonbird Oman menu — fried chicken, wraps, burgers and sides. All natural, no hormones, no antibiotics. Order online or find a store.
+_yoast_wpseo_focuskw	Bonbird menu Oman
+### 43430 https://bonbirdchicken.com/om/locations/
+_yoast_wpseo_title	Bonbird Oman Locations – Find a Store Near You
+_yoast_wpseo_metadesc	Find Bonbird in Oman: Muscat and Al Khoudh. Real chicken, all bird no bull. Get directions, hours and order links for your nearest Bonbird.
+_yoast_wpseo_focuskw	Bonbird locations Oman
+### 43419 https://bonbirdchicken.com/om/franchise/
+_yoast_wpseo_title	Bonbird Oman Franchise – Chicken Business Opportunity
+_yoast_wpseo_metadesc	Bring Bonbird to Oman. Start your own all-natural fried chicken business with a proven model, full support, and a growing regional brand behind you.
+_yoast_wpseo_focuskw	Bonbird franchise Oman
+### 43422 https://bonbirdchicken.com/qa/menu/
+_yoast_wpseo_title	Bonbird Menu Qatar – All Bird, No Bull
+_yoast_wpseo_metadesc	Browse the full Bonbird Qatar menu — fried chicken, wraps, burgers and sides. All natural, no hormones, no antibiotics. Order online or find a store.
+_yoast_wpseo_focuskw	Bonbird menu Qatar
+### 43431 https://bonbirdchicken.com/qa/locations/
+_yoast_wpseo_title	Bonbird Qatar Locations – Find a Store Near You
+_yoast_wpseo_metadesc	Find Bonbird in Qatar: West Walk and District One, Doha. Real chicken, all bird no bull. Get directions, hours and order links for your nearest Bonbird.
+_yoast_wpseo_focuskw	Bonbird locations Qatar
+### 43423 https://bonbirdchicken.com/qa/franchise/
+_yoast_wpseo_title	Bonbird Qatar Franchise – Chicken Business Opportunity
+_yoast_wpseo_metadesc	Bring Bonbird to Qatar. Start your own all-natural fried chicken business with a proven model, full support, and a growing regional brand behind you.
+_yoast_wpseo_focuskw	Bonbird franchise Qatar
+### 43426 https://bonbirdchicken.com/pk/menu/
+_yoast_wpseo_title	Bonbird Menu Pakistan – All Bird, No Bull
+_yoast_wpseo_metadesc	Browse the full Bonbird Pakistan menu — fried chicken, wraps, burgers and sides. All natural, no hormones, no antibiotics. Order online or find a store.
+_yoast_wpseo_focuskw	Bonbird menu Pakistan
+### 43432 https://bonbirdchicken.com/pk/locations/
+_yoast_wpseo_title	Bonbird Pakistan Locations – Find a Store Near You
+_yoast_wpseo_metadesc	Find Bonbird in Pakistan: Cue Cinema, Dolmen Mall and Johar Town, Lahore. Real chicken, all bird no bull. Get directions, hours and order links.
+_yoast_wpseo_focuskw	Bonbird locations Pakistan
+### 43427 https://bonbirdchicken.com/pk/franchise/
+_yoast_wpseo_title	Bonbird Pakistan Franchise – Chicken Business Opportunity
+_yoast_wpseo_metadesc	Bring Bonbird to Pakistan. Start your own all-natural fried chicken business with a proven model, full support, and a growing regional brand behind you.
+_yoast_wpseo_focuskw	Bonbird franchise Pakistan
