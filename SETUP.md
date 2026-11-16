@@ -4556,6 +4556,9 @@ Audit now hits 12 pages, **every one verified `200` live**: `/ae/`, `/ae/menu/`,
 
 **Confidence + honest caveat:** the query-string change matches code that is known to work for the identical scheduled-function setup, so I'm confident in the mechanism. The one thing only a live run confirms is that an HTTP GET to this function surfaces `queryStringParameters.brand` (the dashboard "Run" simulates a *cron* event, which is why that path shows `via=scheduled`; a real HTTP GET from the wrapper should be `via=internal` with the brand present). The v7.8.8 logs will show it plainly.
 
+### v7.9.141 — Bonbird Doha journal swapped for internal links (records only)
+- Row 143 (Doha journal, "best fried chicken in doha") NOT written: /qa/doha/ already ranks #6-8 for it (GSC), a journal would cannibalise. Instead 3 anchors now point to /qa/doha/ as "the best fried chicken in Doha": journal 1180, West Walk 47196, District One 47191 (that one previously said "Bonbird Doha menu"). Backups in research/bonbird-backups/qa-doha-links/, FAQ schema verified.
+
 ### v7.9.140 — Bonbird order-click tracking live (GTM v11), records only
 - GTM-58QXM44V v11: GA4 events `order_button_click` (click_page, market) + `order_platform_click` (platform, market, link_url, from_page). Merge-imported (existing tags untouched), preview-tested, published 16 Nov. Rollback = publish v10. Import JSON: research/bonbird-backups/gtm/. GA4 (G-R07822MVLL) custom dimensions + key event still owed.
 - Gotcha: in GTM preview, clicks before the container finishes loading are not captured; test after gtm.load.
