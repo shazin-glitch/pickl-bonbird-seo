@@ -1,0 +1,174 @@
+{
+    "key": "group_pickl_venue_sections",
+    "title": "Venue - Page sections",
+    "fields": [
+        {
+            "key": "field_pickl_venue_order_url",
+            "label": "Order button link",
+            "name": "venue_order_url",
+            "aria-label": "",
+            "type": "url",
+            "instructions": "Where Order now goes. Leave blank to use the city's order link.",
+            "required": 0,
+            "conditional_logic": 0,
+            "wrapper": {
+                "width": "",
+                "class": "",
+                "id": ""
+            },
+            "default_value": "",
+            "placeholder": ""
+        },
+        {
+            "key": "field_pickl_venue_sections",
+            "label": "Copy sections",
+            "name": "venue_sections",
+            "aria-label": "",
+            "type": "repeater",
+            "instructions": "One section per part of the copy, in page order. Each shows its photo beside the text (sides alternate). Leave the photo empty for a text-only section.",
+            "required": 0,
+            "conditional_logic": 0,
+            "wrapper": {
+                "width": "",
+                "class": "",
+                "id": ""
+            },
+            "layout": "block",
+            "pagination": 0,
+            "min": 0,
+            "max": 0,
+            "collapsed": "",
+            "button_label": "Add section",
+            "rows_per_page": 20,
+            "sub_fields": [
+                {
+                    "key": "field_pickl_venue_sec_heading",
+                    "label": "Heading",
+                    "name": "heading",
+                    "aria-label": "",
+                    "type": "text",
+                    "instructions": "",
+                    "required": 0,
+                    "conditional_logic": 0,
+                    "wrapper": {
+                        "width": "",
+                        "class": "",
+                        "id": ""
+                    },
+                    "parent_repeater": "field_pickl_venue_sections",
+                    "default_value": "",
+                    "placeholder": "",
+                    "maxlength": "",
+                    "prepend": "",
+                    "append": ""
+                },
+                {
+                    "key": "field_pickl_venue_sec_body",
+                    "label": "Body",
+                    "name": "body",
+                    "aria-label": "",
+                    "type": "wysiwyg",
+                    "instructions": "",
+                    "required": 0,
+                    "conditional_logic": 0,
+                    "wrapper": {
+                        "width": "",
+                        "class": "",
+                        "id": ""
+                    },
+                    "parent_repeater": "field_pickl_venue_sections",
+                    "tabs": "all",
+                    "toolbar": "full",
+                    "media_upload": 0,
+                    "default_value": "",
+                    "delay": 0
+                },
+                {
+                    "key": "field_pickl_venue_sec_image",
+                    "label": "Photo",
+                    "name": "image",
+                    "aria-label": "",
+                    "type": "image",
+                    "instructions": "",
+                    "required": 0,
+                    "conditional_logic": 0,
+                    "wrapper": {
+                        "width": "",
+                        "class": "",
+                        "id": ""
+                    },
+                    "parent_repeater": "field_pickl_venue_sections",
+                    "return_format": "id",
+                    "library": "all",
+                    "preview_size": "medium",
+                    "min_width": "",
+                    "min_height": "",
+                    "min_size": "",
+                    "max_width": "",
+                    "max_height": "",
+                    "max_size": "",
+                    "mime_types": ""
+                }
+            ]
+        },
+        {
+            "key": "field_pickl_venue_here_h",
+            "label": "Getting here: heading",
+            "name": "getting_here_heading",
+            "aria-label": "",
+            "type": "text",
+            "instructions": "Shown beside the map.",
+            "required": 0,
+            "conditional_logic": 0,
+            "wrapper": {
+                "width": "",
+                "class": "",
+                "id": ""
+            },
+            "default_value": "",
+            "placeholder": "",
+            "maxlength": "",
+            "prepend": "",
+            "append": ""
+        },
+        {
+            "key": "field_pickl_venue_here_b",
+            "label": "Getting here: text",
+            "name": "getting_here_body",
+            "aria-label": "",
+            "type": "textarea",
+            "instructions": "Parking, entrance, nearest metro.",
+            "required": 0,
+            "conditional_logic": 0,
+            "wrapper": {
+                "width": "",
+                "class": "",
+                "id": ""
+            },
+            "default_value": "",
+            "placeholder": "",
+            "new_lines": "",
+            "rows": 4,
+            "maxlength": ""
+        }
+    ],
+    "location": [
+        [
+            {
+                "param": "post_type",
+                "operator": "==",
+                "value": "location"
+            }
+        ]
+    ],
+    "menu_order": 1,
+    "position": "normal",
+    "style": "default",
+    "label_placement": "top",
+    "instruction_placement": "label",
+    "hide_on_screen": [],
+    "active": true,
+    "description": "",
+    "show_in_rest": false,
+    "modified": 1795016973
+}

@@ -535,6 +535,20 @@ $ch_img = function ($id, $size, $class, $alt = '', $eager = false) {
 </section>
 </main>
 
+<?php
+// FAQPage structured data built from this city's own FAQ fields (the same
+// questions + answers shown on the page). Nothing is output when a city has none.
+$faq_entities = [];
+foreach ($city_faqs as $row) {
+    $q = trim((string) ($row['question'] ?? ''));
+    $a = trim(wp_strip_all_tags((string) ($row['answer'] ?? '')));
+    if ($q === '' || $a === '') continue;
+    $faq_entities[] = ['@type' => 'Question', 'name' => $q, 'acceptedAnswer' => ['@type' => 'Answer', 'text' => $a]];
+}
+if ($faq_entities) : ?>
+<script type="application/ld+json"><?php echo wp_json_encode(['@context' => 'https://schema.org', '@type' => 'FAQPage', 'mainEntity' => $faq_entities], JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE); ?></script>
+<?php endif; ?>
+
 <?php if ($has_pins) : ?>
 <script>
 /* City map: MapLibre + OpenFreeMap (free, no key, no billing). Pink "P" pins

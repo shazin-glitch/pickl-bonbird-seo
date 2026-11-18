@@ -1,0 +1,565 @@
+<?php
+/**
+ * Validate /<iso>/<city>/<venue>/ requests against this venue's REAL
+ * assigned city/country terms before rendering anything - must run before
+ * get_header() since a redirect can't happen after headers are sent.
+ *
+ * Only applies when the request actually came in through the new, validated
+ * 3-segment rule (item 17 in pickl-taxonomy.php) - that's the only place
+ * the hub_country/city query vars get set together. Any other way of
+ * reaching this template (the legacy /<a>/<b>/<venue>/ rule in
+ * functions.php, the /location/<slug>/ fallback, previews, etc.) is left
+ * completely alone.
+ */
+$pickl_url_country = get_query_var('hub_country', '');
+$pickl_url_city     = get_query_var('city', '');
+if (!empty($pickl_url_country) && !empty($pickl_url_city)) {
+    $pickl_venue_id = get_queried_object_id();
+    if ($pickl_venue_id) {
+        // Compare the URL's segments directly against this post's ACTUAL
+        // assigned terms - NOT pickl_location_city_country_match(), which
+        // only checks that the post's own city/country terms agree with
+        // each other (self-consistency), and says nothing about what URL
+        // was used to reach it. A venue can be tagged perfectly correctly
+        // and still be reached through the wrong city segment in the URL.
+        $pickl_city_terms    = get_the_terms($pickl_venue_id, 'city');
+        $pickl_country_terms = get_the_terms($pickl_venue_id, 'country');
+        $pickl_actual_city    = (!is_wp_error($pickl_city_terms) && !empty($pickl_city_terms)) ? $pickl_city_terms[0]->slug : '';
+        $pickl_actual_country = (!is_wp_error($pickl_country_terms) && !empty($pickl_country_terms)) ? $pickl_country_terms[0]->slug : '';
+ 
+        // Only treat it as a mismatch when both are actually assigned and
+        // differ from the URL - an untagged venue (data gap, not a wrong
+        // link) is left alone rather than forced through a fallback URL.
+        $pickl_mismatch = !empty($pickl_actual_city) && !empty($pickl_actual_country)
+            && ($pickl_actual_city !== $pickl_url_city || $pickl_actual_country !== $pickl_url_country);
+ 
+        if ($pickl_mismatch) {
+            $pickl_correct_url = get_permalink($pickl_venue_id); // post_type_link filter builds this from the post's real terms
+            $pickl_correct_path   = $pickl_correct_url ? wp_parse_url($pickl_correct_url, PHP_URL_PATH) : '';
+            $pickl_requested_path = isset($_SERVER['REQUEST_URI']) ? strtok($_SERVER['REQUEST_URI'], '?') : '';
+            // Guard against a redirect loop: only send the 301 if the
+            // correct URL is actually different from what was requested.
+            if ($pickl_correct_path && trailingslashit($pickl_correct_path) !== trailingslashit($pickl_requested_path)) {
+                wp_safe_redirect($pickl_correct_url, 301);
+                exit;
+            }
+        }
+    }
+}
+?>
+
+
+<?php get_header(); ?>
+<?php
+$venue_name = get_the_title();
+$gmaps      = get_field('gmaps') ?: '';
+
+$country_terms = wp_get_post_terms(get_the_ID(), 'country');
+$country_term  = !empty($country_terms) && !is_wp_error($country_terms) ? $country_terms[0] : null;
+$menu_link     = $country_term ? home_url('/' . $country_term->slug . '/menu/') : home_url('/menu/');
+
+// The pickl-menu plugin's own country keys (uae/qatar/oman/bahrain/egypt/
+// jordan/ksa) don't necessarily match the `country` taxonomy slug, so reuse
+// the same term-meta mapping the Menu page migration already relies on
+// (field_key_prefix) - falls back to the taxonomy slug itself if unset.
+$plugin_country_key = $country_term
+    ? (get_term_meta($country_term->term_id, 'field_key_prefix', true) ?: $country_term->slug)
+    : 'uae';
+
+// Normalizes an ACF image field's value to a plain URL string, whatever
+// return format the field is actually set to (Array, Object, ID, or URL).
+if (!function_exists('pickl_image_url')) {
+    function pickl_image_url($value) {
+        if (empty($value)) {
+            return '';
+        }
+        if (is_string($value)) {
+            return $value;
+        }
+        if (is_array($value)) {
+            return $value['url'] ?? '';
+        }
+        if (is_object($value) && isset($value->url)) {
+            return $value->url;
+        }
+        if (is_numeric($value)) {
+            return wp_get_attachment_image_url((int) $value, 'large') ?: '';
+        }
+        return '';
+    }
+}
+// Menu Category highlights - pulled live from the real pickl_menu_category
+// CPT (not per-venue data), ordered the same way the plugin's own menu page
+// orders them. A category needs its own `category_image` field set once in
+// wp-admin (new field, still needs creating on the pickl_menu_category post
+// type) - categories without a photo yet are skipped rather than shown blank.
+//
+// A category only shows if it actually has at least one published menu item
+// assigned to it (pickl-menu's own `_ssm_item_category` link) that isn't
+// hidden for this venue's country (`_ssm_disabled_countries`) - this mirrors
+// the plugin's own per-item country-gating read-only, without touching the
+// plugin's code at all.
+if (!function_exists('pickl_category_has_items_for_country')) {
+    function pickl_category_has_items_for_country($category_id, $country_key) {
+        $item_ids = get_posts([
+            'post_type'      => 'pickl_menu_item',
+            'post_status'    => 'publish',
+            'posts_per_page' => -1,
+            'fields'         => 'ids',
+            'meta_key'       => '_ssm_item_category',
+            'meta_value'     => $category_id,
+        ]);
+        foreach ($item_ids as $item_id) {
+            $disabled = get_post_meta($item_id, '_ssm_disabled_countries', true);
+            if (!is_array($disabled)) {
+                $disabled = [];
+            }
+            if (!in_array($country_key, $disabled, true)) {
+                return true; // at least one item is live for this country
+            }
+        }
+        return false;
+    }
+}
+if (!function_exists('pickl_get_live_menu_categories')) {
+    function pickl_get_live_menu_categories($country_key) {
+        // Hidden from the menu-category highlights strip on request - still
+        // live in the actual menu, just not shown as one of these cards.
+        $pickl_hidden_categories = ['legendary melts', 'drinks', 'dessert', 'desserts', 'little pickl'];
+        $posts = get_posts([
+            'post_type'      => 'pickl_menu_category',
+            'post_status'    => 'publish',
+            'posts_per_page' => -1,
+            'meta_key'       => '_ssm_category_order',
+            'orderby'        => 'meta_value_num',
+            'order'          => 'ASC',
+        ]);
+        $out = [];
+        foreach ($posts as $p) {
+            if (in_array(strtolower(trim($p->post_title)), $pickl_hidden_categories, true)) {
+                continue;
+            }
+            if (!pickl_category_has_items_for_country($p->ID, $country_key)) {
+                continue;
+            }
+            $image = pickl_image_url(get_field('category_image', $p->ID));
+            if (!$image) {
+                continue;
+            }
+            $out[] = [
+                'id'    => $p->ID,
+                'name'  => $p->post_title,
+                'image' => $image,
+            ];
+        }
+        return $out;
+    }
+}
+$menu_categories = pickl_get_live_menu_categories($plugin_country_key);
+
+// ---------------------------------------------------------------------------
+// Venue page v2 (18 Nov 2026). The COPY drives the page: a fixed frame (hero,
+// open-now strip, menu category grid, getting here, FAQs) around flexible
+// copy sections (ACF "Venue - Page sections": venue_sections). Venues whose
+// sections are not filled yet fall back to the older Visit Blurb / Location &
+// Why It Works fields so nothing goes blank before its copy is written.
+// ---------------------------------------------------------------------------
+$featured_image = get_the_post_thumbnail_url(get_the_ID(), 'full') ?: '';
+$hero_heading   = trim((string) get_field('hero_heading'));
+$h1_text        = $hero_heading !== '' ? $hero_heading : 'Pickl ' . $venue_name;
+$hero_desc_raw  = (string) get_field('hero_description');
+$hero_desc      = $hero_desc_raw !== '' ? wpautop($hero_desc_raw) : '';
+$hero_bg        = pickl_image_url(get_field('hero_background_image')) ?: $featured_image;
+
+$loc_address       = trim((string) get_field('address'));
+$loc_opening_times = get_field('opening_times') ?: [];
+$loc_telephone     = trim((string) get_field('telephone'));
+$map_lat           = (float) get_post_meta(get_the_ID(), 'map_lat', true);
+$map_lng           = (float) get_post_meta(get_the_ID(), 'map_lng', true);
+
+// City + country context (config, not code)
+$city_terms   = get_the_terms(get_the_ID(), 'city');
+$city_term    = ($city_terms && !is_wp_error($city_terms)) ? $city_terms[0] : null;
+$city_cc      = ($city_term && function_exists('pickl_get_city_country_slug')) ? pickl_get_city_country_slug($city_term) : '';
+$country_slug = $country_term ? $country_term->slug : $city_cc;
+$venue_tz     = $country_term ? (string) get_term_meta($country_term->term_id, 'timezone', true) : '';
+if ($venue_tz === '') { $venue_tz = wp_timezone_string(); }
+
+// Order link: the venue's own, else its city's (City - Hub content), else none
+$order_url = trim((string) get_field('venue_order_url'));
+if ($order_url === '' && $city_term && function_exists('get_field')) {
+    $order_url = trim((string) get_field('city_order_url', $city_term));
+}
+
+// Copy sections
+$sections = get_field('venue_sections') ?: [];
+if (!$sections) {
+    $fallback = [];
+    $ah = get_field('blurb_a_heading'); $ab = get_field('blurb_a_body');
+    if ($ah || $ab) $fallback[] = ['heading' => $ah, 'body' => $ab ? wpautop($ab) : '', 'image' => pickl_image_url(get_field('blurb_a_image')) ?: $featured_image];
+    $bh = get_field('blurb_b_heading'); $bb = get_field('blurb_b_body');
+    if ($bh || $bb) $fallback[] = ['heading' => $bh, 'body' => $bb ? wpautop($bb) : '', 'image' => pickl_image_url(get_field('blurb_b_image')) ?: $featured_image];
+    $sections = $fallback;
+}
+
+$getting_heading = trim((string) get_field('getting_here_heading'));
+$getting_body    = trim((string) get_field('getting_here_body'));
+$faqs            = get_field('venue_faqs') ?: [];
+
+// Link up to the city page when that city has more than one live venue
+$city_link = '';
+if ($city_term && $city_cc) {
+    $n = count(get_posts([
+        'post_type' => ['locations', 'location', 'pickl_location'], 'post_status' => 'publish',
+        'posts_per_page' => -1, 'fields' => 'ids',
+        'tax_query' => [['taxonomy' => 'city', 'field' => 'term_id', 'terms' => $city_term->term_id]],
+    ]));
+    if ($n > 1) $city_link = home_url('/' . $city_cc . '/' . $city_term->slug . '/');
+}
+
+// Opening hours: parse the ACF rows ("Sunday - Thursday" / "10:00am - 12:00am"
+// or "Open 24 Hours") once, for the strip, the live status and the schema.
+if (!function_exists('pickl_venue_parse_hours')) {
+    function pickl_venue_parse_hours($rows) {
+        $names = ['sunday', 'monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday'];
+        $idx = function ($s) use ($names) {
+            $s = strtolower(trim($s));
+            foreach ($names as $i => $n) { if ($s !== '' && strpos($n, substr($s, 0, 3)) === 0) return $i; }
+            return null;
+        };
+        $to24 = function ($t) {
+            if (!preg_match('/(\d{1,2})(?::(\d{2}))?\s*(am|pm)/i', $t, $m)) return null;
+            $h = (int) $m[1] % 12; if (strtolower($m[3]) === 'pm') $h += 12;
+            return sprintf('%02d:%02d', $h, (int) ($m[2] ?? 0));
+        };
+        $out = [];
+        foreach ($rows as $row) {
+            $days  = trim((string) ($row['days'] ?? ''));
+            $times = trim((string) ($row['times'] ?? ''));
+            if ($days === '' && $times === '') continue;
+            $set = [];
+            if (preg_match('/every\s*day|daily|7 days/i', $days)) { $set = range(0, 6); }
+            else {
+                foreach (preg_split('/\s*[,&]\s*/', $days) as $part) {
+                    $ends = preg_split('/\s*[-–]\s*/', $part);
+                    $a = $idx($ends[0]); $b = isset($ends[1]) ? $idx($ends[1]) : $a;
+                    if ($a === null || $b === null) return null;
+                    for ($d = $a; ; $d = ($d + 1) % 7) { $set[] = $d; if ($d === $b) break; }
+                }
+            }
+            if (preg_match('/24\s*hours?/i', $times)) { $out[] = ['days' => $set, 'allday' => true, 'open' => '00:00', 'close' => '23:59']; continue; }
+            $pair = preg_split('/\s*[-–]\s*/', $times);
+            $o = $to24($pair[0] ?? ''); $c = $to24($pair[1] ?? '');
+            if (!$o || !$c) return null;
+            $out[] = ['days' => $set, 'allday' => false, 'open' => $o, 'close' => $c];
+        }
+        return $out ?: null;
+    }
+}
+$hours_parsed = pickl_venue_parse_hours($loc_opening_times);
+$all_day_week = $hours_parsed && count(array_filter($hours_parsed, function ($r) { return $r['allday']; })) === count($hours_parsed)
+    && count(array_unique(array_merge(...array_map(function ($r) { return $r['days']; }, $hours_parsed)))) === 7;
+$hours_text = $all_day_week ? 'Open 24 hours, every day' : implode(' · ', array_filter(array_map(function ($r) {
+    $d = trim((string) ($r['days'] ?? '')); $t = trim((string) ($r['times'] ?? ''));
+    return trim($d . ' ' . $t);
+}, $loc_opening_times)));
+
+// Copy output: hyphenated words and links never split across lines
+$v_text = function ($html) {
+    $html = wp_kses_post($html);
+    return preg_replace_callback('/(<[^>]+>)|([^<]+)/u', function ($m) {
+        if (!empty($m[1])) return $m[1];
+        return preg_replace('/(?<![\w-])([[:alpha:]]+(?:-[[:alpha:]]+)+)(?![\w-])/u', '<span class="v-nw">$1</span>', $m[2]);
+    }, $html);
+};
+$v_img_url = function ($v) { return is_numeric($v) ? (wp_get_attachment_image_url((int) $v, 'large') ?: '') : pickl_image_url($v); };
+$pin_icon = get_template_directory_uri() . '/assets/img/map-pin-p.png';
+?>
+
+<style>
+.pickl-venue{ --v-pink:#E6007E; --v-cream:#F8F6F0; color:#000; }
+.pickl-venue .v-in{ max-width:1140px; margin:0 auto; padding:0 20px; }
+.pickl-venue h1, .pickl-venue h2, .pickl-venue h3{ color:inherit; font-weight:700; text-transform:uppercase; }
+.pickl-venue p{ font-size:16px; line-height:28px; margin:0 0 14px; }
+.pickl-venue p:last-child{ margin-bottom:0; }
+.pickl-venue .v-nw{ white-space:nowrap; }
+.pickl-venue p a{ color:inherit; font-weight:700; text-decoration:underline; text-underline-offset:3px; white-space:nowrap; }
+.pickl-venue .v-band{ padding:70px 0; }
+.pickl-venue .v-band.is-cream{ background:var(--v-cream); }
+.pickl-venue .v-big{ font-family:acumin-pro-condensed,sans-serif; font-weight:800; font-size:50px; line-height:46px; margin:0 0 16px; }
+.pickl-venue .v-h2{ font-size:36px; line-height:42px; margin:0 0 16px; }
+
+/* Hero */
+.pickl-venue .v-hero{ position:relative; min-height:600px; display:flex; align-items:flex-end; background:#111; color:#fff; overflow:hidden; }
+.pickl-venue .v-hero img{ position:absolute; inset:0; width:100%; height:100%; object-fit:cover; }
+.pickl-venue .v-hero::after{ content:""; position:absolute; inset:0; background:linear-gradient(0deg, rgba(0,0,0,.92) 0%, rgba(0,0,0,.6) 40%, rgba(0,0,0,.15) 72%, rgba(0,0,0,0) 100%); }
+.pickl-venue .v-hero .v-in{ position:relative; z-index:1; width:100%; padding-bottom:60px; }
+.pickl-venue .v-hero h1{ font-family:acumin-pro-condensed,sans-serif; font-weight:800; font-size:50px; line-height:45px; margin:0 0 14px; }
+.pickl-venue .v-hero .v-intro{ max-width:640px; }
+.pickl-venue .v-hero .v-intro p{ color:#fff; font-size:17px; line-height:27px; }
+.pickl-venue .v-btns{ display:flex; gap:12px; flex-wrap:wrap; margin-top:22px; }
+.pickl-venue .v-btn{ display:inline-flex; align-items:center; justify-content:center; height:48px; padding:0 22px; font-size:15px; font-weight:700; text-transform:uppercase; letter-spacing:.04em; text-decoration:none; border:2px solid currentColor; color:inherit; }
+.pickl-venue .v-btn.is-pink{ background:var(--v-pink); border-color:var(--v-pink); color:#fff; }
+
+/* Open-now strip */
+.pickl-venue .v-strip{ background:#000; }
+.pickl-venue .v-strip .v-in{ display:flex; justify-content:center; flex-wrap:wrap; gap:14px 40px; padding-top:18px; padding-bottom:18px; }
+.pickl-venue .v-strip a, .pickl-venue .v-strip span.v-s{ font-family:ibm-plex-mono,monospace; font-size:13px; letter-spacing:.04em; text-transform:uppercase; color:#fff; text-decoration:none; display:flex; gap:10px; align-items:center; }
+.pickl-venue .v-strip svg{ width:18px; height:18px; flex:0 0 18px; fill:var(--v-pink); }
+.pickl-venue .v-dot{ width:8px; height:8px; border-radius:50%; background:#2ecc71; box-shadow:0 0 0 3px rgba(46,204,113,.25); flex:0 0 8px; }
+.pickl-venue .v-dot.is-closed{ background:#e74c3c; box-shadow:0 0 0 3px rgba(231,76,60,.25); }
+
+/* Copy sections: photo + text, sides alternate */
+.pickl-venue .v-split{ display:grid; grid-template-columns:1.2fr 1fr; gap:56px; align-items:center; }
+.pickl-venue .v-split.is-flip{ grid-template-columns:1fr 1.2fr; }
+.pickl-venue .v-split.is-flip .v-photo{ order:2; }
+.pickl-venue .v-photo{ border-radius:10px; overflow:hidden; }
+.pickl-venue .v-photo img{ width:100%; height:460px; object-fit:cover; display:block; }
+.pickl-venue .v-text-only{ max-width:860px; }
+
+/* Menu category grid */
+.pickl-venue .v-cats{ display:grid; grid-template-columns:repeat(6, 1fr); gap:20px; }
+.pickl-venue .v-cats a{ position:relative; display:block; aspect-ratio:1/1; border-radius:10px; overflow:hidden; text-decoration:none; }
+.pickl-venue .v-cats img{ width:100%; height:100%; object-fit:cover; display:block; }
+.pickl-venue .v-cats a::after{ content:""; position:absolute; inset:0; background:linear-gradient(to top, rgba(0,0,0,.7) 0%, rgba(0,0,0,0) 55%); }
+.pickl-venue .v-cats b{ position:absolute; left:14px; right:14px; bottom:14px; z-index:1; color:#fff; font-size:12px; text-transform:uppercase; }
+
+/* Getting here */
+.pickl-venue .v-here{ display:grid; grid-template-columns:1fr 1.3fr; gap:56px; align-items:center; }
+.pickl-venue .v-links{ display:flex; gap:24px; flex-wrap:wrap; margin-top:18px; }
+.pickl-venue .v-links a{ font-weight:700; color:#000; text-decoration:underline; text-underline-offset:3px; }
+.pickl-venue .v-map{ height:380px; border-radius:14px; overflow:hidden; background:#eef0f0; }
+.pickl-venue .maplibregl-ctrl-attrib{ background:rgba(255,255,255,.8) !important; font:400 10px/1.4 sans-serif; color:#8a8a8a; }
+.pickl-venue .maplibregl-ctrl-attrib a{ color:#8a8a8a !important; text-decoration:none !important; font-weight:400 !important; }
+
+/* FAQs */
+.pickl-venue .v-faqs{ max-width:860px; margin:0 auto; }
+.pickl-venue .v-faqs h2{ text-align:center; }
+.pickl-venue .v-faqs details{ border-top:1px solid #D5D8DC; }
+.pickl-venue .v-faqs details:last-child{ border-bottom:1px solid #D5D8DC; }
+.pickl-venue .v-faqs summary{ display:flex; justify-content:space-between; align-items:center; gap:10px; padding:18px; cursor:pointer; list-style:none; font-size:18px; font-weight:700; color:#1F2124; }
+.pickl-venue .v-faqs summary::-webkit-details-marker{ display:none; }
+.pickl-venue .v-faqs .v-tg{ position:relative; flex:0 0 16px; width:16px; height:16px; }
+.pickl-venue .v-faqs .v-tg::before, .pickl-venue .v-faqs .v-tg::after{ content:""; position:absolute; background:#1F2124; }
+.pickl-venue .v-faqs .v-tg::before{ top:50%; left:0; width:100%; height:2px; transform:translateY(-50%); }
+.pickl-venue .v-faqs .v-tg::after{ left:50%; top:0; width:2px; height:100%; transform:translateX(-50%); }
+.pickl-venue .v-faqs details[open] .v-tg::after{ display:none; }
+.pickl-venue .v-faqs .v-a{ padding:0 18px 18px; }
+
+@media (max-width: 992px){ .pickl-venue .v-cats{ grid-template-columns:repeat(3, 1fr); } }
+@media (max-width: 768px){
+  .pickl-venue .v-band{ padding:0 0 30px; }
+  .pickl-venue .v-band.v-pad{ padding:34px 0; }
+  .pickl-venue .v-hero{ min-height:470px; }
+  .pickl-venue .v-hero .v-in{ padding-bottom:26px; }
+  .pickl-venue .v-hero h1{ font-size:40px; line-height:38px; }
+  .pickl-venue .v-hero .v-intro p{ font-size:16px; line-height:25px; }
+  .pickl-venue .v-strip .v-in{ display:grid; justify-content:start; gap:13px; }
+  .pickl-venue .v-split, .pickl-venue .v-split.is-flip{ grid-template-columns:1fr; gap:0; }
+  .pickl-venue .v-split.is-flip .v-photo{ order:0; }
+  .pickl-venue .v-section .v-in{ padding:0; }
+  .pickl-venue .v-section .v-photo{ border-radius:0; }
+  .pickl-venue .v-section .v-photo img{ height:360px; }
+  .pickl-venue .v-section .v-copy{ padding:24px 20px 0; }
+  .pickl-venue .v-big{ font-size:38px; line-height:36px; margin-bottom:12px; }
+  .pickl-venue .v-h2{ font-size:28px; line-height:32px; }
+  .pickl-venue .v-cats{ grid-template-columns:repeat(2, 1fr); gap:10px; }
+  .pickl-venue .v-here{ grid-template-columns:1fr; gap:20px; }
+  .pickl-venue .v-map{ height:240px; }
+  .pickl-venue .v-faqs summary{ padding:16px 0; font-size:16px; }
+  .pickl-venue .v-faqs .v-a{ padding:0 0 16px; }
+}
+</style>
+
+<main id="primary" class="main">
+<article class="pickl-venue">
+
+    <!-- HERO -->
+    <div class="v-hero">
+        <?php if ($hero_bg) : ?><img src="<?php echo esc_url($hero_bg); ?>" alt="<?php echo esc_attr($h1_text); ?>" fetchpriority="high"><?php endif; ?>
+        <div class="v-in">
+            <h1><?php echo esc_html($h1_text); ?></h1>
+            <?php if ($hero_desc) : ?><div class="v-intro"><?php echo $v_text($hero_desc); ?></div><?php endif; ?>
+            <div class="v-btns">
+                <?php if ($order_url) : ?><a class="v-btn is-pink" href="<?php echo esc_url($order_url); ?>" target="_blank" rel="noopener">Order now</a><?php endif; ?>
+                <?php if ($gmaps) : ?><a class="v-btn" href="<?php echo esc_url($gmaps); ?>" target="_blank" rel="noopener">Directions</a><?php endif; ?>
+            </div>
+        </div>
+    </div>
+
+    <!-- OPEN-NOW STRIP -->
+    <div class="v-strip"><div class="v-in">
+        <?php if ($hours_text !== '') : ?><span class="v-s" id="v-status"><span class="v-dot" hidden></span><span class="v-st"><?php echo esc_html($hours_text); ?></span></span><?php endif; ?>
+        <?php if ($loc_address !== '') : ?>
+            <a href="<?php echo esc_url($gmaps ?: '#'); ?>" target="_blank" rel="noopener"><svg viewBox="0 0 24 24"><path d="M12 2C8.13 2 5 5.13 5 9c0 5.25 7 13 7 13s7-7.75 7-13c0-3.87-3.13-7-7-7zm0 9.5c-1.38 0-2.5-1.12-2.5-2.5s1.12-2.5 2.5-2.5 2.5 1.12 2.5 2.5-1.12 2.5-2.5 2.5z"/></svg><?php echo esc_html($loc_address); ?> &rarr;</a>
+        <?php endif; ?>
+        <?php if ($loc_telephone !== '') : ?>
+            <a href="tel:<?php echo esc_attr(preg_replace('/\s+/', '', $loc_telephone)); ?>"><svg viewBox="0 0 24 24"><path d="M6.62 10.79c1.44 2.83 3.76 5.14 6.59 6.59l2.2-2.2c.27-.27.67-.36 1.02-.24 1.12.37 2.33.57 3.57.57.55 0 1 .45 1 1V20c0 .55-.45 1-1 1-9.39 0-17-7.61-17-17 0-.55.45-1 1-1h3.5c.55 0 1 .45 1 1 0 1.25.2 2.45.57 3.57.11.35.03.74-.25 1.02l-2.2 2.2z"/></svg><?php echo esc_html($loc_telephone); ?></a>
+        <?php endif; ?>
+    </div></div>
+
+    <!-- COPY SECTIONS (as many as the copy has) -->
+    <?php $i = 0; foreach ($sections as $s) :
+        $h = trim((string) ($s['heading'] ?? '')); $b = (string) ($s['body'] ?? ''); $img = $v_img_url($s['image'] ?? '');
+        if ($h === '' && trim(wp_strip_all_tags($b)) === '') continue;
+        $i++; $cream = ($i % 2) === 0;
+    ?>
+    <section class="v-band v-section<?php echo $cream ? ' is-cream' : ''; ?>">
+        <div class="v-in">
+            <?php if ($img) : ?>
+            <div class="v-split<?php echo $cream ? ' is-flip' : ''; ?>">
+                <div class="v-photo"><img src="<?php echo esc_url($img); ?>" alt="<?php echo esc_attr($h); ?>" loading="lazy"></div>
+                <div class="v-copy"><?php if ($h !== '') : ?><h2 class="v-big"><?php echo esc_html($h); ?></h2><?php endif; ?><?php echo $v_text(wpautop($b)); ?></div>
+            </div>
+            <?php else : ?>
+            <div class="v-copy v-text-only"><?php if ($h !== '') : ?><h2 class="v-big"><?php echo esc_html($h); ?></h2><?php endif; ?><?php echo $v_text(wpautop($b)); ?></div>
+            <?php endif; ?>
+        </div>
+    </section>
+    <?php endforeach; ?>
+
+    <?php if (!empty($menu_categories)) : ?>
+    <!-- MENU CATEGORIES -->
+    <section class="v-band v-pad">
+        <div class="v-in"><div class="v-cats">
+            <?php foreach ($menu_categories as $cat) : ?>
+                <a href="<?php echo esc_url($menu_link . '#ssm-category-' . $cat['id']); ?>"><img src="<?php echo esc_url($cat['image']); ?>" alt="<?php echo esc_attr($cat['name']); ?>" loading="lazy"><b><?php echo esc_html($cat['name']); ?></b></a>
+            <?php endforeach; ?>
+        </div></div>
+    </section>
+    <?php endif; ?>
+
+    <!-- GETTING HERE -->
+    <section class="v-band v-pad is-cream">
+        <div class="v-in"><div class="v-here">
+            <div>
+                <h2 class="v-h2"><?php echo esc_html($getting_heading !== '' ? $getting_heading : 'Find ' . $h1_text); ?></h2>
+                <?php if ($getting_body !== '') echo $v_text(wpautop($getting_body)); ?>
+                <div class="v-links">
+                    <?php if ($gmaps) : ?><a href="<?php echo esc_url($gmaps); ?>" target="_blank" rel="noopener">Directions</a><?php endif; ?>
+                    <?php if ($city_link && $city_term) : ?><a href="<?php echo esc_url($city_link); ?>">See every Pickl in <?php echo esc_html($city_term->name); ?></a><?php endif; ?>
+                </div>
+            </div>
+            <?php if ($map_lat && $map_lng) : ?><div class="v-map" id="v-map" role="region" aria-label="<?php echo esc_attr('Map of ' . $h1_text); ?>"></div><?php endif; ?>
+        </div></div>
+    </section>
+
+    <?php if (!empty($faqs)) : ?>
+    <!-- FAQs -->
+    <section class="v-band v-pad">
+        <div class="v-in"><div class="v-faqs">
+            <h2 class="v-h2">FAQs</h2>
+            <?php foreach ($faqs as $k => $row) :
+                $q = trim((string) ($row['question'] ?? '')); $a = (string) ($row['answer'] ?? '');
+                if ($q === '' && trim($a) === '') continue; ?>
+                <details<?php echo $k === 0 ? ' open' : ''; ?>><summary><span><?php echo esc_html($q); ?></span><span class="v-tg"></span></summary><div class="v-a"><?php echo $v_text(wpautop($a)); ?></div></details>
+            <?php endforeach; ?>
+        </div></div>
+    </section>
+    <?php endif; ?>
+
+</article>
+</main>
+
+<?php
+// Structured data: the restaurant itself + its FAQs, from this venue's own fields
+$schema = [
+    '@context' => 'https://schema.org',
+    '@type' => 'FastFoodRestaurant',
+    'name' => $h1_text,
+    'url' => get_permalink(),
+    'servesCuisine' => ['Burgers', 'Fried chicken'],
+    'menu' => $menu_link,
+];
+if ($hero_bg) $schema['image'] = $hero_bg;
+if ($loc_telephone !== '') $schema['telephone'] = $loc_telephone;
+if ($gmaps) $schema['hasMap'] = $gmaps;
+if ($loc_address !== '') {
+    $schema['address'] = array_filter(['@type' => 'PostalAddress', 'streetAddress' => $loc_address, 'addressLocality' => $city_term ? $city_term->name : '', 'addressCountry' => strtoupper($country_slug)]);
+}
+if ($map_lat && $map_lng) $schema['geo'] = ['@type' => 'GeoCoordinates', 'latitude' => $map_lat, 'longitude' => $map_lng];
+if ($hours_parsed) {
+    $dn = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
+    $schema['openingHoursSpecification'] = array_map(function ($r) use ($dn) {
+        return ['@type' => 'OpeningHoursSpecification', 'dayOfWeek' => array_map(function ($d) use ($dn) { return $dn[$d]; }, $r['days']), 'opens' => $r['open'], 'closes' => $r['close']];
+    }, $hours_parsed);
+}
+$faq_entities = [];
+foreach ($faqs as $row) {
+    $q = trim((string) ($row['question'] ?? '')); $a = trim(wp_strip_all_tags((string) ($row['answer'] ?? '')));
+    if ($q !== '' && $a !== '') $faq_entities[] = ['@type' => 'Question', 'name' => $q, 'acceptedAnswer' => ['@type' => 'Answer', 'text' => $a]];
+}
+?>
+<script type="application/ld+json"><?php echo wp_json_encode($schema, JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE); ?></script>
+<?php if ($faq_entities) : ?><script type="application/ld+json"><?php echo wp_json_encode(['@context' => 'https://schema.org', '@type' => 'FAQPage', 'mainEntity' => $faq_entities], JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE); ?></script><?php endif; ?>
+
+<script>
+(function () {
+    // Live open / closed status in the venue's own timezone (country setting)
+    var hours = <?php echo wp_json_encode($hours_parsed ?: []); ?>;
+    var tz = <?php echo wp_json_encode($venue_tz); ?>;
+    var allDay = <?php echo $all_day_week ? 'true' : 'false'; ?>;
+    var el = document.getElementById('v-status');
+    if (el && hours.length) {
+        try {
+            var parts = new Intl.DateTimeFormat('en-GB', { timeZone: tz, weekday: 'short', hour: '2-digit', minute: '2-digit', hourCycle: 'h23' }).formatToParts(new Date());
+            var g = function (t) { return (parts.filter(function (p) { return p.type === t; })[0] || {}).value; };
+            var day = ['Sun','Mon','Tue','Wed','Thu','Fri','Sat'].indexOf(g('weekday'));
+            var now = parseInt(g('hour'), 10) * 60 + parseInt(g('minute'), 10);
+            var mins = function (s) { var a = s.split(':'); return parseInt(a[0], 10) * 60 + parseInt(a[1], 10); };
+            var fmt = function (s) { var m = mins(s), h = Math.floor(m / 60), mm = m % 60, ap = h >= 12 ? 'pm' : 'am'; h = h % 12 || 12; return h + (mm ? ':' + (mm < 10 ? '0' : '') + mm : '') + ap; };
+            var open = false, closesAt = null, nextOpen = null;
+            hours.forEach(function (r) {
+                if (r.allday && r.days.indexOf(day) > -1) { open = true; return; }
+                if (r.allday) return;
+                var o = mins(r.open), c = mins(r.close), cross = c <= o;
+                if (r.days.indexOf(day) > -1) {
+                    if (now >= o && (cross || now < c)) { open = true; closesAt = r.close; }
+                    if (now < o && nextOpen === null) nextOpen = r.open;
+                }
+                var yday = (day + 6) % 7;
+                if (cross && r.days.indexOf(yday) > -1 && now < c) { open = true; closesAt = r.close; }
+            });
+            var dot = el.querySelector('.v-dot'), st = el.querySelector('.v-st');
+            dot.hidden = false;
+            if (open) { st.textContent = allDay ? 'Open now · 24 hours, every day' : 'Open now' + (closesAt ? ' · till ' + fmt(closesAt) : ''); }
+            else { dot.classList.add('is-closed'); st.textContent = 'Closed now' + (nextOpen ? ' · opens ' + fmt(nextOpen) : ''); }
+        } catch (e) {}
+    }
+
+    // Map: free MapLibre + OpenFreeMap, one P pin, loads only when scrolled near
+    var mapEl = document.getElementById('v-map');
+    if (!mapEl) return;
+    var ll = [<?php echo (float) $map_lng; ?>, <?php echo (float) $map_lat; ?>];
+    var LIB = 'https://unpkg.com/maplibre-gl@4.7.1/dist/';
+    function init() {
+        var m = new maplibregl.Map({ container: mapEl, style: 'https://tiles.openfreemap.org/styles/positron', center: ll, zoom: 15, attributionControl: false, cooperativeGestures: true });
+        m.addControl(new maplibregl.NavigationControl({ showCompass: false }), 'top-right');
+        m.addControl(new maplibregl.AttributionControl({ compact: true }), 'bottom-right');
+        m.on('load', function () {
+            var a = mapEl.querySelector('.maplibregl-ctrl-attrib'); if (a) { a.classList.remove('maplibregl-compact-show'); a.removeAttribute('open'); }
+            m.getStyle().layers.forEach(function (l) { if (/poi|aeroway|railway|highway-shield|road_shield|housenumber/.test(l.id)) m.setLayoutProperty(l.id, 'visibility', 'none'); });
+            var img = new Image();
+            img.onload = function () {
+                m.addImage('pickl-p', img, { pixelRatio: 3 });
+                m.addSource('v', { type: 'geojson', data: { type: 'Feature', geometry: { type: 'Point', coordinates: ll } } });
+                m.addLayer({ id: 'v', type: 'symbol', source: 'v', layout: { 'icon-image': 'pickl-p', 'icon-anchor': 'bottom', 'icon-allow-overlap': true } });
+            };
+            img.src = <?php echo wp_json_encode($pin_icon); ?>;
+            m.setMinZoom(12.5);
+            m.setMaxBounds([[ll[0] - 0.06, ll[1] - 0.04], [ll[0] + 0.06, ll[1] + 0.04]]);
+        });
+    }
+    function load() {
+        var css = document.createElement('link'); css.rel = 'stylesheet'; css.href = LIB + 'maplibre-gl.css'; document.head.appendChild(css);
+        if (window.maplibregl) { init(); return; }
+        var s = document.createElement('script'); s.src = LIB + 'maplibre-gl.js'; s.async = true; s.onload = init; document.head.appendChild(s);
+    }
+    if ('IntersectionObserver' in window) {
+        var io = new IntersectionObserver(function (e) { if (e[0].isIntersecting) { io.disconnect(); load(); } }, { rootMargin: '400px' });
+        io.observe(mapEl);
+    } else { load(); }
+})();
+</script>
+
+<?php get_footer(); ?>
