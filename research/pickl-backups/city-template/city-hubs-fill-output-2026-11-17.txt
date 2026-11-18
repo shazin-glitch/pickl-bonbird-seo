@@ -1,0 +1,6 @@
+BACKUP {"dubai":{"rank_math_title":"","rank_math_description":"","rank_math_focus_keyword":"","rank_math_facebook_title":"","rank_math_facebook_description":"","city_intro":null,"city_sections":null,"city_faqs":null},"abu-dhabi":{"rank_math_title":"","rank_math_description":"","rank_math_focus_keyword":"","rank_math_facebook_title":"","rank_math_facebook_description":"","city_intro":null,"city_sections":null,"city_faqs":null},"sharjah":{"rank_math_title":"","rank_math_description":"","rank_math_focus_keyword":"","rank_math_facebook_title":"","rank_math_facebook_description":"","city_intro":null,"city_sections":null,"city_faqs":null}}
+dubai: title=Best Burger in Dubai? 7 Pickls, 3 Open 24 Hours | sections=4 | faqs=4
+abu-dhabi: title=Best Burger in Abu Dhabi? Pickl, Saadiyat to WTC | sections=4 | faqs=4
+sharjah: title=Pickl Sharjah | Best Burger in Sharjah? Aljada & Al Heera | sections=4 | faqs=3
+alain=/ae/al-ain/al-ain/ rak=/ae/ras-al-khaimah/ras-al-khaimah/
+Success: The cache was flushed.

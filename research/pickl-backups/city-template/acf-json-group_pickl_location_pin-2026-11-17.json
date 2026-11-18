@@ -1,0 +1,65 @@
+{
+    "key": "group_pickl_location_pin",
+    "title": "Location - Map pin",
+    "fields": [
+        {
+            "key": "field_pickl_loc_lat",
+            "label": "Latitude",
+            "name": "map_lat",
+            "aria-label": "",
+            "type": "text",
+            "instructions": "For the pin on the city page map. In Google Maps, right-click the venue's pin and click the coordinates to copy them; the first number is latitude.",
+            "required": 0,
+            "conditional_logic": 0,
+            "wrapper": {
+                "width": "50",
+                "class": "",
+                "id": ""
+            },
+            "default_value": "",
+            "placeholder": "",
+            "maxlength": "",
+            "prepend": "",
+            "append": ""
+        },
+        {
+            "key": "field_pickl_loc_lng",
+            "label": "Longitude",
+            "name": "map_lng",
+            "aria-label": "",
+            "type": "text",
+            "instructions": "The second number.",
+            "required": 0,
+            "conditional_logic": 0,
+            "wrapper": {
+                "width": "50",
+                "class": "",
+                "id": ""
+            },
+            "default_value": "",
+            "placeholder": "",
+            "maxlength": "",
+            "prepend": "",
+            "append": ""
+        }
+    ],
+    "location": [
+        [
+            {
+                "param": "post_type",
+                "operator": "==",
+                "value": "location"
+            }
+        ]
+    ],
+    "menu_order": 20,
+    "position": "side",
+    "style": "default",
+    "label_placement": "top",
+    "instruction_placement": "label",
+    "hide_on_screen": [],
+    "active": true,
+    "description": "",
+    "show_in_rest": false,
+    "modified": 1794944046
+}

@@ -1,0 +1,250 @@
+<?php
+/**
+ * Template Name: Dynamic Locations Directory
+ * Description: Native ACF locations directory with default UAE handling & canonical fallback redirects.
+ */
+
+$raw_country_slug = get_query_var('country', '');
+
+// Fetch all valid registered country taxonomy slugs
+$valid_country_terms = get_terms([
+    'taxonomy'   => 'country',
+    'hide_empty' => false,
+    'fields'     => 'slugs',
+]);
+if (is_wp_error($valid_country_terms)) {
+    $valid_country_terms = [];
+}
+
+// Current request path vs. the canonical target path, used to guard
+// against redirecting to a URL that's already the current one (self-loop).
+$current_path = untrailingslashit(parse_url($_SERVER['REQUEST_URI'], PHP_URL_PATH));
+$target_path  = untrailingslashit(parse_url(home_url('/locations/'), PHP_URL_PATH));
+
+// 1. Redirect explicit /ae/ prefix to clean base URL (/locations/)
+/*
+if ($raw_country_slug === 'ae' && $current_path !== $target_path) {
+    wp_safe_redirect(home_url('/locations/'), 301);
+    exit;
+}
+*/
+if (empty($raw_country_slug) && $current_path === $target_path) {
+    wp_safe_redirect(home_url('/ae/locations/'), 301);
+    exit;
+}
+
+// 2. Redirect invalid/unregistered country codes to default base URL
+if (!empty($raw_country_slug) && !in_array($raw_country_slug, $valid_country_terms, true) && $current_path !== $target_path) {
+    wp_safe_redirect(home_url('/locations/'), 302);
+    exit;
+}
+
+// 3. Set internal active country: use the requested country if it actually
+// has locations, otherwise fall back to UAE
+$requested_country_slug = !empty($raw_country_slug) ? $raw_country_slug : 'ae';
+$active_country_slug = function_exists('get_priority_location_country_slug')
+    ? get_priority_location_country_slug($requested_country_slug)
+    : $requested_country_slug;
+
+get_header();
+
+// Fetch all terms to render sections
+$country_terms = get_terms([
+    'taxonomy'   => 'country',
+    'hide_empty' => true,
+]);
+
+// Float active country (UAE or current URL term) to the top of the layout
+if (!empty($country_terms) && !is_wp_error($country_terms)) {
+    usort($country_terms, function($a, $b) use ($active_country_slug) {
+        if ($a->slug === $active_country_slug) return -1;
+        if ($b->slug === $active_country_slug) return 1;
+        return 0;
+    });
+}
+?>
+
+<style>
+.pickl-loc-container { max-width: 1200px; margin: 0 auto; padding: 40px 20px 80px; font-family: inherit; color: #000000; }
+.pickl-loc-hero { font-family: "acumin-pro", Sans-serif !important; margin: 0 auto 120px; }
+.pickl-loc-hero h1 { font-family: "acumin-pro", Sans-serif !important; text-align: center; font-size: 50px; font-weight: 600; text-transform: capitalize; margin-bottom: 20px;}
+.pickl-loc-hero p { font-size: 15px; line-height: 1.65; color: #222222;}
+
+.pickl-country-section { margin-bottom: 70px; }
+.pickl-country-title { font-family: "acumin-pro", Sans-serif !important; text-align: center; font-size: 36px; font-weight: 600; text-transform: uppercase; margin-bottom: 40px; letter-spacing: 0.5px; }
+.pickl-cards-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 35px; }
+@media (max-width: 992px) { .pickl-cards-grid { grid-template-columns: repeat(2, 1fr); } }
+@media (max-width: 600px) { .pickl-cards-grid { grid-template-columns: 1fr; } }
+.pickl-card { background: #ffffff; display: flex; flex-direction: column; min-height: 435px; border-bottom: 1px solid #99B6BE; }
+.pickl-card-thumb { width: 100%; height: 220px; object-fit: cover; display: block; }
+
+.pickl-card-thumb-wrap { position: relative; margin-bottom: 15px; }
+.pickl-card-overlay { position: absolute; inset: 0; display: flex; align-items: center; justify-content: center; text-align: center; padding: 20px; color: #ffffff; font-size: 26px; font-weight: 700; line-height: 1.25; text-shadow: 0 2px 8px rgba(0,0,0,0.6); pointer-events: none; background: #00000045;
+}
+
+.pickl-card-content { display: flex; flex-direction: column; gap: 6px; padding-bottom: 10px;}
+
+.pickl-info-row { display: flex; align-items: flex-start; gap: 10px; line-height: 1.4; }
+.pickl-icon { width: 16px; height: 16px; flex-shrink: 0; margin-top: 8px; fill: #000000; margin-right: 5px;}
+.pickl-store-link { font-weight: 600; font-size: 15px; color: #000000; text-decoration: underline; text-underline-offset: 3px; }
+.pickl-hours-block { width: 100%; display: flex; font-size: 14px;}
+.pickl-hours-row { display: flex; justify-content: space-between; width: 100%;}
+.pickl-phone-link { color: #000000; text-decoration: none; font-weight: 400; font-size: 14px;}
+
+.pickl-city-pills { display: flex; flex-wrap: wrap; justify-content: center; gap: 10px; margin: 0 0 35px; }
+.pickl-city-pill { display: inline-block; padding: 8px 20px; border: 2px solid #000000; border-radius: 50px; font-size: 13px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.5px; color: #000000; text-decoration: none; transition: background-color 0.2s ease, color 0.2s ease; }
+/* .pickl-city-pill { display: inline-block; padding: 8px 20px; border: 2px solid #007577; background-color: #007577; border-radius: 50px; font-size: 13px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.5px; color: #ffffff; text-decoration: none; transition: background-color 0.2s ease, color 0.2s ease; } */
+.pickl-city-pill:hover { background-color: #000000; color: #ffffff; }
+</style>
+
+<main id="primary" class="main">
+    <div class="pickl-loc-container">
+        <header class="pickl-loc-hero">
+            <h1>Locations</h1>
+            <p>Looking for Pickl locations near you? Whether you are craving our legendary cheeseburgers or our famous chicken sandos, we’ve got you covered. Pickl is rapidly expanding, with restaurants currently open across the UAE, Bahrain, Qatar, Egypt, Saudi Arabia, Jordan and Oman with more coming soon! Find your nearest Pickl restaurant below, check our daily opening hours, and get directions to grab your favorite burgers today. Simple. Not Basic.</p>
+        </header>
+
+        <?php 
+        if (!empty($country_terms) && !is_wp_error($country_terms)) :
+            foreach ($country_terms as $term) : 
+                $loc_query = new WP_Query([
+                    'post_type'      => ['locations', 'location', 'pickl_location'],
+                    'posts_per_page' => -1,
+                    'post_status'    => 'publish',
+                    'tax_query'      => [
+                        [
+                            'taxonomy' => 'country',
+                            'field'    => 'slug',
+                            'terms'    => $term->slug,
+                        ],
+                    ],
+                ]);
+            // Push locations with an overlay label to the end of this country's grid.
+            if ($loc_query->have_posts()) {
+                $without_overlay = [];
+                $with_overlay    = [];
+                foreach ($loc_query->posts as $loc_post) {
+                    if (!empty(get_field('overlay_text', $loc_post->ID))) {
+                        $with_overlay[] = $loc_post;
+                    } else {
+                        $without_overlay[] = $loc_post;
+                    }
+                }
+                $loc_query->posts = array_merge($without_overlay, $with_overlay);
+            }
+                if ($loc_query->have_posts()) :
+        ?>
+            <section class="pickl-country-section">
+                <h2 class="pickl-country-title"><?php echo esc_html($term->name); ?></h2>
+
+                <?php
+                $pickl_country_cities = [];
+                if (function_exists('pickl_location_city_country_match')) {
+                    $pickl_seen_city_ids = [];
+                    foreach ($loc_query->posts as $pickl_loc_post) {
+                        if (!pickl_location_city_country_match($pickl_loc_post->ID)) {
+                            continue;
+                        }
+                        $pickl_city_terms = wp_get_post_terms($pickl_loc_post->ID, 'city');
+                        if (empty($pickl_city_terms) || is_wp_error($pickl_city_terms)) {
+                            continue;
+                        }
+                        $pickl_city_term = $pickl_city_terms[0];
+                        if (isset($pickl_seen_city_ids[$pickl_city_term->term_id])) {
+                            continue;
+                        }
+                        $pickl_seen_city_ids[$pickl_city_term->term_id] = true;
+                        $pickl_country_cities[] = $pickl_city_term;
+                    }
+                    usort($pickl_country_cities, function ($a, $b) {
+                        return strcasecmp($a->name, $b->name);
+                    });
+                }
+                ?>
+                <?php if (!empty($pickl_country_cities)) : ?>
+                    <div class="pickl-city-pills">
+                        <?php foreach ($pickl_country_cities as $pickl_city_term) : ?>
+                            <a class="pickl-city-pill" href="<?php echo esc_url(home_url('/' . $term->slug . '/' . $pickl_city_term->slug . '/')); ?>"><?php echo esc_html($pickl_city_term->name); ?></a>
+                        <?php endforeach; ?>
+                    </div>
+                <?php endif; ?>
+
+                <div class="pickl-cards-grid">
+                    <?php while ($loc_query->have_posts()) : $loc_query->the_post(); 
+                        $address   = get_field('address');
+                        $telephone = get_field('telephone');
+                        $maps_url  = get_field('gmaps');
+                        $gallery   = get_field('gallery');
+
+                        $thumb_url = get_the_post_thumbnail_url(get_the_ID(), 'medium_large');
+                        if (!$thumb_url && !empty($gallery)) {
+                            $first_img = reset($gallery);
+                            $thumb_url = is_array($first_img) ? $first_img['url'] : $first_img;
+                        }
+                        if (!$thumb_url) {
+                            $thumb_url = get_template_directory_uri() . '/assets/images/location-fallback.jpg';
+                        }
+                    ?>
+                        <article class="pickl-card">
+                            
+                        <?php $overlay_text = get_field('overlay_text'); ?>
+                        <div class="pickl-card-thumb-wrap">
+                            <img src="<?php echo esc_url($thumb_url); ?>" alt="<?php the_title_attribute(); ?>" class="pickl-card-thumb" loading="lazy">
+                            <?php if ($overlay_text) : ?>
+                                <div class="pickl-card-overlay"><?php echo esc_html($overlay_text); ?></div>
+                            <?php endif; ?>
+                        </div>
+
+                            <div class="pickl-card-content">
+                                <div class="pickl-info-row">
+                                    <a href="<?php echo $maps_url ? esc_url($maps_url) : '#'; ?>" target="_blank" rel="noopener" class="pickl-store-link">
+                                        <svg class="pickl-icon" viewBox="0 0 24 24"><path d="M12 2C8.13 2 5 5.13 5 9c0 5.25 7 13 7 13s7-7.75 7-13c0-3.87-3.13-7-7-7zm0 9.5c-1.38 0-2.5-1.12-2.5-2.5s1.12-2.5 2.5-2.5 2.5 1.12 2.5 2.5-1.12 2.5-2.5 2.5z"/></svg>    
+                                        <?php the_title(); ?><?php if ($address) : ?><span class="pickl-store-address"> - <?php echo esc_html($address); ?></span><?php endif; ?>
+                                    </a>
+                                </div>
+
+                                <?php if (have_rows('opening_times')) : ?>
+                                    <!-- <div class="pickl-info-row"> -->
+                                            <?php while (have_rows('opening_times')) : the_row(); 
+                                                $subfields = get_row();
+                                                if (is_array($subfields)) :
+                                                    $values = array_values($subfields);
+                                                    $days   = isset($values[0]) ? $values[0] : '';
+                                                    $hours  = isset($values[1]) ? $values[1] : '';
+                                            ?> 
+                                            <div class="pickl-hours-block">
+                                                <svg class="pickl-icon" viewBox="0 0 24 24"><path d="M11.99 2C6.47 2 2 6.48 2 12s4.47 10 9.99 10C17.52 22 22 17.52 22 12S17.52 2 11.99 2zM12 20c-4.42 0-8-3.58-8-8s3.58-8 8-8 8 3.58 8 8-3.58 8-8 8zm.5-13H11v6l5.25 3.15.75-1.23-4.5-2.67z"/></svg>
+                                                <div class="pickl-hours-row">
+                                                    <span><?php echo esc_html($days); ?></span>
+                                                    <span><?php echo esc_html($hours); ?></span>
+                                                </div>
+                                            </div>
+                                            <?php 
+                                                endif;
+                                            endwhile; 
+                                            ?>
+                                    <!-- </div> -->
+                                <?php endif; ?>
+
+                                <?php if ($telephone) : ?>
+                                    <div class="pickl-info-row">
+                                        <a href="tel:<?php echo esc_attr($telephone); ?>" class="pickl-phone-link">
+                                            <svg class="pickl-icon" viewBox="0 0 24 24"><path d="M6.62 10.79c1.44 2.83 3.76 5.14 6.59 6.59l2.2-2.2c.27-.27.67-.36 1.02-.24 1.12.37 2.33.57 3.57.57.55 0 1 .45 1 1V20c0 .55-.45 1-1 1-9.39 0-17-7.61-17-17 0-.55.45-1 1-1h3.5c.55 0 1 .45 1 1 0 1.25.2 2.45.57 3.57.11.35.03.74-.25 1.02l-2.2 2.2z"/></svg>
+                                            <?php echo esc_html($telephone); ?>
+                                        </a>
+                                    </div>
+                                <?php endif; ?>
+                            </div>
+                        </article>
+                    <?php endwhile; wp_reset_postdata(); ?>
+                </div>
+            </section>
+        <?php 
+                endif;
+            endforeach;
+        endif; 
+        ?>
+    </div>
+</main>
+
+<?php get_footer(); ?>

@@ -1,0 +1,668 @@
+<?php
+/**
+ * taxonomy-city.php — the /<iso>/<city>/ hub page.
+ *
+ * Loaded automatically by WP's own template hierarchy once the rewrite rule
+ * (added alongside the city/country taxonomy code) resolves a request as a
+ * real `city` taxonomy archive. No Template Name header - this isn't a
+ * page template, it's a taxonomy archive template.
+ */
+
+$city_term = get_queried_object();
+if (!($city_term instanceof WP_Term) || $city_term->taxonomy !== 'city') {
+    // Shouldn't happen given the rewrite rule only matches real city slugs,
+    // but fail safe rather than render on a request this template can't
+    // actually make sense of.
+    wp_safe_redirect(home_url('/'), 302);
+    exit;
+}
+
+$raw_country_slug  = get_query_var('hub_country', '');
+$city_country_slug = function_exists('pickl_get_city_country_slug') ? pickl_get_city_country_slug($city_term) : '';
+
+// The URL's country segment must actually match this city's own
+// country_slug term-meta - the same check pickl_location_city_country_match()
+// already does for venue permalinks. A real mismatch 301s to the correct
+// URL; a city with no country_slug set at all (data not filled in yet)
+// falls back to that country's locations page rather than rendering with
+// an unknown country context.
+if (empty($raw_country_slug) || empty($city_country_slug) || $raw_country_slug !== $city_country_slug) {
+    if (!empty($city_country_slug)) {
+        wp_safe_redirect(home_url('/' . $city_country_slug . '/' . $city_term->slug . '/'), 301);
+    } else {
+        $fallback_country = !empty($raw_country_slug) ? $raw_country_slug : 'ae';
+        wp_safe_redirect(home_url('/' . $fallback_country . '/locations/'), 302);
+    }
+    exit;
+}
+
+// Venues actually in this city, re-validated the same way venue permalinks
+// are: a post's city AND country terms must both be set and agree with
+// each other, not just "tagged with this city term" - catches a venue
+// mis-tagged into this city whose own country term doesn't actually match.
+$venue_query = new WP_Query([
+    'post_type'      => ['locations', 'location', 'pickl_location'],
+    'posts_per_page' => -1,
+    'post_status'    => 'publish',
+    'tax_query'      => [
+        [
+            'taxonomy' => 'city',
+            'field'    => 'term_id',
+            'terms'    => $city_term->term_id,
+        ],
+    ],
+]);
+
+$venues = [];
+if ($venue_query->have_posts()) {
+    foreach ($venue_query->posts as $venue_post) {
+        if (function_exists('pickl_location_city_country_match') && pickl_location_city_country_match($venue_post->ID)) {
+            $venues[] = $venue_post;
+        }
+    }
+}
+wp_reset_postdata();
+
+// Decided: a city with zero live venues isn't shown at all - redirect to
+// that country's locations page rather than render a thin/empty page. Any
+// future "browse by city" listing should apply this same live-venue check
+// before linking to a city, so a dead link never gets created in the first
+// place.
+if (empty($venues)) {
+    wp_safe_redirect(home_url('/' . $city_country_slug . '/locations/'), 302);
+    exit;
+}
+
+get_header();
+
+// Normalizes an ACF image field's value to a plain URL string - same
+// helper single-location.php defines; guarded the same way so loading both
+// templates in one request (unlikely, but cheap to guard) doesn't redeclare.
+if (!function_exists('pickl_image_url')) {
+    function pickl_image_url($value) {
+        if (empty($value)) {
+            return '';
+        }
+        if (is_string($value)) {
+            return $value;
+        }
+        if (is_array($value)) {
+            return $value['url'] ?? '';
+        }
+        if (is_object($value) && isset($value->url)) {
+            return $value->url;
+        }
+        if (is_numeric($value)) {
+            return wp_get_attachment_image_url((int) $value, 'large') ?: '';
+        }
+        return '';
+    }
+}
+
+$country_term = get_term_by('slug', $city_country_slug, 'country');
+$country_name = $country_term ? $country_term->name : strtoupper($city_country_slug);
+$menu_link    = home_url('/' . $city_country_slug . '/menu/');
+
+// Menu category highlights - same live pickl_menu_category lookup as
+// single-location.php, driven by this city's country (every venue in it
+// shares the same market) rather than a single venue's own terms. Function
+// bodies are identical to single-location.php's, guarded the same way so
+// loading both templates in one request doesn't redeclare either one.
+$plugin_country_key = $country_term
+    ? (get_term_meta($country_term->term_id, 'field_key_prefix', true) ?: $country_term->slug)
+    : $city_country_slug;
+
+if (!function_exists('pickl_category_has_items_for_country')) {
+    function pickl_category_has_items_for_country($category_id, $country_key) {
+        $item_ids = get_posts([
+            'post_type'      => 'pickl_menu_item',
+            'post_status'    => 'publish',
+            'posts_per_page' => -1,
+            'fields'         => 'ids',
+            'meta_key'       => '_ssm_item_category',
+            'meta_value'     => $category_id,
+        ]);
+        foreach ($item_ids as $item_id) {
+            $disabled = get_post_meta($item_id, '_ssm_disabled_countries', true);
+            if (!is_array($disabled)) {
+                $disabled = [];
+            }
+            if (!in_array($country_key, $disabled, true)) {
+                return true; // at least one item is live for this country
+            }
+        }
+        return false;
+    }
+}
+if (!function_exists('pickl_get_live_menu_categories')) {
+    function pickl_get_live_menu_categories($country_key) {
+        // Hidden from the menu-category highlights strip on request - still
+        // live in the actual menu, just not shown as one of these cards.
+        $pickl_hidden_categories = ['legendary melts', 'drinks', 'dessert', 'desserts', 'little pickl'];
+        $posts = get_posts([
+            'post_type'      => 'pickl_menu_category',
+            'post_status'    => 'publish',
+            'posts_per_page' => -1,
+            'meta_key'       => '_ssm_category_order',
+            'orderby'        => 'meta_value_num',
+            'order'          => 'ASC',
+        ]);
+        $out = [];
+        foreach ($posts as $p) {
+            if (in_array(strtolower(trim($p->post_title)), $pickl_hidden_categories, true)) {
+                continue;
+            }
+            if (!pickl_category_has_items_for_country($p->ID, $country_key)) {
+                continue;
+            }
+            $image = pickl_image_url(get_field('category_image', $p->ID));
+            if (!$image) {
+                continue;
+            }
+            $out[] = [
+                'id'    => $p->ID,
+                'name'  => $p->post_title,
+                'image' => $image,
+            ];
+        }
+        return $out;
+    }
+}
+$menu_categories = pickl_get_live_menu_categories($plugin_country_key);
+// City hub content (ACF field group "City - Hub content", on the city term:
+// acf-json/group_pickl_city_hub.json). Everything is optional, so a city with
+// nothing filled in still renders: plain heading, map, cards, menu tiles.
+$cf = function ($name) use ($city_term) {
+    return function_exists('get_field') ? get_field($name, $city_term) : null;
+};
+$city_h1          = trim((string) $cf('city_h1'));
+$city_intro_raw   = (string) $cf('city_intro');
+$city_intro       = $city_intro_raw !== '' ? wpautop($city_intro_raw) : '';
+$city_hero_id     = (int) $cf('city_hero_image');
+$city_order_url   = trim((string) $cf('city_order_url'));
+$city_map_heading = trim((string) $cf('city_map_heading'));
+$city_map_body    = trim((string) $cf('city_map_body'));
+$city_sections    = $cf('city_sections') ?: [];
+$city_faqs        = $cf('city_faqs') ?: [];
+$h1_text          = $city_h1 !== '' ? $city_h1 : 'Welcome to Pickl ' . $city_term->name;
+
+// Venues for the map + card strip. Pins come from each venue's own lat/lng
+// (acf-json/group_pickl_location_pin.json); a venue without them still gets a card.
+$strip_venues = [];
+$has_pins = false;
+foreach ($venues as $venue) {
+    $lat = (float) get_post_meta($venue->ID, 'map_lat', true);
+    $lng = (float) get_post_meta($venue->ID, 'map_lng', true);
+    $gallery   = get_field('gallery', $venue->ID);
+    $thumb_url = get_the_post_thumbnail_url($venue->ID, 'medium');
+    if (!$thumb_url && !empty($gallery)) {
+        $first_img = reset($gallery);
+        $thumb_url = is_array($first_img) ? ($first_img['sizes']['medium'] ?? $first_img['url']) : $first_img;
+    }
+    if (!$thumb_url) {
+        $thumb_url = get_template_directory_uri() . '/assets/images/location-fallback.jpg';
+    }
+    if ($lat && $lng) $has_pins = true;
+    $strip_venues[] = [
+        'title' => $venue->post_title,
+        'url'   => get_permalink($venue->ID),
+        'thumb' => $thumb_url,
+        'hours' => get_field('opening_times', $venue->ID) ?: [],
+        'tel'   => (string) get_field('telephone', $venue->ID),
+        'dir'   => (string) get_field('gmaps', $venue->ID),
+        'lat'   => ($lat && $lng) ? $lat : null,
+        'lng'   => ($lat && $lng) ? $lng : null,
+    ];
+}
+$pin_icon = get_template_directory_uri() . '/assets/img/map-pin-p.png';
+
+// Copy output: keep hyphenated words (drive-thru, plant-based) and links from
+// splitting across two lines. Only touches text between tags, never the tags.
+$ch_text = function ($html) {
+    $html = wp_kses_post($html);
+    return preg_replace_callback('/(<[^>]+>)|([^<]+)/u', function ($m) {
+        if (!empty($m[1])) return $m[1];
+        return preg_replace('/(?<![\w-])([[:alpha:]]+(?:-[[:alpha:]]+)+)(?![\w-])/u', '<span class="ch-nw">$1</span>', $m[2]);
+    }, $html);
+};
+
+// Image helper: real <img> with srcset so the browser picks the right size.
+$ch_img = function ($id, $size, $class, $alt = '', $eager = false) {
+    if (!$id) return '';
+    $attrs = ['class' => $class, 'alt' => $alt !== '' ? $alt : trim((string) get_post_meta($id, '_wp_attachment_image_alt', true))];
+    if ($eager) { $attrs['loading'] = 'eager'; $attrs['fetchpriority'] = 'high'; $attrs['sizes'] = '100vw'; }
+    else { $attrs['loading'] = 'lazy'; }
+    return wp_get_attachment_image($id, $size, false, $attrs);
+};
+?>
+
+<style>
+/* Type scale matches the main pages: About H1 50px Acumin Pro Condensed 800,
+   section headings 36px (Locations/About), body 16px/28px (About), buttons 15px. */
+.pickl-city-hub{ --ch-pink:#E6007E; --ch-cream:#F8F6F0; --ch-ink:#000; color: var(--ch-ink); }
+.pickl-city-hub .ch-in{ max-width: 1140px; margin: 0 auto; padding: 0 20px; }
+.pickl-city-hub h1, .pickl-city-hub h2, .pickl-city-hub h3{ text-transform: uppercase; font-weight: 700; color: inherit; }
+.pickl-city-hub p{ font-size: 16px; line-height: 28px; margin: 0 0 14px; }
+.pickl-city-hub p:last-child{ margin-bottom: 0; }
+.pickl-city-hub .ch-band{ padding: 64px 0; }
+.pickl-city-hub .ch-band.is-cream{ background: var(--ch-cream); }
+.pickl-city-hub .ch-band h2{ font-size: 36px; line-height: 42px; margin: 0 0 16px; }
+.pickl-city-hub .ch-band h3{ font-size: 24px; line-height: 30px; margin: 28px 0 10px; }
+.pickl-city-hub .ch-band a:not(.ch-btn):not(.card):not(.pk-card a){ color: inherit; font-weight: 700; text-decoration: underline; text-underline-offset: 3px; }
+.pickl-city-hub .ch-head{ max-width: 760px; margin-bottom: 30px; }
+
+.pickl-city-hub .ch-nw{ white-space: nowrap; }
+.pickl-city-hub p a, .pickl-city-hub .answer a{ white-space: nowrap; }
+
+/* Hero: full-bleed food photo, copy bottom-left over a dark gradient */
+.pickl-city-hub .ch-hero{ position: relative; min-height: 520px; display: flex; align-items: flex-end; background: #111; color: #fff; overflow: hidden; }
+.pickl-city-hub .ch-hero-img{ position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; }
+.pickl-city-hub .ch-hero::after{ content: ""; position: absolute; inset: 0; background: linear-gradient(0deg, rgba(0,0,0,.82) 0%, rgba(0,0,0,.35) 45%, rgba(0,0,0,0) 75%); }
+.pickl-city-hub .ch-hero .ch-in{ position: relative; z-index: 1; width: 100%; padding-bottom: 56px; }
+.pickl-city-hub .ch-hero h1{ font-family: acumin-pro-condensed, sans-serif; font-size: 50px; line-height: 45px; font-weight: 800; margin: 0 0 14px; }
+.pickl-city-hub .ch-hero .ch-intro{ max-width: 620px; }
+.pickl-city-hub .ch-hero .ch-intro p{ font-size: 17px; line-height: 27px; color: #fff; }
+.pickl-city-hub .ch-hero.no-img{ min-height: 0; background: var(--ch-cream); color: var(--ch-ink); }
+.pickl-city-hub .ch-hero.no-img::after{ display: none; }
+.pickl-city-hub .ch-hero.no-img .ch-in{ padding-top: 60px; padding-bottom: 60px; }
+.pickl-city-hub .ch-hero.no-img .ch-intro p{ color: var(--ch-ink); }
+.pickl-city-hub .ch-btns{ display: flex; gap: 12px; flex-wrap: wrap; margin-top: 24px; }
+.pickl-city-hub .ch-btn{ display: inline-block; padding: 12px 24px; font-size: 15px; font-weight: 700; text-transform: uppercase; letter-spacing: .04em; text-decoration: none; border: 2px solid currentColor; color: inherit; }
+.pickl-city-hub .ch-btn.is-primary{ background: var(--ch-pink); border-color: var(--ch-pink); color: #fff; }
+
+/* Photos: one treatment everywhere, same 10px corners as the menu category tiles */
+.pickl-city-hub .ch-photo{ border-radius: 10px; overflow: hidden; }
+.pickl-city-hub .ch-photo img{ width: 100%; height: 100%; object-fit: cover; display: block; }
+
+/* Story bands: photo + text side by side, sides alternate */
+.pickl-city-hub .ch-split{ display: grid; grid-template-columns: 1fr 1fr; gap: 56px; align-items: center; }
+.pickl-city-hub .ch-split .ch-photo{ aspect-ratio: 4 / 3; }
+.pickl-city-hub .ch-split.is-flip .ch-photo{ order: 2; }
+.pickl-city-hub .ch-text > h2:first-child{ margin-top: 0; }
+
+/* Items (what to order first): small photo + text, two side by side */
+.pickl-city-hub .ch-items{ display: grid; grid-template-columns: repeat(2, 1fr); gap: 24px 40px; margin-bottom: 30px; }
+.pickl-city-hub .ch-item{ display: grid; grid-template-columns: 200px 1fr; gap: 24px; align-items: center; }
+.pickl-city-hub .ch-item .ch-photo{ width: 200px; height: 200px; }
+.pickl-city-hub .ch-item-text h3{ font-size: 22px; line-height: 28px; margin: 0 0 8px; }
+.pickl-city-hub .ch-item-text p{ font-size: 15px; line-height: 24px; }
+.pickl-city-hub .ch-after{ max-width: none; }
+
+/* Map with the venue cards floating along the bottom (like the Pickl app) */
+.pickl-city-hub .pk-mapwrap{ position: relative; height: 600px; border-radius: 14px; overflow: hidden; background: #eef0f0; }
+.pickl-city-hub .pk-map{ position: absolute; inset: 0; }
+.pickl-city-hub .pk-strip{ position: absolute; left: 0; right: 0; bottom: 20px; z-index: 2; display: flex; gap: 14px; overflow-x: auto; padding: 0 20px; scroll-snap-type: x mandatory; scroll-padding: 0 20px; scrollbar-width: none; overscroll-behavior-x: contain; }
+.pickl-city-hub .pk-strip::-webkit-scrollbar{ display: none; }
+.pickl-city-hub .pk-card{ flex: 0 0 390px; scroll-snap-align: start; background: #fff; border-radius: 12px; box-shadow: 0 6px 20px rgba(0,0,0,.16); display: grid; grid-template-columns: 110px 1fr; overflow: hidden; cursor: pointer; border: 2px solid transparent; transition: border-color .2s; }
+.pickl-city-hub .pk-card.on{ border-color: var(--ch-pink); }
+.pickl-city-hub .pk-card .ph img{ width: 110px; height: 100%; min-height: 150px; object-fit: cover; display: block; }
+.pickl-city-hub .pk-card .tx{ padding: 12px 14px; font-size: 14px; line-height: 1.45; color: #000; }
+.pickl-city-hub .pk-card .nm{ display: block; font-weight: 700; font-size: 16px; text-transform: uppercase; color: #000; text-decoration: none; margin-bottom: 6px; }
+.pickl-city-hub .pk-card .h{ display: flex; justify-content: space-between; gap: 8px; color: #333; white-space: nowrap; font-size: 13px; }
+.pickl-city-hub .pk-card .ct{ display: flex; justify-content: space-between; align-items: center; margin-top: 8px; gap: 8px; }
+.pickl-city-hub .pk-card .ct a{ color: #000; text-decoration: none; font-size: 14px; }
+.pickl-city-hub .pk-card .ct a.dr{ font-weight: 700; text-decoration: underline; text-underline-offset: 3px; color: var(--ch-pink); white-space: nowrap; }
+.pickl-city-hub .pk-nav{ position: absolute; right: 20px; bottom: 196px; z-index: 3; display: flex; align-items: center; gap: 10px; background: #fff; border-radius: 999px; padding: 6px 8px; box-shadow: 0 4px 14px rgba(0,0,0,.15); }
+.pickl-city-hub .pk-arrow{ width: 36px; height: 36px; border-radius: 50%; border: 0; background: #000; color: #fff; font-size: 18px; line-height: 36px; cursor: pointer; padding: 0; }
+.pickl-city-hub .pk-arrow:disabled{ opacity: .25; cursor: default; }
+.pickl-city-hub .pk-count{ font-weight: 700; font-size: 15px; min-width: 42px; text-align: center; }
+.pickl-city-hub .pk-mapwrap.one .pk-nav{ display: none; }
+/* No coordinates at all: cards sit in a plain row, no map */
+.pickl-city-hub .pk-mapwrap.no-map{ height: auto; background: none; border-radius: 0; overflow: visible; }
+.pickl-city-hub .pk-mapwrap.no-map .pk-strip{ position: static; padding: 0 0 6px; flex-wrap: wrap; }
+.pickl-city-hub .pk-mapwrap.no-map .pk-nav{ display: none; }
+.pickl-city-hub .maplibregl-popup-content{ font-family: acumin-pro, sans-serif; }
+.pickl-city-hub .maplibregl-ctrl-attrib{ background: rgba(255,255,255,.8) !important; font: 400 10px/1.4 sans-serif; color: #8a8a8a; }
+.pickl-city-hub .maplibregl-ctrl-attrib a{ color: #8a8a8a !important; text-decoration: none !important; font-weight: 400 !important; }
+.pickl-city-hub .maplibregl-ctrl-attrib-button{ opacity: .6; }
+.pickl-city-hub .maplibregl-ctrl-bottom-right{ bottom: auto; top: 96px; }
+
+/* Menu category tiles */
+.pickl-city-hub .menu-categories{ margin-top: 40px; }
+.pickl-city-hub .menu-categories .list{ display: grid; grid-template-columns: repeat(6, 1fr); gap: 20px; }
+.pickl-city-hub .menu-categories .card{ position: relative; display: block; aspect-ratio: 1 / 1; border-radius: 10px; overflow: hidden; text-decoration: none; color: inherit; }
+.pickl-city-hub .menu-categories .card img{ display: block; width: 100%; height: 100%; object-fit: cover; }
+.pickl-city-hub .menu-categories .card::after{ content: ""; position: absolute; inset: 0; background: linear-gradient(to top, rgba(0,0,0,0.7) 0%, rgba(0,0,0,0) 55%); pointer-events: none; }
+.pickl-city-hub .menu-categories .card .name{ position: absolute; left: 14px; right: 14px; bottom: 14px; font-size: 12px; font-weight: 700; text-transform: uppercase; color: #fff; margin: 0; z-index: 1; }
+
+/* FAQs */
+.pickl-city-hub .faqs{ max-width: 860px; margin: 0 auto; }
+.pickl-city-hub .faqs h2{ text-align: center; }
+.pickl-city-hub .faqs .item{ border-top: 1px solid #D5D8DC; }
+.pickl-city-hub .faqs .item:last-child{ border-bottom: 1px solid #D5D8DC; }
+.pickl-city-hub .faqs summary{ display: flex; align-items: center; justify-content: space-between; gap: 10px; padding: 18px; cursor: pointer; list-style: none; font-size: 18px; font-weight: 700; color: #1F2124; }
+.pickl-city-hub .faqs summary::-webkit-details-marker{ display: none; }
+.pickl-city-hub .faqs .icon-toggle{ position: relative; flex: 0 0 16px; width: 16px; height: 16px; }
+.pickl-city-hub .faqs .icon-toggle::before{ content: ""; position: absolute; top: 50%; left: 0; width: 100%; height: 2px; background: #1F2124; transform: translateY(-50%); }
+.pickl-city-hub .faqs .icon-toggle::after{ content: ""; position: absolute; left: 50%; top: 0; width: 2px; height: 100%; background: #1F2124; transform: translateX(-50%); }
+.pickl-city-hub .faqs .item[open] .icon-toggle::after{ display: none; }
+.pickl-city-hub .faqs .answer{ padding: 0 18px 18px; }
+
+@media (max-width: 992px){
+  .pickl-city-hub .menu-categories .list{ grid-template-columns: repeat(3, 1fr); }
+  .pickl-city-hub .ch-items{ grid-template-columns: 1fr; }
+}
+@media (max-width: 768px){
+  .pickl-city-hub .ch-band{ padding: 48px 0; }
+  .pickl-city-hub .ch-band h2{ font-size: 28px; line-height: 34px; }
+  .pickl-city-hub .ch-split{ grid-template-columns: 1fr; gap: 24px; }
+  .pickl-city-hub .ch-split.is-flip .ch-photo{ order: 0; }
+  .pickl-city-hub .ch-hero{ min-height: 460px; }
+  .pickl-city-hub .ch-hero h1{ font-size: 40px; line-height: 38px; }
+  .pickl-city-hub .ch-item{ grid-template-columns: 120px 1fr; gap: 16px; }
+  .pickl-city-hub .ch-item .ch-photo{ width: 120px; height: 120px; }
+  .pickl-city-hub .ch-item-text h3{ font-size: 19px; line-height: 24px; }
+  .pickl-city-hub .pk-mapwrap{ height: 560px; border-radius: 0; margin: 0 -20px; }
+  .pickl-city-hub .pk-mapwrap.no-map{ margin: 0; }
+  .pickl-city-hub .pk-nav{ display: none; }
+  .pickl-city-hub .pk-card{ flex-basis: calc(100% - 48px); grid-template-columns: 86px 1fr; }
+  .pickl-city-hub .pk-card .ph img{ width: 86px; min-height: 130px; }
+  .pickl-city-hub .pk-card .tx{ padding: 10px 12px; min-width: 0; }
+  .pickl-city-hub .pk-card .nm{ font-size: 15px; }
+  .pickl-city-hub .pk-card .h{ font-size: 12px; white-space: normal; align-items: flex-start; }
+  .pickl-city-hub .pk-card .h span:last-child{ white-space: nowrap; text-align: right; }
+  .pickl-city-hub .pk-card .ct a{ font-size: 13px; }
+}
+@media (max-width: 600px){
+  .pickl-city-hub .menu-categories .list{ grid-template-columns: repeat(2, 1fr); }
+}
+</style>
+
+<main id="primary" class="main">
+<section class="pickl-city-hub">
+
+    <!-- HERO -->
+    <div class="ch-hero<?php echo $city_hero_id ? '' : ' no-img'; ?>">
+        <?php echo $ch_img($city_hero_id, 'full', 'ch-hero-img', '', true); ?>
+        <div class="ch-in">
+            <h1><?php echo esc_html($h1_text); ?></h1>
+            <div class="ch-intro">
+                <?php if ($city_intro) : ?>
+                    <?php echo $ch_text($city_intro); ?>
+                <?php else : ?>
+                    <p>Find your nearest Pickl in <?php echo esc_html($city_term->name); ?>, <?php echo esc_html($country_name); ?>. Legendary cheeseburgers and chicken sandos. Simple. Not Basic.</p>
+                <?php endif; ?>
+            </div>
+            <div class="ch-btns">
+                <?php if ($city_order_url !== '') : ?>
+                    <a class="ch-btn is-primary" href="<?php echo esc_url($city_order_url); ?>" target="_blank" rel="noopener">Order now</a>
+                <?php endif; ?>
+                <a class="ch-btn" href="<?php echo esc_url($menu_link); ?>">See the menu</a>
+            </div>
+        </div>
+    </div>
+
+    <!-- MAP + VENUE CARDS -->
+    <div class="ch-band" id="find-your-pickl">
+        <div class="ch-in">
+            <?php if ($city_map_heading !== '' || $city_map_body !== '') : ?>
+                <div class="ch-head">
+                    <?php if ($city_map_heading !== '') : ?><h2><?php echo esc_html($city_map_heading); ?></h2><?php endif; ?>
+                    <?php if ($city_map_body !== '') : ?><?php echo $ch_text(wpautop($city_map_body)); ?><?php endif; ?>
+                </div>
+            <?php endif; ?>
+            <div class="pk-mapwrap<?php echo $has_pins ? '' : ' no-map'; ?><?php echo count($strip_venues) === 1 ? ' one' : ''; ?>">
+                <?php if ($has_pins) : ?>
+                    <div class="pk-map" id="pk-map" role="region" aria-label="<?php echo esc_attr('Map of Pickl venues in ' . $city_term->name); ?>"></div>
+                    <div class="pk-nav">
+                        <button type="button" class="pk-arrow" data-d="-1" aria-label="Previous venue" disabled>&larr;</button>
+                        <span class="pk-count"><?php echo '1 / ' . count($strip_venues); ?></span>
+                        <button type="button" class="pk-arrow" data-d="1" aria-label="Next venue">&rarr;</button>
+                    </div>
+                <?php endif; ?>
+                <div class="pk-strip">
+                    <?php foreach ($strip_venues as $i => $v) : ?>
+                        <article class="pk-card<?php echo $i === 0 ? ' on' : ''; ?>"<?php if ($v['lat']) : ?> data-lat="<?php echo esc_attr($v['lat']); ?>" data-lng="<?php echo esc_attr($v['lng']); ?>"<?php endif; ?>>
+                            <a class="ph" href="<?php echo esc_url($v['url']); ?>" tabindex="-1"><img src="<?php echo esc_url($v['thumb']); ?>" alt="<?php echo esc_attr('Pickl ' . $v['title']); ?>" loading="lazy"></a>
+                            <div class="tx">
+                                <a class="nm" href="<?php echo esc_url($v['url']); ?>"><?php echo esc_html($v['title']); ?></a>
+                                <?php foreach ($v['hours'] as $row) :
+                                    $vals = is_array($row) ? array_values($row) : [];
+                                    $days = trim((string) ($vals[0] ?? ''));
+                                    $time = trim((string) ($vals[1] ?? ''));
+                                    if ($days === '' && $time === '') continue;
+                                ?>
+                                    <div class="h"><span><?php echo esc_html($days); ?></span><span><?php echo esc_html($time); ?></span></div>
+                                <?php endforeach; ?>
+                                <div class="ct">
+                                    <?php if ($v['tel'] !== '') : ?><a href="tel:<?php echo esc_attr(preg_replace('/\s+/', '', $v['tel'])); ?>"><?php echo esc_html($v['tel']); ?></a><?php else : ?><span></span><?php endif; ?>
+                                    <?php if ($v['dir'] !== '') : ?><a class="dr" href="<?php echo esc_url($v['dir']); ?>" target="_blank" rel="noopener">Directions &rarr;</a><?php endif; ?>
+                                </div>
+                            </div>
+                        </article>
+                    <?php endforeach; ?>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <?php
+    $band_i = 0;
+    $menu_done = false;
+    foreach ($city_sections as $section) :
+        $heading = trim((string) ($section['heading'] ?? ''));
+        $body    = (string) ($section['body'] ?? '');
+        $img_id  = (int) ($section['image'] ?? 0);
+        $items   = !empty($section['items']) && is_array($section['items']) ? $section['items'] : [];
+        if ($heading === '' && trim($body) === '' && !$items) continue;
+        $band_i++;
+        $cream = ($band_i % 2) === 1;
+    ?>
+    <div class="ch-band<?php echo $cream ? ' is-cream' : ''; ?>">
+        <div class="ch-in">
+            <?php if ($items) : ?>
+                <?php if ($heading !== '') : ?><div class="ch-head"><h2><?php echo esc_html($heading); ?></h2></div><?php endif; ?>
+                <div class="ch-items">
+                    <?php foreach ($items as $item) :
+                        $it_title = trim((string) ($item['title'] ?? ''));
+                        $it_body  = (string) ($item['body'] ?? '');
+                        $it_img   = (int) ($item['image'] ?? 0);
+                    ?>
+                        <div class="ch-item">
+                            <?php if ($it_img) : ?><div class="ch-photo"><?php echo $ch_img($it_img, 'large', '', $it_title); ?></div><?php endif; ?>
+                            <div class="ch-item-text">
+                                <?php if ($it_title !== '') : ?><h3><?php echo esc_html($it_title); ?></h3><?php endif; ?>
+                                <?php if (trim($it_body) !== '') echo $ch_text(wpautop($it_body)); ?>
+                            </div>
+                        </div>
+                    <?php endforeach; ?>
+                </div>
+                <?php if (trim($body) !== '') : ?><div class="ch-after"><?php echo $ch_text(wpautop($body)); ?></div><?php endif; ?>
+                <?php if (!$menu_done && !empty($menu_categories)) : $menu_done = true; ?>
+                    <div class="menu-categories"><div class="list">
+                        <?php foreach ($menu_categories as $cat) : ?>
+                            <a class="card" href="<?php echo esc_url($menu_link . '#ssm-category-' . $cat['id']); ?>">
+                                <img src="<?php echo esc_url($cat['image']); ?>" alt="<?php echo esc_attr($cat['name']); ?>" loading="lazy">
+                                <span class="name"><?php echo esc_html($cat['name']); ?></span>
+                            </a>
+                        <?php endforeach; ?>
+                    </div></div>
+                <?php endif; ?>
+            <?php elseif ($img_id) : ?>
+                <div class="ch-split<?php echo ($band_i % 2) === 0 ? ' is-flip' : ''; ?>">
+                    <div class="ch-photo"><?php echo $ch_img($img_id, 'large', ''); ?></div>
+                    <div class="ch-text">
+                        <?php if ($heading !== '') : ?><h2><?php echo esc_html($heading); ?></h2><?php endif; ?>
+                        <?php echo $ch_text(wpautop($body)); ?>
+                    </div>
+                </div>
+            <?php else : ?>
+                <div class="ch-after">
+                    <?php if ($heading !== '') : ?><h2><?php echo esc_html($heading); ?></h2><?php endif; ?>
+                    <?php echo $ch_text(wpautop($body)); ?>
+                </div>
+            <?php endif; ?>
+        </div>
+    </div>
+    <?php endforeach; ?>
+
+    <?php if (!$menu_done && !empty($menu_categories)) : $band_i++; ?>
+    <div class="ch-band<?php echo ($band_i % 2) === 1 ? ' is-cream' : ''; ?>">
+        <div class="ch-in">
+            <div class="menu-categories" style="margin-top:0"><div class="list">
+                <?php foreach ($menu_categories as $cat) : ?>
+                    <a class="card" href="<?php echo esc_url($menu_link . '#ssm-category-' . $cat['id']); ?>">
+                        <img src="<?php echo esc_url($cat['image']); ?>" alt="<?php echo esc_attr($cat['name']); ?>" loading="lazy">
+                        <span class="name"><?php echo esc_html($cat['name']); ?></span>
+                    </a>
+                <?php endforeach; ?>
+            </div></div>
+        </div>
+    </div>
+    <?php endif; ?>
+
+    <?php if (!empty($city_faqs)) : $band_i++; ?>
+    <!-- FAQs -->
+    <div class="ch-band<?php echo ($band_i % 2) === 1 ? ' is-cream' : ''; ?>">
+        <div class="ch-in">
+            <div class="faqs">
+                <h2>FAQs</h2>
+                <?php foreach ($city_faqs as $i => $row) :
+                    $question   = $row['question'] ?? '';
+                    $answer_raw = $row['answer'] ?? '';
+                    if (!$question && !$answer_raw) continue;
+                ?>
+                    <details class="item"<?php if ($i === 0) : ?> open<?php endif; ?>>
+                        <summary><span><?php echo esc_html($question); ?></span><span class="icon-toggle"></span></summary>
+                        <?php if ($answer_raw) : ?><div class="answer"><?php echo $ch_text(wpautop($answer_raw)); ?></div><?php endif; ?>
+                    </details>
+                <?php endforeach; ?>
+            </div>
+        </div>
+    </div>
+    <?php endif; ?>
+
+</section>
+</main>
+
+<?php if ($has_pins) : ?>
+<script>
+/* City map: MapLibre + OpenFreeMap (free, no key, no billing). Pink "P" pins
+   from the Pickl logo, number bubbles where venues sit close together, venue
+   cards floating along the bottom. Loads only when the map nears the screen. */
+(function () {
+    var wrap = document.querySelector('.pickl-city-hub .pk-mapwrap');
+    var el = document.getElementById('pk-map');
+    if (!wrap || !el) return;
+    var strip = wrap.querySelector('.pk-strip');
+    var cards = Array.prototype.slice.call(strip.querySelectorAll('.pk-card'));
+    var arrows = wrap.querySelectorAll('.pk-arrow');
+    var count = wrap.querySelector('.pk-count');
+    var PIN = <?php echo wp_json_encode($pin_icon); ?>;
+    var LIB = 'https://unpkg.com/maplibre-gl@4.7.1/dist/';
+    var STYLE = 'https://tiles.openfreemap.org/styles/positron';
+    var current = 0, lock = false, map = null;
+
+    function cardPad() { return strip.offsetHeight + 40; }
+    function show(i, opts) {
+        opts = opts || {};
+        i = Math.max(0, Math.min(cards.length - 1, i));
+        current = i;
+        cards.forEach(function (c, j) { c.classList.toggle('on', j === i); });
+        if (count) count.textContent = (i + 1) + ' / ' + cards.length;
+        if (arrows.length) { arrows[0].disabled = i === 0; arrows[1].disabled = i === cards.length - 1; }
+        if (opts.scroll) {
+            lock = true;
+            strip.scrollTo({ left: cards[i].offsetLeft - 20, behavior: 'smooth' });
+            setTimeout(function () { lock = false; }, 700);
+        }
+        var c = cards[i];
+        if (map && c.dataset.lat) {
+            map.flyTo({ center: [parseFloat(c.dataset.lng), parseFloat(c.dataset.lat)], zoom: 13, padding: { top: 40, bottom: cardPad(), left: 40, right: 40 }, speed: 1.4 });
+        }
+    }
+    // Swipe (phone), trackpad swipe or scroll (desktop): when the strip settles,
+    // the card at the front becomes the current one and the map flies to it.
+    var t;
+    strip.addEventListener('scroll', function () {
+        if (lock) return;
+        clearTimeout(t);
+        t = setTimeout(function () {
+            var best = 0, bd = 1e9;
+            cards.forEach(function (c, j) { var d = Math.abs(c.offsetLeft - 20 - strip.scrollLeft); if (d < bd) { bd = d; best = j; } });
+            if (strip.scrollLeft + strip.clientWidth >= strip.scrollWidth - 4 && current > best) return;
+            if (best !== current) show(best);
+        }, 140);
+    }, { passive: true });
+    cards.forEach(function (c, j) {
+        c.addEventListener('click', function (e) { if (e.target.closest('a')) return; show(j, { scroll: true }); });
+    });
+    Array.prototype.forEach.call(arrows, function (b) {
+        b.addEventListener('click', function () { show(current + Number(b.dataset.d), { scroll: true }); });
+    });
+
+    function init() {
+        var pts = [];
+        var features = [];
+        cards.forEach(function (c, j) {
+            if (!c.dataset.lat) return;
+            var p = [parseFloat(c.dataset.lng), parseFloat(c.dataset.lat)];
+            pts.push(p);
+            features.push({ type: 'Feature', properties: { i: j }, geometry: { type: 'Point', coordinates: p } });
+        });
+        map = new maplibregl.Map({ container: el, style: STYLE, attributionControl: false, cooperativeGestures: true, center: pts[0], zoom: 12 });
+        map.addControl(new maplibregl.NavigationControl({ showCompass: false }), 'top-right');
+        map.addControl(new maplibregl.AttributionControl({ compact: true }), 'bottom-right');
+        map.on('load', function () {
+            var att = el.querySelector('.maplibregl-ctrl-attrib');
+            if (att) { att.classList.remove('maplibregl-compact-show'); att.removeAttribute('open'); }
+            map.getStyle().layers.forEach(function (l) {
+                if (/poi|aeroway|railway|highway-shield|road_shield|housenumber/.test(l.id)) map.setLayoutProperty(l.id, 'visibility', 'none');
+            });
+            var font = (map.getStyle().layers.filter(function (l) { return l.layout && l.layout['text-font']; })[0] || { layout: { 'text-font': ['Noto Sans Regular'] } }).layout['text-font'];
+            var img = new Image();
+            img.onload = function () {
+                map.addImage('pickl-p', img, { pixelRatio: 3 });
+                map.addSource('venues', { type: 'geojson', cluster: true, clusterRadius: 45, clusterMaxZoom: 13, data: { type: 'FeatureCollection', features: features } });
+                map.addLayer({ id: 'pk-clusters', type: 'circle', source: 'venues', filter: ['has', 'point_count'], paint: { 'circle-color': '#E6007E', 'circle-radius': 20, 'circle-stroke-width': 3, 'circle-stroke-color': '#fff' } });
+                map.addLayer({ id: 'pk-count', type: 'symbol', source: 'venues', filter: ['has', 'point_count'], layout: { 'text-field': ['get', 'point_count_abbreviated'], 'text-font': font, 'text-size': 16 }, paint: { 'text-color': '#fff' } });
+                map.addLayer({ id: 'pk-pins', type: 'symbol', source: 'venues', filter: ['!', ['has', 'point_count']], layout: { 'icon-image': 'pickl-p', 'icon-anchor': 'bottom', 'icon-allow-overlap': true } });
+                map.on('click', 'pk-pins', function (e) { show(e.features[0].properties.i, { scroll: true }); });
+                map.on('click', 'pk-clusters', function (e) {
+                    var f = e.features[0];
+                    map.getSource('venues').getClusterExpansionZoom(f.properties.cluster_id).then(function (z) {
+                        map.easeTo({ center: f.geometry.coordinates, zoom: z + 0.5, padding: { bottom: cardPad() } });
+                    });
+                });
+                ['pk-clusters', 'pk-pins'].forEach(function (id) {
+                    map.on('mouseenter', id, function () { map.getCanvas().style.cursor = 'pointer'; });
+                    map.on('mouseleave', id, function () { map.getCanvas().style.cursor = ''; });
+                });
+            };
+            img.src = PIN;
+
+            // Start with every venue in view, then lock the map around them:
+            // a little room to zoom out and pan, never off to the rest of the region.
+            var pad = { top: 90, bottom: cardPad() + 20, left: 60, right: 60 };
+            if (pts.length === 1) {
+                map.jumpTo({ center: pts[0], zoom: 14, padding: pad });
+            } else {
+                var b = new maplibregl.LngLatBounds();
+                pts.forEach(function (p) { b.extend(p); });
+                map.fitBounds(b, { padding: pad, duration: 0, maxZoom: 14 });
+            }
+            var v = map.getBounds();
+            var dx = (v.getEast() - v.getWest()) * 0.25, dy = (v.getNorth() - v.getSouth()) * 0.15;
+            map.setMinZoom(map.getZoom() - 0.7);
+            map.setMaxBounds([[v.getWest() - dx, v.getSouth() - dy], [v.getEast() + dx, v.getNorth() + dy]]);
+        });
+    }
+    function load() {
+        var css = document.createElement('link');
+        css.rel = 'stylesheet'; css.href = LIB + 'maplibre-gl.css';
+        document.head.appendChild(css);
+        var s = document.createElement('script');
+        s.src = LIB + 'maplibre-gl.js'; s.async = true; s.onload = init;
+        document.head.appendChild(s);
+    }
+    if ('IntersectionObserver' in window) {
+        var io = new IntersectionObserver(function (entries) {
+            if (entries[0].isIntersecting) { io.disconnect(); load(); }
+        }, { rootMargin: '400px' });
+        io.observe(wrap);
+    } else { load(); }
+})();
+</script>
+<?php endif; ?>
+
+<?php get_footer(); ?>

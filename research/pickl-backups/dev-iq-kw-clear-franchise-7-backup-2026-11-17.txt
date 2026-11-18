@@ -1,0 +1,11 @@
+BACKUP {"franchise_desc":"Own a Pickl franchise. A proven model with full training & launch support, from Time Out Dubai's Best Burger, already trading in 9 countries.","iq":{"seo_home_title":"Pickl Iraq | Burgers & Chicken Sandos, Simple. Not Basic.","seo_home_description":"Dubai's award-winning burger joint, now in Iraq. Burgers, chicken sandos, fries and shakes, made fresh with clean ingredients. Order online or find your nearest Pickl.","seo_menu_title":"Pickl Menu Iraq | Burgers, Chicken Sandos, Fries & Shakes","seo_menu_description":"See the full Pickl Iraq menu: burgers, chicken sandos, fries and shakes, made fresh with clean ingredients. Order online or find a Pickl near you."},"kw":{"seo_home_title":"Pickl Kuwait | Burgers & Chicken Sandos, Simple. Not Basic.","seo_home_description":"Dubai's award-winning burger joint, now in Kuwait. Burgers, chicken sandos, fries and shakes, made fresh with clean ingredients. Order online or find your nearest Pickl.","seo_menu_title":"Pickl Menu Kuwait | Burgers, Chicken Sandos, Fries & Shakes","seo_menu_description":"See the full Pickl Kuwait menu: burgers, chicken sandos, fries and shakes, made fresh with clean ingredients. Order online or find a Pickl near you."}}
+franchise_desc=Own a Pickl franchise. A proven model with full training & launch support, from Time Out Dubai's Best Burger, already trading in 7 countries.
+iq seo_home_title=''
+iq seo_home_description=''
+iq seo_menu_title=''
+iq seo_menu_description=''
+kw seo_home_title=''
+kw seo_home_description=''
+kw seo_menu_title=''
+kw seo_menu_description=''
+Success: The cache was flushed.

@@ -1,0 +1,155 @@
+<?php
+// Register an ACF Block
+if (function_exists('acf_register_block')) {
+    $result = acf_register_block(
+        array(
+        'name' => 'locations-carousel',
+        'title' => __('Locations carousel'),
+        'description' => __(''),
+        'render_callback' => 'locations_carousel_html',
+        'mode' => 'edit',
+        'supports' => array('mode' => false, 'anchor' => true),
+        'category' => 'pickl-blocks'
+        )
+    );
+}
+
+// Callback to render the ACF Block
+function locations_carousel_html($block) {
+  $id = '';
+  if (!empty($block['anchor'])) {
+      $id = esc_attr($block['anchor']);
+  }
+  $className = '';
+  if (!empty($block['className'])) {
+      $className = esc_attr($block['className']);
+  }
+
+  // Same post-type variants page-locations.php queries (the real CPT slug
+  // isn't fully settled across the codebase yet - matching that file here
+  // instead of only 'location' so this carousel doesn't silently miss posts).
+  $location_post_types = array('locations', 'location', 'pickl_location', 'pickl_locations');
+
+  // Priority country: the active country's own locations if it has any,
+  // otherwise UAE - see get_priority_location_country_slug() in pickl-taxonomy.php.
+  $priority_slug = function_exists('get_priority_location_country_slug')
+      ? get_priority_location_country_slug()
+      : 'ae';
+
+  // 1. Priority country's locations first
+  $priority_query = new WP_Query(array(
+      'post_type'      => $location_post_types,
+      'post_status'    => 'publish',
+      'posts_per_page' => -1,
+      'fields'         => 'ids',
+      'tax_query'      => array(
+          array(
+              'taxonomy' => 'country',
+              'field'    => 'slug',
+              'terms'    => $priority_slug,
+          ),
+      ),
+  ));
+  $priority_ids = $priority_query->posts;
+  wp_reset_postdata();
+
+  // 2. Every other location, appended after
+  $rest_args = array(
+      'post_type'      => $location_post_types,
+      'post_status'    => 'publish',
+      'posts_per_page' => -1,
+      'fields'         => 'ids',
+  );
+  if (!empty($priority_ids)) {
+      $rest_args['post__not_in'] = $priority_ids;
+  }
+  $rest_query = new WP_Query($rest_args);
+  $rest_ids = $rest_query->posts;
+  wp_reset_postdata();
+
+  $ordered_ids = array_merge($priority_ids, $rest_ids);
+
+  if (empty($ordered_ids)) {
+      return;
+  }
+
+  $query = new WP_Query(array(
+      'post_type'      => $location_post_types,
+      'post_status'    => 'publish',
+      'post__in'       => $ordered_ids,
+      'orderby'        => 'post__in',
+      'posts_per_page' => -1,
+  ));
+  ?>
+   <style>
+.block-locations-carousel .swiper-slide img.desktop {
+    width: 100%;
+    height: 550px !important;
+    object-fit: cover;
+    display: block;
+}
+.block-locations-carousel .swiper-slide img.mobile {
+    width: 100%;
+    height: 350px !important;
+    object-fit: cover;
+    display: block;
+}
+.block-locations-carousel .pickl-city-pills { display: flex; flex-wrap: wrap; justify-content: center; gap: 10px 34px; margin: 0 0 34px; }
+.block-locations-carousel .pickl-city-pill { position: relative; display: inline-block; padding: 0 0 6px; font-family: ibm-plex-mono, monospace; font-size: 14px; font-weight: 400; text-transform: uppercase; letter-spacing: normal; color: #000000; text-decoration: none; border: 0; border-radius: 0; background: none; transition: .3s ease-in; }
+/* Same red underline + sweep as the main menu: in from the left, out to the right */
+.block-locations-carousel .pickl-city-pill::after { content: ""; position: absolute; left: 0; bottom: 0; width: 100%; height: 2px; background: rgb(147, 34, 41); transform: scaleX(0); transform-origin: right center; transition: transform .4s ease-in-out; }
+.block-locations-carousel .pickl-city-pill:hover { background: none; color: #000000; }
+.block-locations-carousel .pickl-city-pill:hover::after { transform: scaleX(1); transform-origin: left center; }
+</style>
+  <div id="<?php echo $id; ?>" class="block-locations-carousel <?php echo $className; ?>">
+    <h2 class="wow fadeIn"><?php the_field('title');?></h2>
+    <?php
+    // City pills: one link per city in the priority country that has a live venue
+    // (same check + markup as page-locations.php), so the homepage links into
+    // every /<iso>/<city>/ page without hard-coding any city.
+    $pk_cities = array();
+    $pk_count  = array();
+    if (function_exists('pickl_location_city_country_match')) {
+        foreach ($priority_ids as $pk_loc_id) {
+            if (!pickl_location_city_country_match($pk_loc_id)) continue;
+            $pk_terms = wp_get_post_terms($pk_loc_id, 'city');
+            if (empty($pk_terms) || is_wp_error($pk_terms)) continue;
+            $pk_tid = $pk_terms[0]->term_id;
+            $pk_cities[$pk_tid] = $pk_terms[0];
+            $pk_count[$pk_tid]  = ($pk_count[$pk_tid] ?? 0) + 1;
+        }
+        // Biggest cities first (most venues), then A to Z
+        uksort($pk_cities, function ($a, $b) use ($pk_count, $pk_cities) {
+            return ($pk_count[$b] <=> $pk_count[$a]) ?: strcmp($pk_cities[$a]->name, $pk_cities[$b]->name);
+        });
+    }
+    if (!empty($pk_cities)) : ?>
+    <div class="pickl-city-pills block-locations-carousel__cities">
+      <?php foreach ($pk_cities as $pk_city) : ?>
+        <a class="pickl-city-pill" href="<?php echo esc_url(home_url('/' . $priority_slug . '/' . $pk_city->slug . '/')); ?>"><?php echo esc_html($pk_city->name); ?></a>
+      <?php endforeach; ?>
+    </div>
+    <?php endif; ?>
+    <div class="swiper block-locations-carousel__swiper wow fadeInRight">
+      <div class="swiper-wrapper">
+        <?php while ( $query->have_posts() ) : $query->the_post();
+        $featuredimg = get_the_post_thumbnail_url(get_the_ID(),'pickl_slideshow');
+        $featuredimgmobile = get_the_post_thumbnail_url(get_the_ID(),'pickl_slideshow_mobile');
+        if (get_the_title(get_the_ID())<>'Auto Draft'):
+        ?>
+        <div class="swiper-slide">
+          <img data-src="<?php echo $featuredimg;?>" alt="<?php the_title();?>" class="lazyload desktop" width="1200" height="700"/>
+          <img data-src="<?php echo $featuredimgmobile;?>" alt="<?php the_title();?>" class="lazyload mobile" width="375" height="550"/>
+          <p><?php the_title();?><br /><span><?php the_field('address', get_the_ID());?></span></p>
+        </div>
+        <?php
+        endif;
+        endwhile;
+        wp_reset_postdata(); ?>
+      </div>
+    </div>
+    <div class="container">
+      <div class="swiper-scrollbar block-locations-carousel__scrollbar"></div>
+    </div>
+  </div>
+<?php }
